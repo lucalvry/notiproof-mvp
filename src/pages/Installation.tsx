@@ -71,7 +71,7 @@ const Installation = () => {
   `.trim() : '';
 
   const apiEndpoint = selectedWidget 
-    ? `${window.location.origin}/api/widget/${selectedWidget}`
+    ? `${window.location.origin}/functions/v1/widget-api/api/widgets/${selectedWidget}`
     : '';
 
   if (loading) {
@@ -103,7 +103,7 @@ const Installation = () => {
               You need to create and activate at least one widget before you can install it.
             </p>
             <Button asChild>
-              <a href="/widgets/create">Create Your First Widget</a>
+              <a href="/dashboard/widgets/create">Create Your First Widget</a>
             </Button>
           </CardContent>
         </Card>

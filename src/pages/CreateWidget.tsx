@@ -86,7 +86,7 @@ const CreateWidget = () => {
         description: "Your widget has been created successfully!",
       });
 
-      navigate('/widgets');
+      navigate('/dashboard/widgets');
     } catch (error) {
       console.error('Error creating widget:', error);
       toast({
@@ -103,7 +103,7 @@ const CreateWidget = () => {
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="outline" size="sm" asChild>
-          <Link to="/widgets">
+          <Link to="/dashboard/widgets">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
