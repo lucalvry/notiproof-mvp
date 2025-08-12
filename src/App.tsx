@@ -7,7 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { AdminLayout } from "@/components/AdminLayout";
-import Index from "./pages/Index";
+import RootRedirect from "./pages/RootRedirect";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -45,7 +45,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<RootRedirect />} />
             <Route path="/auth/login" element={<Login />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/auth/signup" element={<Signup />} />
