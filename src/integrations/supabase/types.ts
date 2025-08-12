@@ -20,7 +20,10 @@ export type Database = {
           created_at: string | null
           event_data: Json
           event_type: string
+          flagged: boolean
           id: string
+          ip: string | null
+          user_agent: string | null
           views: number | null
           widget_id: string
         }
@@ -29,7 +32,10 @@ export type Database = {
           created_at?: string | null
           event_data: Json
           event_type: string
+          flagged?: boolean
           id?: string
+          ip?: string | null
+          user_agent?: string | null
           views?: number | null
           widget_id: string
         }
@@ -38,7 +44,10 @@ export type Database = {
           created_at?: string | null
           event_data?: Json
           event_type?: string
+          flagged?: boolean
           id?: string
+          ip?: string | null
+          user_agent?: string | null
           views?: number | null
           widget_id?: string
         }
@@ -131,7 +140,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "support"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -259,7 +268,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "support"],
     },
   },
 } as const
