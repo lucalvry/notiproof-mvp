@@ -47,10 +47,12 @@ serve(async (req) => {
             );
           }
 
-          // Transform events for widget display
-          const transformedEvents = events?.map(event => ({
+          // Transform events for widget display - only return events with proper messages
+          const transformedEvents = events?.filter(event => 
+            event.event_data?.message && event.event_data.message !== 'undefined'
+          ).map(event => ({
             id: event.id,
-            message: event.event_data?.message || `🔔 ${event.event_type} event`,
+            message: event.event_data.message,
             type: event.event_type,
             created_at: event.created_at
           })) || [];
@@ -86,16 +88,22 @@ serve(async (req) => {
           const sessionId = metadata?.session_id || event_data?.session_id;
           if (event_type === 'click' && sessionId) {
             const twoSecondsAgo = new Date(Date.now() - 2000).toISOString();
+            
+            // Check session_id in the combined event_data (where it's actually stored)
             const { data: recentClicks } = await supabase
               .from('events')
-              .select('id')
+              .select('id, event_data')
               .eq('widget_id', widgetId)
               .eq('event_type', 'click')
-              .gte('created_at', twoSecondsAgo)
-              .contains('event_data', { session_id: sessionId });
+              .gte('created_at', twoSecondsAgo);
 
-            if (recentClicks && recentClicks.length > 0) {
-              console.log(`Rate limited: Duplicate click from session ${metadata.session_id}`);
+            // Filter by session_id manually since it's nested in event_data
+            const duplicateClick = recentClicks?.find(click => 
+              click.event_data?.session_id === sessionId
+            );
+
+            if (duplicateClick) {
+              console.log(`Rate limited: Duplicate click from session ${sessionId}`);
               return new Response(
                 JSON.stringify({ success: true, message: 'Event deduplicated' }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

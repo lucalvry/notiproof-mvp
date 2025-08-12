@@ -347,14 +347,12 @@
       const response = await fetch(`${apiBase}/api/widgets/${widgetId}/events`);
       if (response.ok) {
         const events = await response.json();
-        if (events && events.length > 0) {
-          // Show random event
-          const randomEvent = events[Math.floor(Math.random() * events.length)];
-          createWidget(randomEvent);
-        } else {
-          // Show template-based content if no stored events exist
-          createWidget();
-        }
+        // Always show template-based content since that's what templates are for
+        // Don't use stored events for display, they're for tracking only
+        createWidget();
+      } else {
+        // Show template-based content if API fails
+        createWidget();
       }
     } catch (error) {
       console.warn('NotiProof: Could not fetch events, showing template default');

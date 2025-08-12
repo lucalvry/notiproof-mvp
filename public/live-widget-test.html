@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Widget Test - c26c2241-7b80-4ee7-ba31-55ae342db25c</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .test-button {
+            background: #3B82F6;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+        }
+        .test-button:hover {
+            background: #2563EB;
+        }
+        .log-output {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Live Widget Test</h1>
+        
+        <div class="status">
+            <h3>Testing Live Widget: c26c2241-7b80-4ee7-ba31-55ae342db25c</h3>
+            <p><strong>Template:</strong> testimonial-popup</p>
+            <p><strong>Expected Content:</strong> ⭐ "Amazing product!" - Sarah M. (or similar testimonials)</p>
+            <p><strong>Test Steps:</strong></p>
+            <ol>
+                <li>Wait for widget to appear (should show testimonial content, NOT "view event")</li>
+                <li>Click on the widget popup to test click tracking</li>
+                <li>Check console logs and network tab for click events</li>
+                <li>Verify dashboard shows incremented clicks</li>
+            </ol>
+        </div>
+
+        <div>
+            <button class="test-button" onclick="forceShowWidget()">Force Show Widget</button>
+            <button class="test-button" onclick="clearLogs()">Clear Logs</button>
+            <button class="test-button" onclick="checkSession()">Show Session ID</button>
+        </div>
+
+        <div>
+            <h3>Console Output</h3>
+            <div id="console-output" class="log-output">
+                <div>Waiting for widget to load...</div>
+            </div>
+        </div>
+
+        <div>
+            <h3>Network Requests</h3>
+            <div id="network-output" class="log-output">
+                <div>Monitoring network requests...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LIVE WIDGET SCRIPT -->
+    <script 
+        src="widget.js" 
+        data-widget-id="c26c2241-7b80-4ee7-ba31-55ae342db25c"
+        data-api-base="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api">
+    </script>
+
+    <script>
+        // Capture console logs
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        
+        function addLog(type, message) {
+            const output = document.getElementById('console-output');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<strong>[${timestamp}] ${type.toUpperCase()}:</strong> ${message}`;
+            output.appendChild(logEntry);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            addLog('log', args.join(' '));
+            originalLog.apply(console, args);
+        };
+        
+        console.warn = function(...args) {
+            addLog('warn', args.join(' '));
+            originalWarn.apply(console, args);
+        };
+        
+        console.error = function(...args) {
+            addLog('error', args.join(' '));
+            originalError.apply(console, args);
+        };
+
+        // Monitor network requests
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+            const [url, options] = args;
+            const isWidgetAPI = url.includes('widget-api');
+            
+            if (isWidgetAPI) {
+                addNetworkLog('FETCH', url, options?.method || 'GET', options?.body);
+            }
+            
+            return originalFetch.apply(window, args)
+                .then(response => {
+                    if (isWidgetAPI) {
+                        addNetworkLog('RESPONSE', url, response.status, response.statusText);
+                    }
+                    return response;
+                })
+                .catch(error => {
+                    if (isWidgetAPI) {
+                        addNetworkLog('ERROR', url, 'Failed', error.message);
+                    }
+                    throw error;
+                });
+        };
+
+        // Monitor sendBeacon
+        const originalSendBeacon = navigator.sendBeacon;
+        navigator.sendBeacon = function(url, data) {
+            if (url.includes('widget-api')) {
+                addNetworkLog('BEACON', url, 'POST', data);
+            }
+            return originalSendBeacon.call(navigator, url, data);
+        };
+
+        function addNetworkLog(type, url, method, data) {
+            const output = document.getElementById('network-output');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            let dataStr = '';
+            
+            if (data) {
+                if (data instanceof Blob) {
+                    dataStr = ' (Blob data - likely click event)';
+                } else if (typeof data === 'string') {
+                    try {
+                        const parsed = JSON.parse(data);
+                        dataStr = ` - ${JSON.stringify(parsed, null, 2)}`;
+                    } catch {
+                        dataStr = ` - ${data}`;
+                    }
+                } else {
+                    dataStr = ` - ${JSON.stringify(data, null, 2)}`;
+                }
+            }
+            
+            logEntry.innerHTML = `<strong>[${timestamp}] ${type}:</strong> ${method} ${url}${dataStr}`;
+            output.appendChild(logEntry);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function forceShowWidget() {
+            if (window.NotiProof) {
+                console.log('Manually triggering widget display');
+                window.NotiProof.show();
+            } else {
+                console.warn('NotiProof API not available yet');
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('console-output').innerHTML = '<div>Logs cleared...</div>';
+            document.getElementById('network-output').innerHTML = '<div>Network monitoring reset...</div>';
+        }
+
+        function checkSession() {
+            const sessionId = localStorage.getItem('notiproof-session-id');
+            console.log('Current session ID:', sessionId);
+            addLog('info', `Session ID: ${sessionId}`);
+        }
+
+        // Page loaded
+        console.log('Live widget test page loaded successfully');
+        console.log('Widget should appear with TESTIMONIAL content, not "view event"');
+    </script>
+</body>
+</html>
