@@ -58,18 +58,19 @@ const Installation = () => {
   };
 
   const embedCode = selectedWidget ? `
-<!-- NotiProof Widget -->
-<script>
-  (function() {
-    var script = document.createElement('script');
-    script.src = '${window.location.origin}/widget.js';
-    script.setAttribute('data-widget-id', '${selectedWidget}');
-    script.setAttribute('data-api-base', 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api');
-    script.async = true;
-    document.head.appendChild(script);
-  })();
-</script>
-  `.trim() : '';
+  <!-- NotiProof Widget -->
+  <script>
+    (function() {
+      var script = document.createElement('script');
+      script.src = '${window.location.origin}/widget.js';
+      script.setAttribute('data-widget-id', '${selectedWidget}');
+      script.setAttribute('data-api-base', 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api');
+      script.setAttribute('data-disable-beacon', 'true');
+      script.async = true;
+      document.head.appendChild(script);
+    })();
+  </script>
+    `.trim() : '';
 
   const apiEndpoint = selectedWidget 
     ? `https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api/api/widgets/${selectedWidget}`
