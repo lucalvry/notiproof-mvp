@@ -7,9 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { Switch } from '@/components/ui/switch';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -62,7 +64,26 @@ const EditWidget = () => {
     status: 'active'
   });
 
-  useEffect(() => {
+const [displayRules, setDisplayRules] = useState({
+  show_duration_ms: 5000,
+  interval_ms: 8000,
+  max_per_page: 5,
+  max_per_session: 20,
+  triggers: { min_time_on_page_ms: 0, scroll_depth_pct: 0, exit_intent: false },
+  enforce_verified_only: false,
+  url_allowlist: '',
+  url_denylist: '',
+  referrer_allowlist: '',
+  referrer_denylist: '',
+  geo_allowlist: '',
+  geo_denylist: '',
+});
+
+const [goals, setGoals] = useState<any[]>([]);
+const [loadingGoals, setLoadingGoals] = useState(false);
+const [newGoal, setNewGoal] = useState({ name: '', type: 'url_match', pattern: '' });
+
+useEffect(() => {
     if (id && profile) {
       fetchWidget();
     }
@@ -91,6 +112,25 @@ const EditWidget = () => {
           color: styleConfig.color || '#3B82F6',
           status: widget.status
         });
+        const dr = (widget as any).display_rules || {};
+        setDisplayRules({
+          show_duration_ms: dr.show_duration_ms ?? 5000,
+          interval_ms: dr.interval_ms ?? 8000,
+          max_per_page: dr.max_per_page ?? 5,
+          max_per_session: dr.max_per_session ?? 20,
+          triggers: {
+            min_time_on_page_ms: dr.triggers?.min_time_on_page_ms ?? 0,
+            scroll_depth_pct: dr.triggers?.scroll_depth_pct ?? 0,
+            exit_intent: !!(dr.triggers?.exit_intent),
+          },
+          enforce_verified_only: !!dr.enforce_verified_only,
+          url_allowlist: Array.isArray(dr.url_allowlist) ? dr.url_allowlist.join(', ') : '',
+          url_denylist: Array.isArray(dr.url_denylist) ? dr.url_denylist.join(', ') : '',
+          referrer_allowlist: Array.isArray(dr.referrer_allowlist) ? dr.referrer_allowlist.join(', ') : '',
+          referrer_denylist: Array.isArray(dr.referrer_denylist) ? dr.referrer_denylist.join(', ') : '',
+          geo_allowlist: Array.isArray(dr.geo_allowlist) ? dr.geo_allowlist.join(', ') : '',
+          geo_denylist: Array.isArray(dr.geo_denylist) ? dr.geo_denylist.join(', ') : '',
+        });
       }
     } catch (error) {
       console.error('Error fetching widget:', error);
@@ -111,21 +151,42 @@ const EditWidget = () => {
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('widgets')
-        .update({
-          name: formData.name,
-          template_name: formData.template_name,
-          status: formData.status,
-          style_config: {
-            position: formData.position,
-            delay: parseInt(formData.delay),
-            color: formData.color
-          },
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-        .eq('user_id', profile.id);
+const parseList = (s: string) => s.split(',').map(t => t.trim()).filter(Boolean);
+const rules: any = {
+  show_duration_ms: Number(displayRules.show_duration_ms) || 5000,
+  interval_ms: Number(displayRules.interval_ms) || 8000,
+  max_per_page: Number(displayRules.max_per_page) || 5,
+  max_per_session: Number(displayRules.max_per_session) || 20,
+  triggers: {
+    min_time_on_page_ms: Number(displayRules.triggers.min_time_on_page_ms) || 0,
+    scroll_depth_pct: Number(displayRules.triggers.scroll_depth_pct) || 0,
+    exit_intent: !!displayRules.triggers.exit_intent,
+  },
+  enforce_verified_only: !!displayRules.enforce_verified_only,
+  url_allowlist: parseList(displayRules.url_allowlist),
+  url_denylist: parseList(displayRules.url_denylist),
+  referrer_allowlist: parseList(displayRules.referrer_allowlist),
+  referrer_denylist: parseList(displayRules.referrer_denylist),
+  geo_allowlist: parseList(displayRules.geo_allowlist),
+  geo_denylist: parseList(displayRules.geo_denylist),
+};
+
+const { error } = await supabase
+  .from('widgets')
+  .update({
+    name: formData.name,
+    template_name: formData.template_name,
+    status: formData.status,
+    style_config: {
+      position: formData.position,
+      delay: parseInt(formData.delay),
+      color: formData.color
+    },
+    display_rules: rules as any,
+    updated_at: new Date().toISOString()
+  } as any)
+  .eq('id', id)
+  .eq('user_id', profile.id);
 
       if (error) throw error;
 
@@ -316,6 +377,77 @@ const EditWidget = () => {
                   </div>
                 </div>
 
+                {/* Display Rules */}
+                <div className="space-y-3 border-t pt-4">
+                  <h4 className="font-medium">Display Rules</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="show_duration_ms">Show Duration (ms)</Label>
+                      <Input id="show_duration_ms" type="number" value={displayRules.show_duration_ms}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, show_duration_ms: Number(e.target.value) }))} />
+                    </div>
+                    <div>
+                      <Label htmlFor="interval_ms">Interval Between (ms)</Label>
+                      <Input id="interval_ms" type="number" value={displayRules.interval_ms}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, interval_ms: Number(e.target.value) }))} />
+                    </div>
+                    <div>
+                      <Label htmlFor="max_per_page">Max Per Page</Label>
+                      <Input id="max_per_page" type="number" value={displayRules.max_per_page}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, max_per_page: Number(e.target.value) }))} />
+                    </div>
+                    <div>
+                      <Label htmlFor="max_per_session">Max Per Session</Label>
+                      <Input id="max_per_session" type="number" value={displayRules.max_per_session}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, max_per_session: Number(e.target.value) }))} />
+                    </div>
+                    <div>
+                      <Label htmlFor="min_time_on_page_ms">Min Time on Page (ms)</Label>
+                      <Input id="min_time_on_page_ms" type="number" value={displayRules.triggers.min_time_on_page_ms}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, min_time_on_page_ms: Number(e.target.value) } }))} />
+                    </div>
+                    <div>
+                      <Label htmlFor="scroll_depth_pct">Scroll Depth (%)</Label>
+                      <Input id="scroll_depth_pct" type="number" value={displayRules.triggers.scroll_depth_pct}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, scroll_depth_pct: Number(e.target.value) } }))} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 items-center">
+                    <div className="flex items-center justify-between rounded-md border p-3">
+                      <Label className="mr-4">Exit Intent</Label>
+                      <Switch checked={displayRules.triggers.exit_intent}
+                        onCheckedChange={(v) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, exit_intent: v } }))} />
+                    </div>
+                    <div className="flex items-center justify-between rounded-md border p-3">
+                      <Label className="mr-4">Verified Only</Label>
+                      <Switch checked={displayRules.enforce_verified_only}
+                        onCheckedChange={(v) => setDisplayRules(prev => ({ ...prev, enforce_verified_only: v }))} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>URL Allowlist (comma separated)</Label>
+                      <Input value={displayRules.url_allowlist}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, url_allowlist: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>URL Denylist (comma separated)</Label>
+                      <Input value={displayRules.url_denylist}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, url_denylist: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Referrer Allowlist</Label>
+                      <Input value={displayRules.referrer_allowlist}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_allowlist: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Referrer Denylist</Label>
+                      <Input value={displayRules.referrer_denylist}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_denylist: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+
                 <Button type="submit" className="w-full" disabled={loading || !formData.template_name}>
                   {loading ? 'Updating...' : 'Update Widget'}
                 </Button>
@@ -364,6 +496,77 @@ const EditWidget = () => {
                   Select a template to see preview
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Goals */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Goal Definitions</CardTitle>
+              <CardDescription>Track conversions by URL match, custom event, or label</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <Input placeholder="Name" value={newGoal.name} onChange={(e) => setNewGoal({ ...newGoal, name: e.target.value })} />
+                  <Select value={newGoal.type} onValueChange={(v) => setNewGoal({ ...newGoal, type: v })}>
+                    <SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="url_match">URL Match</SelectItem>
+                      <SelectItem value="custom_event">Custom Event</SelectItem>
+                      <SelectItem value="label">Label</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input placeholder="Pattern (e.g. /checkout)" value={newGoal.pattern} onChange={(e) => setNewGoal({ ...newGoal, pattern: e.target.value })} />
+                </div>
+                <Button type="button" onClick={async () => {
+                  if (!id) return;
+                  const { error } = await supabase.from('goals').insert({ widget_id: id, ...newGoal } as any);
+                  if (!error) {
+                    setNewGoal({ name: '', type: 'url_match', pattern: '' });
+                    const { data } = await supabase.from('goals').select('*').eq('widget_id', id);
+                    setGoals(data || []);
+                    toast({ title: 'Goal added' });
+                  } else {
+                    toast({ title: 'Error', description: 'Failed to add goal', variant: 'destructive' });
+                  }
+                }}>Add Goal</Button>
+
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Pattern</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {goals.map((g) => (
+                        <TableRow key={g.id}>
+                          <TableCell>{g.name}</TableCell>
+                          <TableCell><Badge>{g.type}</Badge></TableCell>
+                          <TableCell>{g.pattern}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="outline" size="sm" onClick={async () => {
+                              const { error } = await supabase.from('goals').delete().eq('id', g.id);
+                              if (!error) {
+                                setGoals(goals.filter((x) => x.id !== g.id));
+                              }
+                            }}>Delete</Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {goals.length === 0 && (
+                        <TableRow><TableCell colSpan={4} className="text-muted-foreground">No goals yet</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { Switch } from '@/components/ui/switch';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -58,26 +59,67 @@ const CreateWidget = () => {
     color: '#3B82F6'
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const [displayRules, setDisplayRules] = useState({
+  show_duration_ms: 5000,
+  interval_ms: 8000,
+  max_per_page: 5,
+  max_per_session: 20,
+  triggers: {
+    min_time_on_page_ms: 0,
+    scroll_depth_pct: 0,
+    exit_intent: false,
+  },
+  enforce_verified_only: false,
+  url_allowlist: '',
+  url_denylist: '',
+  referrer_allowlist: '',
+  referrer_denylist: '',
+  geo_allowlist: '',
+  geo_denylist: '',
+});
+
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('widgets')
-        .insert({
-          user_id: profile.id,
-          name: formData.name,
-          template_name: formData.template_name,
-          style_config: {
-            position: formData.position,
-            delay: parseInt(formData.delay),
-            color: formData.color
-          }
-        })
-        .select()
-        .single();
+const parseList = (s: string) => s.split(',').map(t => t.trim()).filter(Boolean);
+
+const rules: any = {
+  show_duration_ms: Number(displayRules.show_duration_ms) || 5000,
+  interval_ms: Number(displayRules.interval_ms) || 8000,
+  max_per_page: Number(displayRules.max_per_page) || 5,
+  max_per_session: Number(displayRules.max_per_session) || 20,
+  triggers: {
+    min_time_on_page_ms: Number(displayRules.triggers.min_time_on_page_ms) || 0,
+    scroll_depth_pct: Number(displayRules.triggers.scroll_depth_pct) || 0,
+    exit_intent: !!displayRules.triggers.exit_intent,
+  },
+  enforce_verified_only: !!displayRules.enforce_verified_only,
+  url_allowlist: parseList(displayRules.url_allowlist),
+  url_denylist: parseList(displayRules.url_denylist),
+  referrer_allowlist: parseList(displayRules.referrer_allowlist),
+  referrer_denylist: parseList(displayRules.referrer_denylist),
+  geo_allowlist: parseList(displayRules.geo_allowlist),
+  geo_denylist: parseList(displayRules.geo_denylist),
+};
+
+const { data, error } = await supabase
+  .from('widgets')
+  .insert({
+    user_id: profile.id,
+    name: formData.name,
+    template_name: formData.template_name,
+    style_config: {
+      position: formData.position,
+      delay: parseInt(formData.delay),
+      color: formData.color
+    },
+    display_rules: rules as any,
+  } as any)
+  .select()
+  .single();
 
       if (error) throw error;
 
@@ -211,6 +253,77 @@ const CreateWidget = () => {
                       placeholder="#3B82F6"
                       className="flex-1"
                     />
+                  </div>
+                </div>
+
+                {/* Display Rules */}
+                <div className="space-y-3 border-t pt-4">
+                  <h4 className="font-medium">Display Rules</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="show_duration_ms">Show Duration (ms)</Label>
+                      <Input id="show_duration_ms" type="number" value={displayRules.show_duration_ms}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, show_duration_ms: Number(e.target.value) }))} />
+                    </div>
+                    <div>
+                      <Label htmlFor="interval_ms">Interval Between (ms)</Label>
+                      <Input id="interval_ms" type="number" value={displayRules.interval_ms}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, interval_ms: Number(e.target.value) }))} />
+                    </div>
+                    <div>
+                      <Label htmlFor="max_per_page">Max Per Page</Label>
+                      <Input id="max_per_page" type="number" value={displayRules.max_per_page}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, max_per_page: Number(e.target.value) }))} />
+                    </div>
+                    <div>
+                      <Label htmlFor="max_per_session">Max Per Session</Label>
+                      <Input id="max_per_session" type="number" value={displayRules.max_per_session}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, max_per_session: Number(e.target.value) }))} />
+                    </div>
+                    <div>
+                      <Label htmlFor="min_time_on_page_ms">Min Time on Page (ms)</Label>
+                      <Input id="min_time_on_page_ms" type="number" value={displayRules.triggers.min_time_on_page_ms}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, min_time_on_page_ms: Number(e.target.value) } }))} />
+                    </div>
+                    <div>
+                      <Label htmlFor="scroll_depth_pct">Scroll Depth (%)</Label>
+                      <Input id="scroll_depth_pct" type="number" value={displayRules.triggers.scroll_depth_pct}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, scroll_depth_pct: Number(e.target.value) } }))} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 items-center">
+                    <div className="flex items-center justify-between rounded-md border p-3">
+                      <Label className="mr-4">Exit Intent</Label>
+                      <Switch checked={displayRules.triggers.exit_intent}
+                        onCheckedChange={(v) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, exit_intent: v } }))} />
+                    </div>
+                    <div className="flex items-center justify-between rounded-md border p-3">
+                      <Label className="mr-4">Verified Only</Label>
+                      <Switch checked={displayRules.enforce_verified_only}
+                        onCheckedChange={(v) => setDisplayRules(prev => ({ ...prev, enforce_verified_only: v }))} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>URL Allowlist (comma separated)</Label>
+                      <Input value={displayRules.url_allowlist}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, url_allowlist: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>URL Denylist (comma separated)</Label>
+                      <Input value={displayRules.url_denylist}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, url_denylist: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Referrer Allowlist</Label>
+                      <Input value={displayRules.referrer_allowlist}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_allowlist: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Referrer Denylist</Label>
+                      <Input value={displayRules.referrer_denylist}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_denylist: e.target.value }))} />
+                    </div>
                   </div>
                 </div>
 

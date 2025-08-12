@@ -82,7 +82,7 @@ serve(async (req) => {
           // Verify widget exists and is active
           const { data: widget, error: widgetError } = await supabase
             .from('widgets')
-            .select('id, status')
+            .select('id, status, user_id, display_rules')
             .eq('id', widgetId)
             .eq('status', 'active')
             .single();
@@ -122,18 +122,17 @@ serve(async (req) => {
             }
           }
 
-          // Simple IP-based throttling: prevent >1 event per IP within 1 second per widget
+          // Strengthened throttling: prevent >3 events per 5s per IP
           if (ip) {
-            const oneSecondAgo = new Date(Date.now() - 1000).toISOString();
-            const { data: recentFromIp, error: ipQueryError } = await supabase
+            const fiveSecAgo = new Date(Date.now() - 5000).toISOString();
+            const { data: recentFromIp } = await supabase
               .from('events')
               .select('id')
               .eq('widget_id', widgetId)
               .eq('ip', ip)
-              .gte('created_at', oneSecondAgo)
-              .limit(1);
-            if (!ipQueryError && recentFromIp && recentFromIp.length > 0) {
-              console.log(`Rate limited: Rapid events from IP ${ip}`);
+              .gte('created_at', fiveSecAgo);
+            if ((recentFromIp?.length || 0) >= 3) {
+              console.log(`Rate limited: Too many events from IP ${ip}`);
               return new Response(
                 JSON.stringify({ success: true, message: 'Throttled' }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -168,6 +167,36 @@ serve(async (req) => {
             geo,
           };
 
+          // Anti-fake heuristics
+          let flagged = false;
+          try {
+            const dr = (widget as any).display_rules || {};
+            // Session-based burst: >3 events in 5s
+            if (sessionId) {
+              const fiveSecAgo = new Date(Date.now() - 5000).toISOString();
+              const { data: recentBySession } = await supabase
+                .from('events')
+                .select('id, user_agent')
+                .eq('widget_id', widgetId)
+                .gte('created_at', fiveSecAgo);
+              const sessionBursts = (recentBySession || []).filter((e: any) => e.event_data?.session_id === sessionId);
+              if (sessionBursts.length >= 3) flagged = true;
+              const uaSimilar = (recentBySession || []).filter((e: any) => e.user_agent === userAgent && e.ip === ip);
+              if (uaSimilar.length >= 5) flagged = true;
+            }
+            // Geo allow/deny enforcement
+            const allow = Array.isArray(dr.geo_allowlist) && dr.geo_allowlist.length > 0;
+            const denyList = Array.isArray(dr.geo_denylist) ? dr.geo_denylist : [];
+            const countryCode = geo?.country_code || geo?.country || '';
+            if (allow && countryCode) {
+              if (!dr.geo_allowlist.includes(countryCode)) flagged = true;
+            }
+            if (denyList.length > 0 && countryCode && denyList.includes(countryCode)) {
+              flagged = true;
+            }
+          } catch (_) {}
+
+
           const eventInsert = {
             widget_id: widgetId,
             event_type: event_type || 'custom',
@@ -176,6 +205,7 @@ serve(async (req) => {
             clicks: event_type === 'click' ? 1 : 0,
             ip,
             user_agent: userAgent,
+            flagged,
           };
 
           const { data: event, error: eventError } = await supabase
@@ -193,6 +223,58 @@ serve(async (req) => {
           }
 
           console.log(`Event tracked: ${event_type} for widget ${widgetId} ${metadata?.session_id ? `(session: ${metadata.session_id})` : ''}`);
+
+          // Fan-out to integration hooks (webhooks)
+          const { data: hooks } = await supabase
+            .from('integration_hooks')
+            .select('id, url, type')
+            .eq('user_id', (widget as any).user_id);
+
+          const payload = { widget_id: widgetId, event_type, event_data: combinedEventData, created_at: event.created_at };
+
+          async function postWithRetry(url: string, body: any) {
+            const delays = [0, 500, 1500];
+            let lastErr: any;
+            for (const d of delays) {
+              if (d) await new Promise((r) => setTimeout(r, d));
+              try {
+                const res = await fetch(url, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(body),
+                });
+                const status = res.status;
+                const text = await res.text().catch(() => '');
+                await supabase.from('alerts').insert({
+                  type: 'webhook_status',
+                  message: `Webhook ${status}`,
+                  widget_id: widgetId,
+                  user_id: (widget as any).user_id,
+                  context: { url, status, body: body?.event_type, response: text }
+                } as any);
+                if (res.ok) return true;
+                lastErr = new Error(`Status ${status}`);
+              } catch (e) {
+                lastErr = e;
+              }
+            }
+            await supabase.from('alerts').insert({
+              type: 'webhook_failure',
+              message: `Webhook failed: ${lastErr?.message || lastErr}`,
+              widget_id: widgetId,
+              user_id: (widget as any).user_id,
+              context: { url: body?.url, event_type, error: String(lastErr) }
+            } as any);
+            return false;
+          }
+
+          if (hooks && hooks.length > 0) {
+            await Promise.allSettled(
+              hooks
+                .filter((h: any) => ['webhook', 'zapier', 'pabbly'].includes(h.type))
+                .map((h: any) => postWithRetry(h.url, payload))
+            );
+          }
 
           return new Response(
             JSON.stringify({ success: true, event }),

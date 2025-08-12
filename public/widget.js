@@ -151,8 +151,24 @@
       ]
     }
   };
+  
+  // Display rules with sane defaults
+  let rules = {
+    show_duration_ms: 5000,
+    interval_ms: 8000,
+    max_per_page: 5,
+    max_per_session: 20,
+    url_allowlist: [],
+    url_denylist: [],
+    referrer_allowlist: [],
+    referrer_denylist: [],
+    triggers: { min_time_on_page_ms: 0, scroll_depth_pct: 0, exit_intent: false },
+    enforce_verified_only: false,
+    geo_allowlist: [],
+    geo_denylist: [],
+  };
 
-  // Generate session ID for deduplication
+  // Session and variant handling
   let sessionId = localStorage.getItem('notiproof-session-id');
   if (!sessionId) {
     sessionId = 'np_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
@@ -183,7 +199,10 @@
         if (data.template_name) {
           config.template_name = data.template_name;
         }
-        console.log('NotiProof: Widget config loaded:', { template: config.template_name, styleConfig: data.style_config });
+        if (data.display_rules) {
+          rules = { ...rules, ...data.display_rules };
+        }
+        console.log('NotiProof: Widget config loaded:', { template: config.template_name, styleConfig: data.style_config, displayRules: rules });
       }
     } catch (error) {
       console.warn('NotiProof: Could not fetch widget config, using defaults');
@@ -264,13 +283,13 @@
     // Show widget with animation
     setTimeout(() => widget.classList.add('show'), 100);
     
-    // Auto-hide after 5 seconds
+    // Auto-hide
     setTimeout(() => {
       if (document.body.contains(widget)) {
         widget.classList.remove('show');
         setTimeout(() => widget.remove(), 300);
       }
-    }, 5000);
+    }, rules.show_duration_ms || 5000);
     
     // Track impression/view
     trackEvent('view', { 
@@ -413,17 +432,89 @@
     }
   }
 
-  // Initialize widget
+  // Initialize widget with rules & triggers
   async function init() {
+    const pageStart = Date.now();
+    let scrolledPct = 0;
+
+    const updateScroll = () => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const docHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+      const winHeight = window.innerHeight;
+      const totalScrollable = docHeight - winHeight;
+      scrolledPct = totalScrollable > 0 ? Math.min(100, Math.round((scrollTop / totalScrollable) * 100)) : 100;
+    };
+    window.addEventListener('scroll', () => {
+      updateScroll();
+    }, { passive: true });
+
     await fetchWidgetConfig();
-    
-    // Initial delay
-    setTimeout(() => {
+    updateScroll();
+
+    const pageCountKey = `notiproof-page-count-${widgetId}-${location.pathname}`;
+    const sessionCountKey = `notiproof-session-count-${widgetId}`;
+
+    const getCounts = () => ({
+      page: Number(localStorage.getItem(pageCountKey) || '0'),
+      session: Number(localStorage.getItem(sessionCountKey) || '0'),
+    });
+    const incCounts = () => {
+      const c = getCounts();
+      localStorage.setItem(pageCountKey, String(c.page + 1));
+      localStorage.setItem(sessionCountKey, String(c.session + 1));
+    };
+
+    const isAllowedByLists = () => {
+      const url = window.location.href;
+      const ref = document.referrer || '';
+      const matchAny = (list) => Array.isArray(list) && list.some((p) => p && url.includes(p));
+      const matchAnyRef = (list) => Array.isArray(list) && list.some((p) => p && ref.includes(p));
+      if (Array.isArray(rules.url_allowlist) && rules.url_allowlist.length > 0 && !matchAny(rules.url_allowlist)) return false;
+      if (matchAny(rules.url_denylist)) return false;
+      if (Array.isArray(rules.referrer_allowlist) && rules.referrer_allowlist.length > 0 && !matchAnyRef(rules.referrer_allowlist)) return false;
+      if (matchAnyRef(rules.referrer_denylist)) return false;
+      return true;
+    };
+
+    const triggersMet = () => {
+      const timeOk = (Date.now() - pageStart) >= (rules.triggers?.min_time_on_page_ms || 0);
+      const scrollOk = scrolledPct >= (rules.triggers?.scroll_depth_pct || 0);
+      return timeOk && scrollOk;
+    };
+
+    const canShowMore = () => {
+      const c = getCounts();
+      if (rules.max_per_page && c.page >= rules.max_per_page) return false;
+      if (rules.max_per_session && c.session >= rules.max_per_session) return false;
+      return true;
+    };
+
+    const maybeShow = () => {
+      if (!isAllowedByLists() || !canShowMore()) return;
+      if (!rules.triggers?.exit_intent && !triggersMet()) return;
+      incCounts();
       fetchAndDisplayEvents();
-      
-      // Show periodic notifications
-      setInterval(fetchAndDisplayEvents, 30000); // Every 30 seconds
-    }, config.delay);
+    };
+
+    // Exit intent handler
+    const onExitIntent = (e) => {
+      if (!rules.triggers?.exit_intent) return;
+      if (e.clientY <= 0) {
+        maybeShow();
+        window.removeEventListener('mouseout', onExitIntent);
+      }
+    };
+
+    // Start showing notifications
+    if (rules.triggers?.exit_intent) {
+      window.addEventListener('mouseout', onExitIntent);
+    } else {
+      setTimeout(() => {
+        maybeShow();
+        const interval = Math.max(1000, Number(rules.interval_ms) || 8000);
+        setInterval(maybeShow, interval);
+      }, Number(config.delay) || 0);
+    }
   }
 
   // Start when DOM is ready

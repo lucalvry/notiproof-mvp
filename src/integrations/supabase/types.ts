@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      alerts: {
+        Row: {
+          context: Json | null
+          created_at: string
+          id: string
+          message: string | null
+          type: string
+          user_id: string | null
+          widget_id: string | null
+        }
+        Insert: {
+          context?: Json | null
+          created_at?: string
+          id?: string
+          message?: string | null
+          type: string
+          user_id?: string | null
+          widget_id?: string | null
+        }
+        Update: {
+          context?: Json | null
+          created_at?: string
+          id?: string
+          message?: string | null
+          type?: string
+          user_id?: string | null
+          widget_id?: string | null
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           clicks: number | null
@@ -68,6 +98,68 @@ export type Database = {
           },
         ]
       }
+      goals: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          pattern: string
+          type: string
+          widget_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          pattern: string
+          type: string
+          widget_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          pattern?: string
+          type?: string
+          widget_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goals_widget_id_fkey"
+            columns: ["widget_id"]
+            isOneToOne: false
+            referencedRelation: "widgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_hooks: {
+        Row: {
+          created_at: string
+          id: string
+          type: string
+          url: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          type: string
+          url: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          type?: string
+          url?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -95,7 +187,9 @@ export type Database = {
       widgets: {
         Row: {
           created_at: string | null
+          display_rules: Json
           id: string
+          integration: string
           name: string
           status: string
           style_config: Json | null
@@ -105,7 +199,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          display_rules?: Json
           id?: string
+          integration?: string
           name: string
           status?: string
           style_config?: Json | null
@@ -115,7 +211,9 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          display_rules?: Json
           id?: string
+          integration?: string
           name?: string
           status?: string
           style_config?: Json | null
