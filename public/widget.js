@@ -98,7 +98,57 @@
     position: 'bottom-left',
     delay: 3000,
     color: '#3B82F6',
-    showCloseButton: true
+    showCloseButton: true,
+    template_name: 'notification-popup'
+  };
+
+  // Template content mapping
+  const templateContent = {
+    'notification-popup': {
+      icon: '🔔',
+      messages: [
+        'Someone just signed up!',
+        'New user joined from New York!',
+        'Someone just made a purchase!',
+        'New customer from California!'
+      ]
+    },
+    'testimonial-popup': {
+      icon: '⭐',
+      messages: [
+        '"Amazing product!" - Sarah M.',
+        '"Best service ever!" - John D.',
+        '"Highly recommended!" - Lisa K.',
+        '"Love this company!" - Mike R.'
+      ]
+    },
+    'live-activity': {
+      icon: '⚡',
+      messages: [
+        '12 people are viewing this page right now',
+        '5 people bought this in the last hour',
+        '25 people are browsing right now',
+        '8 people added this to cart today'
+      ]
+    },
+    'social-proof': {
+      icon: '✅',
+      messages: [
+        'Trusted by 1,000+ customers',
+        'Join 5,000+ happy customers',
+        'Over 2,500 satisfied clients',
+        'Rated 5 stars by customers'
+      ]
+    },
+    'urgency-timer': {
+      icon: '⏰',
+      messages: [
+        'Limited offer - 2 hours left!',
+        'Sale ends soon - Act fast!',
+        'Only 3 items left in stock!',
+        'Flash sale - 1 hour remaining!'
+      ]
+    }
   };
 
   // Generate session ID for deduplication
@@ -121,10 +171,29 @@
         if (data.style_config) {
           config = { ...config, ...data.style_config };
         }
+        if (data.template_name) {
+          config.template_name = data.template_name;
+        }
+        console.log('NotiProof: Widget config loaded:', { template: config.template_name, styleConfig: data.style_config });
       }
     } catch (error) {
       console.warn('NotiProof: Could not fetch widget config, using defaults');
     }
+  }
+
+  // Get template-appropriate content
+  function getTemplateContent(event) {
+    const template = templateContent[config.template_name] || templateContent['notification-popup'];
+    
+    // If event has a custom message, use it
+    if (event && event.message) {
+      return `${template.icon} ${event.message}`;
+    }
+    
+    // Otherwise use a random template message
+    const messages = template.messages;
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    return `${template.icon} ${randomMessage}`;
   }
 
   // Create widget element
@@ -134,10 +203,14 @@
     widget.style.borderLeftColor = config.color;
     widget.style.cursor = 'pointer';
     
+    const content = getTemplateContent(event);
+    
     widget.innerHTML = `
       ${config.showCloseButton ? '<button class="notiproof-close">×</button>' : ''}
-      <div class="notiproof-content">${event.message || '🔔 Someone just signed up!'}</div>
+      <div class="notiproof-content">${content}</div>
     `;
+    
+    console.log('NotiProof: Widget created with template:', config.template_name, 'content:', content);
     
     // Add click tracking to the widget body
     widget.addEventListener('click', (e) => {
@@ -279,13 +352,13 @@
           const randomEvent = events[Math.floor(Math.random() * events.length)];
           createWidget(randomEvent);
         } else {
-          // Show default event if no events exist
-          createWidget({ message: '🔔 Someone just signed up!' });
+          // Show template-based content if no stored events exist
+          createWidget();
         }
       }
     } catch (error) {
-      console.warn('NotiProof: Could not fetch events, showing default');
-      createWidget({ message: '🔔 Someone just signed up!' });
+      console.warn('NotiProof: Could not fetch events, showing template default');
+      createWidget();
     }
   }
 
