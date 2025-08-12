@@ -28,7 +28,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isSupport } = useAuth();
   const currentPath = location.pathname;
 
   const isActive = (path: string) => currentPath === path;
@@ -73,7 +73,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {isAdmin && (
+        {(isAdmin || isSupport) && (
           <SidebarGroup>
             <SidebarGroupLabel>Admin</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -92,6 +92,7 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         )}
+
       </SidebarContent>
     </Sidebar>
   );

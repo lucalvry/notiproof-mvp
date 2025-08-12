@@ -25,10 +25,9 @@ export const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRoutePr
     return <Navigate to="/auth/login" state={{ from: location }} replace />;
   }
 
-  // Temporarily disable admin role authentication for testing
-  // if (adminOnly && profile?.role !== 'admin') {
-  //   return <Navigate to="/dashboard" replace />;
-  // }
+  if (adminOnly && !(profile?.role === 'admin' || profile?.role === 'support')) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return <>{children}</>;
 };

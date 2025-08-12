@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 interface Profile {
   id: string;
   name: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'support';
   status: string;
   created_at: string;
 }
@@ -20,6 +20,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
+  isSupport: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -133,6 +134,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const isAdmin = profile?.role === 'admin';
+  const isSupport = profile?.role === 'support';
 
   return (
     <AuthContext.Provider
@@ -145,6 +147,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         signIn,
         signOut,
         isAdmin,
+        isSupport,
       }}
     >
       {children}

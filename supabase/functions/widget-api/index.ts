@@ -24,6 +24,14 @@ serve(async (req) => {
 
     console.log(`Widget API: ${req.method} ${url.pathname}`);
 
+    // Health check endpoint
+    if (pathParts.length === 3 && pathParts[1] === 'api' && pathParts[2] === 'health') {
+      return new Response(
+        JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Routes: /widget-api/api/widgets/:id or /widget-api/api/widgets/:id/events
     if (pathParts.length >= 4 && pathParts[1] === 'api' && pathParts[2] === 'widgets') {
       const widgetId = pathParts[3];
@@ -35,6 +43,7 @@ serve(async (req) => {
             .from('events')
             .select('*')
             .eq('widget_id', widgetId)
+            .eq('flagged', false)
             .order('created_at', { ascending: false })
             .limit(10);
 
@@ -85,12 +94,14 @@ serve(async (req) => {
             );
           }
 
-          // Rate limiting for clicks - check for duplicate clicks within 2 seconds
+          // Basic request metadata
+          const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || '';
+          const userAgent = req.headers.get('user-agent') || '';
+
+          // Rate limiting for clicks - check for duplicate clicks within 2 seconds (by session)
           const sessionId = metadata?.session_id || event_data?.session_id;
           if (event_type === 'click' && sessionId) {
             const twoSecondsAgo = new Date(Date.now() - 2000).toISOString();
-            
-            // Check session_id in the combined event_data (where it's actually stored)
             const { data: recentClicks } = await supabase
               .from('events')
               .select('id, event_data')
@@ -98,7 +109,6 @@ serve(async (req) => {
               .eq('event_type', 'click')
               .gte('created_at', twoSecondsAgo);
 
-            // Filter by session_id manually since it's nested in event_data
             const duplicateClick = recentClicks?.find(click => 
               click.event_data?.session_id === sessionId
             );
@@ -107,6 +117,25 @@ serve(async (req) => {
               console.log(`Rate limited: Duplicate click from session ${sessionId}`);
               return new Response(
                 JSON.stringify({ success: true, message: 'Event deduplicated' }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+
+          // Simple IP-based throttling: prevent >1 event per IP within 1 second per widget
+          if (ip) {
+            const oneSecondAgo = new Date(Date.now() - 1000).toISOString();
+            const { data: recentFromIp, error: ipQueryError } = await supabase
+              .from('events')
+              .select('id')
+              .eq('widget_id', widgetId)
+              .eq('ip', ip)
+              .gte('created_at', oneSecondAgo)
+              .limit(1);
+            if (!ipQueryError && recentFromIp && recentFromIp.length > 0) {
+              console.log(`Rate limited: Rapid events from IP ${ip}`);
+              return new Response(
+                JSON.stringify({ success: true, message: 'Throttled' }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
               );
             }
@@ -125,7 +154,9 @@ serve(async (req) => {
             event_type: event_type || 'custom',
             event_data: combinedEventData,
             views: event_type === 'view' ? 1 : 0,
-            clicks: event_type === 'click' ? 1 : 0
+            clicks: event_type === 'click' ? 1 : 0,
+            ip,
+            user_agent: userAgent,
           };
 
           const { data: event, error: eventError } = await supabase

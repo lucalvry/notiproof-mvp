@@ -10,6 +10,8 @@ import { AdminLayout } from "@/components/AdminLayout";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import DashboardWidgets from "./pages/DashboardWidgets";
 import CreateWidget from "./pages/CreateWidget";
@@ -36,6 +38,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth/login" element={<Login />} />
             <Route path="/auth/signup" element={<Signup />} />
+            <Route path="/auth/forgot" element={<ForgotPassword />} />
+            <Route path="/auth/reset-password" element={<ResetPassword />} />
             <Route path="/live-test" element={<LiveTest />} />
             
             {/* User Dashboard Routes */}
@@ -59,7 +63,7 @@ const App = () => (
             <Route 
               path="/admin" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute adminOnly>
                   <AdminLayout />
                 </ProtectedRoute>
               }
