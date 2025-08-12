@@ -82,7 +82,8 @@ serve(async (req) => {
           }
 
           // Rate limiting for clicks - check for duplicate clicks within 2 seconds
-          if (event_type === 'click' && metadata?.session_id) {
+          const sessionId = metadata?.session_id || event_data?.session_id;
+          if (event_type === 'click' && sessionId) {
             const twoSecondsAgo = new Date(Date.now() - 2000).toISOString();
             const { data: recentClicks } = await supabase
               .from('events')
@@ -90,7 +91,7 @@ serve(async (req) => {
               .eq('widget_id', widgetId)
               .eq('event_type', 'click')
               .gte('created_at', twoSecondsAgo)
-              .contains('event_data', { session_id: metadata.session_id });
+              .contains('event_data', { session_id: sessionId });
 
             if (recentClicks && recentClicks.length > 0) {
               console.log(`Rate limited: Duplicate click from session ${metadata.session_id}`);

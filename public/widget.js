@@ -214,7 +214,7 @@
 
   // Track click events with sendBeacon for reliable delivery
   function trackClickEvent(target, data = {}) {
-    const metadata = {
+    const eventData = {
       element: target.className || 'notiproof-content',
       href: target.href || null,
       page_url: window.location.href,
@@ -227,7 +227,8 @@
 
     const payload = {
       event_type: 'click',
-      metadata: metadata
+      event_data: eventData,
+      metadata: eventData
     };
 
     const url = `${apiBase}/api/widgets/${widgetId}/events`;
