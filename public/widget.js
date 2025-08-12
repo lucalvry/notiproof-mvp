@@ -197,7 +197,15 @@
   }
 
   // Create widget element
-  function createWidget(event) {
+  function createWidget(event = {}) {
+    // Ensure we have proper event data for tracking
+    if (!event.message) {
+      const template = templateContent[config.template_name] || templateContent['notification-popup'];
+      const messages = template.messages;
+      event.message = messages[Math.floor(Math.random() * messages.length)];
+      console.log('NotiProof: Generated default message for tracking:', event.message);
+    }
+    
     const widget = document.createElement('div');
     widget.className = `notiproof-widget ${config.position}`;
     widget.style.borderLeftColor = config.color;
@@ -210,7 +218,7 @@
       <div class="notiproof-content">${content}</div>
     `;
     
-    console.log('NotiProof: Widget created with template:', config.template_name, 'content:', content);
+    console.log('NotiProof: Widget created with template:', config.template_name, 'content:', content, 'event:', event);
     
     // Add click tracking to the widget body
     widget.addEventListener('click', (e) => {
@@ -218,9 +226,11 @@
         const now = Date.now();
         if (now - lastClickTime > CLICK_DEDUPE_WINDOW) {
           lastClickTime = now;
+          console.log('NotiProof: Click detected, tracking with message:', event.message);
           trackClickEvent(e.target, {
-            message: event.message,
-            widget_clicked: true
+            message: event.message || 'Widget clicked',
+            widget_clicked: true,
+            template_name: config.template_name
           });
         }
       }
@@ -234,7 +244,7 @@
         widget.classList.remove('show');
         setTimeout(() => widget.remove(), 300);
         trackEvent('close', { 
-          message: event.message,
+          message: event.message || 'Widget closed',
           widget_closed: true 
         });
       });
@@ -255,8 +265,9 @@
     
     // Track impression/view
     trackEvent('view', { 
-      message: event.message,
-      widget_displayed: true 
+      message: event.message || 'Widget displayed',
+      widget_displayed: true,
+      template_name: config.template_name
     });
   }
 
@@ -347,14 +358,33 @@
         const events = await response.json();
         // Always show template-based content since that's what templates are for
         // Don't use stored events for display, they're for tracking only
-        createWidget();
+        // Generate a proper event object with default message
+        const template = templateContent[config.template_name] || templateContent['notification-popup'];
+        const messages = template.messages;
+        const defaultEvent = {
+          message: messages[Math.floor(Math.random() * messages.length)],
+          template_name: config.template_name
+        };
+        createWidget(defaultEvent);
       } else {
         // Show template-based content if API fails
-        createWidget();
+        const template = templateContent[config.template_name] || templateContent['notification-popup'];
+        const messages = template.messages;
+        const defaultEvent = {
+          message: messages[Math.floor(Math.random() * messages.length)],
+          template_name: config.template_name
+        };
+        createWidget(defaultEvent);
       }
     } catch (error) {
       console.warn('NotiProof: Could not fetch events, showing template default');
-      createWidget();
+      const template = templateContent[config.template_name] || templateContent['notification-popup'];
+      const messages = template.messages;
+      const defaultEvent = {
+        message: messages[Math.floor(Math.random() * messages.length)],
+        template_name: config.template_name
+      };
+      createWidget(defaultEvent);
     }
   }
 
