@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
-import { Edit, Trash2, ToggleLeft, ToggleRight, Plus } from 'lucide-react';
+import { Edit, Trash2, ToggleLeft, ToggleRight, Plus, Eye, MousePointer } from 'lucide-react';
 
 interface Widget {
   id: string;
@@ -15,9 +15,9 @@ interface Widget {
   template_name: string;
   status: string;
   created_at: string;
-  _count?: {
-    events: number;
-  };
+  style_config?: any;
+  totalViews: number;
+  totalClicks: number;
 }
 
 const DashboardWidgets = () => {
@@ -29,28 +29,71 @@ const DashboardWidgets = () => {
   useEffect(() => {
     if (profile?.id) {
       fetchWidgets();
+      
+      // Set up real-time subscription for events
+      const channel = supabase
+        .channel('widget-events')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'events'
+          },
+          () => {
+            fetchWidgets(); // Refresh widgets when events change
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [profile]);
 
   const fetchWidgets = async () => {
     if (!profile?.id) return;
 
-    const { data, error } = await supabase
-      .from('widgets')
-      .select('*')
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false });
+    try {
+      // Fetch widgets
+      const { data: widgetsData, error } = await supabase
+        .from('widgets')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false });
 
-    if (error) {
+      if (error) throw error;
+
+      // Fetch stats for each widget
+      const widgetsWithStats = await Promise.all(
+        (widgetsData || []).map(async (widget) => {
+          const { data: events } = await supabase
+            .from('events')
+            .select('views, clicks')
+            .eq('widget_id', widget.id);
+
+          const totalViews = events?.reduce((sum, event) => sum + (event.views || 0), 0) || 0;
+          const totalClicks = events?.reduce((sum, event) => sum + (event.clicks || 0), 0) || 0;
+
+          return {
+            ...widget,
+            totalViews,
+            totalClicks
+          };
+        })
+      );
+
+      setWidgets(widgetsWithStats);
+    } catch (error: any) {
       toast({
         title: "Error fetching widgets",
         description: error.message,
         variant: "destructive",
       });
-    } else {
-      setWidgets(data || []);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const toggleWidgetStatus = async (widgetId: string, currentStatus: string) => {
@@ -178,6 +221,20 @@ const DashboardWidgets = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Eye className="h-4 w-4 text-blue-500" />
+                      <span className="text-muted-foreground">Views:</span>
+                      <span className="font-medium">{widget.totalViews}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MousePointer className="h-4 w-4 text-green-500" />
+                      <span className="text-muted-foreground">Clicks:</span>
+                      <span className="font-medium">{widget.totalClicks}</span>
+                    </div>
+                  </div>
+                  
                   <div className="text-sm text-muted-foreground">
                     Created: {new Date(widget.created_at).toLocaleDateString()}
                   </div>

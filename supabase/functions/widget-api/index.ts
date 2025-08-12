@@ -81,16 +81,18 @@ serve(async (req) => {
             );
           }
 
-          // Track the event
+          // Track the event with proper values for views, clicks, and conversions
+          const eventInsert = {
+            widget_id: widgetId,
+            event_type: event_type || 'custom',
+            event_data: event_data || {},
+            views: event_type === 'view' ? 1 : 0,
+            clicks: event_type === 'click' ? 1 : 0
+          };
+
           const { data: event, error: eventError } = await supabase
             .from('events')
-            .insert({
-              widget_id: widgetId,
-              event_type: event_type || 'custom',
-              event_data: event_data || {},
-              views: event_type === 'view' ? 1 : 0,
-              clicks: event_type === 'click' ? 1 : 0
-            })
+            .insert(eventInsert)
             .select()
             .single();
 
@@ -101,6 +103,8 @@ serve(async (req) => {
               { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
+
+          console.log(`Event tracked: ${event_type} for widget ${widgetId}`);
 
           return new Response(
             JSON.stringify({ success: true, event }),

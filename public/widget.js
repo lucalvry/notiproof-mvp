@@ -121,18 +121,34 @@
     const widget = document.createElement('div');
     widget.className = `notiproof-widget ${config.position}`;
     widget.style.borderLeftColor = config.color;
+    widget.style.cursor = 'pointer';
     
     widget.innerHTML = `
       ${config.showCloseButton ? '<button class="notiproof-close">×</button>' : ''}
       <div>${event.message || '🔔 Someone just signed up!'}</div>
     `;
     
+    // Add click tracking to the widget body
+    widget.addEventListener('click', (e) => {
+      if (!e.target.closest('.notiproof-close')) {
+        trackEvent('click', { 
+          message: event.message,
+          widget_clicked: true 
+        });
+      }
+    });
+    
     // Add close functionality
     if (config.showCloseButton) {
       const closeButton = widget.querySelector('.notiproof-close');
-      closeButton.addEventListener('click', () => {
+      closeButton.addEventListener('click', (e) => {
+        e.stopPropagation();
         widget.classList.remove('show');
         setTimeout(() => widget.remove(), 300);
+        trackEvent('close', { 
+          message: event.message,
+          widget_closed: true 
+        });
       });
     }
     
@@ -149,8 +165,11 @@
       }
     }, 5000);
     
-    // Track view
-    trackEvent('view');
+    // Track impression/view
+    trackEvent('view', { 
+      message: event.message,
+      widget_displayed: true 
+    });
   }
 
   // Track events
@@ -222,6 +241,10 @@
   window.NotiProof = {
     show: createWidget,
     track: trackEvent,
-    widgetId: widgetId
+    widgetId: widgetId,
+    // Helper methods for common tracking
+    trackConversion: (data) => trackEvent('conversion', data),
+    trackPurchase: (data) => trackEvent('purchase', data),
+    trackSignup: (data) => trackEvent('signup', data)
   };
 })();
