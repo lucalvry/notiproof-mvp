@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Copy, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 interface Widget {
   id: string;
@@ -21,6 +22,8 @@ const Installation = () => {
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [selectedWidget, setSelectedWidget] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [hostType, setHostType] = useState<'staging' | 'custom'>('staging');
+  const [customHost, setCustomHost] = useState('');
 
   useEffect(() => {
     const fetchWidgets = async () => {
@@ -57,9 +60,10 @@ const Installation = () => {
     });
   };
 
+  const normalizedHost = (hostType === 'custom' && customHost ? customHost : 'https://preview--notiproof-mvp.lovable.app').replace(/\/+$/, '');
   const embedCode = selectedWidget ? `
   <!-- NotiProof Widget -->
-  <script src="https://preview--notiproof-mvp.lovable.app/widget.js"
+  <script src="${normalizedHost}/widget.js"
           data-widget-id="${selectedWidget}"
           data-api-base="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api"
           data-disable-beacon="true"
@@ -71,7 +75,7 @@ const Installation = () => {
   <script>
     (function() {
       var script = document.createElement('script');
-      script.src = 'https://preview--notiproof-mvp.lovable.app/widget.js';
+      script.src = '${normalizedHost}/widget.js';
       script.defer = true;
       script.setAttribute('data-widget-id', '${selectedWidget}');
       script.setAttribute('data-api-base', 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api');
@@ -198,6 +202,30 @@ const Installation = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
+                  <div>
+                    <Label>Embed Host</Label>
+                    <div className="mt-1 flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <Select value={hostType} onValueChange={(v) => setHostType(v as any)}>
+                          <SelectTrigger className="w-48"><SelectValue placeholder="Host type" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="staging">Staging (preview)</SelectItem>
+                            <SelectItem value="custom">Production CDN</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {hostType === 'custom' && (
+                          <Input
+                            placeholder="https://cdn.your-domain.com"
+                            value={customHost}
+                            onChange={(e) => setCustomHost(e.target.value)}
+                          />
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Script source: {`${(hostType === 'custom' && customHost ? customHost : 'https://preview--notiproof-mvp.lovable.app').replace(/\/+$/, '')}/widget.js`}
+                      </p>
+                    </div>
+                  </div>
                   <div>
                     <Label>HTML Embed Code (Recommended)</Label>
                     <div className="relative mt-1">

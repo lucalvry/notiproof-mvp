@@ -89,26 +89,32 @@ const DashboardWidgets = () => {
 
       if (error) throw error;
 
-      // Fetch stats for each widget
-      const widgetsWithStats = await Promise.all(
-        (widgetsData || []).map(async (widget) => {
-          const { data: events } = await supabase
-            .from('events')
-            .select('views, clicks')
-            .eq('widget_id', widget.id);
+      // Fetch stats for all widgets in a single query, then aggregate client-side
+      const ids = (widgetsData || []).map(w => w.id);
+      let statsById: Record<string, { views: number; clicks: number }> = {};
+      if (ids.length > 0) {
+        const { data: eventsData, error: eventsError } = await supabase
+          .from('events')
+          .select('widget_id, views, clicks')
+          .in('widget_id', ids);
+        if (eventsError) throw eventsError;
 
-          const totalViews = events?.reduce((sum, event) => sum + (event.views || 0), 0) || 0;
-          const totalClicks = events?.reduce((sum, event) => sum + (event.clicks || 0), 0) || 0;
-          const ctr = totalViews > 0 ? (totalClicks / totalViews) * 100 : 0;
+        statsById = (eventsData || []).reduce((acc, ev: any) => {
+          const key = ev.widget_id;
+          if (!acc[key]) acc[key] = { views: 0, clicks: 0 };
+          acc[key].views += ev.views || 0;
+          acc[key].clicks += ev.clicks || 0;
+          return acc;
+        }, {} as Record<string, { views: number; clicks: number }>);
+      }
 
-          return {
-            ...widget,
-            totalViews,
-            totalClicks,
-            ctr
-          };
-        })
-      );
+      const widgetsWithStats = (widgetsData || []).map((widget: any) => {
+        const totals = statsById[widget.id] || { views: 0, clicks: 0 };
+        const totalViews = totals.views;
+        const totalClicks = totals.clicks;
+        const ctr = totalViews > 0 ? (totalClicks / totalViews) * 100 : 0;
+        return { ...widget, totalViews, totalClicks, ctr };
+      });
 
       setWidgets(widgetsWithStats);
     } catch (error: any) {
