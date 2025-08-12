@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NotiProof Click Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-button {
+            background: #3B82F6;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+        }
+        .test-button:hover {
+            background: #2563EB;
+        }
+        .log-output {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔔 NotiProof Click Test</h1>
+        
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Wait for the NotiProof notification to appear (bottom-left corner)</li>
+                <li>Click on the notification to test click tracking</li>
+                <li>Check the console logs below for debugging info</li>
+                <li>Check your NotiProof dashboard to see if clicks appear</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h3>Manual Tests</h3>
+            <button class="test-button" onclick="testManualClick()">Simulate Click Event</button>
+            <button class="test-button" onclick="clearLogs()">Clear Logs</button>
+            <button class="test-button" onclick="checkDashboard()">Check Dashboard Data</button>
+        </div>
+
+        <div class="test-section">
+            <h3>Console Output</h3>
+            <div id="console-output" class="log-output">
+                <div>Waiting for widget to load...</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>Network Requests</h3>
+            <div id="network-output" class="log-output">
+                <div>Monitoring network requests...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NotiProof Widget Script -->
+    <script 
+        src="widget.js" 
+        data-widget-id="c26c2241-7b80-4ee7-ba31-55ae342db25c"
+        data-api-base="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api">
+    </script>
+
+    <script>
+        // Capture console logs
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        
+        function addLog(type, message) {
+            const output = document.getElementById('console-output');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<strong>[${timestamp}] ${type.toUpperCase()}:</strong> ${message}`;
+            output.appendChild(logEntry);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            addLog('log', args.join(' '));
+            originalLog.apply(console, args);
+        };
+        
+        console.warn = function(...args) {
+            addLog('warn', args.join(' '));
+            originalWarn.apply(console, args);
+        };
+        
+        console.error = function(...args) {
+            addLog('error', args.join(' '));
+            originalError.apply(console, args);
+        };
+
+        // Monitor network requests
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+            const [url, options] = args;
+            addNetworkLog('FETCH', url, options?.method || 'GET', options?.body);
+            return originalFetch.apply(window, args)
+                .then(response => {
+                    addNetworkLog('RESPONSE', url, response.status, response.statusText);
+                    return response;
+                })
+                .catch(error => {
+                    addNetworkLog('ERROR', url, 'Failed', error.message);
+                    throw error;
+                });
+        };
+
+        // Monitor sendBeacon
+        const originalSendBeacon = navigator.sendBeacon;
+        navigator.sendBeacon = function(url, data) {
+            addNetworkLog('BEACON', url, 'POST', data);
+            return originalSendBeacon.call(navigator, url, data);
+        };
+
+        function addNetworkLog(type, url, method, data) {
+            const output = document.getElementById('network-output');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            let dataStr = '';
+            if (data) {
+                if (data instanceof Blob) {
+                    dataStr = ' (Blob data)';
+                } else if (typeof data === 'string') {
+                    try {
+                        const parsed = JSON.parse(data);
+                        dataStr = ` - ${JSON.stringify(parsed, null, 2)}`;
+                    } catch {
+                        dataStr = ` - ${data}`;
+                    }
+                } else {
+                    dataStr = ` - ${JSON.stringify(data, null, 2)}`;
+                }
+            }
+            logEntry.innerHTML = `<strong>[${timestamp}] ${type}:</strong> ${method} ${url}${dataStr}`;
+            output.appendChild(logEntry);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function testManualClick() {
+            const widget = document.querySelector('.notiproof-widget');
+            if (widget) {
+                console.log('Manually triggering click on widget');
+                widget.click();
+            } else {
+                console.warn('No NotiProof widget found to click');
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('console-output').innerHTML = '<div>Logs cleared...</div>';
+            document.getElementById('network-output').innerHTML = '<div>Network monitoring reset...</div>';
+        }
+
+        function checkDashboard() {
+            console.log('Check your NotiProof dashboard at: /dashboard');
+            addLog('info', 'Dashboard check reminder sent');
+        }
+
+        // Page loaded
+        console.log('Click test page loaded successfully');
+        console.log('Widget should appear in bottom-left corner shortly...');
+    </script>
+</body>
+</html>

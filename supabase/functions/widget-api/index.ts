@@ -64,6 +64,7 @@ serve(async (req) => {
         if (req.method === 'POST') {
           // Create widget event
           const body = await req.json();
+          console.log('Widget API POST body:', JSON.stringify(body, null, 2));
           const { event_type, event_data, metadata } = body;
 
           // Verify widget exists and is active

@@ -226,10 +226,14 @@
     };
 
     const payload = {
+      widget_id: widgetId,
       event_type: 'click',
       event_data: eventData,
       metadata: eventData
     };
+
+    // Debug logging
+    console.log('NotiProof: Click Payload', payload);
 
     const url = `${apiBase}/api/widgets/${widgetId}/events`;
 
