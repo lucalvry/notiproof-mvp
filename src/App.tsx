@@ -31,6 +31,7 @@ import AdminWidgetDetail from "./pages/AdminWidgetDetail";
 import WidgetEvents from "./pages/WidgetEvents";
 import Billing from "./pages/Billing";
 import AdminLogin from "./pages/AdminLogin";
+import WidgetAnalytics from "./pages/WidgetAnalytics";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,7 @@ const App = () => (
               <Route path="widgets/create" element={<CreateWidget />} />
               <Route path="widgets/:id/edit" element={<EditWidget />} />
               <Route path="widgets/:id/events" element={<WidgetEvents />} />
+              <Route path="widgets/:id/analytics" element={<WidgetAnalytics />} />
               <Route path="installation" element={<Installation />} />
               <Route path="settings" element={<DashboardSettings />} />
               <Route path="billing" element={<Billing />} />

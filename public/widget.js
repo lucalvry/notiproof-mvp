@@ -158,6 +158,14 @@
     sessionId = 'np_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
     localStorage.setItem('notiproof-session-id', sessionId);
   }
+  // Assign stable A/B variant per widget and session
+  const variantKey = `notiproof-variant-${widgetId}`;
+  let variant = localStorage.getItem(variantKey);
+  if (!variant) {
+    // Simple 50/50 split
+    variant = Math.random() < 0.5 ? 'A' : 'B';
+    localStorage.setItem(variantKey, variant);
+  }
 
   // Click tracking deduplication
   let lastClickTime = 0;
@@ -284,6 +292,7 @@
           event_type: type,
           event_data: {
             ...data,
+            variant,
             timestamp: new Date().toISOString(),
             user_agent: navigator.userAgent,
             url: window.location.href,
@@ -312,7 +321,7 @@
 
     const payload = {
       event_type: 'click',
-      event_data: eventData
+      event_data: { ...eventData, variant }
     };
 
     // Debug logging - show actual payload structure

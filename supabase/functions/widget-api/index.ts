@@ -141,14 +141,33 @@ serve(async (req) => {
             }
           }
 
-          // Merge event_data and metadata for backward compatibility
+          // Merge event_data and metadata with derived fields below
+          // Track the event with proper values for views, clicks, and conversions
+          // Derive basic device type
+          const device = /Mobi|Android|iPhone|iPad|Tablet/i.test(userAgent) ? 'mobile' : 'desktop';
+
+          // Optional geolocation lookup (best-effort)
+          let geo: Record<string, any> | undefined;
+          try {
+            if (ip && ip !== '127.0.0.1' && ip !== '::1') {
+              const geoRes = await fetch(`https://ipapi.co/${ip}/json/`, { headers: { 'Accept': 'application/json' } });
+              if (geoRes.ok) {
+                const g = await geoRes.json();
+                geo = { country: g.country_name, country_code: g.country, city: g.city, region: g.region, latitude: g.latitude, longitude: g.longitude };
+              }
+            }
+          } catch (_) {
+            // ignore geo failures
+          }
+
           const combinedEventData = {
             ...event_data,
             ...metadata,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            device,
+            geo,
           };
 
-          // Track the event with proper values for views, clicks, and conversions
           const eventInsert = {
             widget_id: widgetId,
             event_type: event_type || 'custom',
