@@ -13,6 +13,7 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import DashboardWidgets from "./pages/DashboardWidgets";
 import CreateWidget from "./pages/CreateWidget";
+import EditWidget from "./pages/EditWidget";
 import Installation from "./pages/Installation";
 import DashboardSettings from "./pages/DashboardSettings";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -47,6 +48,7 @@ const App = () => (
               <Route index element={<Dashboard />} />
               <Route path="widgets" element={<DashboardWidgets />} />
               <Route path="widgets/create" element={<CreateWidget />} />
+              <Route path="widgets/:id/edit" element={<EditWidget />} />
               <Route path="installation" element={<Installation />} />
               <Route path="settings" element={<DashboardSettings />} />
             </Route>

@@ -202,9 +202,11 @@ const DashboardWidgets = () => {
                       )}
                     </Button>
                     
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Edit className="h-4 w-4" />
-                      Edit
+                    <Button variant="outline" size="sm" className="gap-2" asChild>
+                      <Link to={`/dashboard/widgets/${widget.id}/edit`}>
+                        <Edit className="h-4 w-4" />
+                        Edit
+                      </Link>
                     </Button>
                     
                     <Button

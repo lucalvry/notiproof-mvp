@@ -9,7 +9,9 @@
   }
 
   const widgetId = scriptTag.getAttribute('data-widget-id');
-  const apiBase = scriptTag.getAttribute('data-api-base') || window.location.origin;
+  const apiBase = scriptTag.getAttribute('data-api-base') || 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
+  
+  console.log('NotiProof: Initializing widget', { widgetId, apiBase });
 
   // Widget styles
   const widgetStyles = `
@@ -161,11 +163,17 @@
         },
         body: JSON.stringify({
           event_type: type,
-          event_data: data
+          event_data: {
+            ...data,
+            timestamp: new Date().toISOString(),
+            user_agent: navigator.userAgent,
+            url: window.location.href,
+            referrer: document.referrer
+          }
         })
       });
     } catch (error) {
-      console.warn('NotiProof: Could not track event');
+      console.warn('NotiProof: Could not track event', error);
     }
   }
 

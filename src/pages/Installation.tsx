@@ -64,6 +64,7 @@ const Installation = () => {
     var script = document.createElement('script');
     script.src = '${window.location.origin}/widget.js';
     script.setAttribute('data-widget-id', '${selectedWidget}');
+    script.setAttribute('data-api-base', 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api');
     script.async = true;
     document.head.appendChild(script);
   })();
@@ -71,7 +72,7 @@ const Installation = () => {
   `.trim() : '';
 
   const apiEndpoint = selectedWidget 
-    ? `${window.location.origin}/functions/v1/widget-api/api/widgets/${selectedWidget}`
+    ? `https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api/api/widgets/${selectedWidget}`
     : '';
 
   if (loading) {
