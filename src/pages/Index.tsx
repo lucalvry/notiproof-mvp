@@ -20,10 +20,10 @@ const Index = () => {
           <div className="text-2xl font-bold">NotiProof</div>
           <div className="space-x-4">
             <Button asChild variant="outline">
-              <Link to="/auth">Sign In</Link>
+              <Link to="/auth/login">Sign In</Link>
             </Button>
             <Button asChild>
-              <Link to="/auth">Get Started</Link>
+              <Link to="/auth/signup">Get Started</Link>
             </Button>
           </div>
         </nav>
@@ -41,12 +41,12 @@ const Index = () => {
           </p>
           <div className="flex gap-4 justify-center">
             <Button asChild size="lg" className="gap-2">
-              <Link to="/auth">
+              <Link to="/auth/signup">
                 Start Free Trial <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg">
-              <Link to="/auth">View Demo</Link>
+              <Link to="/auth/login">View Demo</Link>
             </Button>
           </div>
         </div>
