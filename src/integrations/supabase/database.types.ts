@@ -18,6 +18,9 @@ export type Database = {
           views: number | null
           clicks: number | null
           created_at: string | null
+          flagged: boolean
+          ip: string | null
+          user_agent: string | null
         }
         Insert: {
           id?: string
@@ -27,6 +30,9 @@ export type Database = {
           views?: number | null
           clicks?: number | null
           created_at?: string | null
+          flagged?: boolean
+          ip?: string | null
+          user_agent?: string | null
         }
         Update: {
           id?: string
@@ -36,6 +42,9 @@ export type Database = {
           views?: number | null
           clicks?: number | null
           created_at?: string | null
+          flagged?: boolean
+          ip?: string | null
+          user_agent?: string | null
         }
         Relationships: [
           {
