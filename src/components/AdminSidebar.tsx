@@ -3,7 +3,8 @@ import {
   Users, 
   Blocks, 
   Settings,
-  Bell
+  Bell,
+  Activity
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -32,6 +33,7 @@ export function AdminSidebar() {
     { title: "Overview", url: "/admin", icon: BarChart3, exact: true },
     { title: "Users", url: "/admin/users", icon: Users },
     { title: "Widgets", url: "/admin/widgets", icon: Blocks },
+    { title: "Events", url: "/admin/events", icon: Activity },
     { title: "Alerts", url: "/admin/alerts", icon: Bell },
     { title: "Settings", url: "/admin/settings", icon: Settings },
   ];
