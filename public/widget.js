@@ -299,10 +299,8 @@
     };
 
     const payload = {
-      widget_id: widgetId,
       event_type: 'click',
-      event_data: eventData,
-      metadata: eventData
+      event_data: eventData
     };
 
     // Debug logging

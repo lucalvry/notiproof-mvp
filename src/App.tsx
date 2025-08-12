@@ -16,6 +16,7 @@ import CreateWidget from "./pages/CreateWidget";
 import EditWidget from "./pages/EditWidget";
 import Installation from "./pages/Installation";
 import DashboardSettings from "./pages/DashboardSettings";
+import LiveTest from "./pages/LiveTest";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminUsers from "./pages/AdminUsers";
 import AdminWidgets from "./pages/AdminWidgets";
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth/login" element={<Login />} />
             <Route path="/auth/signup" element={<Signup />} />
+            <Route path="/live-test" element={<LiveTest />} />
             
             {/* User Dashboard Routes */}
             <Route 
