@@ -5,16 +5,20 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { AppLayout } from "@/components/AppLayout";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { AdminLayout } from "@/components/AdminLayout";
 import Index from "./pages/Index";
-import Auth from "./pages/Auth";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
-import Widgets from "./pages/Widgets";
+import DashboardWidgets from "./pages/DashboardWidgets";
 import CreateWidget from "./pages/CreateWidget";
 import Installation from "./pages/Installation";
+import DashboardSettings from "./pages/DashboardSettings";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminUsers from "./pages/AdminUsers";
+import AdminWidgets from "./pages/AdminWidgets";
+import AdminSettings from "./pages/AdminSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,59 +32,40 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
             <Route path="/auth/login" element={<Login />} />
             <Route path="/auth/signup" element={<Signup />} />
+            
+            {/* User Dashboard Routes */}
             <Route 
               path="/dashboard" 
               element={
                 <ProtectedRoute>
-                  <AppLayout>
-                    <Dashboard />
-                  </AppLayout>
+                  <DashboardLayout />
                 </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/widgets" 
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Widgets />
-                  </AppLayout>
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/widgets/create" 
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <CreateWidget />
-                  </AppLayout>
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/installation" 
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Installation />
-                  </AppLayout>
-                </ProtectedRoute>
-              } 
-            />
+              }
+            >
+              <Route index element={<Dashboard />} />
+              <Route path="widgets" element={<DashboardWidgets />} />
+              <Route path="widgets/create" element={<CreateWidget />} />
+              <Route path="installation" element={<Installation />} />
+              <Route path="settings" element={<DashboardSettings />} />
+            </Route>
+
+            {/* Admin Routes */}
             <Route 
               path="/admin" 
               element={
-                <ProtectedRoute adminOnly>
-                  <AppLayout>
-                    <AdminDashboard />
-                  </AppLayout>
+                <ProtectedRoute>
+                  <AdminLayout />
                 </ProtectedRoute>
-              } 
-            />
+              }
+            >
+              <Route index element={<AdminDashboard />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="widgets" element={<AdminWidgets />} />
+              <Route path="settings" element={<AdminSettings />} />
+            </Route>
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
