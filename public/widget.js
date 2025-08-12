@@ -101,6 +101,17 @@
     showCloseButton: true
   };
 
+  // Generate session ID for deduplication
+  let sessionId = localStorage.getItem('notiproof-session-id');
+  if (!sessionId) {
+    sessionId = 'np_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+    localStorage.setItem('notiproof-session-id', sessionId);
+  }
+
+  // Click tracking deduplication
+  let lastClickTime = 0;
+  const CLICK_DEDUPE_WINDOW = 1000; // 1 second
+
   // Fetch widget configuration
   async function fetchWidgetConfig() {
     try {
@@ -125,16 +136,20 @@
     
     widget.innerHTML = `
       ${config.showCloseButton ? '<button class="notiproof-close">×</button>' : ''}
-      <div>${event.message || '🔔 Someone just signed up!'}</div>
+      <div class="notiproof-content">${event.message || '🔔 Someone just signed up!'}</div>
     `;
     
     // Add click tracking to the widget body
     widget.addEventListener('click', (e) => {
       if (!e.target.closest('.notiproof-close')) {
-        trackEvent('click', { 
-          message: event.message,
-          widget_clicked: true 
-        });
+        const now = Date.now();
+        if (now - lastClickTime > CLICK_DEDUPE_WINDOW) {
+          lastClickTime = now;
+          trackClickEvent(e.target, {
+            message: event.message,
+            widget_clicked: true
+          });
+        }
       }
     });
     
@@ -172,7 +187,7 @@
     });
   }
 
-  // Track events
+  // Track events (general)
   async function trackEvent(type, data = {}) {
     try {
       await fetch(`${apiBase}/api/widgets/${widgetId}/events`, {
@@ -187,12 +202,64 @@
             timestamp: new Date().toISOString(),
             user_agent: navigator.userAgent,
             url: window.location.href,
-            referrer: document.referrer
+            referrer: document.referrer,
+            session_id: sessionId
           }
         })
       });
     } catch (error) {
       console.warn('NotiProof: Could not track event', error);
+    }
+  }
+
+  // Track click events with sendBeacon for reliable delivery
+  function trackClickEvent(target, data = {}) {
+    const metadata = {
+      element: target.className || 'notiproof-content',
+      href: target.href || null,
+      page_url: window.location.href,
+      referrer: document.referrer,
+      user_agent: navigator.userAgent,
+      session_id: sessionId,
+      timestamp: new Date().toISOString(),
+      ...data
+    };
+
+    const payload = {
+      event_type: 'click',
+      metadata: metadata
+    };
+
+    const url = `${apiBase}/api/widgets/${widgetId}/events`;
+
+    // Use sendBeacon for navigation-safe delivery, fallback to fetch with keepalive
+    if (navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      const sent = navigator.sendBeacon(url, blob);
+      if (!sent) {
+        // Fallback to fetch if sendBeacon fails
+        fallbackTrackClick(url, payload);
+      }
+    } else {
+      fallbackTrackClick(url, payload);
+    }
+  }
+
+  // Fallback tracking method
+  function fallbackTrackClick(url, payload) {
+    try {
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        keepalive: true
+      }).catch(() => {
+        // Silently ignore errors to avoid affecting user experience
+      });
+    } catch (error) {
+      // Silently ignore errors
     }
   }
 

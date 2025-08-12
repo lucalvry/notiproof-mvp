@@ -64,7 +64,7 @@ serve(async (req) => {
         if (req.method === 'POST') {
           // Create widget event
           const body = await req.json();
-          const { event_type, event_data } = body;
+          const { event_type, event_data, metadata } = body;
 
           // Verify widget exists and is active
           const { data: widget, error: widgetError } = await supabase
@@ -81,11 +81,38 @@ serve(async (req) => {
             );
           }
 
+          // Rate limiting for clicks - check for duplicate clicks within 2 seconds
+          if (event_type === 'click' && metadata?.session_id) {
+            const twoSecondsAgo = new Date(Date.now() - 2000).toISOString();
+            const { data: recentClicks } = await supabase
+              .from('events')
+              .select('id')
+              .eq('widget_id', widgetId)
+              .eq('event_type', 'click')
+              .gte('created_at', twoSecondsAgo)
+              .contains('event_data', { session_id: metadata.session_id });
+
+            if (recentClicks && recentClicks.length > 0) {
+              console.log(`Rate limited: Duplicate click from session ${metadata.session_id}`);
+              return new Response(
+                JSON.stringify({ success: true, message: 'Event deduplicated' }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+
+          // Merge event_data and metadata for backward compatibility
+          const combinedEventData = {
+            ...event_data,
+            ...metadata,
+            timestamp: new Date().toISOString()
+          };
+
           // Track the event with proper values for views, clicks, and conversions
           const eventInsert = {
             widget_id: widgetId,
             event_type: event_type || 'custom',
-            event_data: event_data || {},
+            event_data: combinedEventData,
             views: event_type === 'view' ? 1 : 0,
             clicks: event_type === 'click' ? 1 : 0
           };
@@ -104,7 +131,7 @@ serve(async (req) => {
             );
           }
 
-          console.log(`Event tracked: ${event_type} for widget ${widgetId}`);
+          console.log(`Event tracked: ${event_type} for widget ${widgetId} ${metadata?.session_id ? `(session: ${metadata.session_id})` : ''}`);
 
           return new Response(
             JSON.stringify({ success: true, event }),

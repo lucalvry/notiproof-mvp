@@ -18,6 +18,7 @@ interface Widget {
   style_config?: any;
   totalViews: number;
   totalClicks: number;
+  ctr: number;
 }
 
 const DashboardWidgets = () => {
@@ -75,11 +76,13 @@ const DashboardWidgets = () => {
 
           const totalViews = events?.reduce((sum, event) => sum + (event.views || 0), 0) || 0;
           const totalClicks = events?.reduce((sum, event) => sum + (event.clicks || 0), 0) || 0;
+          const ctr = totalViews > 0 ? (totalClicks / totalViews) * 100 : 0;
 
           return {
             ...widget,
             totalViews,
-            totalClicks
+            totalClicks,
+            ctr
           };
         })
       );
@@ -222,16 +225,20 @@ const DashboardWidgets = () => {
               <CardContent>
                 <div className="space-y-4">
                   {/* Stats */}
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div className="flex items-center gap-1">
                       <Eye className="h-4 w-4 text-blue-500" />
                       <span className="text-muted-foreground">Views:</span>
                       <span className="font-medium">{widget.totalViews}</span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <MousePointer className="h-4 w-4 text-green-500" />
                       <span className="text-muted-foreground">Clicks:</span>
                       <span className="font-medium">{widget.totalClicks}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-muted-foreground">CTR:</span>
+                      <span className="font-medium">{widget.ctr.toFixed(1)}%</span>
                     </div>
                   </div>
                   
