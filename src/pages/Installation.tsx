@@ -59,17 +59,11 @@ const Installation = () => {
 
   const embedCode = selectedWidget ? `
   <!-- NotiProof Widget -->
-  <script>
-    (function() {
-      var script = document.createElement('script');
-      script.src = '${window.location.origin}/widget.js';
-      script.setAttribute('data-widget-id', '${selectedWidget}');
-      script.setAttribute('data-api-base', 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api');
-      script.setAttribute('data-disable-beacon', 'true');
-      script.async = true;
-      document.head.appendChild(script);
-    })();
-  </script>
+  <script src="https://preview--notiproof-mvp.lovable.app/widget.js"
+          data-widget-id="${selectedWidget}"
+          data-api-base="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api"
+          data-disable-beacon="true"
+          defer></script>
     `.trim() : '';
 
   const apiEndpoint = selectedWidget 
