@@ -26,6 +26,10 @@ const AdminUsers = () => {
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     fetchUsers();
@@ -116,7 +120,17 @@ const AdminUsers = () => {
 
         <Card>
           <CardHeader>
-            <Skeleton className="h-6 w-1/4" />
+            <CardTitle>Filters</CardTitle>
+            <CardDescription>Refine user list</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-16" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>All Users</CardTitle>
           </CardHeader>
           <CardContent>
             <Skeleton className="h-96" />
@@ -169,6 +183,24 @@ const AdminUsers = () => {
         </Card>
       </div>
 
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+          <CardDescription>Refine user list</CardDescription>
+        </CardHeader>
+        <CardContent className="grid md:grid-cols-4 gap-3">
+          <Input placeholder="Search name or id" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <select className="border rounded px-3 py-2 bg-background" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        </CardContent>
+      </Card>
+
       {/* Users Table */}
       <Card>
         <CardHeader>
@@ -189,9 +221,16 @@ const AdminUsers = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
+              {users
+                .filter(u => (statusFilter === 'all' ? true : u.status === statusFilter))
+                .filter(u => (search ? (u.name?.toLowerCase().includes(search.toLowerCase()) || u.id.includes(search)) : true))
+                .filter(u => (startDate ? new Date(u.created_at) >= new Date(startDate) : true))
+                .filter(u => (endDate ? new Date(u.created_at) <= new Date(endDate + 'T23:59:59') : true))
+                .map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <a href={`/admin/users/${user.id}`} className="hover:underline">{user.name}</a>
+                  </TableCell>
                   <TableCell>
                     <Badge variant={user.role === 'admin' ? 'destructive' : 'default'}>
                       {user.role}
@@ -226,6 +265,22 @@ const AdminUsers = () => {
                           )}
                         >
                           Make {user.role === 'admin' ? 'User' : 'Admin'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            const email = window.prompt('Enter email to send reset link to:');
+                            if (!email) return;
+                            const { data, error } = await supabase.functions.invoke('admin-actions', {
+                              body: { action: 'reset_password', email },
+                            });
+                            if (error) {
+                              alert('Failed to trigger reset: ' + (error.message || 'Unknown error'));
+                            } else {
+                              alert('Password reset email triggered.');
+                            }
+                          }}
+                        >
+                          Reset Password
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

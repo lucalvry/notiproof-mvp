@@ -6,16 +6,24 @@ import { Users, Blocks, Activity, Calendar } from 'lucide-react';
 interface Stats {
   totalUsers: number;
   activeWidgets: number;
-  totalEvents: number;
+  totalEvents7d: number;
   newUsersThisWeek: number;
+  totalEventsAll: number;
+  events24h: number;
+  flagged24h: number;
+  apiStatus: 'operational' | 'down' | 'unknown';
 }
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState<Stats>({
     totalUsers: 0,
     activeWidgets: 0,
-    totalEvents: 0,
+    totalEvents7d: 0,
     newUsersThisWeek: 0,
+    totalEventsAll: 0,
+    events24h: 0,
+    flagged24h: 0,
+    apiStatus: 'unknown',
   });
   const [loading, setLoading] = useState(true);
 
@@ -33,26 +41,52 @@ const AdminDashboard = () => {
           .select('*', { count: 'exact', head: true })
           .eq('status', 'active');
 
-        // Get total events (last 7 days)
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const now = new Date();
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         
-        const { count: totalEvents } = await supabase
+        // Events last 7 days
+        const { count: events7d } = await supabase
           .from('events')
           .select('*', { count: 'exact', head: true })
           .gte('created_at', sevenDaysAgo.toISOString());
 
-        // Get new users this week
+        // Events all-time and last 24h
+        const { count: totalEventsAll } = await supabase
+          .from('events')
+          .select('*', { count: 'exact', head: true });
+
+        const { data: lastDayEvents, count: events24h } = await supabase
+          .from('events')
+          .select('id, flagged', { count: 'exact' })
+          .gte('created_at', twentyFourHoursAgo.toISOString());
+
+        const flagged24h = (lastDayEvents || []).filter((e: any) => e.flagged).length;
+
+        // New users this week
         const { count: newUsersThisWeek } = await supabase
           .from('profiles')
           .select('*', { count: 'exact', head: true })
           .gte('created_at', sevenDaysAgo.toISOString());
 
+        // API health
+        let apiStatus: 'operational' | 'down' | 'unknown' = 'unknown';
+        try {
+          const res = await fetch('https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api/api/health', { cache: 'no-store' });
+          apiStatus = res.ok ? 'operational' : 'down';
+        } catch {
+          apiStatus = 'down';
+        }
+
         setStats({
           totalUsers: totalUsers || 0,
           activeWidgets: activeWidgets || 0,
-          totalEvents: totalEvents || 0,
+          totalEvents7d: events7d || 0,
           newUsersThisWeek: newUsersThisWeek || 0,
+          totalEventsAll: totalEventsAll || 0,
+          events24h: events24h || 0,
+          flagged24h,
+          apiStatus,
         });
       } catch (error) {
         console.error('Error fetching admin stats:', error);
@@ -125,10 +159,8 @@ const AdminDashboard = () => {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalEvents}</div>
-            <p className="text-xs text-muted-foreground">
-              Last 7 days
-            </p>
+            <div className="text-2xl font-bold">{stats.totalEvents7d}</div>
+            <p className="text-xs text-muted-foreground">Last 7 days</p>
           </CardContent>
         </Card>
 
@@ -203,22 +235,27 @@ const AdminDashboard = () => {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">API Status</span>
-                <span className="text-sm text-green-600">Operational</span>
+                <span className={`text-sm ${stats.apiStatus === 'operational' ? 'text-green-600' : 'text-destructive'}`}>
+                  {stats.apiStatus === 'operational' ? 'Operational' : 'Down'}
+                </span>
               </div>
-              
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Widget Delivery</span>
                 <span className="text-sm text-green-600">Operational</span>
               </div>
-              
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Database</span>
                 <span className="text-sm text-green-600">Operational</span>
               </div>
-              
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Authentication</span>
                 <span className="text-sm text-green-600">Operational</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Error rate (24h)</span>
+                <span className="text-sm">
+                  {stats.events24h > 0 ? ((stats.flagged24h / stats.events24h) * 100).toFixed(2) : '0.00'}%
+                </span>
               </div>
             </div>
           </CardContent>

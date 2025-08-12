@@ -25,6 +25,12 @@ const AdminEvents = () => {
   const [filterType, setFilterType] = useState<'all' | 'view' | 'click' | 'custom'>('all');
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
   const [query, setQuery] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [widgetFilter, setWidgetFilter] = useState<string>('all');
+  const [userFilter, setUserFilter] = useState<string>('all');
+  const [widgetsMap, setWidgetsMap] = useState<Record<string, { name: string; user_id: string }>>({});
+  const [profilesMap, setProfilesMap] = useState<Record<string, string>>({});
 
   const loadEvents = async () => {
     setLoading(true);
@@ -37,40 +43,57 @@ const AdminEvents = () => {
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadEvents();
+useEffect(() => {
+  const init = async () => {
+    await loadEvents();
+    // preload widgets and profiles for filters
+    const [widgetsRes, profilesRes] = await Promise.all([
+      supabase.from('widgets').select('id, name, user_id').limit(1000),
+      supabase.from('profiles').select('id, name').limit(1000)
+    ]);
+    setWidgetsMap(Object.fromEntries((widgetsRes.data || []).map((w) => [w.id, { name: w.name, user_id: w.user_id }])));
+    setProfilesMap(Object.fromEntries((profilesRes.data || []).map((p) => [p.id, p.name])));
+  };
+  init();
 
-    // Realtime feed for inserts/updates
-    const channel = supabase
-      .channel('admin-events')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (payload) => {
-        setEvents((prev) => [payload.new as EventRow, ...prev].slice(0, 100));
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'events' }, (payload) => {
-        setEvents((prev) => prev.map((e) => (e.id === (payload.new as any).id ? (payload.new as EventRow) : e)));
-      })
-      .subscribe();
+  // Realtime feed for inserts/updates
+  const channel = supabase
+    .channel('admin-events')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (payload) => {
+      setEvents((prev) => [payload.new as EventRow, ...prev].slice(0, 100));
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'events' }, (payload) => {
+      setEvents((prev) => prev.map((e) => (e.id === (payload.new as any).id ? (payload.new as EventRow) : e)));
+    })
+    .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []);
 
-  const filtered = useMemo(() => {
-    return events.filter((e) => {
-      if (filterType !== 'all' && e.event_type !== filterType) return false;
-      if (showFlaggedOnly && !e.flagged) return false;
-      if (query) {
-        const q = query.toLowerCase();
-        return (
-          e.event_type.toLowerCase().includes(q) ||
-          e.widget_id.toLowerCase().includes(q) ||
-          (e.event_data?.message || '').toLowerCase().includes(q)
-        );
-      }
-      return true;
-    });
-  }, [events, filterType, showFlaggedOnly, query]);
+const filtered = useMemo(() => {
+  return events.filter((e) => {
+    if (filterType !== 'all' && e.event_type !== filterType) return false;
+    if (showFlaggedOnly && !e.flagged) return false;
+    if (startDate && new Date(e.created_at) < new Date(startDate)) return false;
+    if (endDate && new Date(e.created_at) > new Date(endDate + 'T23:59:59')) return false;
+    if (widgetFilter !== 'all' && e.widget_id !== widgetFilter) return false;
+    if (userFilter !== 'all') {
+      const widget = widgetsMap[e.widget_id];
+      if (!widget || widget.user_id !== userFilter) return false;
+    }
+    if (query) {
+      const q = query.toLowerCase();
+      return (
+        e.event_type.toLowerCase().includes(q) ||
+        e.widget_id.toLowerCase().includes(q) ||
+        (e.event_data?.message || '').toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+}, [events, filterType, showFlaggedOnly, query, startDate, endDate, widgetFilter, userFilter, widgetsMap]);
 
   const toggleFlag = async (id: string, flagged: boolean) => {
     await supabase.from('events').update({ flagged: !flagged }).eq('id', id);
@@ -94,10 +117,10 @@ const AdminEvents = () => {
           <CardTitle>Filters</CardTitle>
           <CardDescription>Refine the live event feed</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3 md:flex-row md:items-center">
+        <CardContent className="grid md:grid-cols-3 lg:grid-cols-6 gap-3 items-center">
           <Input placeholder="Search message, widget id, type" value={query} onChange={(e) => setQuery(e.target.value)} />
           <Select value={filterType} onValueChange={(v) => setFilterType(v as any)}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Type" /></SelectTrigger>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Type" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All types</SelectItem>
               <SelectItem value="view">Views</SelectItem>
@@ -105,10 +128,32 @@ const AdminEvents = () => {
               <SelectItem value="custom">Custom</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant={showFlaggedOnly ? 'default' : 'outline'} onClick={() => setShowFlaggedOnly((v) => !v)}>
-            {showFlaggedOnly ? <Flag className="h-4 w-4 mr-2" /> : <FlagOff className="h-4 w-4 mr-2" />} Flagged only
-          </Button>
-          <Button variant="outline" onClick={loadEvents}><RefreshCw className="h-4 w-4 mr-2" />Refresh</Button>
+          <Select value={widgetFilter} onValueChange={(v) => setWidgetFilter(v)}>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Widget" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All widgets</SelectItem>
+              {Object.entries(widgetsMap).map(([id, w]) => (
+                <SelectItem key={id} value={id}>{w.name.slice(0,32)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={userFilter} onValueChange={(v) => setUserFilter(v)}>
+            <SelectTrigger className="w-full"><SelectValue placeholder="User" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All users</SelectItem>
+              {Object.entries(profilesMap).map(([id, name]) => (
+                <SelectItem key={id} value={id}>{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          <div className="flex gap-2">
+            <Button variant={showFlaggedOnly ? 'default' : 'outline'} onClick={() => setShowFlaggedOnly((v) => !v)}>
+              {showFlaggedOnly ? <Flag className="h-4 w-4 mr-2" /> : <FlagOff className="h-4 w-4 mr-2" />} Flagged only
+            </Button>
+            <Button variant="outline" onClick={loadEvents}><RefreshCw className="h-4 w-4 mr-2" />Refresh</Button>
+          </div>
         </CardContent>
       </Card>
 

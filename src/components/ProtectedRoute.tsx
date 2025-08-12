@@ -22,7 +22,8 @@ export const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRoutePr
   }
 
   if (!user) {
-    return <Navigate to="/auth/login" state={{ from: location }} replace />;
+    const redirectTo = adminOnly ? '/admin/login' : '/auth/login';
+    return <Navigate to={redirectTo} state={{ from: location }} replace />;
   }
 
   if (adminOnly && !(profile?.role === 'admin' || profile?.role === 'support')) {

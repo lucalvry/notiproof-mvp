@@ -30,6 +30,7 @@ import AdminUserDetail from "./pages/AdminUserDetail";
 import AdminWidgetDetail from "./pages/AdminWidgetDetail";
 import WidgetEvents from "./pages/WidgetEvents";
 import Billing from "./pages/Billing";
+import AdminLogin from "./pages/AdminLogin";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth/login" element={<Login />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/auth/signup" element={<Signup />} />
             <Route path="/auth/forgot" element={<ForgotPassword />} />
             <Route path="/auth/reset-password" element={<ResetPassword />} />

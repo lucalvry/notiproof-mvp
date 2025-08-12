@@ -19,6 +19,9 @@ const WidgetEvents = () => {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'view' | 'click' | 'custom'>('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const load = async () => {
     if (!id) return;
@@ -46,10 +49,15 @@ const WidgetEvents = () => {
   }, [id]);
 
   const filtered = useMemo(() => {
-    if (!query) return events;
     const q = query.toLowerCase();
-    return events.filter((e) => (e.event_data?.message || '').toLowerCase().includes(q) || e.event_type.toLowerCase().includes(q));
-  }, [events, query]);
+    return events.filter((e) => {
+      if (filterType !== 'all' && e.event_type !== filterType) return false;
+      if (startDate && new Date(e.created_at) < new Date(startDate)) return false;
+      if (endDate && new Date(e.created_at) > new Date(endDate + 'T23:59:59')) return false;
+      if (!query) return true;
+      return (e.event_data?.message || '').toLowerCase().includes(q) || e.event_type.toLowerCase().includes(q);
+    });
+  }, [events, query, filterType, startDate, endDate]);
 
   const addTestEvent = async () => {
     if (!id) return;
@@ -84,7 +92,17 @@ const WidgetEvents = () => {
           <CardDescription>Newest first</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2 mb-3"><Input placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
+          <div className="grid md:grid-cols-4 gap-2 mb-3">
+            <Input placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <select className="border rounded px-3 py-2 bg-background" value={filterType} onChange={(e) => setFilterType(e.target.value as any)}>
+              <option value="all">All types</option>
+              <option value="view">Views</option>
+              <option value="click">Clicks</option>
+              <option value="custom">Custom</option>
+            </select>
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
           {loading ? (
             <div className="text-muted-foreground">Loading...</div>
           ) : (
