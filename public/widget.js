@@ -367,6 +367,7 @@
   // Fetch and display events
   async function fetchAndDisplayEvents() {
     try {
+      await fetchWidgetConfig();
       const response = await fetch(`${apiBase}/api/widgets/${widgetId}/events`);
       if (response.ok) {
         const events = await response.json();

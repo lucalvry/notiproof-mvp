@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
 import { Edit, Trash2, ToggleLeft, ToggleRight, Plus, Eye, MousePointer } from 'lucide-react';
-
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 interface Widget {
   id: string;
   name: string;
@@ -26,7 +26,30 @@ const DashboardWidgets = () => {
   const { toast } = useToast();
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<'created' | 'views' | 'clicks' | 'ctr'>('created');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [filterTemplate, setFilterTemplate] = useState<'all' | string>('all');
 
+  const templateOptions = Array.from(new Set(widgets.map(w => w.template_name)));
+
+  const displayedWidgets = widgets
+    .filter(w => (filterStatus === 'all' ? true : w.status === filterStatus))
+    .filter(w => (filterTemplate === 'all' ? true : w.template_name === filterTemplate))
+    .slice()
+    .sort((a, b) => {
+      const mult = sortOrder === 'asc' ? 1 : -1;
+      switch (sortBy) {
+        case 'views':
+          return mult * ((a.totalViews || 0) - (b.totalViews || 0));
+        case 'clicks':
+          return mult * ((a.totalClicks || 0) - (b.totalClicks || 0));
+        case 'ctr':
+          return mult * ((a.ctr || 0) - (b.ctr || 0));
+        default:
+          return mult * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      }
+    });
   useEffect(() => {
     if (profile?.id) {
       fetchWidgets();
@@ -192,6 +215,42 @@ const DashboardWidgets = () => {
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="Sort by" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="created">Newest</SelectItem>
+            <SelectItem value="views">Views</SelectItem>
+            <SelectItem value="clicks">Clicks</SelectItem>
+            <SelectItem value="ctr">CTR</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as any)}>
+          <SelectTrigger className="w-28"><SelectValue placeholder="Order" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="desc">Desc</SelectItem>
+            <SelectItem value="asc">Asc</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}>
+          <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterTemplate} onValueChange={(v) => setFilterTemplate(v)}>
+          <SelectTrigger className="w-44"><SelectValue placeholder="Template" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All templates</SelectItem>
+            {templateOptions.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {widgets.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -209,7 +268,7 @@ const DashboardWidgets = () => {
         </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {widgets.map((widget) => (
+          {displayedWidgets.map((widget) => (
             <Card key={widget.id}>
               <CardHeader>
                 <div className="flex items-center justify-between">

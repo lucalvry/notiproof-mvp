@@ -66,6 +66,21 @@ const Installation = () => {
           defer></script>
     `.trim() : '';
 
+  const dynamicEmbedCode = selectedWidget ? `
+  <!-- NotiProof Widget (Dynamic Injection with defer) -->
+  <script>
+    (function() {
+      var script = document.createElement('script');
+      script.src = 'https://preview--notiproof-mvp.lovable.app/widget.js';
+      script.defer = true;
+      script.setAttribute('data-widget-id', '${selectedWidget}');
+      script.setAttribute('data-api-base', 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api');
+      script.setAttribute('data-disable-beacon', 'true');
+      document.head.appendChild(script);
+    })();
+  </script>
+    `.trim() : '';
+
   const apiEndpoint = selectedWidget 
     ? `https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api/api/widgets/${selectedWidget}`
     : '';
@@ -184,7 +199,7 @@ const Installation = () => {
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <Label>HTML Embed Code</Label>
+                    <Label>HTML Embed Code (Recommended)</Label>
                     <div className="relative mt-1">
                       <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
                         <code>{embedCode}</code>
@@ -199,11 +214,28 @@ const Installation = () => {
                       </Button>
                     </div>
                   </div>
+
+                  <div>
+                    <Label>Dynamic Injection (Optional)</Label>
+                    <div className="relative mt-1">
+                      <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
+                        <code>{dynamicEmbedCode}</code>
+                      </pre>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="absolute top-2 right-2"
+                        onClick={() => copyToClipboard(dynamicEmbedCode)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                   
                   <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg">
                     <h4 className="font-medium mb-2">Installation Steps:</h4>
                     <ol className="list-decimal list-inside space-y-1 text-sm">
-                      <li>Copy the embed code above</li>
+                      <li>Copy one of the snippets above</li>
                       <li>Paste it just before the closing &lt;/head&gt; tag on your website</li>
                       <li>The widget will automatically start displaying notifications</li>
                       <li>Add events via the dashboard or API to show social proof</li>
