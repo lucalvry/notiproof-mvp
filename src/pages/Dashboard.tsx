@@ -75,7 +75,10 @@ const Dashboard = () => {
             .order('created_at', { ascending: false })
             .limit(5);
 
-          setRecentEvents(recentEventsData || []);
+          setRecentEvents(recentEventsData?.map(event => ({
+            ...event,
+            widget: event.widgets
+          })) || []);
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
