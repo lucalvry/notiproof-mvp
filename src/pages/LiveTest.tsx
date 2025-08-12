@@ -7,6 +7,7 @@ const LiveTest = () => {
     script.src = '/widget.js';
     script.setAttribute('data-widget-id', 'c26c2241-7b80-4ee7-ba31-55ae342db25c');
     script.setAttribute('data-api-base', 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api');
+    script.setAttribute('data-disable-beacon', 'true');
     document.head.appendChild(script);
 
     // Override console methods to capture logs

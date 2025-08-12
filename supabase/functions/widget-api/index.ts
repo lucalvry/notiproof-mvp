@@ -27,8 +27,7 @@ serve(async (req) => {
     // Routes: /widget-api/api/widgets/:id or /widget-api/api/widgets/:id/events
     if (pathParts.length >= 4 && pathParts[1] === 'api' && pathParts[2] === 'widgets') {
       const widgetId = pathParts[3];
-      
-      // Handle widget events
+      console.log('Widget API diagnostics:', { pathParts, widgetId });
       if (pathParts[4] === 'events') {
         if (req.method === 'GET') {
           // Get widget events
@@ -68,6 +67,8 @@ serve(async (req) => {
           const body = await req.json();
           console.log('Widget API POST body:', JSON.stringify(body, null, 2));
           const { event_type, event_data, metadata } = body;
+          const diagSessionId = (event_data?.session_id) || (metadata?.session_id);
+          console.log('Widget API event diagnostics:', { widgetId, event_type, session_id: diagSessionId });
 
           // Verify widget exists and is active
           const { data: widget, error: widgetError } = await supabase

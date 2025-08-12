@@ -10,8 +10,9 @@
 
   const widgetId = scriptTag.getAttribute('data-widget-id');
   const apiBase = scriptTag.getAttribute('data-api-base') || 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
+  const disableBeacon = scriptTag.getAttribute('data-disable-beacon') === 'true';
   
-  console.log('NotiProof: Initializing widget', { widgetId, apiBase });
+  console.log('NotiProof: Initializing widget', { widgetId, apiBase, disableBeacon });
 
   // Widget styles
   const widgetStyles = `
@@ -321,6 +322,12 @@
     const url = `${apiBase}/api/widgets/${widgetId}/events`;
 
     // Use sendBeacon for navigation-safe delivery, fallback to fetch with keepalive
+    if (disableBeacon) {
+      console.log('NotiProof: Beacon disabled via data attribute, using fetch');
+      fallbackTrackClick(url, payload);
+      return;
+    }
+
     if (navigator.sendBeacon) {
       const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
       const sent = navigator.sendBeacon(url, blob);
@@ -375,6 +382,7 @@
         createWidget(defaultEvent);
       } else {
         // Show template-based content if API fails
+        console.warn('NotiProof: Events fetch responded with non-OK status', response.status);
         const template = templateContent[config.template_name] || templateContent['notification-popup'];
         const messages = template.messages;
         const defaultEvent = {
