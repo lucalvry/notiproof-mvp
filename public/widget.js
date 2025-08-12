@@ -314,8 +314,9 @@
       event_data: eventData
     };
 
-    // Debug logging
-    console.log('NotiProof: Click Payload', payload);
+    // Debug logging - show actual payload structure
+    console.log('NotiProof: Click Payload:', JSON.stringify(payload, null, 2));
+    console.log('NotiProof: Sending click to URL:', `${apiBase}/api/widgets/${widgetId}/events`);
 
     const url = `${apiBase}/api/widgets/${widgetId}/events`;
 
@@ -323,31 +324,37 @@
     if (navigator.sendBeacon) {
       const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
       const sent = navigator.sendBeacon(url, blob);
+      console.log('NotiProof: sendBeacon result:', sent);
       if (!sent) {
-        // Fallback to fetch if sendBeacon fails
+        console.log('NotiProof: sendBeacon failed, using fetch fallback');
         fallbackTrackClick(url, payload);
+      } else {
+        console.log('NotiProof: Click sent successfully via sendBeacon');
       }
     } else {
+      console.log('NotiProof: sendBeacon not available, using fetch');
       fallbackTrackClick(url, payload);
     }
   }
 
   // Fallback tracking method
   function fallbackTrackClick(url, payload) {
-    try {
-      fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-        keepalive: true
-      }).catch(() => {
-        // Silently ignore errors to avoid affecting user experience
-      });
-    } catch (error) {
-      // Silently ignore errors
-    }
+    console.log('NotiProof: Using fetch fallback for click tracking');
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      keepalive: true
+    }).then(response => {
+      console.log('NotiProof: Fetch click response status:', response.status);
+      return response.text();
+    }).then(text => {
+      console.log('NotiProof: Fetch click response body:', text);
+    }).catch(error => {
+      console.error('NotiProof: Fetch click error:', error);
+    });
   }
 
   // Fetch and display events
