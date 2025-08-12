@@ -3,7 +3,8 @@ import {
   Blocks, 
   Plus,
   Code,
-  Settings
+  Settings,
+  Plug
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -33,6 +34,7 @@ export function DashboardSidebar() {
     { title: "Widgets", url: "/dashboard/widgets", icon: Blocks },
     { title: "Create Widget", url: "/dashboard/widgets/create", icon: Plus },
     { title: "Installation", url: "/dashboard/installation", icon: Code },
+    { title: "Integrations", url: "/dashboard/integrations", icon: Plug },
     { title: "Settings", url: "/dashboard/settings", icon: Settings },
   ];
 

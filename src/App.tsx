@@ -32,6 +32,8 @@ import WidgetEvents from "./pages/WidgetEvents";
 import Billing from "./pages/Billing";
 import AdminLogin from "./pages/AdminLogin";
 import WidgetAnalytics from "./pages/WidgetAnalytics";
+import Integrations from "./pages/Integrations";
+import AdminAlerts from "./pages/AdminAlerts";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +69,7 @@ const App = () => (
               <Route path="widgets/:id/events" element={<WidgetEvents />} />
               <Route path="widgets/:id/analytics" element={<WidgetAnalytics />} />
               <Route path="installation" element={<Installation />} />
+              <Route path="integrations" element={<Integrations />} />
               <Route path="settings" element={<DashboardSettings />} />
               <Route path="billing" element={<Billing />} />
             </Route>
@@ -86,6 +89,7 @@ const App = () => (
               <Route path="widgets" element={<AdminWidgets />} />
               <Route path="widgets/:id" element={<AdminWidgetDetail />} />
               <Route path="events" element={<AdminEvents />} />
+              <Route path="alerts" element={<AdminAlerts />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
 

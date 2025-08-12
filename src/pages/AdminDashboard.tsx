@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, Blocks, Activity, Calendar } from 'lucide-react';
+import { Users, Blocks, Activity, Calendar, Plug } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface Stats {
   totalUsers: number;
@@ -13,6 +14,8 @@ interface Stats {
   flagged24h: number;
   apiStatus: 'operational' | 'down' | 'unknown';
 }
+
+type IntegrationCounts = Record<string, number>;
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState<Stats>({
@@ -26,6 +29,7 @@ const AdminDashboard = () => {
     apiStatus: 'unknown',
   });
   const [loading, setLoading] = useState(true);
+  const [integrationCounts, setIntegrationCounts] = useState<IntegrationCounts>({});
 
   useEffect(() => {
     const fetchAdminStats = async () => {
@@ -78,6 +82,17 @@ const AdminDashboard = () => {
           apiStatus = 'down';
         }
 
+        // Integration usage
+        const { data: integrationsData } = await supabase
+          .from('widgets')
+          .select('integration')
+          .eq('status', 'active');
+        const counts: IntegrationCounts = {};
+        (integrationsData || []).forEach((w: any) => {
+          const key = (w.integration || 'manual') as string;
+          counts[key] = (counts[key] || 0) + 1;
+        });
+
         setStats({
           totalUsers: totalUsers || 0,
           activeWidgets: activeWidgets || 0,
@@ -88,6 +103,7 @@ const AdminDashboard = () => {
           flagged24h,
           apiStatus,
         });
+        setIntegrationCounts(counts);
       } catch (error) {
         console.error('Error fetching admin stats:', error);
       } finally {
@@ -180,7 +196,7 @@ const AdminDashboard = () => {
         </Card>
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions and Platform Health */}
       <div className="grid md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -218,6 +234,16 @@ const AdminDashboard = () => {
                 <div className="font-medium">Event Analytics</div>
                 <div className="text-sm text-muted-foreground">
                   View detailed event analytics and metrics
+                </div>
+              </a>
+              
+              <a 
+                href="/admin/alerts" 
+                className="p-3 border rounded-lg hover:bg-muted/50 transition-colors block"
+              >
+                <div className="font-medium">System Alerts</div>
+                <div className="text-sm text-muted-foreground">
+                  Review API and platform notifications
                 </div>
               </a>
             </div>
@@ -261,6 +287,30 @@ const AdminDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Integration Usage */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div>
+            <CardTitle className="text-sm font-medium">Integration Usage</CardTitle>
+            <CardDescription>Active widgets by integration</CardDescription>
+          </div>
+          <Plug className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          {Object.keys(integrationCounts).length === 0 ? (
+            <div className="text-muted-foreground">No active widgets yet.</div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(integrationCounts).map(([key, count]) => (
+                <Badge key={key} variant="secondary" className="capitalize">
+                  {key}: {count}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
