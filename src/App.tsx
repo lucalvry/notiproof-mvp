@@ -24,6 +24,12 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminWidgets from "./pages/AdminWidgets";
 import AdminSettings from "./pages/AdminSettings";
 import NotFound from "./pages/NotFound";
+// New pages
+import AdminEvents from "./pages/AdminEvents";
+import AdminUserDetail from "./pages/AdminUserDetail";
+import AdminWidgetDetail from "./pages/AdminWidgetDetail";
+import WidgetEvents from "./pages/WidgetEvents";
+import Billing from "./pages/Billing";
 
 const queryClient = new QueryClient();
 
@@ -55,8 +61,10 @@ const App = () => (
               <Route path="widgets" element={<DashboardWidgets />} />
               <Route path="widgets/create" element={<CreateWidget />} />
               <Route path="widgets/:id/edit" element={<EditWidget />} />
+              <Route path="widgets/:id/events" element={<WidgetEvents />} />
               <Route path="installation" element={<Installation />} />
               <Route path="settings" element={<DashboardSettings />} />
+              <Route path="billing" element={<Billing />} />
             </Route>
 
             {/* Admin Routes */}
@@ -70,7 +78,10 @@ const App = () => (
             >
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
+              <Route path="users/:id" element={<AdminUserDetail />} />
               <Route path="widgets" element={<AdminWidgets />} />
+              <Route path="widgets/:id" element={<AdminWidgetDetail />} />
+              <Route path="events" element={<AdminEvents />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
 

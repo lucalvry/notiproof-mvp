@@ -59,6 +59,13 @@ export type Database = {
             referencedRelation: "widgets"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_events_widget"
+            columns: ["widget_id"]
+            isOneToOne: false
+            referencedRelation: "widgets"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {

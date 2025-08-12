@@ -180,7 +180,50 @@ serve(async (req) => {
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
+      } else if (pathParts[4] === 'stats' && req.method === 'GET') {
+        // Return aggregate stats for a widget
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+        // All-time views/clicks (may be heavy for very large datasets; acceptable for MVP)
+        const { data: allEvents, error: allErr } = await supabase
+          .from('events')
+          .select('views, clicks')
+          .eq('widget_id', widgetId);
+        if (allErr) {
+          console.error('Error fetching all-time stats:', allErr);
+          return new Response(JSON.stringify({ error: 'Failed to fetch stats' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+        const totalViews = (allEvents || []).reduce((s, e) => s + (e.views || 0), 0);
+        const totalClicks = (allEvents || []).reduce((s, e) => s + (e.clicks || 0), 0);
+        const totalEvents = (allEvents || []).length;
+
+        // Last 24h
+        const { data: lastDay, error: dayErr, count: lastDayCount } = await supabase
+          .from('events')
+          .select('*', { count: 'exact' })
+          .eq('widget_id', widgetId)
+          .gte('created_at', twentyFourHoursAgo);
+        if (dayErr) {
+          console.error('Error fetching 24h stats:', dayErr);
+        }
+        const views24h = (lastDay || []).reduce((s, e) => s + (e.views || 0), 0);
+        const clicks24h = (lastDay || []).reduce((s, e) => s + (e.clicks || 0), 0);
+
+        return new Response(
+          JSON.stringify({
+            totalEvents,
+            totalViews,
+            totalClicks,
+            last24h: {
+              events: lastDayCount || 0,
+              views: views24h,
+              clicks: clicks24h,
+            }
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
+
       
       // Handle widget operations
       if (req.method === 'GET') {
