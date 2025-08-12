@@ -24,12 +24,12 @@ serve(async (req) => {
 
     console.log(`Widget API: ${req.method} ${url.pathname}`);
 
-    // Routes: /api/widgets/:id or /api/widgets/:id/events
-    if (pathParts.length >= 3 && pathParts[1] === 'widgets') {
-      const widgetId = pathParts[2];
+    // Routes: /widget-api/api/widgets/:id or /widget-api/api/widgets/:id/events
+    if (pathParts.length >= 4 && pathParts[1] === 'api' && pathParts[2] === 'widgets') {
+      const widgetId = pathParts[3];
       
       // Handle widget events
-      if (pathParts[3] === 'events') {
+      if (pathParts[4] === 'events') {
         if (req.method === 'GET') {
           // Get widget events
           const { data: events, error } = await supabase
@@ -148,7 +148,7 @@ serve(async (req) => {
     }
 
     // Handle general widgets endpoint
-    if (pathParts.length === 2 && pathParts[1] === 'widgets') {
+    if (pathParts.length === 3 && pathParts[1] === 'api' && pathParts[2] === 'widgets') {
       if (req.method === 'GET') {
         // List all active widgets (public endpoint)
         const { data: widgets, error } = await supabase
