@@ -3,28 +3,34 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-shopify-hmac-sha256, x-shopify-topic, x-shopify-shop-domain',
 };
 
-interface EmailServiceWebhook {
-  type: 'mailchimp' | 'convertkit' | 'klaviyo';
-  data: {
+interface ShopifyOrder {
+  id: number;
+  order_number: string;
+  customer: {
+    id: number;
+    first_name: string;
+    last_name: string;
     email: string;
-    first_name?: string;
-    last_name?: string;
-    list_name?: string;
-    tags?: string[];
-    subscribed_at?: string;
-    location?: {
-      city?: string;
-      country?: string;
-    };
   };
-  event_type: 'subscribe' | 'unsubscribe' | 'profile_update';
+  total_price: string;
+  currency: string;
+  line_items: Array<{
+    name: string;
+    quantity: number;
+    price: string;
+  }>;
+  created_at: string;
+  billing_address?: {
+    city: string;
+    country: string;
+  };
 }
 
 serve(async (req) => {
-  console.log(`Email integration webhook received: ${req.method} ${req.url}`);
+  console.log(`Shopify webhook received: ${req.method} ${req.url}`);
   
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -43,17 +49,22 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    const webhookData: EmailServiceWebhook = await req.json();
-    console.log(`Processing ${webhookData.type} ${webhookData.event_type} for ${webhookData.data.email}`);
+    // Get headers for verification
+    const shopifyTopic = req.headers.get('x-shopify-topic');
+    const shopifyShop = req.headers.get('x-shopify-shop-domain');
+    const shopifyHmac = req.headers.get('x-shopify-hmac-sha256');
 
-    // Only process subscribe events
-    if (webhookData.event_type !== 'subscribe') {
-      console.log(`Skipping ${webhookData.event_type} event`);
-      return new Response('Event type not processed', { 
-        status: 200, 
+    console.log(`Shopify webhook - Topic: ${shopifyTopic}, Shop: ${shopifyShop}`);
+
+    if (!shopifyTopic) {
+      return new Response('Missing Shopify topic header', { 
+        status: 400, 
         headers: corsHeaders 
       });
     }
+
+    const order: ShopifyOrder = await req.json();
+    console.log(`Processing order ${order.order_number} for ${order.customer?.email}`);
 
     // Find widgets that should receive this event
     const { data: widgets, error: widgetsError } = await supabase
@@ -80,19 +91,16 @@ serve(async (req) => {
     // Create events for each widget
     const events = widgets.map(widget => ({
       widget_id: widget.id,
-      event_type: 'signup',
+      event_type: 'purchase',
       event_data: {
-        user_name: webhookData.data.first_name ? 
-          `${webhookData.data.first_name} ${(webhookData.data.last_name || '').charAt(0)}.`.trim() :
-          `${webhookData.data.email.split('@')[0]}`,
-        email: webhookData.data.email,
-        list_name: webhookData.data.list_name || 'Newsletter',
-        location: webhookData.data.location ? 
-          `${webhookData.data.location.city || ''}, ${webhookData.data.location.country || ''}`.replace(/^, |, $/, '') : 
-          'Unknown',
-        timestamp: webhookData.data.subscribed_at || new Date().toISOString(),
-        platform: webhookData.type,
-        tags: webhookData.data.tags?.join(', ')
+        customer_name: `${order.customer?.first_name || ''} ${(order.customer?.last_name || '').charAt(0)}.`.trim(),
+        product_name: order.line_items[0]?.name || 'Product',
+        amount: `${order.currency} ${order.total_price}`,
+        location: order.billing_address ? `${order.billing_address.city}, ${order.billing_address.country}` : 'Unknown',
+        order_number: order.order_number,
+        timestamp: order.created_at,
+        platform: 'shopify',
+        shop_domain: shopifyShop
       },
       views: 0,
       clicks: 0
@@ -110,20 +118,19 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Successfully created ${events.length} events for ${webhookData.type} signup`);
+    console.log(`Successfully created ${events.length} events for order ${order.order_number}`);
 
     return new Response(JSON.stringify({ 
       success: true, 
       eventsCreated: events.length,
-      email: webhookData.data.email,
-      platform: webhookData.type
+      orderNumber: order.order_number
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('Error processing email integration webhook:', error);
+    console.error('Error processing Shopify webhook:', error);
     return new Response(JSON.stringify({ 
       error: 'Internal server error',
       details: error.message

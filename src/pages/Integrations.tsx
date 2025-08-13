@@ -3,77 +3,48 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertCircle, CheckCircle, ExternalLink, Code, Settings, Zap, Mail, ShoppingCart } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Textarea } from '@/components/ui/textarea';
+import { Copy, Check, ShoppingCart, Mail, Code, ExternalLink, AlertCircle, CheckCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Integration {
   id: string;
   type: string;
   url: string;
-  config: any;
   created_at: string;
 }
 
-const Integrations = () => {
-  const { profile } = useAuth();
-  const { toast } = useToast();
+export default function Integrations() {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('ecommerce');
-  
-  // E-commerce integration states
-  const [shopifyConfig, setShopifyConfig] = useState({
-    shop_domain: '',
-    access_token: '',
-    widget_id: ''
-  });
-  
-  const [wooCommerceConfig, setWooCommerceConfig] = useState({
-    site_url: '',
-    consumer_key: '',
-    consumer_secret: '',
-    widget_id: ''
-  });
+  const [copiedWebhook, setCopiedWebhook] = useState('');
+  const { toast } = useToast();
 
-  // Email integration states
-  const [emailProvider, setEmailProvider] = useState<'mailchimp' | 'convertkit' | 'klaviyo'>('mailchimp');
-  const [emailConfig, setEmailConfig] = useState({
-    api_key: '',
-    list_id: '',
-    api_secret: '',
-    form_id: '',
-    widget_id: ''
-  });
-
-  // Form tracking state
-  const [formTrackingCode, setFormTrackingCode] = useState('');
-  const [selectedWidget, setSelectedWidget] = useState('');
-  const [widgets, setWidgets] = useState<any[]>([]);
+  // Webhook URLs
+  const baseUrl = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1';
+  const webhookUrls = {
+    shopify: `${baseUrl}/shopify-webhook`,
+    woocommerce: `${baseUrl}/woocommerce-webhook`,
+    mailchimp: `${baseUrl}/email-integration`,
+    convertkit: `${baseUrl}/email-integration`,
+    klaviyo: `${baseUrl}/email-integration`,
+    form: `${baseUrl}/javascript-api`,
+  };
 
   useEffect(() => {
     loadIntegrations();
-    loadWidgets();
   }, []);
 
   const loadIntegrations = async () => {
-    if (!profile) return;
-
     try {
-      const { data, error } = await (supabase as any)
-        .from('integration_hooks')
-        .select('*')
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setIntegrations(data || []);
+      // For now, use localStorage to track integrations until DB types are updated
+      const stored = localStorage.getItem('noti_integrations');
+      const data = stored ? JSON.parse(stored) : [];
+      setIntegrations(data);
     } catch (error) {
       console.error('Error loading integrations:', error);
     } finally {
@@ -81,270 +52,179 @@ const Integrations = () => {
     }
   };
 
-  const loadWidgets = async () => {
-    if (!profile) return;
-
+  const copyToClipboard = async (text: string, label: string) => {
     try {
-      const { data, error } = await (supabase as any)
-        .from('widgets')
-        .select('id, name')
-        .eq('user_id', profile.id)
-        .eq('status', 'active');
-
-      if (error) throw error;
-      setWidgets(data || []);
+      await navigator.clipboard.writeText(text);
+      setCopiedWebhook(label);
+      setTimeout(() => setCopiedWebhook(''), 2000);
+      toast({
+        title: 'Copied!',
+        description: `${label} webhook URL copied to clipboard`,
+      });
     } catch (error) {
-      console.error('Error loading widgets:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to copy to clipboard',
+        variant: 'destructive'
+      });
     }
   };
 
-  const setupShopifyIntegration = async () => {
+  const saveIntegration = async (type: string, url: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke('ecommerce-integration', {
-        body: {
-          action: 'setup_shopify_integration',
-          data: {
-            user_id: profile?.id,
-            ...shopifyConfig
-          }
-        }
-      });
-
-      if (error) throw error;
+      const newIntegration = {
+        id: Date.now().toString(),
+        type,
+        url,
+        created_at: new Date().toISOString()
+      };
+      
+      const stored = localStorage.getItem('noti_integrations');
+      const existing = stored ? JSON.parse(stored) : [];
+      const updated = [...existing, newIntegration];
+      localStorage.setItem('noti_integrations', JSON.stringify(updated));
 
       toast({
-        title: "Shopify Integration Setup",
-        description: "Integration configured successfully. Add the webhook URL to your Shopify admin.",
+        title: 'Integration saved',
+        description: `${type} integration has been configured`,
       });
 
       loadIntegrations();
     } catch (error) {
-      console.error('Error setting up Shopify integration:', error);
+      console.error('Error saving integration:', error);
       toast({
-        title: "Error",
-        description: "Failed to setup Shopify integration",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to save integration',
+        variant: 'destructive'
       });
     }
   };
 
-  const setupWooCommerceIntegration = async () => {
+  const deleteIntegration = async (id: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke('ecommerce-integration', {
-        body: {
-          action: 'setup_woocommerce_integration',
-          data: {
-            user_id: profile?.id,
-            ...wooCommerceConfig
-          }
-        }
-      });
-
-      if (error) throw error;
+      const stored = localStorage.getItem('noti_integrations');
+      const existing = stored ? JSON.parse(stored) : [];
+      const updated = existing.filter((int: Integration) => int.id !== id);
+      localStorage.setItem('noti_integrations', JSON.stringify(updated));
 
       toast({
-        title: "WooCommerce Integration Setup",
-        description: "Integration configured successfully.",
+        title: 'Integration removed',
+        description: 'Integration has been deleted',
       });
 
       loadIntegrations();
     } catch (error) {
-      console.error('Error setting up WooCommerce integration:', error);
+      console.error('Error deleting integration:', error);
       toast({
-        title: "Error",
-        description: "Failed to setup WooCommerce integration",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to delete integration',
+        variant: 'destructive'
       });
     }
   };
 
-  const setupEmailIntegration = async () => {
-    try {
-      const action = `setup_${emailProvider}`;
-      const { data, error } = await supabase.functions.invoke('email-integration', {
-        body: {
-          action,
-          data: {
-            user_id: profile?.id,
-            ...emailConfig
-          }
-        }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Email Integration Setup",
-        description: `${emailProvider} integration configured successfully.`,
-      });
-
-      loadIntegrations();
-    } catch (error) {
-      console.error('Error setting up email integration:', error);
-      toast({
-        title: "Error",
-        description: `Failed to setup ${emailProvider} integration`,
-        variant: "destructive",
-      });
-    }
+  const getIntegrationStatus = (type: string) => {
+    return integrations.some(integration => integration.type === type);
   };
 
-  const testIntegration = async (type: string, widgetId: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('ecommerce-integration', {
-        body: {
-          action: 'test_integration',
-          data: {
-            integration_type: type,
-            widget_id: widgetId
-          }
-        }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Test Event Created",
-        description: "Check your widget to see the test notification.",
-      });
-    } catch (error) {
-      console.error('Error testing integration:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create test event",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const generateFormTrackingCode = () => {
-    if (!selectedWidget) return;
-
-    const code = `
-<!-- NotiProof Form Tracking -->
-<script>
-(function() {
-  const widgetId = '${selectedWidget}';
-  const apiUrl = 'https://ewymvxhpkswhsirdrjub.functions.supabase.co/email-integration';
-  
-  // Track form submissions
-  document.addEventListener('submit', function(e) {
-    const form = e.target;
-    if (form.tagName !== 'FORM') return;
-    
-    // Extract form data
-    const formData = new FormData(form);
-    const email = formData.get('email') || formData.get('EMAIL') || 
-                  form.querySelector('input[type="email"]')?.value;
-    
-    if (!email) return;
-    
-    const firstName = formData.get('first_name') || formData.get('FNAME') || 
-                     formData.get('firstname') || '';
-    const lastName = formData.get('last_name') || formData.get('LNAME') || 
-                    formData.get('lastname') || '';
-    
-    // Send tracking data
-    fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'track_subscription',
-        widgetId: widgetId,
-        data: {
-          email: email,
-          first_name: firstName,
-          last_name: lastName,
-          location: 'Unknown',
-          source: 'form_submission'
-        }
-      })
-    }).catch(console.error);
-  });
-})();
-</script>`;
-
-    setFormTrackingCode(code);
-  };
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg">Loading integrations...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Integrations</h1>
-        <p className="text-muted-foreground">
-          Connect NotiProof with your favorite tools and platforms
-        </p>
+        <p className="text-muted-foreground">Connect your favorite tools to automatically create social proof notifications</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs defaultValue="ecommerce" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="ecommerce" className="gap-2">
+          <TabsTrigger value="ecommerce" className="flex items-center gap-2">
             <ShoppingCart className="h-4 w-4" />
             E-commerce
           </TabsTrigger>
-          <TabsTrigger value="email" className="gap-2">
+          <TabsTrigger value="email" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
             Email Marketing
           </TabsTrigger>
-          <TabsTrigger value="forms" className="gap-2">
+          <TabsTrigger value="custom" className="flex items-center gap-2">
             <Code className="h-4 w-4" />
-            Form Tracking
+            Custom & Forms
           </TabsTrigger>
         </TabsList>
 
-        {/* E-commerce Integrations */}
         <TabsContent value="ecommerce" className="space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
             {/* Shopify Integration */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-green-500 rounded flex items-center justify-center text-white font-bold">S</div>
-                  Shopify
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CardTitle>Shopify</CardTitle>
+                    {getIntegrationStatus('shopify') ? (
+                      <Badge variant="default" className="bg-green-100 text-green-700">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Connected
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Not Connected
+                      </Badge>
+                    )}
+                  </div>
+                </div>
                 <CardDescription>
-                  Track order notifications from your Shopify store
+                  Automatically create purchase notifications from Shopify orders
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="shop_domain">Shop Domain</Label>
-                  <Input
-                    id="shop_domain"
-                    placeholder="your-shop.myshopify.com"
-                    value={shopifyConfig.shop_domain}
-                    onChange={(e) => setShopifyConfig(prev => ({ ...prev, shop_domain: e.target.value }))}
-                  />
+                  <Label>Webhook URL</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      value={webhookUrls.shopify} 
+                      readOnly 
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => copyToClipboard(webhookUrls.shopify, 'Shopify')}
+                    >
+                      {copiedWebhook === 'Shopify' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="shopify_token">Access Token</Label>
-                  <Input
-                    id="shopify_token"
-                    type="password"
-                    placeholder="shpat_xxxxx"
-                    value={shopifyConfig.access_token}
-                    onChange={(e) => setShopifyConfig(prev => ({ ...prev, access_token: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="shopify_widget">Widget</Label>
-                  <Select value={shopifyConfig.widget_id} onValueChange={(value) => 
-                    setShopifyConfig(prev => ({ ...prev, widget_id: value }))
-                  }>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select widget" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {widgets.map((widget) => (
-                        <SelectItem key={widget.id} value={widget.id}>
-                          {widget.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={setupShopifyIntegration} className="w-full">
-                  Setup Shopify Integration
+                
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Setup Instructions:</strong>
+                    <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
+                      <li>Go to your Shopify Admin → Settings → Notifications</li>
+                      <li>Scroll down to "Webhooks" section</li>
+                      <li>Click "Create webhook"</li>
+                      <li>Set Event: "Order payment" or "Order creation"</li>
+                      <li>Paste the webhook URL above</li>
+                      <li>Format: JSON</li>
+                    </ol>
+                  </AlertDescription>
+                </Alert>
+
+                <Button 
+                  onClick={() => saveIntegration('shopify', webhookUrls.shopify)}
+                  className="w-full"
+                  disabled={getIntegrationStatus('shopify')}
+                >
+                  {getIntegrationStatus('shopify') ? 'Connected' : 'Mark as Connected'}
                 </Button>
               </CardContent>
             </Card>
@@ -352,283 +232,338 @@ const Integrations = () => {
             {/* WooCommerce Integration */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-purple-500 rounded flex items-center justify-center text-white font-bold">W</div>
-                  WooCommerce
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CardTitle>WooCommerce</CardTitle>
+                    {getIntegrationStatus('woocommerce') ? (
+                      <Badge variant="default" className="bg-green-100 text-green-700">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Connected
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Not Connected
+                      </Badge>
+                    )}
+                  </div>
+                </div>
                 <CardDescription>
-                  Track order notifications from your WooCommerce store
+                  Automatically create purchase notifications from WooCommerce orders
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="site_url">Site URL</Label>
-                  <Input
-                    id="site_url"
-                    placeholder="https://yourstore.com"
-                    value={wooCommerceConfig.site_url}
-                    onChange={(e) => setWooCommerceConfig(prev => ({ ...prev, site_url: e.target.value }))}
-                  />
+                  <Label>Webhook URL</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      value={webhookUrls.woocommerce} 
+                      readOnly 
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => copyToClipboard(webhookUrls.woocommerce, 'WooCommerce')}
+                    >
+                      {copiedWebhook === 'WooCommerce' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="consumer_key">Consumer Key</Label>
-                  <Input
-                    id="consumer_key"
-                    placeholder="ck_xxxxx"
-                    value={wooCommerceConfig.consumer_key}
-                    onChange={(e) => setWooCommerceConfig(prev => ({ ...prev, consumer_key: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="consumer_secret">Consumer Secret</Label>
-                  <Input
-                    id="consumer_secret"
-                    type="password"
-                    placeholder="cs_xxxxx"
-                    value={wooCommerceConfig.consumer_secret}
-                    onChange={(e) => setWooCommerceConfig(prev => ({ ...prev, consumer_secret: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="woo_widget">Widget</Label>
-                  <Select value={wooCommerceConfig.widget_id} onValueChange={(value) => 
-                    setWooCommerceConfig(prev => ({ ...prev, widget_id: value }))
-                  }>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select widget" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {widgets.map((widget) => (
-                        <SelectItem key={widget.id} value={widget.id}>
-                          {widget.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={setupWooCommerceIntegration} className="w-full">
-                  Setup WooCommerce Integration
+                
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Setup Instructions:</strong>
+                    <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
+                      <li>Go to WooCommerce → Settings → Advanced → Webhooks</li>
+                      <li>Click "Add webhook"</li>
+                      <li>Set Topic: "Order completed" or "Order updated"</li>
+                      <li>Paste the webhook URL above</li>
+                      <li>Set Status: Active</li>
+                      <li>Save webhook</li>
+                    </ol>
+                  </AlertDescription>
+                </Alert>
+
+                <Button 
+                  onClick={() => saveIntegration('woocommerce', webhookUrls.woocommerce)}
+                  className="w-full"
+                  disabled={getIntegrationStatus('woocommerce')}
+                >
+                  {getIntegrationStatus('woocommerce') ? 'Connected' : 'Mark as Connected'}
                 </Button>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
-        {/* Email Marketing Integrations */}
         <TabsContent value="email" className="space-y-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Mailchimp Integration */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CardTitle>Mailchimp</CardTitle>
+                    {getIntegrationStatus('mailchimp') ? (
+                      <Badge variant="default" className="bg-green-100 text-green-700">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Connected
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Not Connected
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <CardDescription>
+                  Show signup notifications from Mailchimp subscribers
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Webhook URL</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      value={webhookUrls.mailchimp} 
+                      readOnly 
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => copyToClipboard(webhookUrls.mailchimp, 'Mailchimp')}
+                    >
+                      {copiedWebhook === 'Mailchimp' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                <Button 
+                  onClick={() => saveIntegration('mailchimp', webhookUrls.mailchimp)}
+                  className="w-full"
+                  disabled={getIntegrationStatus('mailchimp')}
+                >
+                  {getIntegrationStatus('mailchimp') ? 'Connected' : 'Mark as Connected'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* ConvertKit Integration */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CardTitle>ConvertKit</CardTitle>
+                    {getIntegrationStatus('convertkit') ? (
+                      <Badge variant="default" className="bg-green-100 text-green-700">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Connected
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Not Connected
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <CardDescription>
+                  Show signup notifications from ConvertKit subscribers
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Webhook URL</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      value={webhookUrls.convertkit} 
+                      readOnly 
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => copyToClipboard(webhookUrls.convertkit, 'ConvertKit')}
+                    >
+                      {copiedWebhook === 'ConvertKit' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                <Button 
+                  onClick={() => saveIntegration('convertkit', webhookUrls.convertkit)}
+                  className="w-full"
+                  disabled={getIntegrationStatus('convertkit')}
+                >
+                  {getIntegrationStatus('convertkit') ? 'Connected' : 'Mark as Connected'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Klaviyo Integration */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CardTitle>Klaviyo</CardTitle>
+                    {getIntegrationStatus('klaviyo') ? (
+                      <Badge variant="default" className="bg-green-100 text-green-700">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Connected
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Not Connected
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <CardDescription>
+                  Show signup notifications from Klaviyo subscribers
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Webhook URL</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      value={webhookUrls.klaviyo} 
+                      readOnly 
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => copyToClipboard(webhookUrls.klaviyo, 'Klaviyo')}
+                    >
+                      {copiedWebhook === 'Klaviyo' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                <Button 
+                  onClick={() => saveIntegration('klaviyo', webhookUrls.klaviyo)}
+                  className="w-full"
+                  disabled={getIntegrationStatus('klaviyo')}
+                >
+                  {getIntegrationStatus('klaviyo') ? 'Connected' : 'Mark as Connected'}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="custom" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Email Marketing Providers</CardTitle>
+              <CardTitle>JavaScript API & Form Tracking</CardTitle>
               <CardDescription>
-                Track signups from your email marketing platforms
+                Track form submissions and custom events directly from your website
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div>
-                <Label htmlFor="email_provider">Provider</Label>
-                <Select value={emailProvider} onValueChange={(value: 'mailchimp' | 'convertkit' | 'klaviyo') => 
-                  setEmailProvider(value)
-                }>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="mailchimp">Mailchimp</SelectItem>
-                    <SelectItem value="convertkit">ConvertKit</SelectItem>
-                    <SelectItem value="klaviyo">Klaviyo</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>API Endpoint</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    value={webhookUrls.form} 
+                    readOnly 
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyToClipboard(webhookUrls.form, 'API')}
+                  >
+                    {copiedWebhook === 'API' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
 
-              <div>
-                <Label htmlFor="email_api_key">API Key</Label>
-                <Input
-                  id="email_api_key"
-                  type="password"
-                  placeholder="Your API key"
-                  value={emailConfig.api_key}
-                  onChange={(e) => setEmailConfig(prev => ({ ...prev, api_key: e.target.value }))}
+              <div className="space-y-4">
+                <h4 className="font-medium">Example: Track Form Submissions</h4>
+                <Textarea 
+                  readOnly
+                  value={`// Add to your website's JavaScript
+document.getElementById('signup-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  // Your existing form submission logic here
+  
+  // Track the signup event
+  fetch('${webhookUrls.form}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'trackEvent',
+      widgetId: 'YOUR_WIDGET_ID',
+      data: {
+        event_type: 'signup',
+        customer_name: 'John D.',
+        email: 'john@example.com',
+        plan: 'Free Trial',
+        location: 'New York, USA'
+      }
+    })
+  });
+});`}
+                  className="font-mono text-sm"
+                  rows={15}
                 />
               </div>
 
-              {emailProvider === 'mailchimp' && (
-                <div>
-                  <Label htmlFor="list_id">List ID</Label>
-                  <Input
-                    id="list_id"
-                    placeholder="Mailchimp List ID"
-                    value={emailConfig.list_id}
-                    onChange={(e) => setEmailConfig(prev => ({ ...prev, list_id: e.target.value }))}
-                  />
-                </div>
-              )}
-
-              {emailProvider === 'convertkit' && (
-                <>
-                  <div>
-                    <Label htmlFor="ck_secret">API Secret</Label>
-                    <Input
-                      id="ck_secret"
-                      type="password"
-                      placeholder="ConvertKit API Secret"
-                      value={emailConfig.api_secret}
-                      onChange={(e) => setEmailConfig(prev => ({ ...prev, api_secret: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="form_id">Form ID</Label>
-                    <Input
-                      id="form_id"
-                      placeholder="ConvertKit Form ID"
-                      value={emailConfig.form_id}
-                      onChange={(e) => setEmailConfig(prev => ({ ...prev, form_id: e.target.value }))}
-                    />
-                  </div>
-                </>
-              )}
-
-              {emailProvider === 'klaviyo' && (
-                <div>
-                  <Label htmlFor="klaviyo_list">List ID</Label>
-                  <Input
-                    id="klaviyo_list"
-                    placeholder="Klaviyo List ID"
-                    value={emailConfig.list_id}
-                    onChange={(e) => setEmailConfig(prev => ({ ...prev, list_id: e.target.value }))}
-                  />
-                </div>
-              )}
-
-              <div>
-                <Label htmlFor="email_widget">Widget</Label>
-                <Select value={emailConfig.widget_id} onValueChange={(value) => 
-                  setEmailConfig(prev => ({ ...prev, widget_id: value }))
-                }>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select widget" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {widgets.map((widget) => (
-                      <SelectItem key={widget.id} value={widget.id}>
-                        {widget.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Button onClick={setupEmailIntegration} className="w-full">
-                Setup {emailProvider} Integration
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Form Tracking */}
-        <TabsContent value="forms" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Form Submission Tracking</CardTitle>
-              <CardDescription>
-                Track form submissions and signups from any website
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="tracking_widget">Widget</Label>
-                <Select value={selectedWidget} onValueChange={setSelectedWidget}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select widget to track" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {widgets.map((widget) => (
-                      <SelectItem key={widget.id} value={widget.id}>
-                        {widget.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Button onClick={generateFormTrackingCode} disabled={!selectedWidget}>
-                Generate Tracking Code
-              </Button>
-
-              {formTrackingCode && (
-                <div>
-                  <Label htmlFor="tracking_code">Tracking Code</Label>
-                  <Textarea
-                    id="tracking_code"
-                    value={formTrackingCode}
-                    readOnly
-                    rows={10}
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Add this code to your website before the closing &lt;/body&gt; tag to track form submissions.
-                  </p>
-                </div>
-              )}
+              <Alert>
+                <Code className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Integration Guide:</strong>
+                  <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
+                    <li>Copy your Widget ID from the Widgets page</li>
+                    <li>Replace 'YOUR_WIDGET_ID' in the code above</li>
+                    <li>Add the JavaScript to your website</li>
+                    <li>Test the integration using your forms</li>
+                  </ol>
+                </AlertDescription>
+              </Alert>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
       {/* Active Integrations */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Active Integrations</CardTitle>
-          <CardDescription>
-            Manage your connected integrations
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {integrations.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              No integrations configured yet. Set up your first integration above.
-            </p>
-          ) : (
-            <div className="space-y-4">
+      {integrations.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Active Integrations</CardTitle>
+            <CardDescription>Manage your connected integrations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
               {integrations.map((integration) => (
-                <div key={integration.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded flex items-center justify-center text-white font-bold ${
-                      integration.type === 'shopify' ? 'bg-green-500' :
-                      integration.type === 'woocommerce' ? 'bg-purple-500' :
-                      integration.type === 'mailchimp' ? 'bg-yellow-500' :
-                      integration.type === 'convertkit' ? 'bg-red-500' :
-                      integration.type === 'klaviyo' ? 'bg-orange-500' : 'bg-gray-500'
-                    }`}>
-                      {integration.type.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="font-medium capitalize">{integration.type}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {integration.url}
-                      </div>
+                <div key={integration.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <div className="font-medium capitalize">{integration.type}</div>
+                    <div className="text-sm text-muted-foreground">
+                      Connected on {new Date(integration.created_at).toLocaleDateString()}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Active
-                    </Badge>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => testIntegration(integration.type, integration.config.widget_id)}
-                    >
-                      Test
-                    </Button>
-                  </div>
+                  <Button 
+                    variant="destructive" 
+                    size="sm"
+                    onClick={() => deleteIntegration(integration.id)}
+                  >
+                    Remove
+                  </Button>
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
-};
-
-export default Integrations;
+}

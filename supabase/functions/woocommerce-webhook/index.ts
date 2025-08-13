@@ -3,28 +3,32 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-wc-webhook-source, x-wc-webhook-topic, x-wc-webhook-signature',
 };
 
-interface EmailServiceWebhook {
-  type: 'mailchimp' | 'convertkit' | 'klaviyo';
-  data: {
+interface WooCommerceOrder {
+  id: number;
+  number: string;
+  status: string;
+  total: string;
+  currency: string;
+  date_created: string;
+  billing: {
+    first_name: string;
+    last_name: string;
     email: string;
-    first_name?: string;
-    last_name?: string;
-    list_name?: string;
-    tags?: string[];
-    subscribed_at?: string;
-    location?: {
-      city?: string;
-      country?: string;
-    };
+    city: string;
+    country: string;
   };
-  event_type: 'subscribe' | 'unsubscribe' | 'profile_update';
+  line_items: Array<{
+    name: string;
+    quantity: number;
+    price: number;
+  }>;
 }
 
 serve(async (req) => {
-  console.log(`Email integration webhook received: ${req.method} ${req.url}`);
+  console.log(`WooCommerce webhook received: ${req.method} ${req.url}`);
   
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -43,13 +47,20 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    const webhookData: EmailServiceWebhook = await req.json();
-    console.log(`Processing ${webhookData.type} ${webhookData.event_type} for ${webhookData.data.email}`);
+    // Get headers for verification
+    const wcTopic = req.headers.get('x-wc-webhook-topic');
+    const wcSource = req.headers.get('x-wc-webhook-source');
+    const wcSignature = req.headers.get('x-wc-webhook-signature');
 
-    // Only process subscribe events
-    if (webhookData.event_type !== 'subscribe') {
-      console.log(`Skipping ${webhookData.event_type} event`);
-      return new Response('Event type not processed', { 
+    console.log(`WooCommerce webhook - Topic: ${wcTopic}, Source: ${wcSource}`);
+
+    const order: WooCommerceOrder = await req.json();
+    console.log(`Processing WooCommerce order ${order.number} for ${order.billing?.email}`);
+
+    // Only process completed orders
+    if (order.status !== 'completed' && order.status !== 'processing') {
+      console.log(`Skipping order ${order.number} with status: ${order.status}`);
+      return new Response('Order not in valid status', { 
         status: 200, 
         headers: corsHeaders 
       });
@@ -80,19 +91,16 @@ serve(async (req) => {
     // Create events for each widget
     const events = widgets.map(widget => ({
       widget_id: widget.id,
-      event_type: 'signup',
+      event_type: 'purchase',
       event_data: {
-        user_name: webhookData.data.first_name ? 
-          `${webhookData.data.first_name} ${(webhookData.data.last_name || '').charAt(0)}.`.trim() :
-          `${webhookData.data.email.split('@')[0]}`,
-        email: webhookData.data.email,
-        list_name: webhookData.data.list_name || 'Newsletter',
-        location: webhookData.data.location ? 
-          `${webhookData.data.location.city || ''}, ${webhookData.data.location.country || ''}`.replace(/^, |, $/, '') : 
-          'Unknown',
-        timestamp: webhookData.data.subscribed_at || new Date().toISOString(),
-        platform: webhookData.type,
-        tags: webhookData.data.tags?.join(', ')
+        customer_name: `${order.billing?.first_name || ''} ${(order.billing?.last_name || '').charAt(0)}.`.trim(),
+        product_name: order.line_items[0]?.name || 'Product',
+        amount: `${order.currency} ${order.total}`,
+        location: order.billing ? `${order.billing.city}, ${order.billing.country}` : 'Unknown',
+        order_number: order.number,
+        timestamp: order.date_created,
+        platform: 'woocommerce',
+        source_url: wcSource
       },
       views: 0,
       clicks: 0
@@ -110,20 +118,19 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Successfully created ${events.length} events for ${webhookData.type} signup`);
+    console.log(`Successfully created ${events.length} events for WooCommerce order ${order.number}`);
 
     return new Response(JSON.stringify({ 
       success: true, 
       eventsCreated: events.length,
-      email: webhookData.data.email,
-      platform: webhookData.type
+      orderNumber: order.number
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('Error processing email integration webhook:', error);
+    console.error('Error processing WooCommerce webhook:', error);
     return new Response(JSON.stringify({ 
       error: 'Internal server error',
       details: error.message
