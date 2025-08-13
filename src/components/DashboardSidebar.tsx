@@ -6,7 +6,11 @@ import {
   Settings,
   Plug,
   CreditCard,
-  Calendar
+  Calendar,
+  Share2,
+  Shield,
+  Users,
+  Layout
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -36,6 +40,10 @@ export function DashboardSidebar() {
     { title: "Widgets", url: "/dashboard/widgets", icon: Blocks },
     { title: "Create Widget", url: "/dashboard/widgets/create", icon: Plus },
     { title: "Campaigns", url: "/dashboard/campaigns", icon: Calendar },
+    { title: "Social Connectors", url: "/dashboard/social-connectors", icon: Share2 },
+    { title: "Moderation", url: "/dashboard/moderation", icon: Shield },
+    { title: "Teams", url: "/dashboard/teams", icon: Users },
+    { title: "Templates", url: "/dashboard/templates", icon: Layout },
     { title: "Installation", url: "/dashboard/installation", icon: Code },
     { title: "Integrations", url: "/dashboard/integrations", icon: Plug },
     { title: "Billing", url: "/dashboard/billing", icon: CreditCard },
