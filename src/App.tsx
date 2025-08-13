@@ -41,6 +41,7 @@ import ModerationQueue from "./pages/ModerationQueue";
 import Teams from "./pages/Teams";
 import TemplatesMarketplace from "./pages/TemplatesMarketplace";
 
+// Updated routing configuration for Phase 5, 6 & 7
 const queryClient = new QueryClient();
 
 const App = () => (
