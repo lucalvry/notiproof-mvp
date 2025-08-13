@@ -334,6 +334,137 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Feature Showcase - Phase 1 Implementations */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Manual Event Creation
+            </CardTitle>
+            <CardDescription>Create custom events with our comprehensive form</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              ✅ Full event creation form with 9+ notification types
+              <br />✅ Custom fields, date picker, location selector
+              <br />✅ Purchase, signup, review, and custom events
+            </p>
+            <Button asChild>
+              <Link to="/dashboard/widgets">
+                Access via Widget Events
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Live Visitor Count
+            </CardTitle>
+            <CardDescription>Real-time visitor tracking and display</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              ✅ Live visitor counter with WebSocket updates
+              <br />✅ Session tracking and page view analytics
+              <br />✅ Real-time visitor presence display
+            </p>
+            <div className="mb-4">
+              <LiveVisitorCount showDetails={false} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Multiple Notification Types
+            </CardTitle>
+            <CardDescription>10+ notification categories and templates</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              ✅ Social proof, urgency, engagement types
+              <br />✅ Purchase, signup, review, booking notifications
+              <br />✅ Custom notification builder with examples
+            </p>
+            <Button asChild>
+              <Link to="/dashboard/widgets/create">
+                Try Notification Builder
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wand2 className="h-5 w-5" />
+              Quick Start Wizard
+            </CardTitle>
+            <CardDescription>Step-by-step widget setup guide</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              ✅ Interactive setup wizard
+              <br />✅ Template selection and customization
+              <br />✅ Guided configuration process
+            </p>
+            <Button onClick={() => setShowWizard(true)}>
+              Launch Wizard
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5" />
+              Template Marketplace
+            </CardTitle>
+            <CardDescription>Enhanced template system with imports</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              ✅ Full marketplace with categories and tags
+              <br />✅ Template import and download system
+              <br />✅ Search, filter, and preview functionality
+            </p>
+            <Button asChild>
+              <Link to="/dashboard/templates">
+                Browse Templates
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Plug className="h-5 w-5" />
+              Phase 1 Integrations
+            </CardTitle>
+            <CardDescription>E-commerce and email integrations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              ✅ Shopify & WooCommerce webhooks
+              <br />✅ Mailchimp, ConvertKit, Klaviyo APIs
+              <br />✅ Form tracking and conversion monitoring
+            </p>
+            <Button asChild>
+              <Link to="/dashboard/integrations">
+                Setup Integrations
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
