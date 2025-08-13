@@ -16,6 +16,10 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import TimeRangePicker from '@/components/TimeRangePicker';
+import HeatmapViewer from '@/components/HeatmapViewer';
+import ABTestManager from '@/components/ABTestManager';
+import { startOfDay, endOfDay, subDays } from 'date-fns';
 
 interface EventRow {
   id: string;
@@ -34,17 +38,20 @@ const WidgetAnalytics = () => {
   const { id } = useParams<{ id: string }>();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [goals, setGoals] = useState<any[]>([]);
-  const [range, setRange] = useState<'7d' | '30d'>('7d');
+  const [dateRange, setDateRange] = useState({
+    from: startOfDay(subDays(new Date(), 6)),
+    to: endOfDay(new Date())
+  });
 
   useEffect(() => {
     const load = async () => {
       if (!id) return;
-      const since = new Date(Date.now() - (range === '7d' ? 7 : 30) * 24 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from('events')
         .select('id, event_type, event_data, created_at, views, clicks, flagged')
         .eq('widget_id', id)
-        .gte('created_at', since)
+        .gte('created_at', dateRange.from.toISOString())
+        .lte('created_at', dateRange.to.toISOString())
         .order('created_at', { ascending: false })
         .limit(2000);
       setEvents(data || []);
@@ -52,7 +59,7 @@ const WidgetAnalytics = () => {
       setGoals(goalData || []);
     };
     load();
-  }, [id, range]);
+  }, [id, dateRange]);
 
   // Time of day distribution (0-23 hours)
   const byHour = useMemo(() => {
@@ -156,13 +163,11 @@ const WidgetAnalytics = () => {
           <h1 className="text-3xl font-bold">Widget Analytics</h1>
           <p className="text-muted-foreground">Insights for your widget</p>
         </div>
-        <Select value={range} onValueChange={(v) => setRange(v as any)}>
-          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">Last 7 days</SelectItem>
-            <SelectItem value="30d">Last 30 days</SelectItem>
-          </SelectContent>
-        </Select>
+        <TimeRangePicker
+          value={dateRange}
+          onChange={setDateRange}
+          className="w-80"
+        />
       </div>
 
       <div className="grid md:grid-cols-6 gap-4">
@@ -301,6 +306,12 @@ const WidgetAnalytics = () => {
             </Table>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Phase 3 Enhancements */}
+      <div className="space-y-6">
+        <ABTestManager widgetId={id!} />
+        <HeatmapViewer widgetId={id!} />
       </div>
     </div>
   );

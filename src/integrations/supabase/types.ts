@@ -44,6 +44,51 @@ export type Database = {
         }
         Relationships: []
       }
+      campaigns: {
+        Row: {
+          auto_repeat: boolean
+          created_at: string
+          description: string | null
+          display_rules: Json
+          end_date: string | null
+          id: string
+          name: string
+          repeat_config: Json | null
+          start_date: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_repeat?: boolean
+          created_at?: string
+          description?: string | null
+          display_rules?: Json
+          end_date?: string | null
+          id?: string
+          name: string
+          repeat_config?: Json | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_repeat?: boolean
+          created_at?: string
+          description?: string | null
+          display_rules?: Json
+          end_date?: string | null
+          id?: string
+          name?: string
+          repeat_config?: Json | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           clicks: number | null
@@ -54,6 +99,7 @@ export type Database = {
           id: string
           ip: string | null
           user_agent: string | null
+          variant_id: string | null
           views: number | null
           widget_id: string
         }
@@ -66,6 +112,7 @@ export type Database = {
           id?: string
           ip?: string | null
           user_agent?: string | null
+          variant_id?: string | null
           views?: number | null
           widget_id: string
         }
@@ -78,10 +125,18 @@ export type Database = {
           id?: string
           ip?: string | null
           user_agent?: string | null
+          variant_id?: string | null
           views?: number | null
           widget_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "events_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "widget_variants"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "events_widget_id_fkey"
             columns: ["widget_id"]
@@ -129,6 +184,66 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "goals_widget_id_fkey"
+            columns: ["widget_id"]
+            isOneToOne: false
+            referencedRelation: "widgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      heatmap_clicks: {
+        Row: {
+          click_x: number
+          click_y: number
+          created_at: string
+          element_selector: string | null
+          element_text: string | null
+          event_id: string | null
+          id: string
+          page_url: string
+          session_id: string | null
+          viewport_height: number | null
+          viewport_width: number | null
+          widget_id: string
+        }
+        Insert: {
+          click_x: number
+          click_y: number
+          created_at?: string
+          element_selector?: string | null
+          element_text?: string | null
+          event_id?: string | null
+          id?: string
+          page_url: string
+          session_id?: string | null
+          viewport_height?: number | null
+          viewport_width?: number | null
+          widget_id: string
+        }
+        Update: {
+          click_x?: number
+          click_y?: number
+          created_at?: string
+          element_selector?: string | null
+          element_text?: string | null
+          event_id?: string | null
+          id?: string
+          page_url?: string
+          session_id?: string | null
+          viewport_height?: number | null
+          viewport_width?: number | null
+          widget_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heatmap_clicks_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heatmap_clicks_widget_id_fkey"
             columns: ["widget_id"]
             isOneToOne: false
             referencedRelation: "widgets"
@@ -184,8 +299,56 @@ export type Database = {
         }
         Relationships: []
       }
+      widget_variants: {
+        Row: {
+          active: boolean
+          content_config: Json | null
+          created_at: string
+          id: string
+          is_control: boolean
+          name: string
+          split_percentage: number
+          style_config: Json | null
+          updated_at: string
+          widget_id: string
+        }
+        Insert: {
+          active?: boolean
+          content_config?: Json | null
+          created_at?: string
+          id?: string
+          is_control?: boolean
+          name: string
+          split_percentage?: number
+          style_config?: Json | null
+          updated_at?: string
+          widget_id: string
+        }
+        Update: {
+          active?: boolean
+          content_config?: Json | null
+          created_at?: string
+          id?: string
+          is_control?: boolean
+          name?: string
+          split_percentage?: number
+          style_config?: Json | null
+          updated_at?: string
+          widget_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "widget_variants_widget_id_fkey"
+            columns: ["widget_id"]
+            isOneToOne: false
+            referencedRelation: "widgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       widgets: {
         Row: {
+          campaign_id: string | null
           created_at: string | null
           display_rules: Json
           id: string
@@ -198,6 +361,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          campaign_id?: string | null
           created_at?: string | null
           display_rules?: Json
           id?: string
@@ -210,6 +374,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          campaign_id?: string | null
           created_at?: string | null
           display_rules?: Json
           id?: string
@@ -222,6 +387,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "widgets_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "widgets_user_id_fkey"
             columns: ["user_id"]
