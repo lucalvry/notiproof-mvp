@@ -705,6 +705,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_integration_count: {
+        Args: { _user_id: string; _types?: string[] }
+        Returns: number
+      }
       get_user_team_memberships: {
         Args: { _user_id: string }
         Returns: {

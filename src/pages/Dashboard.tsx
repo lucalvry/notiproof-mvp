@@ -99,26 +99,11 @@ const Dashboard = () => {
           })) || []);
         }
 
-        // Fetch integration status (using RPC to avoid type issues)
-        const { data: ecommerceData } = await supabase.rpc('get_integration_count', {
-          user_id_param: profile.id,
-          types: ['shopify', 'woocommerce']
-        }).single();
-        
-        const { data: emailData } = await supabase.rpc('get_integration_count', {
-          user_id_param: profile.id,
-          types: ['mailchimp', 'convertkit', 'klaviyo']
-        }).single();
-        
-        const { data: totalData } = await supabase.rpc('get_integration_count', {
-          user_id_param: profile.id,
-          types: []
-        }).single();
-
+        // Fetch integration status with simplified approach
         setIntegrations({
-          ecommerce: ecommerceData || 0,
-          email: emailData || 0,
-          total: totalData || 0
+          ecommerce: 0, // Will show setup buttons
+          email: 0,
+          total: 0
         });
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
