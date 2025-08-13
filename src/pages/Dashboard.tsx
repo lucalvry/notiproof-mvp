@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Activity, MousePointer, Eye } from 'lucide-react';
+import { LiveVisitorCount } from '@/components/LiveVisitorCount';
+import { QuickStartWizard } from '@/components/QuickStartWizard';
+import { Activity, MousePointer, Eye, Plus, Wand2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface Stats {
   totalNotifications: number;
@@ -29,6 +33,8 @@ const Dashboard = () => {
   });
   const [recentEvents, setRecentEvents] = useState<RecentEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showWizard, setShowWizard] = useState(false);
+  const [hasWidgets, setHasWidgets] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -42,6 +48,7 @@ const Dashboard = () => {
           .eq('user_id', profile.id);
 
         const widgetIds = widgets?.map(w => w.id) || [];
+        setHasWidgets(widgetIds.length > 0);
 
         if (widgetIds.length > 0) {
           // Fetch events for stats
@@ -110,15 +117,68 @@ const Dashboard = () => {
     );
   }
 
+  if (showWizard) {
+    return (
+      <div className="space-y-6">
+        <QuickStartWizard 
+          onComplete={(widgetId) => {
+            setShowWizard(false);
+            window.location.reload(); // Refresh to show new widget data
+          }}
+          onSkip={() => setShowWizard(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome back, {profile?.name}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground">Welcome back, {profile?.name}</p>
+        </div>
+        
+        {!hasWidgets && (
+          <Button onClick={() => setShowWizard(true)} className="gap-2">
+            <Wand2 className="h-4 w-4" />
+            Quick Start
+          </Button>
+        )}
       </div>
 
+      {/* Empty State for New Users */}
+      {!hasWidgets && !loading && (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                <Wand2 className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h2 className="text-xl font-semibold">Welcome to NotiProof!</h2>
+              <p className="text-muted-foreground max-w-md">
+                You haven't created any widgets yet. Get started with our quick setup wizard 
+                or create your first widget manually.
+              </p>
+              <div className="flex gap-3">
+                <Button onClick={() => setShowWizard(true)} className="gap-2">
+                  <Wand2 className="h-4 w-4" />
+                  Quick Start Wizard
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link to="/dashboard/widgets/create">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Widget
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Notifications</CardTitle>
@@ -157,40 +217,54 @@ const Dashboard = () => {
             </p>
           </CardContent>
         </Card>
+
+        {/* Live Visitor Count Card */}
+        <LiveVisitorCount showDetails={false} />
       </div>
 
-      {/* Recent Activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>
-            Latest events from your widgets
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {recentEvents.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              No recent activity. Create a widget to start tracking events.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {recentEvents.map((event) => (
-                <div key={event.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{event.event_type}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Widget: {event.widget?.name}
-                    </p>
+      {/* Live Visitor Count Details */}
+      {hasWidgets && (
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            {/* Recent Activity */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+                <CardDescription>
+                  Latest events from your widgets
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {recentEvents.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    No recent activity. Create a widget to start tracking events.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {recentEvents.map((event) => (
+                      <div key={event.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div>
+                          <p className="font-medium">{event.event_type}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Widget: {event.widget?.name}
+                          </p>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {new Date(event.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    {new Date(event.created_at).toLocaleDateString()}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          
+          <div>
+            <LiveVisitorCount showDetails={true} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

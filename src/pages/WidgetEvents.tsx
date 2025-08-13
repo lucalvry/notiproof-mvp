@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { CreateEventForm } from '@/components/CreateEventForm';
 
 interface EventRow {
   id: string;
@@ -22,6 +23,7 @@ const WidgetEvents = () => {
   const [filterType, setFilterType] = useState<'all' | 'view' | 'click' | 'custom'>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const load = async () => {
     if (!id) return;
@@ -79,12 +81,40 @@ const WidgetEvents = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Widget Events</h1>
-          <p className="text-muted-foreground">Live activity for your widget</p>
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/dashboard/widgets">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Widget Events</h1>
+            <p className="text-muted-foreground">Live activity for your widget</p>
+          </div>
         </div>
-        <Button onClick={addTestEvent}><Plus className="h-4 w-4 mr-2" />Add Test Event</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={addTestEvent}>
+            <Plus className="h-4 w-4 mr-2" />
+            Quick Test Event
+          </Button>
+          <Button onClick={() => setShowCreateForm(!showCreateForm)}>
+            <Plus className="h-4 w-4 mr-2" />
+            {showCreateForm ? 'Cancel' : 'Create Event'}
+          </Button>
+        </div>
       </div>
+
+      {/* Create Event Form */}
+      {showCreateForm && (
+        <CreateEventForm
+          widgetId={id!}
+          onEventCreated={() => {
+            setShowCreateForm(false);
+            load();
+          }}
+          onCancel={() => setShowCreateForm(false)}
+        />
+      )}
 
       <Card>
         <CardHeader>
