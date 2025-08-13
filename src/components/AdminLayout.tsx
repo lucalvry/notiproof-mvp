@@ -4,6 +4,7 @@ import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AdminSidebar } from '@/components/AdminSidebar';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
+import { Logo } from '@/components/Logo';
 
 export const AdminLayout = () => {
   const { signOut, profile } = useAuth();
@@ -17,7 +18,7 @@ export const AdminLayout = () => {
           <header className="h-16 border-b bg-background flex items-center justify-between px-6">
             <div className="flex items-center gap-4">
               <SidebarTrigger />
-              <h1 className="text-xl font-semibold text-destructive">Admin Panel</h1>
+              <Logo variant="admin" />
             </div>
             
             <div className="flex items-center gap-4">
