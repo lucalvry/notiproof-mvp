@@ -51,11 +51,40 @@ serve(async (req) => {
     const wcTopic = req.headers.get('x-wc-webhook-topic');
     const wcSource = req.headers.get('x-wc-webhook-source');
     const wcSignature = req.headers.get('x-wc-webhook-signature');
+    const contentType = req.headers.get('content-type') || '';
 
-    console.log(`WooCommerce webhook - Topic: ${wcTopic}, Source: ${wcSource}`);
+    console.log(`WooCommerce webhook - Topic: ${wcTopic}, Source: ${wcSource}, Content-Type: ${contentType}`);
 
-    const order: WooCommerceOrder = await req.json();
-    console.log(`Processing WooCommerce order ${order.number} for ${order.billing?.email}`);
+    // Handle different content types
+    let requestBody: any;
+    const requestText = await req.text();
+    console.log(`Raw request body: ${requestText}`);
+
+    if (contentType.includes('application/json')) {
+      try {
+        requestBody = JSON.parse(requestText);
+        console.log(`Processing WooCommerce order ${requestBody.number} for ${requestBody.billing?.email}`);
+      } catch (error) {
+        console.error('Failed to parse JSON:', error);
+        return new Response('Invalid JSON', { 
+          status: 400, 
+          headers: corsHeaders 
+        });
+      }
+    } else {
+      // Handle test webhooks or form-encoded data
+      console.log('Received test webhook or form data');
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Test webhook received successfully',
+        data: requestText
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const order: WooCommerceOrder = requestBody;
 
     // Only process completed orders
     if (order.status !== 'completed' && order.status !== 'processing') {
