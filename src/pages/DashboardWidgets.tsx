@@ -288,67 +288,73 @@ const DashboardWidgets = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <div className="flex items-center gap-1">
-                      <Eye className="h-4 w-4 text-blue-500" />
-                      <span className="text-muted-foreground">Views:</span>
-                      <span className="font-medium">{widget.totalViews}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <MousePointer className="h-4 w-4 text-green-500" />
-                      <span className="text-muted-foreground">Clicks:</span>
-                      <span className="font-medium">{widget.totalClicks}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-muted-foreground">CTR:</span>
-                      <span className="font-medium">{widget.ctr.toFixed(1)}%</span>
-                    </div>
-                  </div>
-                  
-                  <div className="text-sm text-muted-foreground">
-                    Created: {new Date(widget.created_at).toLocaleDateString()}
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toggleWidgetStatus(widget.id, widget.status)}
-                      className="gap-2"
-                    >
-                      {widget.status === 'active' ? (
-                        <>
-                          <ToggleRight className="h-4 w-4" />
-                          Deactivate
-                        </>
-                      ) : (
-                        <>
-                          <ToggleLeft className="h-4 w-4" />
-                          Activate
-                        </>
-                      )}
-                    </Button>
-                    
-                    <Button variant="outline" size="sm" className="gap-2" asChild>
-                      <Link to={`/dashboard/widgets/${widget.id}/edit`}>
-                        <Edit className="h-4 w-4" />
-                        Edit
-                      </Link>
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => deleteWidget(widget.id)}
-                      className="gap-2 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
+                 <div className="space-y-4">
+                   {/* Stats Grid - Simplified for better mobile layout */}
+                   <div className="space-y-2">
+                     <div className="flex items-center justify-between text-sm">
+                       <div className="flex items-center gap-1">
+                         <Eye className="h-4 w-4 text-primary" />
+                         <span className="text-muted-foreground">Views</span>
+                       </div>
+                       <span className="font-medium">{widget.totalViews}</span>
+                     </div>
+                     <div className="flex items-center justify-between text-sm">
+                       <div className="flex items-center gap-1">
+                         <MousePointer className="h-4 w-4 text-primary" />
+                         <span className="text-muted-foreground">Clicks</span>
+                       </div>
+                       <span className="font-medium">{widget.totalClicks}</span>
+                     </div>
+                     <div className="flex items-center justify-between text-sm">
+                       <span className="text-muted-foreground">CTR</span>
+                       <span className="font-medium">{widget.ctr.toFixed(1)}%</span>
+                     </div>
+                   </div>
+                   
+                   <div className="text-xs text-muted-foreground border-t pt-3">
+                     Created: {new Date(widget.created_at).toLocaleDateString()}
+                   </div>
+                   
+                   <div className="flex flex-col gap-2">
+                     <Button
+                       variant="outline"
+                       size="sm"
+                       onClick={() => toggleWidgetStatus(widget.id, widget.status)}
+                       className="gap-2 w-full"
+                     >
+                       {widget.status === 'active' ? (
+                         <>
+                           <ToggleRight className="h-4 w-4" />
+                           Deactivate
+                         </>
+                       ) : (
+                         <>
+                           <ToggleLeft className="h-4 w-4" />
+                           Activate
+                         </>
+                       )}
+                     </Button>
+                     
+                     <div className="flex gap-2">
+                       <Button variant="outline" size="sm" className="gap-2 flex-1" asChild>
+                         <Link to={`/dashboard/widgets/${widget.id}/edit`}>
+                           <Edit className="h-4 w-4" />
+                           Edit
+                         </Link>
+                       </Button>
+                       
+                       <Button
+                         variant="outline"
+                         size="sm"
+                         onClick={() => deleteWidget(widget.id)}
+                         className="gap-2 flex-1 text-destructive hover:text-destructive"
+                       >
+                         <Trash2 className="h-4 w-4" />
+                         Delete
+                       </Button>
+                     </div>
+                   </div>
+                 </div>
               </CardContent>
             </Card>
           ))}

@@ -495,18 +495,34 @@
     const geoNeedsRefresh = !lastGeoCheck || (Date.now() - parseInt(lastGeoCheck)) > 24 * 60 * 60 * 1000; // 24 hours
 
     const resolveGeo = async () => {
-      if (!geoNeedsRefresh && cachedCountry) return cachedCountry;
+      if (!geoNeedsRefresh && cachedCountry) {
+        console.log('NotiProof: Using cached geo:', cachedCountry);
+        return cachedCountry;
+      }
       try {
-        const resp = await fetch('https://ipapi.co/json/', { headers: { 'Accept': 'application/json' } });
+        console.log('NotiProof: Resolving geo location...');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
+        const resp = await fetch('https://ipapi.co/json/', { 
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
         if (resp.ok) {
           const geo = await resp.json();
           cachedCountry = geo.country_name || geo.country || '';
           localStorage.setItem('notiproof-geo-country', cachedCountry);
           localStorage.setItem('notiproof-geo-check', String(Date.now()));
           console.log('NotiProof: Geo resolved:', cachedCountry);
+        } else {
+          console.warn('NotiProof: Geo API returned non-OK status:', resp.status);
         }
       } catch (e) {
-        console.warn('NotiProof: Geo resolution failed', e);
+        console.warn('NotiProof: Geo resolution failed, continuing without geo data', e);
+        // Set a fallback to prevent repeated failures
+        localStorage.setItem('notiproof-geo-check', String(Date.now()));
       }
       return cachedCountry || '';
     };
@@ -531,9 +547,31 @@
     };
 
     const maybeShow = async () => {
-      if (!isAllowedByLists() || !canShowMore()) return;
-      if (!(await geoGuard())) return;
-      if (!rules.triggers?.exit_intent && !triggersMet()) return;
+      console.log('NotiProof: maybeShow() called');
+      
+      // Check URL/referrer filters
+      const allowedByLists = isAllowedByLists();
+      console.log('NotiProof: URL/referrer allowed:', allowedByLists);
+      if (!allowedByLists) return;
+      
+      // Check count limits
+      const canShow = canShowMore();
+      console.log('NotiProof: Can show more widgets:', canShow);
+      if (!canShow) return;
+      
+      // Check geo restrictions
+      const geoAllowed = await geoGuard();
+      console.log('NotiProof: Geo allowed:', geoAllowed);
+      if (!geoAllowed) return;
+      
+      // Check triggers (time/scroll) - skip for exit intent
+      if (!rules.triggers?.exit_intent) {
+        const triggersOk = triggersMet();
+        console.log('NotiProof: Triggers met:', triggersOk);
+        if (!triggersOk) return;
+      }
+      
+      console.log('NotiProof: All conditions met, showing widget');
       incCounts();
       fetchAndDisplayEvents();
     };
@@ -548,14 +586,26 @@
     };
 
     // Start showing notifications
+    console.log('NotiProof: Widget initialization complete, setting up display logic');
+    console.log('NotiProof: Display rules:', rules);
+    console.log('NotiProof: Widget config:', config);
+    
     if (rules.triggers?.exit_intent) {
+      console.log('NotiProof: Setting up exit intent trigger');
       window.addEventListener('mouseout', onExitIntent);
     } else {
+      const delay = Number(config.delay) || 3000;
+      console.log('NotiProof: Setting up timed display with delay:', delay);
       setTimeout(async () => {
+        console.log('NotiProof: Initial display timer triggered');
         await maybeShow();
         const interval = Math.max(1000, Number(rules.interval_ms) || 8000);
-        setInterval(maybeShow, interval);
-      }, Number(config.delay) || 0);
+        console.log('NotiProof: Setting up recurring display with interval:', interval);
+        setInterval(async () => {
+          console.log('NotiProof: Recurring display timer triggered');
+          await maybeShow();
+        }, interval);
+      }, delay);
     }
   }
 
