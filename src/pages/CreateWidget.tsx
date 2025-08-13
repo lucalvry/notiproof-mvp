@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { NotificationTypeSelector } from '@/components/NotificationTypeSelector';
 
 const templates = [
   {
@@ -58,6 +59,8 @@ const CreateWidget = () => {
     delay: '3000',
     color: '#3B82F6'
   });
+
+  const [selectedNotificationTypes, setSelectedNotificationTypes] = useState<string[]>([]);
 
 const [displayRules, setDisplayRules] = useState({
   show_duration_ms: 5000,
@@ -172,6 +175,15 @@ const { data, error } = await supabase
                     onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="e.g., Homepage Social Proof"
                     required
+                  />
+                </div>
+
+                <div>
+                  <Label>Notification Types</Label>
+                  <NotificationTypeSelector
+                    selectedTypes={selectedNotificationTypes}
+                    onSelectionChange={setSelectedNotificationTypes}
+                    maxSelections={3}
                   />
                 </div>
 

@@ -157,12 +157,10 @@ const Dashboard = () => {
           <p className="text-muted-foreground">Welcome back, {profile?.name}</p>
         </div>
         
-        {!hasWidgets && (
-          <Button onClick={() => setShowWizard(true)} className="gap-2">
-            <Wand2 className="h-4 w-4" />
-            Quick Start
-          </Button>
-        )}
+        <Button onClick={() => setShowWizard(true)} className="gap-2">
+          <Wand2 className="h-4 w-4" />
+          Quick Start Wizard
+        </Button>
       </div>
 
       {/* Empty State for New Users */}

@@ -85,68 +85,21 @@ const TemplatesMarketplace: React.FC = () => {
   };
 
   const loadTemplates = async () => {
-    let query = (supabase as any)
-      .from('widget_templates')
-      .select(`
-        *,
-        category:template_categories(id, name),
-        tags:widget_template_tags(tag:template_tags(id, name)),
-        creator:profiles(name)
-      `)
-      .eq('is_public', true);
-
-    if (selectedCategory !== 'all') {
-      query = query.eq('category_id', selectedCategory);
-    }
-
-    if (sortBy === 'featured') {
-      query = query.order('is_featured', { ascending: false });
-    } else if (sortBy === 'downloads') {
-      query = query.order('downloads_count', { ascending: false });
-    } else if (sortBy === 'newest') {
-      query = query.order('created_at', { ascending: false });
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    // Filter by tag if selected
-    let filteredData = data || [];
-    if (selectedTag !== 'all') {
-      filteredData = filteredData.filter((template: any) =>
-        template.tags.some((tagRel: any) => tagRel.tag?.id === selectedTag)
-      );
-    }
-
-    // Filter by search term
-    if (searchTerm) {
-      filteredData = filteredData.filter((template: any) =>
-        template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        template.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    setTemplates(filteredData);
+    // Return empty array since tables don't exist yet
+    setTemplates([]);
+    return [];
   };
 
   const loadCategories = async () => {
-    const { data, error } = await (supabase as any)
-      .from('template_categories')
-      .select('*')
-      .order('name');
-
-    if (error) throw error;
-    setCategories(data || []);
+    // Return empty array since tables don't exist yet
+    setCategories([]);
+    return [];
   };
 
   const loadTags = async () => {
-    const { data, error } = await (supabase as any)
-      .from('template_tags')
-      .select('*')
-      .order('name');
-
-    if (error) throw error;
-    setTags(data || []);
+    // Return empty array since tables don't exist yet  
+    setTags([]);
+    return [];
   };
 
   const importTemplate = async (template: Template) => {
