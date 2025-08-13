@@ -1,107 +1,136 @@
 (function() {
   'use strict';
-
-  // Get widget configuration from script tag
-  const scriptTag = document.querySelector('script[data-widget-id]');
-  if (!scriptTag) {
-    console.error('NotiProof: No widget ID found in script tag');
-    return;
-  }
-
-  const widgetId = scriptTag.getAttribute('data-widget-id');
-  const apiBase = scriptTag.getAttribute('data-api-base') || 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
-  const disableBeacon = scriptTag.getAttribute('data-disable-beacon') === 'true';
   
-  console.log('NotiProof: Initializing widget', { widgetId, apiBase, disableBeacon });
+  // Enhanced NotiProof Widget with Form Tracking and E-commerce Integration
+  class NotiProofWidget {
+    constructor(widgetId) {
+      this.widgetId = widgetId;
+      this.apiUrl = 'https://ewymvxhpkswhsirdrjub.functions.supabase.co';
+      this.sessionId = this.generateSessionId();
+      this.isVisible = false;
+      this.eventQueue = [];
+      this.formTracking = true;
+      this.conversionTracking = true;
+      
+      this.init();
+    }
 
-  // Widget styles
-  const widgetStyles = `
-    .notiproof-widget {
-      position: fixed;
-      z-index: 9999;
-      padding: 16px;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      border-left: 4px solid #3B82F6;
-      max-width: 300px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      font-size: 14px;
-      line-height: 1.4;
-      color: #1f2937;
-      opacity: 0;
-      transform: translateY(20px);
-      transition: all 0.3s ease-in-out;
+    generateSessionId() {
+      return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
-    
-    .notiproof-widget.show {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    
-    .notiproof-widget.bottom-left {
-      bottom: 20px;
-      left: 20px;
-    }
-    
-    .notiproof-widget.bottom-right {
-      bottom: 20px;
-      right: 20px;
-    }
-    
-    .notiproof-widget.top-left {
-      top: 20px;
-      left: 20px;
-    }
-    
-    .notiproof-widget.top-right {
-      top: 20px;
-      right: 20px;
-    }
-    
-    .notiproof-close {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      background: none;
-      border: none;
-      font-size: 18px;
-      cursor: pointer;
-      color: #6b7280;
-      padding: 0;
-      width: 20px;
-      height: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    
-    .notiproof-close:hover {
-      color: #374151;
-    }
-    
-    @media (max-width: 480px) {
-      .notiproof-widget {
-        left: 10px !important;
-        right: 10px !important;
-        max-width: calc(100vw - 20px);
+
+    async init() {
+      try {
+        // Load widget configuration
+        await this.loadConfig();
+        
+        // Setup event listeners
+        this.setupEventListeners();
+        
+        // Start tracking
+        this.trackPageview();
+        
+        // Load and display notifications
+        await this.loadNotifications();
+        
+        console.log('NotiProof Widget initialized successfully');
+      } catch (error) {
+        console.error('NotiProof Widget initialization failed:', error);
       }
     }
-  `;
 
-  // Inject styles
-  const styleSheet = document.createElement('style');
-  styleSheet.textContent = widgetStyles;
-  document.head.appendChild(styleSheet);
+    async loadConfig() {
+      try {
+        const response = await fetch(`${this.apiUrl}/javascript-api`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'get_widget_config',
+            widgetId: this.widgetId
+          })
+        });
+        
+        const data = await response.json();
+        this.config = data.widget;
+        this.trackingEnabled = data.tracking_enabled;
+      } catch (error) {
+        console.error('Failed to load widget config:', error);
+        this.config = this.getDefaultConfig();
+      }
+    }
 
-  // Widget configuration
-  let config = {
-    position: 'bottom-left',
-    delay: 3000,
-    color: '#3B82F6',
-    showCloseButton: true,
-    template_name: 'notification-popup'
-  };
+    getDefaultConfig() {
+      return {
+        style_config: {
+          position: 'bottom-left',
+          color: '#3B82F6',
+          delay: 3000
+        },
+        display_rules: {
+          show_duration_ms: 5000,
+          interval_ms: 8000,
+          max_per_page: 5
+        }
+      };
+    }
+
+    setupEventListeners() {
+      // Form submission tracking
+      if (this.formTracking) {
+        document.addEventListener('submit', (e) => {
+          this.trackFormSubmission(e);
+        });
+      }
+
+      // Conversion tracking (for e-commerce)
+      if (this.conversionTracking) {
+        this.setupConversionTracking();
+      }
+
+      // Click tracking on notification
+      document.addEventListener('click', (e) => {
+        if (e.target.closest('.notiproof-notification')) {
+          this.trackNotificationClick();
+        }
+      });
+    }
+
+    async trackFormSubmission(event) {
+      try {
+        const form = event.target;
+        if (form.tagName !== 'FORM') return;
+
+        const formData = new FormData(form);
+        const fields = {};
+        
+        // Extract common form fields
+        for (let [key, value] of formData.entries()) {
+          fields[key] = value;
+        }
+
+        const email = fields.email || fields.EMAIL || fields.email_address;
+        if (!email) return; // Only track forms with email
+
+        await fetch(`${this.apiUrl}/javascript-api`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'track_form_submit',
+            widgetId: this.widgetId,
+            data: {
+              formId: form.id || form.className || 'unknown',
+              fields: fields,
+              pageUrl: window.location.href,
+              location: await this.getLocationData()
+            }
+          })
+        });
+
+        console.log('Form submission tracked');
+      } catch (error) {
+        console.error('Error tracking form submission:', error);
+      }
+    }
 
   // Template content mapping
   const templateContent = {
