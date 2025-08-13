@@ -705,10 +705,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_team_memberships: {
+        Args: { _user_id: string }
+        Returns: {
+          organization_id: string
+          role: Database["public"]["Enums"]["team_role"]
+        }[]
+      }
       has_role: {
         Args: {
           _user_id: string
           _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
+      user_has_org_role: {
+        Args: {
+          _user_id: string
+          _org_id: string
+          _roles: Database["public"]["Enums"]["team_role"][]
         }
         Returns: boolean
       }
