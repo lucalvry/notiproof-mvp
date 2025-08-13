@@ -349,11 +349,11 @@ const Dashboard = () => {
               <br />✅ Custom fields, date picker, location selector
               <br />✅ Purchase, signup, review, and custom events
             </p>
-            <Button asChild>
-              <Link to="/dashboard/widgets">
-                Access via Widget Events
-              </Link>
-            </Button>
+            <Link to="/dashboard/events">
+              <Button variant="outline" className="w-full">
+                Manage Events →
+              </Button>
+            </Link>
           </CardContent>
         </Card>
 

@@ -527,6 +527,53 @@ export type Database = {
         }
         Relationships: []
       }
+      visitor_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          ip_address: string | null
+          is_active: boolean
+          last_seen_at: string
+          page_url: string
+          session_id: string
+          started_at: string
+          user_agent: string | null
+          widget_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          is_active?: boolean
+          last_seen_at?: string
+          page_url: string
+          session_id: string
+          started_at?: string
+          user_agent?: string | null
+          widget_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          is_active?: boolean
+          last_seen_at?: string
+          page_url?: string
+          session_id?: string
+          started_at?: string
+          user_agent?: string | null
+          widget_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visitor_sessions_widget_id_fkey"
+            columns: ["widget_id"]
+            isOneToOne: false
+            referencedRelation: "widgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       widget_template_tags: {
         Row: {
           tag_id: string

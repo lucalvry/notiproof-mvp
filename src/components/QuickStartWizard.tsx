@@ -51,11 +51,11 @@ const templates = [
 ];
 
 interface QuickStartWizardProps {
-  onComplete: (widgetId: string) => void;
-  onSkip: () => void;
+  onComplete?: (widgetId: string) => void;
+  onSkip?: () => void;
 }
 
-export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps) => {
+export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps = {}) => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -140,7 +140,7 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps) 
         description: "Your widget is ready to use. Copy the installation code to add it to your website.",
       });
 
-      onComplete(data.id);
+      onComplete?.(data.id);
     } catch (error) {
       console.error('Error creating widget:', error);
       toast({
