@@ -36,6 +36,10 @@ import Integrations from "./pages/Integrations";
 import AdminAlerts from "./pages/AdminAlerts";
 import Campaigns from "./pages/Campaigns";
 import CreateCampaign from "./pages/CreateCampaign";
+import SocialConnectors from "./pages/SocialConnectors";
+import ModerationQueue from "./pages/ModerationQueue";
+import Teams from "./pages/Teams";
+import TemplatesMarketplace from "./pages/TemplatesMarketplace";
 
 const queryClient = new QueryClient();
 
@@ -72,6 +76,10 @@ const App = () => (
               <Route path="widgets/:id/analytics" element={<WidgetAnalytics />} />
               <Route path="campaigns" element={<Campaigns />} />
               <Route path="campaigns/create" element={<CreateCampaign />} />
+              <Route path="social-connectors" element={<SocialConnectors />} />
+              <Route path="moderation" element={<ModerationQueue />} />
+              <Route path="teams" element={<Teams />} />
+              <Route path="templates" element={<TemplatesMarketplace />} />
               <Route path="installation" element={<Installation />} />
               <Route path="integrations" element={<Integrations />} />
               <Route path="settings" element={<DashboardSettings />} />

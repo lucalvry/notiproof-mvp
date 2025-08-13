@@ -53,6 +53,7 @@ export type Database = {
           end_date: string | null
           id: string
           name: string
+          organization_id: string | null
           repeat_config: Json | null
           start_date: string | null
           status: string
@@ -67,6 +68,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           name: string
+          organization_id?: string | null
           repeat_config?: Json | null
           start_date?: string | null
           status?: string
@@ -81,6 +83,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           name?: string
+          organization_id?: string | null
           repeat_config?: Json | null
           start_date?: string | null
           status?: string
@@ -275,6 +278,36 @@ export type Database = {
         }
         Relationships: []
       }
+      organizations: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -296,6 +329,267 @@ export type Database = {
           name?: string
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
+        }
+        Relationships: []
+      }
+      social_connectors: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          last_sync: string | null
+          name: string
+          status: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          last_sync?: string | null
+          name: string
+          status?: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          last_sync?: string | null
+          name?: string
+          status?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      social_items: {
+        Row: {
+          author_avatar: string | null
+          author_name: string | null
+          connector_id: string
+          content: string
+          created_at: string
+          external_id: string
+          id: string
+          moderated_at: string | null
+          moderated_by: string | null
+          moderation_status: string
+          posted_at: string | null
+          rating: number | null
+          source_url: string | null
+          type: string
+        }
+        Insert: {
+          author_avatar?: string | null
+          author_name?: string | null
+          connector_id: string
+          content: string
+          created_at?: string
+          external_id: string
+          id?: string
+          moderated_at?: string | null
+          moderated_by?: string | null
+          moderation_status?: string
+          posted_at?: string | null
+          rating?: number | null
+          source_url?: string | null
+          type: string
+        }
+        Update: {
+          author_avatar?: string | null
+          author_name?: string | null
+          connector_id?: string
+          content?: string
+          created_at?: string
+          external_id?: string
+          id?: string
+          moderated_at?: string | null
+          moderated_by?: string | null
+          moderation_status?: string
+          posted_at?: string | null
+          rating?: number | null
+          source_url?: string | null
+          type?: string
+        }
+        Relationships: []
+      }
+      team_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          organization_id: string
+          role: Database["public"]["Enums"]["team_role"]
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          invited_by: string
+          organization_id: string
+          role?: Database["public"]["Enums"]["team_role"]
+          token: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          organization_id?: string
+          role?: Database["public"]["Enums"]["team_role"]
+          token?: string
+        }
+        Relationships: []
+      }
+      team_members: {
+        Row: {
+          created_at: string
+          id: string
+          invited_at: string | null
+          invited_by: string | null
+          joined_at: string | null
+          organization_id: string
+          role: Database["public"]["Enums"]["team_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          joined_at?: string | null
+          organization_id: string
+          role?: Database["public"]["Enums"]["team_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          joined_at?: string | null
+          organization_id?: string
+          role?: Database["public"]["Enums"]["team_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      template_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      template_tags: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      widget_template_tags: {
+        Row: {
+          tag_id: string
+          template_id: string
+        }
+        Insert: {
+          tag_id: string
+          template_id: string
+        }
+        Update: {
+          tag_id?: string
+          template_id?: string
+        }
+        Relationships: []
+      }
+      widget_templates: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          display_rules: Json
+          downloads_count: number
+          id: string
+          is_featured: boolean
+          is_public: boolean
+          name: string
+          preview_image: string | null
+          style_config: Json
+          template_name: string
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          display_rules?: Json
+          downloads_count?: number
+          id?: string
+          is_featured?: boolean
+          is_public?: boolean
+          name: string
+          preview_image?: string | null
+          style_config?: Json
+          template_name: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          display_rules?: Json
+          downloads_count?: number
+          id?: string
+          is_featured?: boolean
+          is_public?: boolean
+          name?: string
+          preview_image?: string | null
+          style_config?: Json
+          template_name?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -354,6 +648,7 @@ export type Database = {
           id: string
           integration: string
           name: string
+          organization_id: string | null
           status: string
           style_config: Json | null
           template_name: string
@@ -367,6 +662,7 @@ export type Database = {
           id?: string
           integration?: string
           name: string
+          organization_id?: string | null
           status?: string
           style_config?: Json | null
           template_name: string
@@ -380,6 +676,7 @@ export type Database = {
           id?: string
           integration?: string
           name?: string
+          organization_id?: string | null
           status?: string
           style_config?: Json | null
           template_name?: string
@@ -418,6 +715,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user" | "support"
+      team_role: "owner" | "admin" | "member" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -546,6 +844,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user", "support"],
+      team_role: ["owner", "admin", "member", "viewer"],
     },
   },
 } as const
