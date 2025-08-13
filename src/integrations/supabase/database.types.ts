@@ -56,6 +56,36 @@ export type Database = {
           }
         ]
       }
+      goals: {
+        Row: {
+          type: string
+          name: string
+          pattern: string
+          id: string
+          widget_id: string
+          active: boolean
+          created_at: string | null
+        }
+        Insert: {
+          type: string
+          name: string
+          pattern: string
+          id?: string
+          widget_id: string
+          active?: boolean
+          created_at?: string | null
+        }
+        Update: {
+          type?: string
+          name?: string
+          pattern?: string
+          id?: string
+          widget_id?: string
+          active?: boolean
+          created_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           id: string
@@ -87,6 +117,8 @@ export type Database = {
           name: string
           template_name: string
           style_config: Json | null
+          display_rules: Json
+          integration: string
           status: string
           created_at: string | null
           updated_at: string | null
@@ -97,6 +129,8 @@ export type Database = {
           name: string
           template_name: string
           style_config?: Json | null
+          display_rules?: Json
+          integration?: string
           status?: string
           created_at?: string | null
           updated_at?: string | null
@@ -107,6 +141,8 @@ export type Database = {
           name?: string
           template_name?: string
           style_config?: Json | null
+          display_rules?: Json
+          integration?: string
           status?: string
           created_at?: string | null
           updated_at?: string | null

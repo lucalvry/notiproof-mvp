@@ -526,7 +526,7 @@ const { error } = await supabase
                   const { error } = await supabase.from('goals').insert({ widget_id: id, ...newGoal } as any);
                   if (!error) {
                     setNewGoal({ name: '', type: 'url_match', pattern: '' });
-                    const { data } = await supabase.from('goals').select('*').eq('widget_id', id);
+                    const { data } = await (supabase.from('goals').select('*').eq('widget_id', id) as any);
                     setGoals(data || []);
                     toast({ title: 'Goal added' });
                   } else {
