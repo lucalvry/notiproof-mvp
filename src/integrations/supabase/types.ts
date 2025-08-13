@@ -44,6 +44,62 @@ export type Database = {
         }
         Relationships: []
       }
+      analytics_insights: {
+        Row: {
+          action_items: string[] | null
+          confidence_score: number | null
+          created_at: string
+          data_points: Json
+          description: string
+          expires_at: string | null
+          id: string
+          insight_type: string
+          priority: string
+          status: string
+          title: string
+          user_id: string
+          widget_id: string | null
+        }
+        Insert: {
+          action_items?: string[] | null
+          confidence_score?: number | null
+          created_at?: string
+          data_points?: Json
+          description: string
+          expires_at?: string | null
+          id?: string
+          insight_type: string
+          priority?: string
+          status?: string
+          title: string
+          user_id: string
+          widget_id?: string | null
+        }
+        Update: {
+          action_items?: string[] | null
+          confidence_score?: number | null
+          created_at?: string
+          data_points?: Json
+          description?: string
+          expires_at?: string | null
+          id?: string
+          insight_type?: string
+          priority?: string
+          status?: string
+          title?: string
+          user_id?: string
+          widget_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_insights_widget_id_fkey"
+            columns: ["widget_id"]
+            isOneToOne: false
+            referencedRelation: "widgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           auto_repeat: boolean
@@ -278,6 +334,69 @@ export type Database = {
         }
         Relationships: []
       }
+      marketplace_templates: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string
+          description: string | null
+          display_rules: Json
+          download_count: number
+          id: string
+          is_featured: boolean
+          is_public: boolean
+          name: string
+          preview_image: string | null
+          price_cents: number | null
+          rating_average: number | null
+          rating_count: number
+          style_config: Json
+          tags: string[] | null
+          template_config: Json
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          display_rules?: Json
+          download_count?: number
+          id?: string
+          is_featured?: boolean
+          is_public?: boolean
+          name: string
+          preview_image?: string | null
+          price_cents?: number | null
+          rating_average?: number | null
+          rating_count?: number
+          style_config?: Json
+          tags?: string[] | null
+          template_config?: Json
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          display_rules?: Json
+          download_count?: number
+          id?: string
+          is_featured?: boolean
+          is_public?: boolean
+          name?: string
+          preview_image?: string | null
+          price_cents?: number | null
+          rating_average?: number | null
+          rating_count?: number
+          style_config?: Json
+          tags?: string[] | null
+          template_config?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       organizations: {
         Row: {
           avatar_url: string | null
@@ -509,6 +628,70 @@ export type Database = {
         }
         Relationships: []
       }
+      template_downloads: {
+        Row: {
+          downloaded_at: string
+          id: string
+          template_id: string
+          user_id: string
+        }
+        Insert: {
+          downloaded_at?: string
+          id?: string
+          template_id: string
+          user_id: string
+        }
+        Update: {
+          downloaded_at?: string
+          id?: string
+          template_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_downloads_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      template_ratings: {
+        Row: {
+          created_at: string
+          id: string
+          rating: number
+          review: string | null
+          template_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rating: number
+          review?: string | null
+          template_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rating?: number
+          review?: string | null
+          template_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_ratings_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       template_tags: {
         Row: {
           created_at: string
@@ -526,6 +709,50 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      tracking_pixels: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          pixel_id: string
+          platform: string
+          updated_at: string
+          user_id: string
+          widget_id: string | null
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          pixel_id: string
+          platform: string
+          updated_at?: string
+          user_id: string
+          widget_id?: string | null
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          pixel_id?: string
+          platform?: string
+          updated_at?: string
+          user_id?: string
+          widget_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracking_pixels_widget_id_fkey"
+            columns: ["widget_id"]
+            isOneToOne: false
+            referencedRelation: "widgets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       visitor_sessions: {
         Row: {
