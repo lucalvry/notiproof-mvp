@@ -24,13 +24,16 @@ interface EventRow {
   created_at: string;
   views: number | null;
   clicks: number | null;
+  flagged?: boolean;
 }
+
 
 const COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 const WidgetAnalytics = () => {
   const { id } = useParams<{ id: string }>();
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [goals, setGoals] = useState<any[]>([]);
   const [range, setRange] = useState<'7d' | '30d'>('7d');
 
   useEffect(() => {
@@ -39,12 +42,14 @@ const WidgetAnalytics = () => {
       const since = new Date(Date.now() - (range === '7d' ? 7 : 30) * 24 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from('events')
-        .select('id, event_type, event_data, created_at, views, clicks')
+        .select('id, event_type, event_data, created_at, views, clicks, flagged')
         .eq('widget_id', id)
         .gte('created_at', since)
         .order('created_at', { ascending: false })
         .limit(2000);
       setEvents(data || []);
+      const { data: goalData } = await (supabase.from('goals').select('id, name, type, pattern, active').eq('widget_id', id) as any);
+      setGoals(goalData || []);
     };
     load();
   }, [id, range]);
@@ -92,6 +97,12 @@ const WidgetAnalytics = () => {
     return { totalViews, totalClicks, conversions, ctr };
   }, [events]);
 
+  const flaggedStats = useMemo(() => {
+    const count = events.filter((e) => e.flagged).length;
+    const ratio = events.length > 0 ? (count / events.length) * 100 : 0;
+    return { count, ratio };
+  }, [events]);
+
   // A/B variant comparison by event_data.variant
   const variantPerf = useMemo(() => {
     const map: Record<string, { views: number; clicks: number }> = {};
@@ -109,6 +120,23 @@ const WidgetAnalytics = () => {
     }));
   }, [events]);
 
+  const goalsPerf = useMemo(() => {
+    const totalViews = events.reduce((s, e) => s + (e.views || 0), 0);
+    return (goals || []).filter((g: any) => g.active !== false).map((g: any) => {
+      let matches = 0;
+      events.forEach((e) => {
+        const url = e.event_data?.url || '';
+        const label = e.event_data?.label || '';
+        const evName = e.event_data?.event_name || '';
+        if (g.type === 'url_match' && typeof g.pattern === 'string' && url.includes(g.pattern)) matches++;
+        if (g.type === 'custom_event' && typeof g.pattern === 'string' && (e.event_type === g.pattern || evName === g.pattern)) matches++;
+        if (g.type === 'label' && typeof g.pattern === 'string' && label === g.pattern) matches++;
+      });
+      const rate = totalViews > 0 ? +(100 * (matches / totalViews)).toFixed(2) : 0;
+      return { name: g.name, type: g.type, pattern: g.pattern, matches, rate };
+    });
+  }, [goals, events]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -125,11 +153,13 @@ const WidgetAnalytics = () => {
         </Select>
       </div>
 
-      <div className="grid md:grid-cols-4 gap-4">
+      <div className="grid md:grid-cols-6 gap-4">
         <Card><CardHeader><CardTitle>Views</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.totalViews}</CardContent></Card>
         <Card><CardHeader><CardTitle>Clicks</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.totalClicks}</CardContent></Card>
         <Card><CardHeader><CardTitle>CTR</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.ctr.toFixed(2)}%</CardContent></Card>
         <Card><CardHeader><CardTitle>Conversions</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.conversions}</CardContent></Card>
+        <Card><CardHeader><CardTitle>Flagged</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{flaggedStats.count}</CardContent></Card>
+        <Card><CardHeader><CardTitle>Flagged Rate</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{flaggedStats.ratio.toFixed(1)}%</CardContent></Card>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -172,7 +202,7 @@ const WidgetAnalytics = () => {
         </Card>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Top Countries</CardTitle>
@@ -222,6 +252,39 @@ const WidgetAnalytics = () => {
                     <TableCell>{v.ctr}%</TableCell>
                   </tr>
                 ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Goals Performance</CardTitle>
+            <CardDescription>Matches and rates by goal</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Goal</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Pattern</TableHead>
+                  <TableHead>Matches</TableHead>
+                  <TableHead>Rate</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {goalsPerf.length > 0 ? goalsPerf.map((g) => (
+                  <tr key={g.name + g.pattern}>
+                    <TableCell>{g.name}</TableCell>
+                    <TableCell><Badge>{g.type}</Badge></TableCell>
+                    <TableCell>{g.pattern}</TableCell>
+                    <TableCell>{g.matches}</TableCell>
+                    <TableCell>{g.rate}%</TableCell>
+                  </tr>
+                )) : (
+                  <tr><TableCell colSpan={5} className="text-muted-foreground">No goals configured</TableCell></tr>
+                )}
               </TableBody>
             </Table>
           </CardContent>

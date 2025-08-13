@@ -324,6 +324,16 @@ const { data, error } = await supabase
                       <Input value={displayRules.referrer_denylist}
                         onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_denylist: e.target.value }))} />
                     </div>
+                    <div>
+                      <Label>Geo Allowlist (ISO country codes, comma separated)</Label>
+                      <Input value={displayRules.geo_allowlist}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, geo_allowlist: e.target.value.toUpperCase() }))} />
+                    </div>
+                    <div>
+                      <Label>Geo Denylist (ISO country codes, comma separated)</Label>
+                      <Input value={displayRules.geo_denylist}
+                        onChange={(e) => setDisplayRules(prev => ({ ...prev, geo_denylist: e.target.value.toUpperCase() }))} />
+                    </div>
                   </div>
                 </div>
 

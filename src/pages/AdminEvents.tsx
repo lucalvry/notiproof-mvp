@@ -105,6 +105,13 @@ const filtered = useMemo(() => {
     setEvents((prev) => prev.filter((e) => e.id !== id));
   };
 
+  const bulkUnflag = async () => {
+    const ids = filtered.filter((e) => e.flagged).map((e) => e.id);
+    if (ids.length === 0) return;
+    await supabase.from('events').update({ flagged: false }).in('id', ids);
+    setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, flagged: false } : e)));
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -153,6 +160,9 @@ const filtered = useMemo(() => {
               {showFlaggedOnly ? <Flag className="h-4 w-4 mr-2" /> : <FlagOff className="h-4 w-4 mr-2" />} Flagged only
             </Button>
             <Button variant="outline" onClick={loadEvents}><RefreshCw className="h-4 w-4 mr-2" />Refresh</Button>
+            {showFlaggedOnly && filtered.length > 0 && (
+              <Button variant="outline" onClick={bulkUnflag}><FlagOff className="h-4 w-4 mr-2" />Unflag all filtered</Button>
+            )}
           </div>
         </CardContent>
       </Card>

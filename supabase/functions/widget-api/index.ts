@@ -224,6 +224,22 @@ serve(async (req) => {
 
           console.log(`Event tracked: ${event_type} for widget ${widgetId} ${metadata?.session_id ? `(session: ${metadata.session_id})` : ''}`);
 
+          // If verified-only is enabled and the event was flagged, skip fan-out
+          const enforceVerifiedOnly = !!((widget as any).display_rules?.enforce_verified_only);
+          if (enforceVerifiedOnly && event.flagged) {
+            await supabase.from('alerts').insert({
+              type: 'webhook_skipped',
+              message: 'Skipped webhook fan-out due to flagged event and verified-only mode',
+              widget_id: widgetId,
+              user_id: (widget as any).user_id,
+              context: { event_type, flagged: event.flagged }
+            } as any);
+            return new Response(
+              JSON.stringify({ success: true, event, webhook_skipped: true }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
           // Fan-out to integration hooks (webhooks)
           const { data: hooks } = await supabase
             .from('integration_hooks')
