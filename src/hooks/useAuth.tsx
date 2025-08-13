@@ -43,29 +43,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Fetch user profile
-          try {
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .maybeSingle();
-            
-            if (profileError) {
-              console.error('Profile fetch error:', profileError);
+          // Defer profile fetching to avoid deadlock
+          setTimeout(async () => {
+            try {
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .maybeSingle();
+              
+              if (profileError) {
+                console.error('Profile fetch error:', profileError);
+              }
+              
+              setProfile(profileData);
+            } catch (error) {
+              console.error('Auth error:', error);
+            } finally {
+              setLoading(false);
             }
-            
-            setProfile(profileData);
-          } catch (error) {
-            console.error('Auth error:', error);
-          } finally {
-            setLoading(false);
-          }
+          }, 0);
         } else {
           setProfile(null);
           setLoading(false);
