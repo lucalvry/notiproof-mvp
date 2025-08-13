@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
-import { Edit, Trash2, ToggleLeft, ToggleRight, Plus, Eye, MousePointer } from 'lucide-react';
+import { Edit, Trash2, ToggleLeft, ToggleRight, Plus, Eye, MousePointer, BarChart3 } from 'lucide-react';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 interface Widget {
   id: string;
@@ -335,24 +335,31 @@ const DashboardWidgets = () => {
                        )}
                      </Button>
                      
-                     <div className="flex gap-2">
-                       <Button variant="outline" size="sm" className="gap-2 flex-1" asChild>
-                         <Link to={`/dashboard/widgets/${widget.id}/edit`}>
-                           <Edit className="h-4 w-4" />
-                           Edit
-                         </Link>
-                       </Button>
-                       
-                       <Button
-                         variant="outline"
-                         size="sm"
-                         onClick={() => deleteWidget(widget.id)}
-                         className="gap-2 flex-1 text-destructive hover:text-destructive"
-                       >
-                         <Trash2 className="h-4 w-4" />
-                         Delete
-                       </Button>
-                     </div>
+                      <Button variant="default" size="sm" className="gap-2 w-full" asChild>
+                        <Link to={`/dashboard/widgets/${widget.id}/analytics`}>
+                          <BarChart3 className="h-4 w-4" />
+                          Analytics
+                        </Link>
+                      </Button>
+                      
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" className="gap-2 flex-1" asChild>
+                          <Link to={`/dashboard/widgets/${widget.id}/edit`}>
+                            <Edit className="h-4 w-4" />
+                            Edit
+                          </Link>
+                        </Button>
+                        
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteWidget(widget.id)}
+                          className="gap-2 flex-1 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </Button>
+                      </div>
                    </div>
                  </div>
               </CardContent>
