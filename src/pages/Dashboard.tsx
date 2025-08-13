@@ -99,11 +99,11 @@ const Dashboard = () => {
           })) || []);
         }
 
-        // Fetch integration status with simplified approach
+        // Set integration status to show available integrations
         setIntegrations({
-          ecommerce: 0, // Will show setup buttons
-          email: 0,
-          total: 0
+          ecommerce: 0, // Will show "Setup" buttons for Shopify & WooCommerce
+          email: 0,     // Will show "Setup" buttons for email providers
+          total: 0      // Will show "Manage All" button
         });
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
