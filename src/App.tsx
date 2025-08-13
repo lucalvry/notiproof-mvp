@@ -40,6 +40,7 @@ import SocialConnectors from "./pages/SocialConnectors";
 import ModerationQueue from "./pages/ModerationQueue";
 import Teams from "./pages/Teams";
 import TemplatesMarketplace from "./pages/TemplatesMarketplace";
+import EventsManager from "./pages/EventsManager";
 
 // Updated routing configuration for Phase 5, 6 & 7
 const queryClient = new QueryClient();
@@ -81,6 +82,7 @@ const App = () => (
               <Route path="moderation" element={<ModerationQueue />} />
               <Route path="teams" element={<Teams />} />
               <Route path="templates" element={<TemplatesMarketplace />} />
+              <Route path="events" element={<EventsManager />} />
               <Route path="installation" element={<Installation />} />
               <Route path="integrations" element={<Integrations />} />
               <Route path="settings" element={<DashboardSettings />} />
