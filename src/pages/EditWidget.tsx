@@ -131,14 +131,12 @@ useEffect(() => {
           geo_allowlist: Array.isArray(dr.geo_allowlist) ? dr.geo_allowlist.join(', ') : '',
           geo_denylist: Array.isArray(dr.geo_denylist) ? dr.geo_denylist.join(', ') : '',
         });
+        
         // Load goals for this widget
-        try {
-          setLoadingGoals(true);
-          const { data: goalsData } = await (supabase.from('goals').select('*').eq('widget_id', id) as any);
-          setGoals(goalsData || []);
-        } finally {
-          setLoadingGoals(false);
-        }
+        setLoadingGoals(true);
+        const { data: goalsData } = await supabase.from('goals').select('*').eq('widget_id', id);
+        setGoals(goalsData || []);
+        setLoadingGoals(false);
       }
     } catch (error) {
       console.error('Error fetching widget:', error);

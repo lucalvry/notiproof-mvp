@@ -160,8 +160,8 @@ const filtered = useMemo(() => {
               {showFlaggedOnly ? <Flag className="h-4 w-4 mr-2" /> : <FlagOff className="h-4 w-4 mr-2" />} Flagged only
             </Button>
             <Button variant="outline" onClick={loadEvents}><RefreshCw className="h-4 w-4 mr-2" />Refresh</Button>
-            {showFlaggedOnly && filtered.length > 0 && (
-              <Button variant="outline" onClick={bulkUnflag}><FlagOff className="h-4 w-4 mr-2" />Unflag all filtered</Button>
+            {showFlaggedOnly && filtered.filter(e => e.flagged).length > 0 && (
+              <Button variant="outline" onClick={bulkUnflag}><FlagOff className="h-4 w-4 mr-2" />Bulk Unflag ({filtered.filter(e => e.flagged).length})</Button>
             )}
           </div>
         </CardContent>

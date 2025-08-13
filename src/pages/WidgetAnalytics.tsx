@@ -121,19 +121,31 @@ const WidgetAnalytics = () => {
   }, [events]);
 
   const goalsPerf = useMemo(() => {
-    const totalViews = events.reduce((s, e) => s + (e.views || 0), 0);
     return (goals || []).filter((g: any) => g.active !== false).map((g: any) => {
-      let matches = 0;
+      let conversions = 0;
+      let denomViews = 0;
+      
       events.forEach((e) => {
+        // Count views for denominator
+        denomViews += e.views || 0;
+        
+        // Check goal matching for conversions
         const url = e.event_data?.url || '';
         const label = e.event_data?.label || '';
         const evName = e.event_data?.event_name || '';
-        if (g.type === 'url_match' && typeof g.pattern === 'string' && url.includes(g.pattern)) matches++;
-        if (g.type === 'custom_event' && typeof g.pattern === 'string' && (e.event_type === g.pattern || evName === g.pattern)) matches++;
-        if (g.type === 'label' && typeof g.pattern === 'string' && label === g.pattern) matches++;
+        
+        let matches = false;
+        if (g.type === 'url_match' && typeof g.pattern === 'string' && url.includes(g.pattern)) matches = true;
+        if (g.type === 'custom_event' && typeof g.pattern === 'string' && (e.event_type === g.pattern || evName === g.pattern)) matches = true;
+        if (g.type === 'label' && typeof g.pattern === 'string' && label === g.pattern) matches = true;
+        
+        if (matches) {
+          conversions += e.views || 0; // Count views that match as conversions
+        }
       });
-      const rate = totalViews > 0 ? +(100 * (matches / totalViews)).toFixed(2) : 0;
-      return { name: g.name, type: g.type, pattern: g.pattern, matches, rate };
+      
+      const rate = denomViews > 0 ? +(100 * (conversions / denomViews)).toFixed(2) : 0;
+      return { name: g.name, type: g.type, pattern: g.pattern, conversions, denomViews, rate };
     });
   }, [goals, events]);
 
@@ -269,7 +281,7 @@ const WidgetAnalytics = () => {
                   <TableHead>Goal</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Pattern</TableHead>
-                  <TableHead>Matches</TableHead>
+                  <TableHead>Conversions</TableHead>
                   <TableHead>Rate</TableHead>
                 </TableRow>
               </TableHeader>
@@ -279,7 +291,7 @@ const WidgetAnalytics = () => {
                     <TableCell>{g.name}</TableCell>
                     <TableCell><Badge>{g.type}</Badge></TableCell>
                     <TableCell>{g.pattern}</TableCell>
-                    <TableCell>{g.matches}</TableCell>
+                    <TableCell>{g.conversions}</TableCell>
                     <TableCell>{g.rate}%</TableCell>
                   </tr>
                 )) : (

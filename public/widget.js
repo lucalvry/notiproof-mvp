@@ -489,18 +489,60 @@
       return true;
     };
 
-    const maybeShow = () => {
+    // Geo guard - check cached geo data
+    let cachedCountry = localStorage.getItem('notiproof-geo-country');
+    let lastGeoCheck = localStorage.getItem('notiproof-geo-check');
+    const geoNeedsRefresh = !lastGeoCheck || (Date.now() - parseInt(lastGeoCheck)) > 24 * 60 * 60 * 1000; // 24 hours
+
+    const resolveGeo = async () => {
+      if (!geoNeedsRefresh && cachedCountry) return cachedCountry;
+      try {
+        const resp = await fetch('https://ipapi.co/json/', { headers: { 'Accept': 'application/json' } });
+        if (resp.ok) {
+          const geo = await resp.json();
+          cachedCountry = geo.country_name || geo.country || '';
+          localStorage.setItem('notiproof-geo-country', cachedCountry);
+          localStorage.setItem('notiproof-geo-check', String(Date.now()));
+          console.log('NotiProof: Geo resolved:', cachedCountry);
+        }
+      } catch (e) {
+        console.warn('NotiProof: Geo resolution failed', e);
+      }
+      return cachedCountry || '';
+    };
+
+    const geoGuard = async () => {
+      const allow = Array.isArray(rules.geo_allowlist) && rules.geo_allowlist.length > 0;
+      const deny = Array.isArray(rules.geo_denylist) && rules.geo_denylist.length > 0;
+      if (!allow && !deny) return true; // No geo restrictions
+      
+      const country = await resolveGeo();
+      if (!country) return true; // Can't determine geo, allow
+      
+      if (allow && !rules.geo_allowlist.includes(country)) {
+        console.log('NotiProof: Geo blocked by allowlist:', country);
+        return false;
+      }
+      if (deny && rules.geo_denylist.includes(country)) {
+        console.log('NotiProof: Geo blocked by denylist:', country);
+        return false;
+      }
+      return true;
+    };
+
+    const maybeShow = async () => {
       if (!isAllowedByLists() || !canShowMore()) return;
+      if (!(await geoGuard())) return;
       if (!rules.triggers?.exit_intent && !triggersMet()) return;
       incCounts();
       fetchAndDisplayEvents();
     };
 
     // Exit intent handler
-    const onExitIntent = (e) => {
+    const onExitIntent = async (e) => {
       if (!rules.triggers?.exit_intent) return;
       if (e.clientY <= 0) {
-        maybeShow();
+        await maybeShow();
         window.removeEventListener('mouseout', onExitIntent);
       }
     };
@@ -509,8 +551,8 @@
     if (rules.triggers?.exit_intent) {
       window.addEventListener('mouseout', onExitIntent);
     } else {
-      setTimeout(() => {
-        maybeShow();
+      setTimeout(async () => {
+        await maybeShow();
         const interval = Math.max(1000, Number(rules.interval_ms) || 8000);
         setInterval(maybeShow, interval);
       }, Number(config.delay) || 0);
