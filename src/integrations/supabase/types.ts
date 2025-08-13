@@ -997,6 +997,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_user_role: {
+        Args: {
+          _user_id: string
+          _new_role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
       user_has_org_role: {
         Args: {
           _user_id: string
