@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { LiveVisitorCount } from '@/components/LiveVisitorCount';
 import { QuickStartWizard } from '@/components/QuickStartWizard';
-import { Activity, MousePointer, Eye, Plus, Wand2 } from 'lucide-react';
+import { Activity, MousePointer, Eye, Plus, Wand2, ShoppingCart, Mail, Plug } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface Stats {
@@ -24,6 +24,12 @@ interface RecentEvent {
   };
 }
 
+interface IntegrationStatus {
+  ecommerce: number;
+  email: number;
+  total: number;
+}
+
 const Dashboard = () => {
   const { profile } = useAuth();
   const [stats, setStats] = useState<Stats>({
@@ -35,6 +41,11 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [showWizard, setShowWizard] = useState(false);
   const [hasWidgets, setHasWidgets] = useState(false);
+  const [integrations, setIntegrations] = useState<IntegrationStatus>({
+    ecommerce: 0,
+    email: 0,
+    total: 0
+  });
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -87,6 +98,28 @@ const Dashboard = () => {
             widget: event.widgets
           })) || []);
         }
+
+        // Fetch integration status (using RPC to avoid type issues)
+        const { data: ecommerceData } = await supabase.rpc('get_integration_count', {
+          user_id_param: profile.id,
+          types: ['shopify', 'woocommerce']
+        }).single();
+        
+        const { data: emailData } = await supabase.rpc('get_integration_count', {
+          user_id_param: profile.id,
+          types: ['mailchimp', 'convertkit', 'klaviyo']
+        }).single();
+        
+        const { data: totalData } = await supabase.rpc('get_integration_count', {
+          user_id_param: profile.id,
+          types: []
+        }).single();
+
+        setIntegrations({
+          ecommerce: ecommerceData || 0,
+          email: emailData || 0,
+          total: totalData || 0
+        });
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -220,6 +253,57 @@ const Dashboard = () => {
 
         {/* Live Visitor Count Card */}
         <LiveVisitorCount showDetails={false} />
+      </div>
+
+      {/* Integration Status Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">E-commerce Integrations</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{integrations.ecommerce}</div>
+            <p className="text-xs text-muted-foreground mb-2">
+              Shopify & WooCommerce connected
+            </p>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/dashboard/integrations">Setup</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Email Integrations</CardTitle>
+            <Mail className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{integrations.email}</div>
+            <p className="text-xs text-muted-foreground mb-2">
+              Mailchimp, ConvertKit, Klaviyo
+            </p>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/dashboard/integrations">Setup</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Integrations</CardTitle>
+            <Plug className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{integrations.total}</div>
+            <p className="text-xs text-muted-foreground mb-2">
+              All connected services
+            </p>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/dashboard/integrations">Manage All</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Live Visitor Count Details */}
