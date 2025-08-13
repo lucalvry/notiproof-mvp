@@ -41,6 +41,7 @@ import ModerationQueue from "./pages/ModerationQueue";
 import Teams from "./pages/Teams";
 import TemplatesMarketplace from "./pages/TemplatesMarketplace";
 import EventsManager from "./pages/EventsManager";
+import CampaignWizard from "./pages/CampaignWizard";
 
 // Updated routing configuration for Phase 5, 6 & 7
 const queryClient = new QueryClient();
@@ -78,6 +79,7 @@ const App = () => (
               <Route path="widgets/:id/analytics" element={<WidgetAnalytics />} />
               <Route path="campaigns" element={<Campaigns />} />
               <Route path="campaigns/create" element={<CreateCampaign />} />
+              <Route path="campaigns/wizard" element={<CampaignWizard />} />
               <Route path="social-connectors" element={<SocialConnectors />} />
               <Route path="moderation" element={<ModerationQueue />} />
               <Route path="teams" element={<Teams />} />

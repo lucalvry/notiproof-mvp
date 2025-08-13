@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Eye, TrendingUp, Users, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { RealTimeVisitorTracker } from './RealTimeVisitorTracker';
 
 interface VisitorStats {
   currentVisitors: number;
@@ -24,6 +25,14 @@ export const LiveVisitorCount = ({ widgetId, showDetails = false }: LiveVisitorC
     lastUpdated: new Date()
   });
   const [isLoading, setIsLoading] = useState(true);
+
+  const handleVisitorCountChange = (count: number) => {
+    setStats(prev => ({
+      ...prev,
+      currentVisitors: count,
+      lastUpdated: new Date()
+    }));
+  };
 
   useEffect(() => {
     // Enhanced visitor tracking with real-time updates
@@ -107,45 +116,53 @@ export const LiveVisitorCount = ({ widgetId, showDetails = false }: LiveVisitorC
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Users className="h-4 w-4" />
-          Live Visitor Count
-        </CardTitle>
-        <CardDescription>Real-time visitor activity</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-2xl font-bold">{stats.currentVisitors}</span>
-            <span className="text-sm text-muted-foreground">online now</span>
-          </div>
-          <Badge variant="outline" className="text-xs">
-            <Clock className="h-3 w-3 mr-1" />
-            Live
-          </Badge>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <div className="flex items-center gap-1 text-muted-foreground">
-              <TrendingUp className="h-3 w-3" />
-              Peak Today
+    <>
+      {widgetId && (
+        <RealTimeVisitorTracker 
+          widgetId={widgetId} 
+          onVisitorCountChange={handleVisitorCountChange}
+        />
+      )}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Live Visitor Count
+          </CardTitle>
+          <CardDescription>Real-time visitor activity</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-2xl font-bold">{stats.currentVisitors}</span>
+              <span className="text-sm text-muted-foreground">online now</span>
             </div>
-            <div className="font-semibold">{stats.peakToday}</div>
+            <Badge variant="outline" className="text-xs">
+              <Clock className="h-3 w-3 mr-1" />
+              Live
+            </Badge>
           </div>
-          <div>
-            <div className="text-muted-foreground">Total Today</div>
-            <div className="font-semibold">{stats.todayVisitors}</div>
-          </div>
-        </div>
 
-        <div className="text-xs text-muted-foreground">
-          Last updated: {stats.lastUpdated.toLocaleTimeString()}
-        </div>
-      </CardContent>
-    </Card>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <TrendingUp className="h-3 w-3" />
+                Peak Today
+              </div>
+              <div className="font-semibold">{stats.peakToday}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Total Today</div>
+              <div className="font-semibold">{stats.todayVisitors}</div>
+            </div>
+          </div>
+
+          <div className="text-xs text-muted-foreground">
+            Last updated: {stats.lastUpdated.toLocaleTimeString()}
+          </div>
+        </CardContent>
+      </Card>
+    </>
   );
 };
