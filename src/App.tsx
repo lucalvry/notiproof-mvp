@@ -34,6 +34,8 @@ import AdminLogin from "./pages/AdminLogin";
 import WidgetAnalytics from "./pages/WidgetAnalytics";
 import Integrations from "./pages/Integrations";
 import AdminAlerts from "./pages/AdminAlerts";
+import Campaigns from "./pages/Campaigns";
+import CreateCampaign from "./pages/CreateCampaign";
 
 const queryClient = new QueryClient();
 
@@ -68,6 +70,8 @@ const App = () => (
               <Route path="widgets/:id/edit" element={<EditWidget />} />
               <Route path="widgets/:id/events" element={<WidgetEvents />} />
               <Route path="widgets/:id/analytics" element={<WidgetAnalytics />} />
+              <Route path="campaigns" element={<Campaigns />} />
+              <Route path="campaigns/create" element={<CreateCampaign />} />
               <Route path="installation" element={<Installation />} />
               <Route path="integrations" element={<Integrations />} />
               <Route path="settings" element={<DashboardSettings />} />
