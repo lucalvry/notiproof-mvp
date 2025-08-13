@@ -49,16 +49,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         
         if (session?.user) {
           // Fetch user profile
-          setTimeout(async () => {
-            const { data: profileData } = await supabase
+          try {
+            const { data: profileData, error: profileError } = await supabase
               .from('profiles')
               .select('*')
               .eq('id', session.user.id)
-              .single();
+              .maybeSingle();
+            
+            if (profileError) {
+              console.error('Profile fetch error:', profileError);
+            }
             
             setProfile(profileData);
+          } catch (error) {
+            console.error('Auth error:', error);
+          } finally {
             setLoading(false);
-          }, 0);
+          }
         } else {
           setProfile(null);
           setLoading(false);
