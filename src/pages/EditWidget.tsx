@@ -62,7 +62,7 @@ const EditWidget = () => {
     delay: '3000',
     color: '#3B82F6',
     status: 'active',
-    campaign_id: ''
+    campaign_id: 'none'
   });
 
 const [displayRules, setDisplayRules] = useState({
@@ -124,7 +124,7 @@ useEffect(() => {
           delay: String(styleConfig.delay || 3000),
           color: styleConfig.color || '#3B82F6',
           status: widget.status,
-          campaign_id: (widget as any).campaign_id || ''
+          campaign_id: (widget as any).campaign_id || 'none'
         });
         const dr = (widget as any).display_rules || {};
         setDisplayRules({
@@ -197,7 +197,7 @@ const { error } = await supabase
     name: formData.name,
     template_name: formData.template_name,
     status: formData.status,
-    campaign_id: formData.campaign_id || null,
+    campaign_id: formData.campaign_id === 'none' ? null : formData.campaign_id,
     style_config: {
       position: formData.position,
       delay: parseInt(formData.delay),
@@ -327,7 +327,7 @@ const { error } = await supabase
                       <SelectValue placeholder="Select a campaign" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Campaign</SelectItem>
+                      <SelectItem value="none">No Campaign</SelectItem>
                       {campaigns.map((campaign) => (
                         <SelectItem key={campaign.id} value={campaign.id}>
                           {campaign.name} ({campaign.status})

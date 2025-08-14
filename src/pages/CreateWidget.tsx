@@ -58,7 +58,7 @@ const CreateWidget = () => {
     position: 'bottom-left',
     delay: '3000',
     color: '#3B82F6',
-    campaign_id: ''
+    campaign_id: 'none'
   });
 
   const [selectedNotificationTypes, setSelectedNotificationTypes] = useState<string[]>([]);
@@ -130,7 +130,7 @@ const { data, error } = await supabase
     user_id: profile.id,
     name: formData.name,
     template_name: formData.template_name,
-    campaign_id: formData.campaign_id || null,
+    campaign_id: formData.campaign_id === 'none' ? null : formData.campaign_id,
     style_config: {
       position: formData.position,
       delay: parseInt(formData.delay),
@@ -205,7 +205,7 @@ const { data, error } = await supabase
                       <SelectValue placeholder="Select a campaign" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Campaign</SelectItem>
+                      <SelectItem value="none">No Campaign</SelectItem>
                       {campaigns.map((campaign) => (
                         <SelectItem key={campaign.id} value={campaign.id}>
                           {campaign.name} ({campaign.status})
