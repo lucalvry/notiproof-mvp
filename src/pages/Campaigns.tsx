@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Edit, Trash2, Calendar, Play, Pause, RotateCcw } from 'lucide-react';
+import { Plus, Edit, Trash2, Calendar, Play, Pause, RotateCcw, Settings, Eye, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -18,9 +18,7 @@ interface Campaign {
   end_date: string | null;
   auto_repeat: boolean;
   created_at: string;
-  _count?: {
-    widgets: number;
-  };
+  widget_count?: number;
 }
 
 const statusConfig = {
@@ -41,7 +39,8 @@ const Campaigns = () => {
       if (!profile) return;
 
       try {
-        const { data, error } = await supabase
+        // Fetch campaigns with widget counts
+        const { data: campaignData, error: campaignError } = await supabase
           .from('campaigns' as any)
           .select(`
             id,
@@ -56,8 +55,15 @@ const Campaigns = () => {
           .eq('user_id', profile.id)
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
-        setCampaigns((data as any) || []);
+        if (campaignError) throw campaignError;
+
+        // Add widget count (we'll enhance this later)
+        const campaignsWithCounts = (campaignData || []).map((campaign: any) => ({
+          ...campaign,
+          widget_count: 0 // TODO: Fetch actual widget counts
+        }));
+
+        setCampaigns(campaignsWithCounts);
       } catch (error) {
         console.error('Error fetching campaigns:', error);
         toast({
@@ -219,14 +225,19 @@ const Campaigns = () => {
           <CardContent className="p-12 text-center">
             <h3 className="text-lg font-semibold mb-2">No campaigns yet</h3>
             <p className="text-muted-foreground mb-4">
-              Create your first campaign to organize and schedule your widgets.
+              Campaigns help you organize widgets and control when they're displayed. Create your first campaign to get started.
             </p>
-            <Button asChild>
-              <Link to="/dashboard/campaigns/create">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Campaign
-              </Link>
-            </Button>
+            <div className="space-y-3">
+              <Button asChild>
+                <Link to="/dashboard/campaigns/create">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Your First Campaign
+                </Link>
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                After creating a campaign, you can assign widgets to it and control their display schedule.
+              </p>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -255,6 +266,10 @@ const Campaigns = () => {
                       </CardTitle>
                       <CardDescription>{campaign.description}</CardDescription>
                       <div className="flex gap-4 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Settings className="h-3 w-3" />
+                          {campaign.widget_count || 0} widgets
+                        </span>
                         {campaign.start_date && (
                           <span>Start: {format(new Date(campaign.start_date), 'MMM dd, yyyy')}</span>
                         )}
@@ -266,6 +281,17 @@ const Campaigns = () => {
                     </div>
                     <div className="flex gap-2">
                       {getStatusActions(campaign)}
+                      {(campaign.widget_count || 0) > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild
+                        >
+                          <Link to={`/dashboard/widgets?campaign=${campaign.id}`}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -285,6 +311,19 @@ const Campaigns = () => {
                     </div>
                   </div>
                 </CardHeader>
+                {(campaign.widget_count === 0 || !campaign.widget_count) && (
+                  <CardContent className="pt-0">
+                    <div className="bg-muted/50 rounded-lg p-4">
+                      <h4 className="font-medium text-sm mb-2">Next Steps</h4>
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        <li>• <Link to="/dashboard/widgets/create" className="text-primary hover:underline">Create widgets</Link> and assign them to this campaign</li>
+                        <li>• Configure display rules in the campaign settings</li>
+                        <li>• <Link to="/dashboard/installation" className="text-primary hover:underline">Install the widget code</Link> on your website</li>
+                        <li>• Activate the campaign to start showing notifications</li>
+                      </ul>
+                    </div>
+                  </CardContent>
+                )}
               </Card>
             );
           })}

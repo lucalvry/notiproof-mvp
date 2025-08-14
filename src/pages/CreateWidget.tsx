@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -57,10 +57,26 @@ const CreateWidget = () => {
     template_name: '',
     position: 'bottom-left',
     delay: '3000',
-    color: '#3B82F6'
+    color: '#3B82F6',
+    campaign_id: ''
   });
 
   const [selectedNotificationTypes, setSelectedNotificationTypes] = useState<string[]>([]);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+
+  // Fetch campaigns on component mount
+  useEffect(() => {
+    const fetchCampaigns = async () => {
+      if (!profile) return;
+      const { data } = await supabase
+        .from('campaigns' as any)
+        .select('id, name, status')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false });
+      setCampaigns(data || []);
+    };
+    fetchCampaigns();
+  }, [profile]);
 
 const [displayRules, setDisplayRules] = useState({
   show_duration_ms: 5000,
@@ -114,6 +130,7 @@ const { data, error } = await supabase
     user_id: profile.id,
     name: formData.name,
     template_name: formData.template_name,
+    campaign_id: formData.campaign_id || null,
     style_config: {
       position: formData.position,
       delay: parseInt(formData.delay),
@@ -176,6 +193,29 @@ const { data, error } = await supabase
                     placeholder="e.g., Homepage Social Proof"
                     required
                   />
+                </div>
+
+                <div>
+                  <Label htmlFor="campaign_id">Campaign (Optional)</Label>
+                  <Select 
+                    value={formData.campaign_id} 
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, campaign_id: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a campaign" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No Campaign</SelectItem>
+                      {campaigns.map((campaign) => (
+                        <SelectItem key={campaign.id} value={campaign.id}>
+                          {campaign.name} ({campaign.status})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Assign this widget to a campaign for coordinated display rules
+                  </p>
                 </div>
 
                 <div>

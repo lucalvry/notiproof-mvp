@@ -61,7 +61,8 @@ const EditWidget = () => {
     position: 'bottom-left',
     delay: '3000',
     color: '#3B82F6',
-    status: 'active'
+    status: 'active',
+    campaign_id: ''
   });
 
 const [displayRules, setDisplayRules] = useState({
@@ -82,12 +83,24 @@ const [displayRules, setDisplayRules] = useState({
 const [goals, setGoals] = useState<any[]>([]);
 const [loadingGoals, setLoadingGoals] = useState(false);
 const [newGoal, setNewGoal] = useState({ name: '', type: 'url_match', pattern: '' });
+const [campaigns, setCampaigns] = useState<any[]>([]);
 
 useEffect(() => {
     if (id && profile) {
       fetchWidget();
+      fetchCampaigns();
     }
   }, [id, profile]);
+
+  const fetchCampaigns = async () => {
+    if (!profile) return;
+    const { data } = await supabase
+      .from('campaigns' as any)
+      .select('id, name, status')
+      .eq('user_id', profile.id)
+      .order('created_at', { ascending: false });
+    setCampaigns(data || []);
+  };
 
   const fetchWidget = async () => {
     if (!id || !profile) return;
@@ -110,7 +123,8 @@ useEffect(() => {
           position: styleConfig.position || 'bottom-left',
           delay: String(styleConfig.delay || 3000),
           color: styleConfig.color || '#3B82F6',
-          status: widget.status
+          status: widget.status,
+          campaign_id: (widget as any).campaign_id || ''
         });
         const dr = (widget as any).display_rules || {};
         setDisplayRules({
@@ -183,6 +197,7 @@ const { error } = await supabase
     name: formData.name,
     template_name: formData.template_name,
     status: formData.status,
+    campaign_id: formData.campaign_id || null,
     style_config: {
       position: formData.position,
       delay: parseInt(formData.delay),
@@ -300,6 +315,29 @@ const { error } = await supabase
                       <SelectItem value="inactive">Inactive</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="campaign_id">Campaign (Optional)</Label>
+                  <Select 
+                    value={formData.campaign_id} 
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, campaign_id: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a campaign" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No Campaign</SelectItem>
+                      {campaigns.map((campaign) => (
+                        <SelectItem key={campaign.id} value={campaign.id}>
+                          {campaign.name} ({campaign.status})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Assign this widget to a campaign for coordinated display rules
+                  </p>
                 </div>
 
                 <div>
