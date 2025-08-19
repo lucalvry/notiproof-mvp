@@ -10,12 +10,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { NotificationTypeSelector } from '@/components/NotificationTypeSelector';
 import { FeatureTooltip, HelpTooltip } from '@/components/help/RichTooltip';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { SmartDefaultsInfo, SuggestedIntegrations, getSmartDefaults } from '@/components/SmartDefaults';
+import { TemplateSelector } from '@/components/TemplateSelector';
+import { EventTemplate } from '@/data/industryTemplates';
 
 const templates = [
   {
@@ -68,6 +70,8 @@ const CreateWidget = () => {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [marketplaceTemplates, setMarketplaceTemplates] = useState<any[]>([]);
   const [showMarketplace, setShowMarketplace] = useState(false);
+  const [selectedEventTemplate, setSelectedEventTemplate] = useState<EventTemplate | null>(null);
+  const [showEventTemplates, setShowEventTemplates] = useState(false);
 
   // Apply smart defaults and fetch data on component mount
   useEffect(() => {
@@ -266,6 +270,88 @@ const { data, error } = await supabase
                     onSelectionChange={setSelectedNotificationTypes}
                     maxSelections={3}
                   />
+                </div>
+
+                {/* Industry-Specific Event Templates */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <FeatureTooltip
+                        feature="Industry Event Templates"
+                        description="Pre-built event templates tailored to your industry"
+                        examples={[
+                          "E-commerce: Purchase completed, cart abandonment, product views",
+                          "SaaS: User signups, plan upgrades, feature usage",
+                          "Services: Bookings, consultations, quote requests"
+                        ]}
+                      >
+                        <Label>Event Templates</Label>
+                      </FeatureTooltip>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowEventTemplates(!showEventTemplates)}
+                    >
+                      {showEventTemplates ? "Hide Templates" : "Browse Templates"}
+                    </Button>
+                  </div>
+
+                  {selectedEventTemplate && (
+                    <div className="mb-4 p-4 bg-muted rounded-lg border">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-lg">{selectedEventTemplate.businessContext.icon}</span>
+                          <span className="font-medium">{selectedEventTemplate.name}</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {selectedEventTemplate.category}
+                          </Badge>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedEventTemplate(null)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        {selectedEventTemplate.description}
+                      </p>
+                      <div className="bg-background p-3 rounded border">
+                        <code className="text-xs text-muted-foreground">
+                          Template: {selectedEventTemplate.messageTemplate}
+                        </code>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {selectedEventTemplate.placeholders.map((placeholder) => (
+                          <Badge key={placeholder} variant="outline" className="text-xs">
+                            {placeholder}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {showEventTemplates && (
+                    <div className="border rounded-lg p-4 max-h-96 overflow-y-auto">
+                      <TemplateSelector
+                        selectedTemplate={selectedEventTemplate || undefined}
+                        onTemplateSelect={(template) => {
+                          setSelectedEventTemplate(template);
+                          setShowEventTemplates(false);
+                          toast({
+                            title: "Template selected!",
+                            description: `${template.name} template will be used for your widget events.`,
+                          });
+                        }}
+                        businessType={profile?.business_type}
+                      />
+                    </div>
+                  )}
                 </div>
 
                  <div data-tour="widget-templates">
