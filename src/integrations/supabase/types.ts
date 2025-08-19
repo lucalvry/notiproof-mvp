@@ -150,8 +150,10 @@ export type Database = {
       }
       events: {
         Row: {
+          business_context: Json | null
           business_type: Database["public"]["Enums"]["business_type"] | null
           clicks: number | null
+          context_template: string | null
           created_at: string | null
           event_data: Json
           event_type: string
@@ -171,8 +173,10 @@ export type Database = {
           widget_id: string
         }
         Insert: {
+          business_context?: Json | null
           business_type?: Database["public"]["Enums"]["business_type"] | null
           clicks?: number | null
+          context_template?: string | null
           created_at?: string | null
           event_data: Json
           event_type: string
@@ -192,8 +196,10 @@ export type Database = {
           widget_id: string
         }
         Update: {
+          business_context?: Json | null
           business_type?: Database["public"]["Enums"]["business_type"] | null
           clicks?: number | null
+          context_template?: string | null
           created_at?: string | null
           event_data?: Json
           event_type?: string
@@ -1254,6 +1260,21 @@ export type Database = {
         | "marketing_agency"
         | "ngo"
         | "education"
+        | "retail"
+        | "hospitality"
+        | "healthcare"
+        | "real_estate"
+        | "automotive"
+        | "fitness"
+        | "beauty"
+        | "food_beverage"
+        | "travel"
+        | "finance"
+        | "technology"
+        | "consulting"
+        | "manufacturing"
+        | "media"
+        | "legal"
       event_source: "manual" | "connector" | "tracking" | "demo"
       event_status: "pending" | "approved" | "rejected"
       team_role: "owner" | "admin" | "member" | "viewer"
@@ -1394,6 +1415,21 @@ export const Constants = {
         "marketing_agency",
         "ngo",
         "education",
+        "retail",
+        "hospitality",
+        "healthcare",
+        "real_estate",
+        "automotive",
+        "fitness",
+        "beauty",
+        "food_beverage",
+        "travel",
+        "finance",
+        "technology",
+        "consulting",
+        "manufacturing",
+        "media",
+        "legal",
       ],
       event_source: ["manual", "connector", "tracking", "demo"],
       event_status: ["pending", "approved", "rejected"],
