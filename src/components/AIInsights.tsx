@@ -104,15 +104,11 @@ export const AIInsights = ({ widgetId }: AIInsightsProps) => {
         uniqueEventTypes: [...new Set(events?.map(e => e.event_type) || [])].length
       };
 
-      // Call AI analytics function
-      const { data, error } = await supabase.functions.invoke('ai-analytics', {
+      // Call AI insights function
+      const { data, error } = await supabase.functions.invoke('ai-insights', {
         body: {
-          action: 'analyze-performance',
-          data: {
-            userId: profile.id,
-            widgetId,
-            metrics
-          }
+          user_id: profile.id,
+          widget_id: widgetId
         }
       });
 

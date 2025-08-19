@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Settings, User, Mail, Shield } from 'lucide-react';
+import { DemoModeSettings } from '@/components/DemoModeSettings';
 
 const DashboardSettings = () => {
   const { profile } = useAuth();
@@ -85,6 +86,9 @@ const DashboardSettings = () => {
             <Button>Save Changes</Button>
           </CardContent>
         </Card>
+
+        {/* Demo Mode Settings */}
+        <DemoModeSettings />
 
         {/* Account Settings */}
         <Card>

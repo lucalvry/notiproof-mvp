@@ -151,7 +151,8 @@ const TemplatesMarketplace: React.FC = () => {
 
   const importTemplate = async (template: Template) => {
     try {
-      const { error } = await (supabase as any)
+      // Create new widget from template
+      const { data: newWidget, error } = await (supabase as any)
         .from('widgets')
         .insert({
           name: `${template.name} (Imported)`,
@@ -160,7 +161,9 @@ const TemplatesMarketplace: React.FC = () => {
           display_rules: template.display_rules,
           user_id: profile?.id,
           status: 'draft'
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -175,6 +178,15 @@ const TemplatesMarketplace: React.FC = () => {
       toast({
         title: "Success",
         description: "Template imported successfully",
+        action: (
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => window.location.href = `/widgets/${newWidget.id}/edit`}
+          >
+            Edit Widget
+          </Button>
+        ),
       });
 
       loadTemplates(); // Refresh to update download count

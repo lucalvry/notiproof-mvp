@@ -5,9 +5,14 @@ import { DashboardSidebar } from '@/components/DashboardSidebar';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { HelpButton } from '@/components/help/HelpButton';
+import { InteractiveTour } from '@/components/help/InteractiveTour';
+import { useHelp } from '@/contexts/HelpContext';
+import { tours } from '@/data/tours';
 
 export const DashboardLayout = () => {
   const { signOut, profile } = useAuth();
+  const { activeTour } = useHelp();
 
   return (
     <SidebarProvider>
@@ -25,6 +30,7 @@ export const DashboardLayout = () => {
               <span className="text-sm text-muted-foreground">
                 Welcome, {profile?.name}
               </span>
+              <HelpButton />
               <Button
                 variant="outline"
                 size="sm"
@@ -41,6 +47,14 @@ export const DashboardLayout = () => {
             <Outlet />
           </main>
         </div>
+        
+        {/* Interactive Tour */}
+        {activeTour && tours[activeTour] && (
+          <InteractiveTour 
+            tour={tours[activeTour]} 
+            isActive={!!activeTour} 
+          />
+        )}
       </div>
     </SidebarProvider>
   );

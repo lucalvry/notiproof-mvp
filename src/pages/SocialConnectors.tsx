@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Settings, RefreshCw, Star, MessageSquare, Camera, AlertCircle } from 'lucide-react';
+import { Plus, Settings, RefreshCw, Star, MessageSquare, Camera, AlertCircle, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,13 +22,20 @@ interface SocialConnector {
   created_at: string;
 }
 
+interface Widget {
+  id: string;
+  name: string;
+  status: string;
+}
+
 const connectorTypes = {
   google_reviews: {
     name: 'Google Reviews',
     icon: Star,
     description: 'Sync reviews from Google My Business',
     configFields: [
-      { key: 'place_id', label: 'Place ID', type: 'text', required: true }
+      { key: 'place_id', label: 'Place ID', type: 'text', required: true },
+      { key: 'widget_id', label: 'Target Widget', type: 'select', required: true }
     ]
   },
   twitter: {
@@ -53,6 +60,7 @@ const SocialConnectors: React.FC = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const [connectors, setConnectors] = useState<SocialConnector[]>([]);
+  const [widgets, setWidgets] = useState<Widget[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -60,10 +68,12 @@ const SocialConnectors: React.FC = () => {
     name: '',
     config: {}
   });
+  const [updatingConnector, setUpdatingConnector] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile?.id) {
       loadConnectors();
+      loadWidgets();
     }
   }, [profile]);
 
@@ -86,6 +96,22 @@ const SocialConnectors: React.FC = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadWidgets = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('widgets')
+        .select('id, name, status')
+        .eq('user_id', profile?.id)
+        .eq('status', 'active')
+        .order('name');
+
+      if (error) throw error;
+      setWidgets(data || []);
+    } catch (error) {
+      console.error('Error loading widgets:', error);
     }
   };
 
@@ -122,27 +148,86 @@ const SocialConnectors: React.FC = () => {
     }
   };
 
-  const syncConnector = async (connectorId: string) => {
+  const syncConnector = async (connectorId: string, connectorType: string) => {
+    const connector = connectors.find(c => c.id === connectorId);
+    
+    // Check if connector has widget_id configured for Google Reviews
+    if (connectorType === 'google_reviews' && !connector?.config?.widget_id) {
+      toast({
+        title: "Configuration Required",
+        description: "Please configure a target widget before syncing",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      const { error } = await supabase.functions.invoke('social-sync', {
-        body: { connector_id: connectorId }
+      let functionName = 'social-sync';
+      
+      // Use specific function for Google Reviews
+      if (connectorType === 'google_reviews') {
+        functionName = 'google-reviews-sync';
+      }
+
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: { 
+          connector_id: connectorId,
+          widget_id: connector?.config?.widget_id 
+        }
       });
 
-      if (error) throw error;
+      if (error) {
+        throw new Error(error.message || 'Failed to sync connector');
+      }
 
       toast({
         title: "Success",
-        description: "Sync started successfully",
+        description: data?.reviews_synced ? 
+          `Synced ${data.reviews_synced} reviews successfully` : 
+          "Sync completed successfully",
       });
 
       loadConnectors();
     } catch (error) {
       console.error('Error syncing connector:', error);
       toast({
-        title: "Error",
-        description: "Failed to start sync",
+        title: "Sync Failed",
+        description: error instanceof Error ? error.message : "Failed to start sync",
         variant: "destructive",
       });
+    }
+  };
+
+  const updateConnectorWidget = async (connectorId: string, widgetId: string) => {
+    setUpdatingConnector(connectorId);
+    try {
+      const { error } = await (supabase as any)
+        .from('social_connectors')
+        .update({
+          config: { 
+            ...connectors.find(c => c.id === connectorId)?.config,
+            widget_id: widgetId 
+          }
+        })
+        .eq('id', connectorId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Widget configuration updated",
+      });
+
+      loadConnectors();
+    } catch (error) {
+      console.error('Error updating connector:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update widget configuration",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingConnector(null);
     }
   };
 
@@ -239,15 +324,36 @@ const SocialConnectors: React.FC = () => {
                   {connectorTypes[formData.type as keyof typeof connectorTypes].configFields.map((field) => (
                     <div key={field.key} className="space-y-2">
                       <Label htmlFor={field.key}>{field.label}</Label>
-                      <Input
-                        id={field.key}
-                        value={formData.config[field.key] || ''}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          config: { ...prev.config, [field.key]: e.target.value }
-                        }))}
-                        required={field.required}
-                      />
+                      {field.type === 'select' && field.key === 'widget_id' ? (
+                        <Select
+                          value={formData.config[field.key] || ''}
+                          onValueChange={(value) => setFormData(prev => ({
+                            ...prev,
+                            config: { ...prev.config, [field.key]: value }
+                          }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select target widget" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {widgets.map((widget) => (
+                              <SelectItem key={widget.id} value={widget.id}>
+                                {widget.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id={field.key}
+                          value={formData.config[field.key] || ''}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            config: { ...prev.config, [field.key]: e.target.value }
+                          }))}
+                          required={field.required}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -312,12 +418,46 @@ const SocialConnectors: React.FC = () => {
                       </p>
                     )}
                     
+                    {/* Show widget configuration warning for Google Reviews */}
+                    {connector.type === 'google_reviews' && !connector.config?.widget_id && (
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2 text-amber-600">
+                          <AlertCircle className="h-4 w-4" />
+                          <span className="text-sm">Widget not configured</span>
+                        </div>
+                        <Select
+                          value=""
+                          onValueChange={(value) => updateConnectorWidget(connector.id, value)}
+                          disabled={updatingConnector === connector.id}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder="Select target widget" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {widgets.map((widget) => (
+                              <SelectItem key={widget.id} value={widget.id}>
+                                {widget.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Show configured widget */}
+                    {connector.type === 'google_reviews' && connector.config?.widget_id && (
+                      <p className="text-sm text-muted-foreground">
+                        Target: {widgets.find(w => w.id === connector.config.widget_id)?.name || 'Unknown Widget'}
+                      </p>
+                    )}
+                    
                     <div className="flex space-x-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => syncConnector(connector.id)}
+                        onClick={() => syncConnector(connector.id, connector.type)}
                         className="flex-1"
+                        disabled={connector.type === 'google_reviews' && !connector.config?.widget_id}
                       >
                         <RefreshCw className="h-4 w-4 mr-2" />
                         Sync Now

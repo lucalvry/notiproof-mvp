@@ -10,9 +10,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { NotificationTypeSelector } from '@/components/NotificationTypeSelector';
+import { FeatureTooltip, HelpTooltip } from '@/components/help/RichTooltip';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { SmartDefaultsInfo, SuggestedIntegrations, getSmartDefaults } from '@/components/SmartDefaults';
 
 const templates = [
   {
@@ -63,19 +66,57 @@ const CreateWidget = () => {
 
   const [selectedNotificationTypes, setSelectedNotificationTypes] = useState<string[]>([]);
   const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [marketplaceTemplates, setMarketplaceTemplates] = useState<any[]>([]);
+  const [showMarketplace, setShowMarketplace] = useState(false);
 
-  // Fetch campaigns on component mount
+  // Apply smart defaults and fetch data on component mount
   useEffect(() => {
-    const fetchCampaigns = async () => {
+    const fetchData = async () => {
       if (!profile) return;
-      const { data } = await supabase
+      
+      // Apply smart defaults based on business type
+      const smartDefaults = getSmartDefaults(profile.business_type);
+      setFormData(prev => ({
+        ...prev,
+        template_name: smartDefaults.defaultTemplate,
+        position: smartDefaults.suggestedPosition,
+        delay: smartDefaults.defaultDelay.toString(),
+        color: smartDefaults.defaultColor
+      }));
+      
+      setDisplayRules(prev => ({
+        ...prev,
+        ...smartDefaults.displayRules
+      }));
+      
+      // Fetch campaigns
+      const { data: campaignsData } = await supabase
         .from('campaigns' as any)
         .select('id, name, status')
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false });
-      setCampaigns(data || []);
+      setCampaigns(campaignsData || []);
+      
+      // Fetch marketplace templates
+      const { data: templatesData } = await (supabase as any)
+        .from('widget_templates')
+        .select(`
+          id,
+          name,
+          description,
+          template_name,
+          style_config,
+          display_rules,
+          preview_image,
+          downloads_count,
+          creator:profiles(name)
+        `)
+        .eq('is_public', true)
+        .order('is_featured', { ascending: false })
+        .limit(20);
+      setMarketplaceTemplates(templatesData || []);
     };
-    fetchCampaigns();
+    fetchData();
   }, [profile]);
 
 const [displayRules, setDisplayRules] = useState({
@@ -227,39 +268,126 @@ const { data, error } = await supabase
                   />
                 </div>
 
-                <div>
-                  <Label>Template</Label>
-                  <div className="grid gap-3 mt-2">
-                    {templates.map((template) => (
-                      <div
-                        key={template.id}
-                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                          formData.template_name === template.id
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                        onClick={() => setFormData(prev => ({ ...prev, template_name: template.id }))}
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-medium">{template.name}</h4>
-                          {formData.template_name === template.id && (
-                            <Badge>Selected</Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {template.description}
-                        </p>
-                        <div className="text-sm bg-muted p-2 rounded">
-                          {template.preview}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                 <div data-tour="widget-templates">
+                   <div className="flex items-center justify-between">
+                     <FeatureTooltip
+                       feature="Widget Templates"
+                       description="Choose from proven notification templates optimized for conversions"
+                       examples={[
+                         "Notification Popup: Shows real-time activities like signups",
+                         "Live Activity Bar: Displays visitor count and page views", 
+                         "Social Proof Badge: Highlights customer testimonials"
+                       ]}
+                     >
+                       <Label>Template</Label>
+                     </FeatureTooltip>
+                     <Dialog open={showMarketplace} onOpenChange={setShowMarketplace}>
+                       <DialogTrigger asChild>
+                         <Button variant="outline" size="sm">
+                           <ExternalLink className="h-4 w-4 mr-2" />
+                           Browse Templates
+                         </Button>
+                       </DialogTrigger>
+                        <DialogContent className="sm:max-w-[800px] max-h-[600px] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle>Choose from Marketplace</DialogTitle>
+                            <DialogDescription>
+                              Select from community-created templates to get started quickly
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="grid gap-4">
+                            {marketplaceTemplates.length > 0 ? marketplaceTemplates.map((template) => (
+                              <div
+                                key={template.id}
+                                className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors"
+                              >
+                                <div className="flex-1">
+                                  <h4 className="font-medium">{template.name}</h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    {template.description}
+                                  </p>
+                                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                                    <span>📊 {template.downloads_count || 0} downloads</span>
+                                    <span>⭐ Template by community</span>
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      template_name: template.template_name || template.name.toLowerCase().replace(/\s+/g, '-'),
+                                      name: prev.name || `${template.name} Widget`,
+                                      color: template.style_config?.color || prev.color
+                                    }));
+                                    if (template.style_config) {
+                                      // Copy over template configuration
+                                      const templateConfig = template.style_config;
+                                      if (templateConfig.position) {
+                                        setFormData(prev => ({ ...prev, position: templateConfig.position }));
+                                      }
+                                    }
+                                    setShowMarketplace(false);
+                                    toast({
+                                      title: "Template applied!",
+                                      description: `${template.name} template has been applied to your widget.`,
+                                    });
+                                  }}
+                                >
+                                  Use Template
+                                </Button>
+                              </div>
+                            )) : (
+                              <div className="text-center py-8 text-muted-foreground">
+                                <p>No marketplace templates available yet.</p>
+                                <p className="text-sm mt-1">Check back soon for community templates!</p>
+                              </div>
+                            )}
+                          </div>
+                        </DialogContent>
+                     </Dialog>
+                   </div>
+                   <div className="grid gap-3 mt-2">
+                     {templates.map((template) => (
+                       <div
+                         key={template.id}
+                         className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                           formData.template_name === template.id
+                             ? 'border-primary bg-primary/5'
+                             : 'border-border hover:border-primary/50'
+                         }`}
+                         onClick={() => setFormData(prev => ({ ...prev, template_name: template.id }))}
+                       >
+                         <div className="flex justify-between items-start mb-2">
+                           <h4 className="font-medium">{template.name}</h4>
+                           {formData.template_name === template.id && (
+                             <Badge>Selected</Badge>
+                           )}
+                         </div>
+                         <p className="text-sm text-muted-foreground mb-2">
+                           {template.description}
+                         </p>
+                         <div className="text-sm bg-muted p-2 rounded">
+                           {template.preview}
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4" data-tour="widget-customization">
                   <div>
-                    <Label htmlFor="position">Position</Label>
+                    <FeatureTooltip
+                      feature="Widget Position"
+                      description="Control where your widget appears on your website"
+                      examples={[
+                        "Bottom Right: Most common, non-intrusive",
+                        "Bottom Left: Good for right-to-left languages",
+                        "Top positions: More attention-grabbing"
+                      ]}
+                    >
+                      <Label htmlFor="position">Position</Label>
+                    </FeatureTooltip>
                     <Select 
                       value={formData.position} 
                       onValueChange={(value) => setFormData(prev => ({ ...prev, position: value }))}
@@ -277,7 +405,17 @@ const { data, error } = await supabase
                   </div>
 
                   <div>
-                    <Label htmlFor="delay">Delay (ms)</Label>
+                    <FeatureTooltip
+                      feature="Display Delay"
+                      description="How long to wait before showing the first notification"
+                      examples={[
+                        "3000ms (3s): Good for immediate engagement",
+                        "5000ms (5s): Less intrusive, better user experience",
+                        "0ms: Shows immediately (may feel spammy)"
+                      ]}
+                    >
+                      <Label htmlFor="delay">Delay (ms)</Label>
+                    </FeatureTooltip>
                     <Input
                       id="delay"
                       type="number"
@@ -397,9 +535,11 @@ const { data, error } = await supabase
           </Card>
         </div>
 
-        {/* Preview */}
+        {/* Smart Defaults & Preview */}
         <div className="space-y-6">
-          <Card>
+          <SmartDefaultsInfo />
+          <SuggestedIntegrations />
+          <Card data-tour="widget-preview">
             <CardHeader>
               <CardTitle>Preview</CardTitle>
               <CardDescription>

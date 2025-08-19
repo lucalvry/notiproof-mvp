@@ -31,7 +31,7 @@ const DashboardWidgets = () => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [filterTemplate, setFilterTemplate] = useState<'all' | string>('all');
 
-  const templateOptions = Array.from(new Set(widgets.map(w => w.template_name)));
+  const templateOptions = Array.from(new Set(widgets.map(w => w.template_name).filter(name => name && name.trim() !== '')));
 
   const displayedWidgets = widgets
     .filter(w => (filterStatus === 'all' ? true : w.status === filterStatus))
@@ -95,15 +95,15 @@ const DashboardWidgets = () => {
       if (ids.length > 0) {
         const { data: eventsData, error: eventsError } = await supabase
           .from('events')
-          .select('widget_id, views, clicks')
+          .select('widget_id, event_type')
           .in('widget_id', ids);
         if (eventsError) throw eventsError;
 
         statsById = (eventsData || []).reduce((acc, ev: any) => {
           const key = ev.widget_id;
           if (!acc[key]) acc[key] = { views: 0, clicks: 0 };
-          acc[key].views += ev.views || 0;
-          acc[key].clicks += ev.clicks || 0;
+          if (ev.event_type === 'view') acc[key].views += 1;
+          if (ev.event_type === 'click') acc[key].clicks += 1;
           return acc;
         }, {} as Record<string, { views: number; clicks: number }>);
       }

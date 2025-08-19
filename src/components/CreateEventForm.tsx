@@ -111,6 +111,11 @@ export const CreateEventForm = ({ widgetId, onEventCreated, onCancel }: CreateEv
           widget_id: widgetId,
           event_type: formData.eventType === 'custom' ? formData.customEventName : formData.eventType,
           event_data: eventData,
+          user_name: formData.customerName || 'Anonymous',
+          user_location: formData.customerLocation,
+          message_template: formData.message,
+          source: 'manual',
+          status: 'approved',
           views: 0,
           clicks: 0
         });

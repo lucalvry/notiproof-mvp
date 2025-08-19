@@ -19,6 +19,7 @@ import {
 import TimeRangePicker from '@/components/TimeRangePicker';
 import HeatmapViewer from '@/components/HeatmapViewer';
 import ABTestManager from '@/components/ABTestManager';
+import { EventAnalytics } from '@/components/EventAnalytics';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
 
 interface EventRow {
@@ -29,6 +30,7 @@ interface EventRow {
   views: number | null;
   clicks: number | null;
   flagged?: boolean;
+  source?: string;
 }
 
 
@@ -48,17 +50,43 @@ const WidgetAnalytics = () => {
       if (!id) return;
       const { data } = await supabase
         .from('events')
-        .select('id, event_type, event_data, created_at, views, clicks, flagged')
+        .select('id, event_type, event_data, created_at, views, clicks, flagged, source')
         .eq('widget_id', id)
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString())
         .order('created_at', { ascending: false })
         .limit(2000);
+      
+      console.log('Events loaded for analytics:', { count: data?.length, widgetId: id, dateRange });
       setEvents(data || []);
       const { data: goalData } = await (supabase.from('goals').select('id, name, type, pattern, active').eq('widget_id', id) as any);
       setGoals(goalData || []);
     };
     load();
+
+    // Set up real-time subscription for events
+    if (!id) return;
+    
+    const channel = supabase
+      .channel('widget-events')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'events',
+          filter: `widget_id=eq.${id}`
+        },
+        () => {
+          // Reload data when events change
+          load();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [id, dateRange]);
 
   // Time of day distribution (0-23 hours)
@@ -97,11 +125,36 @@ const WidgetAnalytics = () => {
   }, [events]);
 
   const totals = useMemo(() => {
-    const totalViews = events.reduce((s, e) => s + (e.views || 0), 0);
-    const totalClicks = events.reduce((s, e) => s + (e.clicks || 0), 0);
-    const conversions = events.filter((e) => e.event_type === 'conversion').length;
+    // Count ALL events with proper views/clicks, regardless of source
+    const allEvents = events || [];
+    const totalViews = allEvents.reduce((s, e) => s + (e.views || 0), 0);
+    const totalClicks = allEvents.reduce((s, e) => s + (e.clicks || 0), 0);
+    const conversions = allEvents.filter((e) => e.event_type === 'conversion').length;
     const ctr = totalViews > 0 ? (totalClicks / totalViews) * 100 : 0;
-    return { totalViews, totalClicks, conversions, ctr };
+    
+    // Separate demo vs real tracking events for analytics
+    const demoEvents = allEvents.filter((e) => e.source === 'demo');
+    const realEvents = allEvents.filter((e) => e.source !== 'demo');
+    const connectorEvents = allEvents.filter((e) => e.source === 'connector');
+    
+    console.log('Analytics Debug (Updated):', { 
+      totalEvents: allEvents.length,
+      demoEvents: demoEvents.length, 
+      realEvents: realEvents.length,
+      connectorEvents: connectorEvents.length,
+      totalViews, 
+      totalClicks,
+      ctr: ctr.toFixed(2)
+    });
+    
+    return { 
+      totalViews, 
+      totalClicks, 
+      conversions, 
+      ctr,
+      demoCount: demoEvents.length,
+      realCount: realEvents.length
+    };
   }, [events]);
 
   const flaggedStats = useMemo(() => {
@@ -170,14 +223,37 @@ const WidgetAnalytics = () => {
         />
       </div>
 
-      <div className="grid md:grid-cols-6 gap-4">
+      <div className="grid md:grid-cols-8 gap-4">
         <Card><CardHeader><CardTitle>Views</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.totalViews}</CardContent></Card>
         <Card><CardHeader><CardTitle>Clicks</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.totalClicks}</CardContent></Card>
         <Card><CardHeader><CardTitle>CTR</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.ctr.toFixed(2)}%</CardContent></Card>
         <Card><CardHeader><CardTitle>Conversions</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.conversions}</CardContent></Card>
+        <Card>
+          <CardHeader><CardTitle>Real Events</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{totals.realCount}</div>
+            <Badge variant="outline" className="text-xs mt-1">
+              <div className="w-2 h-2 bg-green-600 rounded-full mr-1" />
+              Authentic
+            </Badge>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>Demo Events</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{totals.demoCount}</div>
+            <Badge variant="outline" className="text-xs mt-1">
+              <div className="w-2 h-2 bg-blue-600 rounded-full mr-1" />
+              Test Data
+            </Badge>
+          </CardContent>
+        </Card>
         <Card><CardHeader><CardTitle>Flagged</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{flaggedStats.count}</CardContent></Card>
         <Card><CardHeader><CardTitle>Flagged Rate</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{flaggedStats.ratio.toFixed(1)}%</CardContent></Card>
       </div>
+
+      {/* Event Analytics - Demo vs Real Data Insights */}
+      <EventAnalytics />
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>

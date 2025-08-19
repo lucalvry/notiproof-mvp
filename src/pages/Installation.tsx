@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Copy, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { HelpTooltip } from '@/components/help/RichTooltip';
 
 interface Widget {
   id: string;
@@ -193,7 +194,7 @@ const Installation = () => {
 
           {/* Installation Instructions */}
           <div className="space-y-6">
-            <Card>
+            <Card data-tour="embed-code">
               <CardHeader>
                 <CardTitle>Embed Code</CardTitle>
                 <CardDescription>
@@ -227,7 +228,17 @@ const Installation = () => {
                     </div>
                   </div>
                   <div>
-                    <Label>HTML Embed Code (Recommended)</Label>
+                    <HelpTooltip
+                      topic="HTML Embed Code"
+                      description="The easiest way to install your widget. Just paste this code before the closing </head> tag on your website."
+                      examples={[
+                        "WordPress: Add to theme's header.php or use a plugin",
+                        "Shopify: Add to theme.liquid file",
+                        "Static sites: Paste directly in HTML"
+                      ]}
+                    >
+                      <Label>HTML Embed Code (Recommended)</Label>
+                    </HelpTooltip>
                     <div className="relative mt-1">
                       <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
                         <code>{embedCode}</code>
@@ -260,7 +271,7 @@ const Installation = () => {
                     </div>
                   </div>
                   
-                  <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg">
+                  <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg" data-tour="test-installation">
                     <h4 className="font-medium mb-2">Installation Steps:</h4>
                     <ol className="list-decimal list-inside space-y-1 text-sm">
                       <li>Copy one of the snippets above</li>
@@ -273,7 +284,7 @@ const Installation = () => {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card data-tour="integration-options">
               <CardHeader>
                 <CardTitle>Next Steps</CardTitle>
               </CardHeader>

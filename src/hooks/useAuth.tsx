@@ -9,6 +9,8 @@ interface Profile {
   role: 'admin' | 'user' | 'support';
   status: string;
   created_at: string;
+  business_type?: string;
+  demo_mode_enabled?: boolean;
 }
 
 interface AuthContextType {
@@ -19,6 +21,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
   isAdmin: boolean;
   isSupport: boolean;
 }
@@ -147,6 +150,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
+  const refreshProfile = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+      
+      if (profileError) {
+        console.error('Profile refresh error:', profileError);
+        return;
+      }
+      
+      setProfile(profileData);
+    } catch (error) {
+      console.error('Profile refresh error:', error);
+    }
+  };
+
   const isAdmin = profile?.role === 'admin';
   const isSupport = profile?.role === 'support';
 
@@ -160,6 +184,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         signUp,
         signIn,
         signOut,
+        refreshProfile,
         isAdmin,
         isSupport,
       }}

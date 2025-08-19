@@ -5,6 +5,7 @@ import { AdminSidebar } from '@/components/AdminSidebar';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { HelpButton } from '@/components/help/HelpButton';
 
 export const AdminLayout = () => {
   const { signOut, profile } = useAuth();
@@ -25,6 +26,7 @@ export const AdminLayout = () => {
               <span className="text-sm text-muted-foreground">
                 Admin: {profile?.name}
               </span>
+              <HelpButton />
               <Button
                 variant="outline"
                 size="sm"

@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Search, Filter, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { CreateEventForm } from '@/components/CreateEventForm';
+import { DemoEventsManager } from '@/components/DemoEventsManager';
+import { EventStatusBadge } from '@/components/EventStatusBadge';
 
 interface Event {
   id: string;
@@ -19,8 +21,19 @@ interface Event {
   widget_id: string;
   created_at: string;
   flagged: boolean;
-  views: number;
-  clicks: number;
+  views: number | null;
+  clicks: number | null;
+  user_name: string | null;
+  user_location: string | null;
+  page_url: string | null;
+  message_template: string | null;
+  business_type: string | null;
+  source: string | null;
+  status: string | null;
+  expires_at: string | null;
+  variant_id: string | null;
+  ip: string | null;
+  user_agent: string | null;
 }
 
 interface Widget {
@@ -121,12 +134,36 @@ export default function EventsManager() {
         }
       };
 
+      const eventData = testEvents[randomType as keyof typeof testEvents];
+      
+      // Extract user name based on event type
+      let userName = 'Anonymous';
+      let userLocation = 'Unknown';
+      
+      if (randomType === 'purchase' && 'customer_name' in eventData) {
+        userName = eventData.customer_name;
+        userLocation = eventData.location;
+      } else if (randomType === 'signup' && 'user_name' in eventData) {
+        userName = eventData.user_name;
+        userLocation = eventData.location;
+      } else if (randomType === 'review' && 'reviewer_name' in eventData) {
+        userName = eventData.reviewer_name;
+        userLocation = 'Unknown'; // Review doesn't have location
+      } else if (randomType === 'download' && 'user_name' in eventData) {
+        userName = eventData.user_name;
+        userLocation = eventData.location;
+      }
+      
       const { error } = await supabase
         .from('events')
         .insert({
           widget_id: randomWidget.id,
           event_type: randomType,
-          event_data: testEvents[randomType as keyof typeof testEvents]
+          event_data: eventData,
+          user_name: userName,
+          user_location: userLocation,
+          source: 'manual',
+          status: 'approved'
         });
 
       if (error) throw error;
@@ -240,6 +277,8 @@ export default function EventsManager() {
         </Card>
       )}
 
+      <DemoEventsManager />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -339,15 +378,26 @@ export default function EventsManager() {
                       <TableCell>
                         {widget?.name || 'Unknown Widget'}
                       </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {JSON.stringify(event.event_data)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          <div>Views: {event.views || 0}</div>
-                          <div>Clicks: {event.clicks || 0}</div>
-                        </div>
-                      </TableCell>
+                       <TableCell className="max-w-xs">
+                         <div className="space-y-1">
+                           {event.user_name && (
+                             <div className="text-sm font-medium">{event.user_name}</div>
+                           )}
+                           {event.user_location && (
+                             <div className="text-xs text-muted-foreground">{event.user_location}</div>
+                           )}
+                           {event.message_template && (
+                             <div className="text-xs">{event.message_template}</div>
+                           )}
+                           <EventStatusBadge status={event.status} source={event.source} />
+                         </div>
+                       </TableCell>
+                       <TableCell>
+                         <div className="text-sm">
+                           <div>Views: {event.views || 0}</div>
+                           <div>Clicks: {event.clicks || 0}</div>
+                         </div>
+                       </TableCell>
                       <TableCell>
                         <Button
                           variant="destructive"

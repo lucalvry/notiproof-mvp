@@ -10,7 +10,8 @@ import {
   Share2,
   Shield,
   Users,
-  Layout
+  Layout,
+  Activity
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -39,6 +40,7 @@ export function DashboardSidebar() {
     { title: "Overview", url: "/dashboard", icon: Home, exact: true },
     { title: "Widgets", url: "/dashboard/widgets", icon: Blocks },
     { title: "Create Widget", url: "/dashboard/widgets/create", icon: Plus },
+    { title: "Events", url: "/dashboard/events", icon: Activity },
     { title: "Campaigns", url: "/dashboard/campaigns", icon: Calendar },
     { title: "Social Connectors", url: "/dashboard/social-connectors", icon: Share2 },
     { title: "Moderation", url: "/dashboard/moderation", icon: Shield },

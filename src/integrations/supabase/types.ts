@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.4"
@@ -150,40 +150,64 @@ export type Database = {
       }
       events: {
         Row: {
+          business_type: Database["public"]["Enums"]["business_type"] | null
           clicks: number | null
           created_at: string | null
           event_data: Json
           event_type: string
+          expires_at: string | null
           flagged: boolean
           id: string
           ip: string | null
+          message_template: string | null
+          page_url: string | null
+          source: Database["public"]["Enums"]["event_source"] | null
+          status: Database["public"]["Enums"]["event_status"] | null
           user_agent: string | null
+          user_location: string | null
+          user_name: string | null
           variant_id: string | null
           views: number | null
           widget_id: string
         }
         Insert: {
+          business_type?: Database["public"]["Enums"]["business_type"] | null
           clicks?: number | null
           created_at?: string | null
           event_data: Json
           event_type: string
+          expires_at?: string | null
           flagged?: boolean
           id?: string
           ip?: string | null
+          message_template?: string | null
+          page_url?: string | null
+          source?: Database["public"]["Enums"]["event_source"] | null
+          status?: Database["public"]["Enums"]["event_status"] | null
           user_agent?: string | null
+          user_location?: string | null
+          user_name?: string | null
           variant_id?: string | null
           views?: number | null
           widget_id: string
         }
         Update: {
+          business_type?: Database["public"]["Enums"]["business_type"] | null
           clicks?: number | null
           created_at?: string | null
           event_data?: Json
           event_type?: string
+          expires_at?: string | null
           flagged?: boolean
           id?: string
           ip?: string | null
+          message_template?: string | null
+          page_url?: string | null
+          source?: Database["public"]["Enums"]["event_source"] | null
+          status?: Database["public"]["Enums"]["event_status"] | null
           user_agent?: string | null
+          user_location?: string | null
+          user_name?: string | null
           variant_id?: string | null
           views?: number | null
           widget_id?: string
@@ -310,6 +334,180 @@ export type Database = {
           },
         ]
       }
+      help_article_feedback: {
+        Row: {
+          article_id: string
+          created_at: string
+          feedback_text: string | null
+          id: string
+          is_helpful: boolean
+          user_id: string | null
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          feedback_text?: string | null
+          id?: string
+          is_helpful: boolean
+          user_id?: string | null
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          feedback_text?: string | null
+          id?: string
+          is_helpful?: boolean
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_article_feedback_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "help_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      help_article_views: {
+        Row: {
+          article_id: string
+          id: string
+          ip_address: unknown | null
+          user_agent: string | null
+          user_id: string | null
+          viewed_at: string
+        }
+        Insert: {
+          article_id: string
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id?: string | null
+          viewed_at?: string
+        }
+        Update: {
+          article_id?: string
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id?: string | null
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_article_views_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "help_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      help_articles: {
+        Row: {
+          author_id: string | null
+          category_id: string | null
+          content: string
+          created_at: string
+          excerpt: string | null
+          featured_image_url: string | null
+          helpful_count: number | null
+          id: string
+          is_featured: boolean | null
+          is_published: boolean | null
+          slug: string
+          sort_order: number | null
+          tags: string[] | null
+          title: string
+          updated_at: string
+          video_type: string | null
+          video_url: string | null
+          view_count: number | null
+        }
+        Insert: {
+          author_id?: string | null
+          category_id?: string | null
+          content: string
+          created_at?: string
+          excerpt?: string | null
+          featured_image_url?: string | null
+          helpful_count?: number | null
+          id?: string
+          is_featured?: boolean | null
+          is_published?: boolean | null
+          slug: string
+          sort_order?: number | null
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          video_type?: string | null
+          video_url?: string | null
+          view_count?: number | null
+        }
+        Update: {
+          author_id?: string | null
+          category_id?: string | null
+          content?: string
+          created_at?: string
+          excerpt?: string | null
+          featured_image_url?: string | null
+          helpful_count?: number | null
+          id?: string
+          is_featured?: boolean | null
+          is_published?: boolean | null
+          slug?: string
+          sort_order?: number | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          video_type?: string | null
+          video_url?: string | null
+          view_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_articles_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "help_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      help_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          slug: string
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          slug: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          slug?: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       integration_hooks: {
         Row: {
           created_at: string
@@ -429,21 +627,27 @@ export type Database = {
       }
       profiles: {
         Row: {
+          business_type: Database["public"]["Enums"]["business_type"] | null
           created_at: string | null
+          demo_mode_enabled: boolean
           id: string
           name: string
           role: Database["public"]["Enums"]["app_role"]
           status: string
         }
         Insert: {
+          business_type?: Database["public"]["Enums"]["business_type"] | null
           created_at?: string | null
+          demo_mode_enabled?: boolean
           id: string
           name: string
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
         }
         Update: {
+          business_type?: Database["public"]["Enums"]["business_type"] | null
           created_at?: string | null
+          demo_mode_enabled?: boolean
           id?: string
           name?: string
           role?: Database["public"]["Enums"]["app_role"]
@@ -979,8 +1183,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_demo_events: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      clear_demo_events: {
+        Args: { _user_id: string }
+        Returns: undefined
+      }
+      generate_demo_events: {
+        Args: {
+          _business_type: Database["public"]["Enums"]["business_type"]
+          _user_id: string
+        }
+        Returns: undefined
+      }
       get_integration_count: {
-        Args: { _user_id: string; _types?: string[] }
+        Args: { _types?: string[]; _user_id: string }
         Returns: number
       }
       get_user_team_memberships: {
@@ -992,29 +1211,48 @@ export type Database = {
       }
       has_role: {
         Args: {
-          _user_id: string
           _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
         }
         Returns: boolean
       }
+      increment_article_view_count: {
+        Args: { article_uuid: string }
+        Returns: undefined
+      }
+      update_article_helpful_count: {
+        Args: { article_uuid: string }
+        Returns: undefined
+      }
       update_user_role: {
         Args: {
-          _user_id: string
           _new_role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
         }
         Returns: boolean
       }
       user_has_org_role: {
         Args: {
-          _user_id: string
           _org_id: string
           _roles: Database["public"]["Enums"]["team_role"][]
+          _user_id: string
         }
         Returns: boolean
       }
     }
     Enums: {
       app_role: "admin" | "user" | "support"
+      business_type:
+        | "ecommerce"
+        | "saas"
+        | "services"
+        | "events"
+        | "blog"
+        | "marketing_agency"
+        | "ngo"
+        | "education"
+      event_source: "manual" | "connector" | "tracking" | "demo"
+      event_status: "pending" | "approved" | "rejected"
       team_role: "owner" | "admin" | "member" | "viewer"
     }
     CompositeTypes: {
@@ -1144,6 +1382,18 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user", "support"],
+      business_type: [
+        "ecommerce",
+        "saas",
+        "services",
+        "events",
+        "blog",
+        "marketing_agency",
+        "ngo",
+        "education",
+      ],
+      event_source: ["manual", "connector", "tracking", "demo"],
+      event_status: ["pending", "approved", "rejected"],
       team_role: ["owner", "admin", "member", "viewer"],
     },
   },

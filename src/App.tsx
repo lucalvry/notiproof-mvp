@@ -3,6 +3,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { HelpProvider } from "@/contexts/HelpContext";
+import { HelpSidebar } from "@/components/help/HelpSidebar";
+import { InteractiveTour } from "@/components/help/InteractiveTour";
+import { useHelp } from "@/contexts/HelpContext";
+import { tours } from "@/data/tours";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -37,6 +42,7 @@ import AdminAlerts from "./pages/AdminAlerts";
 import Campaigns from "./pages/Campaigns";
 import CreateCampaign from "./pages/CreateCampaign";
 import SocialConnectors from "./pages/SocialConnectors";
+import SocialConnectorDetail from "./pages/SocialConnectorDetail";
 import ModerationQueue from "./pages/ModerationQueue";
 import Teams from "./pages/Teams";
 import TemplatesMarketplace from "./pages/TemplatesMarketplace";
@@ -47,14 +53,13 @@ import EditCampaign from "./pages/EditCampaign";
 // Updated routing configuration for Phase 5, 6 & 7
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
+function AppContent() {
+  const { activeTour } = useHelp();
+  const currentTour = activeTour ? tours[activeTour] : null;
+
+  return (
+    <>
+      <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/auth/login" element={<Login />} />
             <Route path="/admin/login" element={<AdminLogin />} />
@@ -83,6 +88,7 @@ const App = () => (
               <Route path="campaigns/:id/edit" element={<EditCampaign />} />
               <Route path="campaigns/wizard" element={<CampaignWizard />} />
               <Route path="social-connectors" element={<SocialConnectors />} />
+              <Route path="social-connectors/:id" element={<SocialConnectorDetail />} />
               <Route path="moderation" element={<ModerationQueue />} />
               <Route path="teams" element={<Teams />} />
               <Route path="templates" element={<TemplatesMarketplace />} />
@@ -114,9 +120,30 @@ const App = () => (
 
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
+          <HelpSidebar />
+          {currentTour && (
+            <InteractiveTour 
+              tour={currentTour} 
+              isActive={true}
+            />
+          )}
+        </>
+  );
+}
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <BrowserRouter>
+      <AuthProvider>
+        <TooltipProvider>
+          <HelpProvider>
+            <AppContent />
+            <Toaster />
+            <Sonner />
+          </HelpProvider>
+        </TooltipProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </QueryClientProvider>
 );
 

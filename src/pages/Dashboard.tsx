@@ -5,6 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { LiveVisitorCount } from '@/components/LiveVisitorCount';
 import { QuickStartWizard } from '@/components/QuickStartWizard';
+import { OnboardingProgress } from '@/components/OnboardingProgress';
+import { IntegrationStatusDashboard } from '@/components/IntegrationStatusDashboard';
+import { EnhancedDemoMode } from '@/components/EnhancedDemoMode';
+import { SmartDemoPrompt } from '@/components/SmartDemoPrompt';
 import { Activity, MousePointer, Eye, Plus, Wand2, ShoppingCart, Mail, Plug } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -87,7 +91,8 @@ const Dashboard = () => {
               event_type,
               event_data,
               created_at,
-              widgets!inner(name)
+              widget_id,
+              widgets!events_widget_id_fkey(name)
             `)
             .in('widget_id', widgetIds)
             .order('created_at', { ascending: false })
@@ -95,7 +100,7 @@ const Dashboard = () => {
 
           setRecentEvents(recentEventsData?.map(event => ({
             ...event,
-            widget: event.widgets
+            widget: { name: event.widgets?.name || 'Unknown Widget' }
           })) || []);
         }
 
@@ -157,44 +162,50 @@ const Dashboard = () => {
           <p className="text-muted-foreground">Welcome back, {profile?.name}</p>
         </div>
         
-        <Button onClick={() => setShowWizard(true)} className="gap-2">
+        <Button onClick={() => setShowWizard(true)} className="gap-2" data-tour="quick-actions">
           <Wand2 className="h-4 w-4" />
           Quick Start Wizard
         </Button>
       </div>
 
-      {/* Empty State for New Users */}
+      {/* Smart Demo Prompt - Show at top for visibility */}
+      <SmartDemoPrompt />
+
+      {/* Enhanced Onboarding Section */}
       {!hasWidgets && !loading && (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
-                <Wand2 className="h-8 w-8 text-muted-foreground" />
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                  <Wand2 className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h2 className="text-xl font-semibold">Welcome to NotiProof!</h2>
+                <p className="text-muted-foreground max-w-md">
+                  Get started with our guided setup to create your first social proof widget.
+                </p>
+                <div className="flex gap-3">
+                  <Button onClick={() => setShowWizard(true)} className="gap-2" data-tour="quick-actions">
+                    <Wand2 className="h-4 w-4" />
+                    Quick Start Wizard
+                  </Button>
+                  <Button variant="outline" asChild data-tour="quick-actions">
+                    <Link to="/dashboard/widgets/create">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Widget
+                    </Link>
+                  </Button>
+                </div>
               </div>
-              <h2 className="text-xl font-semibold">Welcome to NotiProof!</h2>
-              <p className="text-muted-foreground max-w-md">
-                You haven't created any widgets yet. Get started with our quick setup wizard 
-                or create your first widget manually.
-              </p>
-              <div className="flex gap-3">
-                <Button onClick={() => setShowWizard(true)} className="gap-2">
-                  <Wand2 className="h-4 w-4" />
-                  Quick Start Wizard
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link to="/dashboard/widgets/create">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Widget
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+          
+          <OnboardingProgress />
+        </div>
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6" data-tour="dashboard-stats">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Notifications</CardTitle>
@@ -238,63 +249,23 @@ const Dashboard = () => {
         <LiveVisitorCount showDetails={false} />
       </div>
 
-      {/* Integration Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">E-commerce Integrations</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{integrations.ecommerce}</div>
-            <p className="text-xs text-muted-foreground mb-2">
-              Shopify & WooCommerce connected
-            </p>
-            <Button size="sm" variant="outline" asChild>
-              <Link to="/dashboard/integrations">Setup</Link>
-            </Button>
-          </CardContent>
-        </Card>
+      {/* Enhanced Sections for Existing Users */}
+      {hasWidgets && (
+        <div className="grid lg:grid-cols-2 gap-6">
+          <OnboardingProgress compact />
+          <EnhancedDemoMode showFullDemo />
+        </div>
+      )}
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Email Integrations</CardTitle>
-            <Mail className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{integrations.email}</div>
-            <p className="text-xs text-muted-foreground mb-2">
-              Mailchimp, ConvertKit, Klaviyo
-            </p>
-            <Button size="sm" variant="outline" asChild>
-              <Link to="/dashboard/integrations">Setup</Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Integrations</CardTitle>
-            <Plug className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{integrations.total}</div>
-            <p className="text-xs text-muted-foreground mb-2">
-              All connected services
-            </p>
-            <Button size="sm" variant="outline" asChild>
-              <Link to="/dashboard/integrations">Manage All</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Integration Status Dashboard */}
+      <IntegrationStatusDashboard />
 
       {/* Live Visitor Count Details */}
       {hasWidgets && (
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             {/* Recent Activity */}
-            <Card>
+            <Card data-tour="recent-activity">
               <CardHeader>
                 <CardTitle>Recent Activity</CardTitle>
                 <CardDescription>

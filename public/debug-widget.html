@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Widget Debug Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            line-height: 1.6;
+        }
+        .debug-info {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .test-buttons {
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #007cba;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #005a8a;
+        }
+    </style>
+</head>
+<body>
+    <h1>NotiProof Widget Debug Test</h1>
+    
+    <div class="debug-info">
+        <strong>Widget ID:</strong> 8532eb3f-9e2c-4139-bc35-f6300f332e33<br>
+        <strong>Test URL:</strong> https://debug-test-page.com<br>
+        <strong>Purpose:</strong> Debug why views/clicks aren't being tracked
+    </div>
+    
+    <div class="test-buttons">
+        <button onclick="window.NotiProof?.show()">Manual Show Widget</button>
+        <button onclick="testTracking()">Test Manual Tracking</button>
+        <button onclick="showConsoleHistory()">Show Console History</button>
+    </div>
+    
+    <div id="console-output" class="debug-info" style="max-height: 400px; overflow-y: auto;">
+        <strong>Console Output:</strong><br>
+        <div id="console-log"></div>
+    </div>
+
+    <script>
+        // Capture console logs for debugging
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        const logs = [];
+        
+        function logToScreen(type, ...args) {
+            const timestamp = new Date().toLocaleTimeString();
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            
+            logs.push(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
+            
+            const logDiv = document.getElementById('console-log');
+            if (logDiv) {
+                logDiv.innerHTML = logs.slice(-50).join('<br>'); // Keep last 50 logs
+                logDiv.scrollTop = logDiv.scrollHeight;
+            }
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            logToScreen('log', ...args);
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            logToScreen('error', ...args);
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            logToScreen('warn', ...args);
+        };
+        
+        function testTracking() {
+            if (window.NotiProof) {
+                console.log('Testing manual tracking...');
+                window.NotiProof.track('test', { manual_test: true, timestamp: Date.now() });
+                window.NotiProof.trackConversion({ test_conversion: true });
+            } else {
+                console.error('NotiProof not available on window object');
+            }
+        }
+        
+        function showConsoleHistory() {
+            console.log('=== Console History ===');
+            logs.forEach(log => originalLog(log));
+        }
+        
+        // Log initial page load
+        console.log('Debug page loaded, waiting for widget initialization...');
+        
+        // Check if widget loaded after a delay
+        setTimeout(() => {
+            console.log('NotiProof object available:', !!window.NotiProof);
+            console.log('NotiProof methods:', window.NotiProof ? Object.keys(window.NotiProof) : 'N/A');
+        }, 2000);
+    </script>
+    
+    <!-- NotiProof Widget -->
+    <script src="https://preview--notiproof-mvp.lovable.app/widget.js"
+            data-widget-id="8532eb3f-9e2c-4139-bc35-f6300f332e33"
+            data-api-base="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api"
+            data-disable-beacon="true"
+            defer></script>
+</body>
+</html>

@@ -258,7 +258,31 @@
     });
   }
 
-  // Track events (general)
+  // Enhanced visitor tracking with country detection
+  async function trackVisitorSession() {
+    try {
+      const url = `${apiBase}/api/widgets/${widgetId}/visitor-session`;
+      const payload = {
+        session_id: sessionId,
+        page_url: window.location.href,
+        user_agent: navigator.userAgent,
+        referrer: document.referrer,
+        timestamp: new Date().toISOString()
+      };
+      
+      await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch (error) {
+      console.warn('NotiProof: Could not track visitor session', error);
+    }
+  }
+
+  // Track events (general) with enhanced visitor data
   async function trackEvent(type, data = {}) {
     try {
       const url = `${apiBase}/api/widgets/${widgetId}/events`;
@@ -271,7 +295,13 @@
           user_agent: navigator.userAgent,
           url: window.location.href,
           referrer: document.referrer,
-          session_id: sessionId
+          session_id: sessionId,
+          viewport_width: window.innerWidth,
+          viewport_height: window.innerHeight,
+          screen_width: screen.width,
+          screen_height: screen.height,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          language: navigator.language
         }
       };
       
@@ -368,14 +398,28 @@
         const events = await response.json();
         console.log('NotiProof: Events received:', events);
         
-        // Always show template-based content since that's what templates are for
-        const template = templateContent[config.template_name] || templateContent['notification-popup'];
-        const messages = template.messages;
-        const defaultEvent = {
-          message: messages[Math.floor(Math.random() * messages.length)],
-          template_name: config.template_name
-        };
-        createWidget(defaultEvent);
+        // Use approved social proof events if available, otherwise fallback to template
+        if (events && events.length > 0) {
+          // Display approved social proof event (Google Reviews, etc)
+          const event = events[Math.floor(Math.random() * events.length)];
+          console.log('NotiProof: Displaying approved social proof event:', event);
+          createWidget({
+            message: event.message,
+            type: event.type,
+            id: event.id,
+            created_at: event.created_at
+          });
+        } else {
+          // Fallback to template content when no approved events available
+          console.log('NotiProof: No approved events found, using template content');
+          const template = templateContent[config.template_name] || templateContent['notification-popup'];
+          const messages = template.messages;
+          const defaultEvent = {
+            message: messages[Math.floor(Math.random() * messages.length)],
+            template_name: config.template_name
+          };
+          createWidget(defaultEvent);
+        }
       } else {
         // Show template-based content if API fails
         console.warn('NotiProof: Events fetch responded with non-OK status', response.status);
@@ -416,6 +460,19 @@
 
     await fetchWidgetConfig();
     updateScroll();
+
+    // Track initial visitor session
+    await trackVisitorSession();
+    
+    // Track real-time pageview event
+    await trackEvent('pageview', {
+      page_title: document.title,
+      page_load_time: Date.now() - pageStart,
+      is_returning_visitor: localStorage.getItem('notiproof-returning') === 'true'
+    });
+    
+    // Mark as returning visitor for future visits
+    localStorage.setItem('notiproof-returning', 'true');
 
     const pageCountKey = `notiproof-page-count-${widgetId}-${location.pathname}`;
     const sessionCountKey = `notiproof-session-count-${widgetId}`;
