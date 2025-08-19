@@ -89,43 +89,24 @@ serve(async (req) => {
 
     console.log(`Found ${data.result.reviews.length} reviews for place ${place_id}`);
 
-    // Convert reviews to events and insert to moderation queue
-    const events = [];
-    
-    for (const review of data.result.reviews) {
-      // Create event for moderation queue
-      const eventData = {
-        widget_id: widget_id,
-        event_type: 'review',
-        event_data: {
-          message: `"${review.text}" - ${review.author_name}`,
-          author_name: review.author_name,
-          author_avatar: review.profile_photo_url,
-          rating: review.rating,
-          source: 'google_reviews',
-          place_name: data.result.name,
-          posted_at: new Date(review.time * 1000).toISOString(),
-          connector_id: connector_id,
-          requires_moderation: true
-        },
-        source: 'connector',
-        status: 'pending', // Send to moderation queue
-        flagged: false
-      };
+    // Use social-sync function to properly handle reviews through social_items first
+    const { error: socialSyncError } = await supabase.functions.invoke('social-sync', {
+      body: { connector_id: connector_id }
+    });
 
-      events.push(eventData);
+    if (socialSyncError) {
+      console.error('Error calling social-sync:', socialSyncError);
+      throw socialSyncError;
     }
 
-    // Insert events into moderation queue
-    if (events.length > 0) {
-      const { error: insertError } = await supabase
-        .from('events')
-        .insert(events);
+    // Then convert approved social items to events
+    const { error: conversionError } = await supabase.functions.invoke('social-items-to-events', {
+      body: { connector_id: connector_id, widget_id: widget_id }
+    });
 
-      if (insertError) {
-        console.error('Error inserting review events:', insertError);
-        throw insertError;
-      }
+    if (conversionError) {
+      console.error('Error converting social items to events:', conversionError);
+      throw conversionError;
     }
 
     // Update connector last sync time
@@ -137,11 +118,11 @@ serve(async (req) => {
       })
       .eq('id', connector_id);
 
-    console.log(`Successfully synced ${events.length} Google reviews for connector ${connector_id}`);
+    console.log(`Successfully synced Google reviews for connector ${connector_id} via social-items flow`);
 
     return new Response(JSON.stringify({ 
       success: true, 
-      reviews_synced: events.length,
+      reviews_synced: data.result.reviews.length,
       place_name: data.result.name,
       place_rating: data.result.rating
     }), {
