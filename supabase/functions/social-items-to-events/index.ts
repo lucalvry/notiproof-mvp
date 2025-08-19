@@ -34,7 +34,7 @@ serve(async (req) => {
       .select('*')
       .eq('connector_id', connector_id)
       .eq('moderation_status', 'approved')
-      .is('converted_to_event', null); // Assuming we'll add this flag
+      .eq('converted_to_event', false);
 
     if (fetchError) {
       console.error('Error fetching social items:', fetchError);
@@ -113,14 +113,12 @@ serve(async (req) => {
       throw insertError;
     }
 
-    // Mark social items as converted (we'll need to add this column)
+    // Mark social items as converted
     const socialItemIds = socialItems.map(item => item.id);
     
-    // For now, we'll update moderation_status to 'converted' to track this
-    // In a future migration, we can add a proper converted_to_event boolean column
     const { error: updateError } = await supabase
       .from('social_items')
-      .update({ moderation_status: 'converted' })
+      .update({ converted_to_event: true })
       .in('id', socialItemIds);
 
     if (updateError) {

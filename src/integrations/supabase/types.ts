@@ -697,6 +697,7 @@ export type Database = {
           author_name: string | null
           connector_id: string
           content: string
+          converted_to_event: boolean | null
           created_at: string
           external_id: string
           id: string
@@ -713,6 +714,7 @@ export type Database = {
           author_name?: string | null
           connector_id: string
           content: string
+          converted_to_event?: boolean | null
           created_at?: string
           external_id: string
           id?: string
@@ -729,6 +731,7 @@ export type Database = {
           author_name?: string | null
           connector_id?: string
           content?: string
+          converted_to_event?: boolean | null
           created_at?: string
           external_id?: string
           id?: string
