@@ -10,14 +10,14 @@ import { useDemoEvents } from '@/hooks/useDemoEvents';
 import { useAuth } from '@/hooks/useAuth';
 
 const businessTypes = [
-  { value: 'ecommerce', label: 'E-commerce', description: 'Purchase notifications' },
-  { value: 'saas', label: 'SaaS', description: 'Trial signups and upgrades' },
-  { value: 'services', label: 'Services', description: 'Booking and consultation requests' },
-  { value: 'events', label: 'Events', description: 'Registration and ticket sales' },
-  { value: 'blog', label: 'Blog/Content', description: 'Subscriptions and engagement' },
-  { value: 'marketing_agency', label: 'Marketing Agency', description: 'Client inquiries' },
-  { value: 'ngo', label: 'NGO/Non-profit', description: 'Donations and volunteer signups' },
-  { value: 'education', label: 'Education', description: 'Course enrollments' }
+  { value: 'ecommerce', label: 'E-commerce', description: 'Smart purchase & review notifications' },
+  { value: 'saas', label: 'SaaS', description: 'Context-aware trial signups & upgrades' },
+  { value: 'services', label: 'Services', description: 'Intelligent booking & consultation messages' },
+  { value: 'events', label: 'Events', description: 'Smart registration & ticket sale notifications' },
+  { value: 'blog', label: 'Blog/Content', description: 'Adaptive subscription & engagement messages' },
+  { value: 'marketing_agency', label: 'Marketing Agency', description: 'Context-aware client inquiry notifications' },
+  { value: 'ngo', label: 'NGO/Non-profit', description: 'Smart donation & volunteer signup messages' },
+  { value: 'education', label: 'Education', description: 'Intelligent course enrollment notifications' }
 ];
 
 export const DemoEventsManager = () => {
@@ -67,7 +67,7 @@ export const DemoEventsManager = () => {
           <Badge variant="secondary" className="text-xs">Demo Mode Active</Badge>
         </CardTitle>
         <CardDescription>
-          Generate realistic demo events to test your notification widgets
+          Generate smart, context-aware demo events with AI-powered messages that adapt to your business type
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -150,12 +150,13 @@ export const DemoEventsManager = () => {
         </Alert>
 
         <div className="text-sm text-muted-foreground">
-          <p>Demo events will:</p>
+          <p>Smart demo events will:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>Generate 5 realistic events for your business type</li>
-            <li>Automatically expire after 7 days</li>
-            <li>Help you test your notification widgets</li>
-            <li>Use location data from major cities</li>
+            <li>Generate 5 context-aware events with smart messaging</li>
+            <li>Adapt message templates to your business type</li>
+            <li>Use fallback logic when customer data is incomplete</li>
+            <li>Include location data from major cities worldwide</li>
+            <li>Automatically expire after 7 days for testing safety</li>
           </ul>
         </div>
       </CardContent>

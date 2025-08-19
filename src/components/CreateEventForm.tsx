@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,10 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
-import { CalendarIcon, Plus, X } from 'lucide-react';
+import { CalendarIcon, Plus, X, Sparkles, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { EnhancedLocationInput } from '@/components/ui/enhanced-location-input';
+import { LocationService } from '@/services/locationService';
+import { MessageGenerationService } from '@/services/messageGenerationService';
 
 interface CreateEventFormProps {
   widgetId: string;
@@ -32,18 +35,18 @@ const eventTypes = [
   { value: 'custom', label: 'Custom Event', icon: '🎯' }
 ];
 
-const locations = [
-  'New York, NY', 'Los Angeles, CA', 'Chicago, IL', 'Houston, TX', 'Phoenix, AZ',
-  'Philadelphia, PA', 'San Antonio, TX', 'San Diego, CA', 'Dallas, TX', 'San Jose, CA',
-  'London, UK', 'Paris, France', 'Berlin, Germany', 'Tokyo, Japan', 'Sydney, Australia',
-  'Toronto, Canada', 'Mumbai, India', 'São Paulo, Brazil', 'Mexico City, Mexico'
-];
+// Enhanced location data will be managed by the EnhancedLocationInput component
 
 export const CreateEventForm = ({ widgetId, onEventCreated, onCancel }: CreateEventFormProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [date, setDate] = useState<Date>();
   const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>([]);
+  const [locationData, setLocationData] = useState<any>(null);
+  const [generatedMessage, setGeneratedMessage] = useState<string>('');
+  const [messageVariations, setMessageVariations] = useState<string[]>([]);
+  const [showMessageGenerator, setShowMessageGenerator] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
   
   const [formData, setFormData] = useState({
     eventType: '',
@@ -54,6 +57,93 @@ export const CreateEventForm = ({ widgetId, onEventCreated, onCancel }: CreateEv
     productName: '',
     customEventName: ''
   });
+
+  // Auto-detect location for anonymous events
+  useEffect(() => {
+    const detectLocation = async () => {
+      try {
+        const detected = await LocationService.detectIPLocation();
+        if (detected && !formData.customerLocation) {
+          const formattedLocation = LocationService.formatLocation(detected);
+          setFormData(prev => ({ ...prev, customerLocation: formattedLocation }));
+          setLocationData(detected);
+        }
+      } catch (error) {
+        console.warn('Auto location detection failed:', error);
+      }
+    };
+
+    // Only auto-detect if no location is already set
+    if (!formData.customerLocation) {
+      detectLocation();
+    }
+  }, []);
+
+  // Load user profile for business type context
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('business_type')
+            .eq('id', user.id)
+            .single();
+          setUserProfile(profile);
+        }
+      } catch (error) {
+        console.warn('Failed to load user profile:', error);
+      }
+    };
+
+    loadUserProfile();
+  }, []);
+
+  // Generate smart message when form data changes
+  useEffect(() => {
+    if (formData.eventType && userProfile?.business_type) {
+      generateSmartMessage();
+    }
+  }, [formData.eventType, formData.customerName, formData.customerLocation, formData.productName, formData.amount, userProfile]);
+
+  const generateSmartMessage = () => {
+    if (!formData.eventType || !userProfile?.business_type) return;
+
+    const messageContext = {
+      businessType: userProfile.business_type as any,
+      eventType: (formData.eventType === 'custom' ? 'conversion' : formData.eventType) as any,
+      data: {
+        name: formData.customerName || undefined,
+        location: formData.customerLocation || undefined,
+        product: formData.productName || (formData.eventType === 'custom' ? formData.customEventName : undefined),
+        amount: formData.amount ? parseFloat(formData.amount) : undefined,
+        service: formData.productName || undefined,
+      }
+    };
+
+    // Generate main message
+    const mainMessage = MessageGenerationService.generateMessage(messageContext);
+    setGeneratedMessage(mainMessage);
+
+    // Generate variations
+    const variations = MessageGenerationService.generateVariations(messageContext, 3);
+    setMessageVariations(variations);
+
+    // Auto-set if message is empty
+    if (!formData.message) {
+      setFormData(prev => ({ ...prev, message: mainMessage }));
+    }
+  };
+
+  const useGeneratedMessage = (message: string) => {
+    setFormData(prev => ({ ...prev, message }));
+    setShowMessageGenerator(false);
+  };
+
+  const refreshMessageSuggestions = () => {
+    generateSmartMessage();
+  };
 
   const addCustomField = () => {
     setCustomFields([...customFields, { key: '', value: '' }]);
@@ -79,7 +169,19 @@ export const CreateEventForm = ({ widgetId, onEventCreated, onCancel }: CreateEv
         customer_name: formData.customerName || 'Anonymous',
         location: formData.customerLocation,
         timestamp: date || new Date(),
-        type: formData.eventType === 'custom' ? formData.customEventName : formData.eventType
+        type: formData.eventType === 'custom' ? formData.customEventName : formData.eventType,
+        // Enhanced location data
+        geo: locationData ? {
+          country: locationData.country,
+          country_code: locationData.country_code,
+          region: locationData.region,
+          city: locationData.city,
+          timezone: locationData.timezone,
+          coordinates: locationData.latitude && locationData.longitude ? {
+            lat: locationData.latitude,
+            lng: locationData.longitude
+          } : undefined
+        } : undefined
       };
 
       // Add type-specific data
@@ -197,24 +299,18 @@ export const CreateEventForm = ({ widgetId, onEventCreated, onCancel }: CreateEv
             />
           </div>
 
-          <div>
-            <Label htmlFor="customerLocation">Customer Location</Label>
-            <Select 
-              value={formData.customerLocation} 
-              onValueChange={(value) => setFormData(prev => ({ ...prev, customerLocation: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select location" />
-              </SelectTrigger>
-              <SelectContent>
-                {locations.map((location) => (
-                  <SelectItem key={location} value={location}>
-                    {location}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <EnhancedLocationInput
+            value={formData.customerLocation}
+            onChange={(value, data) => {
+              setFormData(prev => ({ ...prev, customerLocation: value }));
+              if (data) {
+                setLocationData(data);
+              }
+            }}
+            placeholder="Enter customer location..."
+            enableIPDetection={true}
+            showPopularLocations={true}
+          />
 
           {(formData.eventType === 'purchase' || formData.eventType === 'subscription') && (
             <>
@@ -241,15 +337,92 @@ export const CreateEventForm = ({ widgetId, onEventCreated, onCancel }: CreateEv
             </>
           )}
 
-          <div>
-            <Label htmlFor="message">Custom Message (Optional)</Label>
-            <Textarea
-              id="message"
-              value={formData.message}
-              onChange={(e) => setFormData(prev => ({ ...prev, message: e.target.value }))}
-              placeholder="Add a custom message to display with this event"
-              rows={3}
-            />
+          <div className="space-y-4">
+            {/* Smart Message Generator */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="message">Message</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowMessageGenerator(!showMessageGenerator)}
+                    className="text-xs"
+                  >
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    Smart Generate
+                  </Button>
+                  {generatedMessage && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={refreshMessageSuggestions}
+                      className="text-xs"
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Refresh
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {showMessageGenerator && (
+                <Card className="mb-4 border-blue-200 bg-blue-50/50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Smart Message Suggestions</CardTitle>
+                    <CardDescription className="text-xs">
+                      AI-generated messages based on your business type and event data
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0 space-y-2">
+                    {messageVariations.map((variation, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-white rounded border">
+                        <span className="text-sm flex-1">{variation}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => useGeneratedMessage(variation)}
+                          className="text-xs ml-2"
+                        >
+                          Use This
+                        </Button>
+                      </div>
+                    ))}
+                    {messageVariations.length === 0 && (
+                      <div className="text-sm text-muted-foreground text-center py-4">
+                        Fill in more details above to get smart message suggestions
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              <Textarea
+                id="message"
+                value={formData.message}
+                onChange={(e) => setFormData(prev => ({ ...prev, message: e.target.value }))}
+                placeholder="Message will be auto-generated or enter your custom message..."
+                rows={3}
+              />
+              
+              {generatedMessage && formData.message !== generatedMessage && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  💡 Suggestion: {generatedMessage}
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    onClick={() => useGeneratedMessage(generatedMessage)}
+                    className="text-xs h-auto p-0 ml-2"
+                  >
+                    Use suggestion
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
 
           <div>

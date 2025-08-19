@@ -3,12 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { LiveVisitorCount } from '@/components/LiveVisitorCount';
 import { QuickStartWizard } from '@/components/QuickStartWizard';
 import { OnboardingProgress } from '@/components/OnboardingProgress';
 import { IntegrationStatusDashboard } from '@/components/IntegrationStatusDashboard';
-import { EnhancedDemoMode } from '@/components/EnhancedDemoMode';
-import { SmartDemoPrompt } from '@/components/SmartDemoPrompt';
 import { Activity, MousePointer, Eye, Plus, Wand2, ShoppingCart, Mail, Plug } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -168,8 +165,6 @@ const Dashboard = () => {
         </Button>
       </div>
 
-      {/* Smart Demo Prompt - Show at top for visibility */}
-      <SmartDemoPrompt />
 
       {/* Enhanced Onboarding Section */}
       {!hasWidgets && !loading && (
@@ -205,7 +200,7 @@ const Dashboard = () => {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6" data-tour="dashboard-stats">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6" data-tour="dashboard-stats">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Notifications</CardTitle>
@@ -245,63 +240,49 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Live Visitor Count Card */}
-        <LiveVisitorCount showDetails={false} />
       </div>
 
       {/* Enhanced Sections for Existing Users */}
       {hasWidgets && (
-        <div className="grid lg:grid-cols-2 gap-6">
-          <OnboardingProgress compact />
-          <EnhancedDemoMode showFullDemo />
-        </div>
+        <OnboardingProgress compact />
       )}
 
       {/* Integration Status Dashboard */}
       <IntegrationStatusDashboard />
 
-      {/* Live Visitor Count Details */}
+      {/* Recent Activity */}
       {hasWidgets && (
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            {/* Recent Activity */}
-            <Card data-tour="recent-activity">
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>
-                  Latest events from your widgets
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {recentEvents.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">
-                    No recent activity. Create a widget to start tracking events.
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {recentEvents.map((event) => (
-                      <div key={event.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <p className="font-medium">{event.event_type}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Widget: {event.widget?.name}
-                          </p>
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {new Date(event.created_at).toLocaleDateString()}
-                        </div>
-                      </div>
-                    ))}
+        <Card data-tour="recent-activity">
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>
+              Latest events from your widgets
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recentEvents.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">
+                No recent activity. Create a widget to start tracking events.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {recentEvents.map((event) => (
+                  <div key={event.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{event.event_type}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Widget: {event.widget?.name}
+                      </p>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {new Date(event.created_at).toLocaleDateString()}
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          
-          <div>
-            <LiveVisitorCount showDetails={true} />
-          </div>
-        </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
     </div>

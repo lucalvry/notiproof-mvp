@@ -133,19 +133,124 @@
     }
   }
 
-  // Get template-appropriate content
-  function getTemplateContent(event) {
-    const template = templateContent[config.template_name] || templateContent['notification-popup'];
-    
-    // If event has a custom message, use it
-    if (event && event.message) {
-      return `${template.icon} ${event.message}`;
+  // Enhanced message extraction with priority hierarchy
+  function extractMessage(event) {
+    // Priority 1: Custom message from event_data.message
+    if (event?.event_data?.message) {
+      return event.event_data.message;
     }
     
-    // Otherwise use a random template message
+    // Priority 2: Direct message field
+    if (event?.message) {
+      return event.message;
+    }
+    
+    // Priority 3: Generated template message from message_template field
+    if (event?.message_template) {
+      return event.message_template;
+    }
+    
+    // Priority 4: Generated message from context_template
+    if (event?.context_template) {
+      return event.context_template;
+    }
+    
+    // Priority 5: Smart message generation from event data
+    if (event?.event_data) {
+      const smartMessage = generateSmartMessage(event);
+      if (smartMessage) {
+        return smartMessage;
+      }
+    }
+    
+    // Priority 6: Template fallback
+    const template = templateContent[config.template_name] || templateContent['notification-popup'];
     const messages = template.messages;
-    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-    return `${template.icon} ${randomMessage}`;
+    return messages[Math.floor(Math.random() * messages.length)];
+  }
+
+  // Generate smart message from event data
+  function generateSmartMessage(event) {
+    const eventData = event.event_data || {};
+    const eventType = event.event_type || 'view';
+    
+    // Extract relevant data
+    const name = eventData.user_name || event.user_name || eventData.name;
+    const location = eventData.user_location || event.user_location || eventData.location;
+    const product = eventData.product || eventData.service;
+    const amount = eventData.amount || eventData.value;
+    const rating = eventData.rating;
+    const count = eventData.count;
+    
+    // Generate contextual message based on event type and available data
+    switch (eventType) {
+      case 'purchase':
+        if (name && location && product && amount) {
+          return `${name} from ${location} just bought ${product} for $${amount}`;
+        }
+        if (name && product) {
+          return `${name} just purchased ${product}`;
+        }
+        if (location) {
+          return `Someone from ${location} just made a purchase`;
+        }
+        return "Someone just made a purchase";
+        
+      case 'signup':
+        if (name && location) {
+          return `${name} from ${location} just signed up`;
+        }
+        if (name) {
+          return `${name} just joined`;
+        }
+        if (location) {
+          return `Someone from ${location} just signed up`;
+        }
+        return "Someone just signed up";
+        
+      case 'review':
+        if (name && rating && product) {
+          return `${name} left a ${rating}-star review for ${product}`;
+        }
+        if (rating) {
+          return `Someone left a ${rating}-star review`;
+        }
+        return "New customer review received";
+        
+      case 'view':
+        if (count && product) {
+          return `${count} people are viewing ${product} right now`;
+        }
+        if (count) {
+          return `${count} people are browsing right now`;
+        }
+        return "Someone is viewing this page";
+        
+      case 'conversion':
+        if (name && location) {
+          return `${name} from ${location} just converted`;
+        }
+        if (name) {
+          return `${name} just took action`;
+        }
+        return "Someone just converted";
+        
+      default:
+        if (name && location) {
+          return `${name} from ${location} is active`;
+        }
+        if (name) {
+          return `${name} is engaging with your site`;
+        }
+        return "New visitor activity detected";
+    }
+  }
+
+  // Get template-appropriate content with enhanced message priority
+  function getTemplateContent(event) {
+    const template = templateContent[config.template_name] || templateContent['notification-popup'];
+    const message = extractMessage(event);
+    return `${template.icon} ${message}`;
   }
 
   // Create widget element
@@ -385,62 +490,119 @@
     });
   }
 
-  // Fetch and display events
+  // Enhanced event fetching with real-time updates and message priority
+  let eventQueue = [];
+  let lastEventTime = 0;
+  
   async function fetchAndDisplayEvents() {
     try {
       await fetchWidgetConfig();
       console.log('NotiProof: Fetching events from:', `${apiBase}/api/widgets/${widgetId}/events`);
       
-      const response = await fetch(`${apiBase}/api/widgets/${widgetId}/events`);
+      const response = await fetch(`${apiBase}/api/widgets/${widgetId}/events?since=${lastEventTime}`);
       console.log('NotiProof: Events response status:', response.status);
       
       if (response.ok) {
         const events = await response.json();
         console.log('NotiProof: Events received:', events);
         
-        // Use approved social proof events if available, otherwise fallback to template
         if (events && events.length > 0) {
-          // Display approved social proof event (Google Reviews, etc)
-          const event = events[Math.floor(Math.random() * events.length)];
-          console.log('NotiProof: Displaying approved social proof event:', event);
-          createWidget({
-            message: event.message,
-            type: event.type,
-            id: event.id,
-            created_at: event.created_at
-          });
+          // Update last event time for real-time updates
+          const latestEvent = events.reduce((latest, event) => {
+            const eventTime = new Date(event.created_at || event.updated_at).getTime();
+            return eventTime > latest ? eventTime : latest;
+          }, lastEventTime);
+          lastEventTime = latestEvent;
+          
+          // Add new events to queue, prioritizing recent ones
+          const newEvents = events
+            .filter(event => event.status === 'approved' || event.source === 'demo')
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          
+          eventQueue = [...newEvents, ...eventQueue].slice(0, 50); // Keep max 50 events
+          
+          // Display the highest priority event
+          const eventToShow = selectBestEvent(eventQueue);
+          if (eventToShow) {
+            console.log('NotiProof: Displaying prioritized event:', eventToShow);
+            createWidget(eventToShow);
+          } else {
+            showFallbackWidget();
+          }
         } else {
-          // Fallback to template content when no approved events available
-          console.log('NotiProof: No approved events found, using template content');
-          const template = templateContent[config.template_name] || templateContent['notification-popup'];
-          const messages = template.messages;
-          const defaultEvent = {
-            message: messages[Math.floor(Math.random() * messages.length)],
-            template_name: config.template_name
-          };
-          createWidget(defaultEvent);
+          showFallbackWidget();
         }
       } else {
-        // Show template-based content if API fails
         console.warn('NotiProof: Events fetch responded with non-OK status', response.status);
-        const template = templateContent[config.template_name] || templateContent['notification-popup'];
-        const messages = template.messages;
-        const defaultEvent = {
-          message: messages[Math.floor(Math.random() * messages.length)],
-          template_name: config.template_name
-        };
-        createWidget(defaultEvent);
+        showFallbackWidget();
       }
     } catch (error) {
       console.warn('NotiProof: Could not fetch events, showing template default:', error);
-      const template = templateContent[config.template_name] || templateContent['notification-popup'];
-      const messages = template.messages;
-      const defaultEvent = {
-        message: messages[Math.floor(Math.random() * messages.length)],
-        template_name: config.template_name
-      };
-      createWidget(defaultEvent);
+      showFallbackWidget();
     }
+  }
+  
+  // Select the best event based on priority rules
+  function selectBestEvent(events) {
+    if (!events || events.length === 0) return null;
+    
+    // Priority scoring system
+    const scoreEvent = (event) => {
+      let score = 0;
+      
+      // Recency score (newer = higher score)
+      const eventAge = Date.now() - new Date(event.created_at).getTime();
+      const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+      score += Math.max(0, 100 - (eventAge / maxAge) * 100);
+      
+      // Message completeness score
+      if (event.event_data?.message || event.message) score += 50;
+      if (event.message_template) score += 30;
+      if (event.context_template) score += 20;
+      
+      // Event type priority
+      const eventTypePriority = {
+        'purchase': 100,
+        'signup': 80,
+        'conversion': 70,
+        'review': 60,
+        'booking': 50,
+        'view': 30,
+        'visitor': 20
+      };
+      score += eventTypePriority[event.event_type] || 10;
+      
+      // Source priority (manual > API > demo)
+      const sourcePriority = {
+        'manual': 50,
+        'api': 40,
+        'integration': 30,
+        'demo': 10
+      };
+      score += sourcePriority[event.source] || 5;
+      
+      return score;
+    };
+    
+    // Sort by score and return highest scoring event
+    const scoredEvents = events.map(event => ({ event, score: scoreEvent(event) }));
+    scoredEvents.sort((a, b) => b.score - a.score);
+    
+    console.log('NotiProof: Event scores:', scoredEvents.slice(0, 3));
+    return scoredEvents[0]?.event;
+  }
+  
+  // Show fallback template widget
+  function showFallbackWidget() {
+    console.log('NotiProof: No events available, using template content');
+    const template = templateContent[config.template_name] || templateContent['notification-popup'];
+    const messages = template.messages;
+    const defaultEvent = {
+      message: messages[Math.floor(Math.random() * messages.length)],
+      template_name: config.template_name,
+      source: 'template'
+    };
+    createWidget(defaultEvent);
   }
 
   // Initialize widget with rules & triggers
@@ -522,13 +684,19 @@
       maybeShow();
     }, rules.triggers?.min_time_on_page_ms || 3000);
 
-    // Recurring display
+    // Recurring display with real-time check
     if (rules.interval_ms && rules.interval_ms > 0) {
       setInterval(() => {
         console.log('NotiProof: Interval display trigger');
         maybeShow();
       }, rules.interval_ms);
     }
+    
+    // Real-time updates check (every 30 seconds for new events)
+    setInterval(() => {
+      console.log('NotiProof: Real-time update check');
+      fetchNewEvents();
+    }, 30000);
 
     // Exit intent
     if (rules.triggers?.exit_intent) {
@@ -548,6 +716,38 @@
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
+  }
+
+  // Real-time event fetching for updates
+  async function fetchNewEvents() {
+    try {
+      const response = await fetch(`${apiBase}/api/widgets/${widgetId}/events?since=${lastEventTime}&limit=10`);
+      if (response.ok) {
+        const newEvents = await response.json();
+        if (newEvents && newEvents.length > 0) {
+          console.log('NotiProof: New events detected:', newEvents.length);
+          
+          // Update event queue with new events
+          const approvedEvents = newEvents.filter(event => 
+            event.status === 'approved' || event.source === 'demo'
+          );
+          
+          if (approvedEvents.length > 0) {
+            eventQueue = [...approvedEvents, ...eventQueue].slice(0, 50);
+            
+            // Update last event time
+            const latestTime = Math.max(...approvedEvents.map(e => 
+              new Date(e.created_at || e.updated_at).getTime()
+            ));
+            lastEventTime = Math.max(lastEventTime, latestTime);
+            
+            console.log('NotiProof: Event queue updated with new events');
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('NotiProof: Error fetching new events:', error);
+    }
   }
 
   // Expose global NotiProof object for manual control
@@ -571,6 +771,14 @@
     trackSignup: (data = {}) => {
       console.log('NotiProof: Manual signup track');
       trackEvent('signup', { ...data, manual_signup: true });
+    },
+    refreshEvents: () => {
+      console.log('NotiProof: Manual event refresh');
+      lastEventTime = 0; // Reset to fetch all events
+      fetchAndDisplayEvents();
+    },
+    getEventQueue: () => {
+      return eventQueue;
     }
   };
 
