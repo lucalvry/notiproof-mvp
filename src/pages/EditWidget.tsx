@@ -411,111 +411,110 @@ const { error } = await supabase
                       step="500"
                     />
                   </div>
-                </div>
 
-                <div>
-                  <Label htmlFor="color">Primary Color</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      id="color"
-                      type="color"
-                      value={formData.color}
-                      onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                      className="w-16 h-10"
-                    />
-                    <Input
-                      value={formData.color}
-                      onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                      placeholder="#3B82F6"
-                      className="flex-1"
-                    />
+                  <div>
+                    <Label htmlFor="color">Primary Color</Label>
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        id="color"
+                        type="color"
+                        value={formData.color}
+                        onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                        className="w-16 h-10"
+                      />
+                      <Input
+                        value={formData.color}
+                        onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                        placeholder="#3B82F6"
+                        className="flex-1"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Display Rules */}
-                <div className="space-y-3 border-t pt-4">
-                  <h4 className="font-medium">Display Rules</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="show_duration_ms">Show Duration (ms)</Label>
-                      <Input id="show_duration_ms" type="number" value={displayRules.show_duration_ms}
-                        onChange={(e) => setDisplayRules(prev => ({ ...prev, show_duration_ms: Number(e.target.value) }))} />
+                  {/* Display Rules */}
+                  <div className="space-y-3 border-t pt-4">
+                    <h4 className="font-medium">Display Rules</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="show_duration_ms">Show Duration (ms)</Label>
+                        <Input id="show_duration_ms" type="number" value={displayRules.show_duration_ms}
+                          onChange={(e) => setDisplayRules(prev => ({ ...prev, show_duration_ms: Number(e.target.value) }))} />
+                      </div>
+                      <div>
+                        <Label htmlFor="interval_ms">Interval Between (ms)</Label>
+                        <Input id="interval_ms" type="number" value={displayRules.interval_ms}
+                          onChange={(e) => setDisplayRules(prev => ({ ...prev, interval_ms: Number(e.target.value) }))} />
+                      </div>
+                      <div>
+                        <Label htmlFor="max_per_page">Max Per Page</Label>
+                        <Input id="max_per_page" type="number" value={displayRules.max_per_page}
+                          onChange={(e) => setDisplayRules(prev => ({ ...prev, max_per_page: Number(e.target.value) }))} />
+                      </div>
+                      <div>
+                        <Label htmlFor="max_per_session">Max Per Session</Label>
+                        <Input id="max_per_session" type="number" value={displayRules.max_per_session}
+                          onChange={(e) => setDisplayRules(prev => ({ ...prev, max_per_session: Number(e.target.value) }))} />
+                      </div>
+                      <div>
+                        <Label htmlFor="min_time_on_page_ms">Min Time on Page (ms)</Label>
+                        <Input id="min_time_on_page_ms" type="number" value={displayRules.triggers.min_time_on_page_ms}
+                          onChange={(e) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, min_time_on_page_ms: Number(e.target.value) } }))} />
+                      </div>
+                      <div>
+                        <Label htmlFor="scroll_depth_pct">Scroll Depth (%)</Label>
+                        <Input id="scroll_depth_pct" type="number" value={displayRules.triggers.scroll_depth_pct}
+                          onChange={(e) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, scroll_depth_pct: Number(e.target.value) } }))} />
+                      </div>
                     </div>
-                    <div>
-                      <Label htmlFor="interval_ms">Interval Between (ms)</Label>
-                      <Input id="interval_ms" type="number" value={displayRules.interval_ms}
-                        onChange={(e) => setDisplayRules(prev => ({ ...prev, interval_ms: Number(e.target.value) }))} />
+                    <div className="grid grid-cols-2 gap-4 items-center">
+                      <div className="flex items-center justify-between rounded-md border p-3">
+                        <Label className="mr-4">Exit Intent</Label>
+                        <Switch checked={displayRules.triggers.exit_intent}
+                          onCheckedChange={(v) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, exit_intent: v } }))} />
+                      </div>
+                      <div className="flex items-center justify-between rounded-md border p-3">
+                        <Label className="mr-4">Verified Only</Label>
+                        <Switch checked={displayRules.enforce_verified_only}
+                          onCheckedChange={(v) => setDisplayRules(prev => ({ ...prev, enforce_verified_only: v }))} />
+                      </div>
                     </div>
-                    <div>
-                      <Label htmlFor="max_per_page">Max Per Page</Label>
-                      <Input id="max_per_page" type="number" value={displayRules.max_per_page}
-                        onChange={(e) => setDisplayRules(prev => ({ ...prev, max_per_page: Number(e.target.value) }))} />
-                    </div>
-                    <div>
-                      <Label htmlFor="max_per_session">Max Per Session</Label>
-                      <Input id="max_per_session" type="number" value={displayRules.max_per_session}
-                        onChange={(e) => setDisplayRules(prev => ({ ...prev, max_per_session: Number(e.target.value) }))} />
-                    </div>
-                    <div>
-                      <Label htmlFor="min_time_on_page_ms">Min Time on Page (ms)</Label>
-                      <Input id="min_time_on_page_ms" type="number" value={displayRules.triggers.min_time_on_page_ms}
-                        onChange={(e) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, min_time_on_page_ms: Number(e.target.value) } }))} />
-                    </div>
-                    <div>
-                      <Label htmlFor="scroll_depth_pct">Scroll Depth (%)</Label>
-                      <Input id="scroll_depth_pct" type="number" value={displayRules.triggers.scroll_depth_pct}
-                        onChange={(e) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, scroll_depth_pct: Number(e.target.value) } }))} />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>URL Allowlist (comma separated)</Label>
+                        <Input value={displayRules.url_allowlist}
+                          onChange={(e) => setDisplayRules(prev => ({ ...prev, url_allowlist: e.target.value }))} />
+                      </div>
+                      <div>
+                        <Label>URL Denylist (comma separated)</Label>
+                        <Input value={displayRules.url_denylist}
+                          onChange={(e) => setDisplayRules(prev => ({ ...prev, url_denylist: e.target.value }))} />
+                      </div>
+                      <div>
+                        <Label>Referrer Allowlist</Label>
+                        <Input value={displayRules.referrer_allowlist}
+                          onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_allowlist: e.target.value }))} />
+                      </div>
+                      <div>
+                        <Label>Referrer Denylist</Label>
+                        <Input value={displayRules.referrer_denylist}
+                          onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_denylist: e.target.value }))} />
+                      </div>
+                      <div>
+                        <Label>Geo Allowlist (ISO country codes, comma separated)</Label>
+                        <Input value={displayRules.geo_allowlist}
+                          onChange={(e) => setDisplayRules(prev => ({ ...prev, geo_allowlist: e.target.value.toUpperCase() }))} />
+                      </div>
+                      <div>
+                        <Label>Geo Denylist (ISO country codes, comma separated)</Label>
+                        <Input value={displayRules.geo_denylist}
+                          onChange={(e) => setDisplayRules(prev => ({ ...prev, geo_denylist: e.target.value.toUpperCase() }))} />
+                      </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 items-center">
-                    <div className="flex items-center justify-between rounded-md border p-3">
-                      <Label className="mr-4">Exit Intent</Label>
-                      <Switch checked={displayRules.triggers.exit_intent}
-                        onCheckedChange={(v) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, exit_intent: v } }))} />
-                    </div>
-                    <div className="flex items-center justify-between rounded-md border p-3">
-                      <Label className="mr-4">Verified Only</Label>
-                      <Switch checked={displayRules.enforce_verified_only}
-                        onCheckedChange={(v) => setDisplayRules(prev => ({ ...prev, enforce_verified_only: v }))} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>URL Allowlist (comma separated)</Label>
-                      <Input value={displayRules.url_allowlist}
-                        onChange={(e) => setDisplayRules(prev => ({ ...prev, url_allowlist: e.target.value }))} />
-                    </div>
-                    <div>
-                      <Label>URL Denylist (comma separated)</Label>
-                      <Input value={displayRules.url_denylist}
-                        onChange={(e) => setDisplayRules(prev => ({ ...prev, url_denylist: e.target.value }))} />
-                    </div>
-                    <div>
-                      <Label>Referrer Allowlist</Label>
-                      <Input value={displayRules.referrer_allowlist}
-                        onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_allowlist: e.target.value }))} />
-                    </div>
-                    <div>
-                      <Label>Referrer Denylist</Label>
-                      <Input value={displayRules.referrer_denylist}
-                        onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_denylist: e.target.value }))} />
-                    </div>
-                    <div>
-                      <Label>Geo Allowlist (ISO country codes, comma separated)</Label>
-                      <Input value={displayRules.geo_allowlist}
-                        onChange={(e) => setDisplayRules(prev => ({ ...prev, geo_allowlist: e.target.value.toUpperCase() }))} />
-                    </div>
-                    <div>
-                      <Label>Geo Denylist (ISO country codes, comma separated)</Label>
-                      <Input value={displayRules.geo_denylist}
-                        onChange={(e) => setDisplayRules(prev => ({ ...prev, geo_denylist: e.target.value.toUpperCase() }))} />
-                    </div>
-                  </div>
-                </div>
 
-                <Button type="submit" className="w-full" disabled={loading || !formData.template_name}>
-                  {loading ? 'Updating...' : 'Update Widget'}
-                </Button>
+                  <Button type="submit" className="w-full" disabled={loading || !formData.template_name}>
+                    {loading ? 'Updating...' : 'Update Widget'}
+                  </Button>
               </form>
             </CardContent>
           </Card>
