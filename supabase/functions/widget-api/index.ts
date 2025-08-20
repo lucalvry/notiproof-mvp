@@ -164,15 +164,44 @@ serve(async (req) => {
             );
           }
 
-          // Transform events for widget display - only return events with proper messages
-          const transformedEvents = events?.filter(event => 
-            event.event_data?.message && event.event_data.message !== 'undefined'
-          ).map(event => ({
-            id: event.id,
-            message: event.event_data.message,
-            type: event.event_type,
-            created_at: event.created_at
-          })) || [];
+          // Transform events for widget display using business context
+          const transformedEvents = events?.map(event => {
+            // Use message_template if available, otherwise generate from business context
+            let message = event.message_template;
+            
+            if (!message && event.business_type && event.user_name && event.user_location) {
+              // Generate message based on business context
+              const messageData = {
+                name: event.user_name,
+                location: event.user_location,
+                product: event.event_data?.product_name || event.event_data?.service,
+                amount: event.event_data?.price || (event.event_data?.amount ? parseFloat(event.event_data.amount.replace(/[^\d.]/g, '')) : undefined),
+                service: event.event_data?.service || event.event_data?.product_name,
+                count: event.event_data?.quantity || event.event_data?.count
+              };
+              
+              // Use business-specific message generation
+              if (event.business_type === 'ecommerce' && event.event_type === 'purchase') {
+                message = `${messageData.name} from ${messageData.location} just bought ${messageData.product}${messageData.amount ? ` for $${messageData.amount}` : ''}`;
+              } else if (event.business_type === 'saas' && event.event_type === 'signup') {
+                message = `${messageData.name} from ${messageData.location} just started a free trial`;
+              } else if (event.business_type === 'services' && event.event_type === 'booking') {
+                message = `${messageData.name} from ${messageData.location} booked a consultation`;
+              }
+            }
+            
+            // Fallback to event_data.message or generic message
+            if (!message) {
+              message = event.event_data?.message || 'New activity detected';
+            }
+            
+            return {
+              id: event.id,
+              message: message,
+              type: event.event_type,
+              created_at: event.created_at
+            };
+          }).filter(event => event.message && event.message !== 'undefined') || [];
 
           return new Response(
             JSON.stringify(transformedEvents),

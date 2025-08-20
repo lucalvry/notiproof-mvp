@@ -117,20 +117,43 @@ serve(async (req) => {
       });
     }
 
-    // Create events for each widget
+    // Create events for each widget with proper business context
+    const customerName = `${order.billing?.first_name || ''} ${(order.billing?.last_name || '').charAt(0)}.`.trim();
+    const location = order.billing ? `${order.billing.city}, ${order.billing.country}` : 'Unknown';
+    const productName = order.line_items[0]?.name || 'Product';
+    const amount = parseFloat(order.total);
+    const currency = order.currency;
+    
+    // Generate dynamic message using the same format as MessageGenerationService
+    const messageTemplate = `${customerName} from ${location} just bought ${productName} for ${currency} ${order.total}`;
+    
     const events = widgets.map(widget => ({
       widget_id: widget.id,
       event_type: 'purchase',
+      business_type: 'ecommerce',
+      user_name: customerName,
+      user_location: location,
+      message_template: messageTemplate,
+      business_context: {
+        industry: 'ecommerce',
+        platform: 'woocommerce',
+        customer_type: 'returning_customer'
+      },
+      context_template: 'ecommerce_purchase',
       event_data: {
-        customer_name: `${order.billing?.first_name || ''} ${(order.billing?.last_name || '').charAt(0)}.`.trim(),
-        product_name: order.line_items[0]?.name || 'Product',
-        amount: `${order.currency} ${order.total}`,
-        location: order.billing ? `${order.billing.city}, ${order.billing.country}` : 'Unknown',
+        customer_name: customerName,
+        product_name: productName,
+        amount: `${currency} ${order.total}`,
+        location: location,
         order_number: order.number,
         timestamp: order.date_created,
         platform: 'woocommerce',
-        source_url: wcSource
+        source_url: wcSource,
+        currency: currency,
+        price: amount,
+        quantity: order.line_items.reduce((sum, item) => sum + item.quantity, 0)
       },
+      source: 'woocommerce',
       views: 0,
       clicks: 0
     }));
