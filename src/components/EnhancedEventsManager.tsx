@@ -14,6 +14,7 @@ import { Plus, Search, Filter, Trash2, Copy, Upload, Download, Eye, Sparkles, Re
 import { useToast } from '@/hooks/use-toast';
 import { useSmartMessages } from '@/hooks/useSmartMessages';
 import { MessageGenerationService } from '@/services/messageGenerationService';
+import { NotificationTypeService } from '@/services/notificationTypeService';
 
 interface Event {
   id: string;

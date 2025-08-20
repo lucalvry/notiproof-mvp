@@ -1,3 +1,5 @@
+import { NotificationTypeService } from './notificationTypeService';
+
 interface MessageData {
   name?: string;
   location?: string;
@@ -350,8 +352,20 @@ export class MessageGenerationService {
   /**
    * Generate a smart message based on context and available data
    */
-  static generateMessage(context: MessageContext): string {
+  static generateMessage(context: MessageContext, notificationTypeId?: string): string {
     const { businessType, eventType, data } = context;
+    
+    // If notification type is provided, use notification-specific template
+    if (notificationTypeId) {
+      const notificationMessage = NotificationTypeService.getMessageTemplate(
+        notificationTypeId, 
+        businessType, 
+        data
+      );
+      if (notificationMessage) {
+        return notificationMessage;
+      }
+    }
     
     // Get templates for this business type and event type
     const businessTemplates = this.MESSAGE_TEMPLATES[businessType];

@@ -8,7 +8,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDemoEvents } from '@/hooks/useDemoEvents';
 import { useToast } from '@/hooks/use-toast';
 import { useSmartDemoManager } from '@/hooks/useSmartDemoManager';
-import { SmartDemoPrompt } from './SmartDemoPrompt';
 
 interface DemoModeProps {
   widgetId?: string;
@@ -109,9 +108,6 @@ export const EnhancedDemoMode = ({ widgetId, showFullDemo = false }: DemoModePro
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Smart Demo Prompt */}
-        <SmartDemoPrompt />
-
         {/* Stats Grid */}
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">

@@ -1014,6 +1014,42 @@ export type Database = {
           },
         ]
       }
+      widget_impressions: {
+        Row: {
+          created_at: string
+          event_id: string | null
+          id: string
+          page_url: string
+          session_id: string
+          user_agent: string | null
+          viewport_height: number | null
+          viewport_width: number | null
+          widget_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          page_url: string
+          session_id: string
+          user_agent?: string | null
+          viewport_height?: number | null
+          viewport_width?: number | null
+          widget_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          page_url?: string
+          session_id?: string
+          user_agent?: string | null
+          viewport_height?: number | null
+          viewport_width?: number | null
+          widget_id?: string
+        }
+        Relationships: []
+      }
       widget_template_tags: {
         Row: {
           tag_id: string
@@ -1135,6 +1171,7 @@ export type Database = {
           id: string
           integration: string
           name: string
+          notification_types: Json | null
           organization_id: string | null
           status: string
           style_config: Json | null
@@ -1149,6 +1186,7 @@ export type Database = {
           id?: string
           integration?: string
           name: string
+          notification_types?: Json | null
           organization_id?: string | null
           status?: string
           style_config?: Json | null
@@ -1163,6 +1201,7 @@ export type Database = {
           id?: string
           integration?: string
           name?: string
+          notification_types?: Json | null
           organization_id?: string | null
           status?: string
           style_config?: Json | null

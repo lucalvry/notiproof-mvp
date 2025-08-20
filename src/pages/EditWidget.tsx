@@ -14,6 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { NotificationTypeSelector } from '@/components/NotificationTypeSelector';
+import { DemoEventManager } from '@/components/DemoEventManager';
 
 const templates = [
   {
@@ -84,6 +86,7 @@ const [goals, setGoals] = useState<any[]>([]);
 const [loadingGoals, setLoadingGoals] = useState(false);
 const [newGoal, setNewGoal] = useState({ name: '', type: 'url_match', pattern: '' });
 const [campaigns, setCampaigns] = useState<any[]>([]);
+const [selectedNotificationTypes, setSelectedNotificationTypes] = useState<string[]>([]);
 
 useEffect(() => {
     if (id && profile) {
@@ -145,6 +148,7 @@ useEffect(() => {
           geo_allowlist: Array.isArray(dr.geo_allowlist) ? dr.geo_allowlist.join(', ') : '',
           geo_denylist: Array.isArray(dr.geo_denylist) ? dr.geo_denylist.join(', ') : '',
         });
+        setSelectedNotificationTypes((widget as any).notification_types || []);
         
         // Load goals for this widget
         setLoadingGoals(true);
@@ -197,7 +201,7 @@ const { error } = await supabase
     name: formData.name,
     template_name: formData.template_name,
     status: formData.status,
-    campaign_id: formData.campaign_id === 'none' ? null : formData.campaign_id,
+    notification_types: selectedNotificationTypes,
     style_config: {
       position: formData.position,
       delay: parseInt(formData.delay),
@@ -370,7 +374,14 @@ const { error } = await supabase
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                 <div>
+                   <Label>Notification Types</Label>
+                   <NotificationTypeSelector
+                     selectedTypes={selectedNotificationTypes}
+                     onSelectionChange={setSelectedNotificationTypes}
+                     maxSelections={3}
+                   />
+                 </div>
                   <div>
                     <Label htmlFor="position">Position</Label>
                     <Select 
@@ -510,8 +521,17 @@ const { error } = await supabase
           </Card>
         </div>
 
-        {/* Preview */}
+        {/* Preview & Demo Manager */}
         <div className="space-y-6">
+          {/* Demo Event Manager */}
+          {id && selectedNotificationTypes.length > 0 && profile?.business_type && (
+            <DemoEventManager
+              widgetId={id}
+              notificationTypes={selectedNotificationTypes}
+              businessType={profile.business_type}
+            />
+          )}
+          
           <Card>
             <CardHeader>
               <CardTitle>Preview</CardTitle>

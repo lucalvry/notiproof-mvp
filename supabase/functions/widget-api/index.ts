@@ -92,13 +92,67 @@ serve(async (req) => {
       }
       if (subPath === 'events') {
         if (req.method === 'GET') {
+          // First get the widget to check notification types
+          const { data: widget, error: widgetError } = await supabase
+            .from('widgets')
+            .select('id, notification_types, user_id')
+            .eq('id', widgetId)
+            .single();
+
+          if (widgetError || !widget) {
+            return new Response(
+              JSON.stringify({ error: 'Widget not found' }),
+              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Get allowed event types based on notification types
+          const notificationTypes = widget.notification_types || [];
+          let eventTypeFilter = '';
+          
+          if (notificationTypes.length > 0) {
+            // Map notification types to event types
+            const allowedEventTypes = new Set<string>();
+            
+            // Notification type to event type mapping
+            const notificationEventMapping: Record<string, string[]> = {
+              'recent-purchase': ['purchase', 'conversion'],
+              'live-visitors': ['view', 'visitor'],
+              'contact-form': ['contact', 'conversion'],
+              'signup-notification': ['signup'],
+              'review-testimonial': ['review'],
+              'limited-offer': ['conversion'],
+              'stock-alert': ['view'],
+              'download-notification': ['download'],
+              'booking-appointment': ['booking'],
+              'milestone-celebration': ['conversion']
+            };
+            
+            notificationTypes.forEach((typeId: string) => {
+              const eventTypes = notificationEventMapping[typeId] || [];
+              eventTypes.forEach(eventType => allowedEventTypes.add(eventType));
+            });
+            
+            if (allowedEventTypes.size > 0) {
+              const eventTypesArray = Array.from(allowedEventTypes);
+              eventTypeFilter = eventTypesArray.map(et => `event_type.eq.${et}`).join(',');
+            }
+          }
+
           // Get widget events - include manual events, demo events, and approved connector events (reviews)
-          const { data: events, error } = await supabase
+          let query = supabase
             .from('events')
             .select('*')
             .eq('widget_id', widgetId)
             .eq('flagged', false)
-            .or('source.eq.demo,source.neq.connector,and(source.eq.connector,status.eq.approved)')
+            .or('source.eq.demo,source.neq.connector,and(source.eq.connector,status.eq.approved)');
+
+          // Apply event type filter if notification types are configured
+          if (eventTypeFilter) {
+            query = query.or(eventTypeFilter);
+          }
+
+          const { data: events, error } = await query
             .order('created_at', { ascending: false })
             .limit(10);
 

@@ -8,6 +8,7 @@ import { OnboardingProgress } from '@/components/OnboardingProgress';
 import { IntegrationStatusDashboard } from '@/components/IntegrationStatusDashboard';
 import { Activity, MousePointer, Eye, Plus, Wand2, ShoppingCart, Mail, Plug } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { GenuineAnalyticsDashboard } from '@/components/GenuineAnalyticsDashboard';
 
 interface Stats {
   totalNotifications: number;
@@ -241,6 +242,11 @@ const Dashboard = () => {
         </Card>
 
       </div>
+
+      {/* Real-Time Analytics Dashboard */}
+      {hasWidgets && (
+        <GenuineAnalyticsDashboard />
+      )}
 
       {/* Enhanced Sections for Existing Users */}
       {hasWidgets && (

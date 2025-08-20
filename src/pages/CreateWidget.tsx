@@ -13,6 +13,21 @@ import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, ExternalLink, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { NotificationTypeSelector } from '@/components/NotificationTypeSelector';
+import { DemoEventManager } from '@/components/DemoEventManager';
+
+// Import notification types for displaying selected ones
+const notificationTypes = [
+  { id: 'recent-purchase', name: 'Recent Purchase' },
+  { id: 'signup-notification', name: 'New Signup' },
+  { id: 'review-testimonial', name: 'Reviews & Testimonials' },
+  { id: 'live-visitors', name: 'Live Visitor Count' },
+  { id: 'limited-offer', name: 'Limited Time Offer' },
+  { id: 'stock-alert', name: 'Low Stock Alert' },
+  { id: 'download-notification', name: 'Recent Download' },
+  { id: 'booking-appointment', name: 'Recent Booking' },
+  { id: 'contact-form', name: 'Contact Submission' },
+  { id: 'milestone-celebration', name: 'Milestone Celebration' }
+];
 import { FeatureTooltip, HelpTooltip } from '@/components/help/RichTooltip';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { SmartDefaultsInfo, SuggestedIntegrations, getSmartDefaults } from '@/components/SmartDefaults';
@@ -169,6 +184,16 @@ const rules: any = {
   geo_denylist: parseList(displayRules.geo_denylist),
 };
 
+// Validate that at least one notification type is selected
+if (selectedNotificationTypes.length === 0) {
+  toast({
+    title: "Notification types required",
+    description: "Please select at least one notification type for your widget.",
+    variant: "destructive",
+  });
+  return;
+}
+
 const { data, error } = await supabase
   .from('widgets')
   .insert({
@@ -176,6 +201,7 @@ const { data, error } = await supabase
     name: formData.name,
     template_name: formData.template_name,
     campaign_id: formData.campaign_id === 'none' ? null : formData.campaign_id,
+    notification_types: selectedNotificationTypes,
     style_config: {
       position: formData.position,
       delay: parseInt(formData.delay),
@@ -263,14 +289,27 @@ const { data, error } = await supabase
                   </p>
                 </div>
 
-                <div>
-                  <Label>Notification Types</Label>
-                  <NotificationTypeSelector
-                    selectedTypes={selectedNotificationTypes}
-                    onSelectionChange={setSelectedNotificationTypes}
-                    maxSelections={3}
-                  />
-                </div>
+                 <div>
+                   <Label>Notification Types</Label>
+                   <NotificationTypeSelector
+                     selectedTypes={selectedNotificationTypes}
+                     onSelectionChange={setSelectedNotificationTypes}
+                     maxSelections={3}
+                   />
+                   {selectedNotificationTypes.length > 0 && (
+                     <div className="mt-2 flex flex-wrap gap-1">
+                       <span className="text-xs text-muted-foreground">Selected:</span>
+                       {selectedNotificationTypes.map(typeId => {
+                         const type = notificationTypes.find(t => t.id === typeId);
+                         return type ? (
+                           <Badge key={typeId} variant="secondary" className="text-xs">
+                             {type.name}
+                           </Badge>
+                         ) : null;
+                       })}
+                     </div>
+                   )}
+                 </div>
 
                 {/* Industry-Specific Event Templates */}
                 <div>
@@ -625,6 +664,17 @@ const { data, error } = await supabase
         <div className="space-y-6">
           <SmartDefaultsInfo />
           <SuggestedIntegrations />
+          
+          {/* Demo Event Manager - only show if notification types are selected */}
+          {selectedNotificationTypes.length > 0 && profile?.business_type && (
+            <DemoEventManager
+              widgetId="preview" // This is just for preview, actual widget ID will be used after creation
+              notificationTypes={selectedNotificationTypes}
+              businessType={profile.business_type}
+              className="opacity-50"
+            />
+          )}
+          
           <Card data-tour="widget-preview">
             <CardHeader>
               <CardTitle>Preview</CardTitle>
