@@ -47,13 +47,13 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    // Get headers for verification
+    // Get headers for verification and logging
     const wcTopic = req.headers.get('x-wc-webhook-topic');
     const wcSource = req.headers.get('x-wc-webhook-source');
     const wcSignature = req.headers.get('x-wc-webhook-signature');
     const contentType = req.headers.get('content-type') || '';
 
-    console.log(`WooCommerce webhook - Topic: ${wcTopic}, Source: ${wcSource}, Content-Type: ${contentType}`);
+    console.log(`WooCommerce webhook - Topic: ${wcTopic}, Source: ${wcSource}, Content-Type: ${contentType}, Has Signature: ${!!wcSignature}`);
 
     // Handle different content types
     let requestBody: any;
@@ -66,18 +66,45 @@ serve(async (req) => {
         console.log(`Processing WooCommerce order ${requestBody.number} for ${requestBody.billing?.email}`);
       } catch (error) {
         console.error('Failed to parse JSON:', error);
-        return new Response('Invalid JSON', { 
+        return new Response(JSON.stringify({ 
+          error: 'Invalid JSON format',
+          details: error.message,
+          received: requestText.substring(0, 200)
+        }), { 
           status: 400, 
-          headers: corsHeaders 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
     } else {
-      // Handle test webhooks or form-encoded data
-      console.log('Received test webhook or form data');
+      // Handle test webhooks or non-JSON data
+      console.log('Received test webhook or non-JSON data');
+      
+      // Check if it's likely a test request (has typical WooCommerce headers)
+      if (wcTopic || wcSource) {
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'WooCommerce webhook endpoint is working',
+          test: true,
+          headers: {
+            topic: wcTopic,
+            source: wcSource,
+            hasSignature: !!wcSignature
+          },
+          instructions: {
+            message: 'Configure your WooCommerce webhook with JSON format and "Order completed" topic',
+            expectedFormat: 'application/json'
+          }
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
       return new Response(JSON.stringify({ 
         success: true, 
-        message: 'Test webhook received successfully',
-        data: requestText
+        message: 'Webhook endpoint is active but received non-JSON data',
+        contentType: contentType,
+        dataReceived: requestText.substring(0, 100)
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -86,12 +113,17 @@ serve(async (req) => {
 
     const order: WooCommerceOrder = requestBody;
 
-    // Only process completed orders
+    // Only process completed and processing orders
     if (order.status !== 'completed' && order.status !== 'processing') {
       console.log(`Skipping order ${order.number} with status: ${order.status}`);
-      return new Response('Order not in valid status', { 
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: `Order ${order.number} status (${order.status}) not processed`,
+        note: 'Only "completed" and "processing" orders create notifications',
+        orderStatus: order.status
+      }), { 
         status: 200, 
-        headers: corsHeaders 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -103,17 +135,25 @@ serve(async (req) => {
 
     if (widgetsError) {
       console.error('Error fetching widgets:', widgetsError);
-      return new Response('Database error', { 
+      return new Response(JSON.stringify({ 
+        error: 'Database error while fetching widgets',
+        details: widgetsError.message
+      }), { 
         status: 500, 
-        headers: corsHeaders 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
     if (!widgets || widgets.length === 0) {
       console.log('No active widgets found');
-      return new Response('No active widgets', { 
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'No active widgets found to process this order',
+        note: 'Create and activate a widget to receive WooCommerce notifications',
+        orderProcessed: order.number
+      }), { 
         status: 200, 
-        headers: corsHeaders 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -164,9 +204,13 @@ serve(async (req) => {
 
     if (insertError) {
       console.error('Error inserting events:', insertError);
-      return new Response('Failed to create events', { 
+      return new Response(JSON.stringify({ 
+        error: 'Failed to create notification events',
+        details: insertError.message,
+        order: order.number
+      }), { 
         status: 500, 
-        headers: corsHeaders 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 

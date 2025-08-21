@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, Check, ShoppingCart, Mail, Code, ExternalLink, AlertCircle, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { WebhookVerifier } from '@/components/WebhookVerifier';
 
 interface Integration {
   id: string;
@@ -274,25 +275,41 @@ export default function Integrations() {
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    <strong>Setup Instructions:</strong>
-                    <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
-                      <li>Go to WooCommerce → Settings → Advanced → Webhooks</li>
-                      <li>Click "Add webhook"</li>
-                      <li>Set Topic: "Order completed" or "Order updated"</li>
-                      <li>Paste the webhook URL above</li>
-                      <li>Set Status: Active</li>
-                      <li>Save webhook</li>
+                    <strong>Complete Setup Instructions:</strong>
+                    <ol className="list-decimal list-inside mt-2 space-y-2 text-sm">
+                      <li>Go to <strong>WooCommerce → Settings → Advanced → Webhooks</strong></li>
+                      <li>Click <strong>"Add webhook"</strong></li>
+                      <li><strong>Name:</strong> "NotiProof Order Notifications"</li>
+                      <li><strong>Status:</strong> Active (make sure this is enabled)</li>
+                      <li><strong>Topic:</strong> Select "Order completed" (recommended) or "Order updated"</li>
+                      <li><strong>Delivery URL:</strong> Paste the webhook URL above</li>
+                      <li><strong>Secret:</strong> Optional but recommended for security (leave blank for now)</li>
+                      <li><strong>API Version:</strong> WP REST API Integration v3</li>
+                      <li>Click <strong>"Save webhook"</strong></li>
+                      <li>Test the webhook by completing a test order</li>
                     </ol>
+                    <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                      <p className="text-xs text-yellow-800">
+                        <strong>Security Tip:</strong> For production sites, consider adding a webhook secret to verify requests are from your WooCommerce store.
+                      </p>
+                    </div>
                   </AlertDescription>
                 </Alert>
 
-                <Button 
-                  onClick={() => saveIntegration('woocommerce', webhookUrls.woocommerce)}
-                  className="w-full"
-                  disabled={getIntegrationStatus('woocommerce')}
-                >
-                  {getIntegrationStatus('woocommerce') ? 'Connected' : 'Mark as Connected'}
-                </Button>
+                <div className="space-y-3">
+                  <Button 
+                    onClick={() => saveIntegration('woocommerce', webhookUrls.woocommerce)}
+                    className="w-full"
+                    disabled={getIntegrationStatus('woocommerce')}
+                  >
+                    {getIntegrationStatus('woocommerce') ? 'Connected' : 'Mark as Connected'}
+                  </Button>
+                  
+                  <WebhookVerifier 
+                    webhookUrl={webhookUrls.woocommerce} 
+                    platform="woocommerce" 
+                  />
+                </div>
               </CardContent>
             </Card>
           </div>
