@@ -1314,7 +1314,7 @@ export type Database = {
         | "manufacturing"
         | "media"
         | "legal"
-      event_source: "manual" | "connector" | "tracking" | "demo"
+      event_source: "manual" | "connector" | "tracking" | "demo" | "woocommerce"
       event_status: "pending" | "approved" | "rejected"
       team_role: "owner" | "admin" | "member" | "viewer"
     }
@@ -1470,7 +1470,7 @@ export const Constants = {
         "media",
         "legal",
       ],
-      event_source: ["manual", "connector", "tracking", "demo"],
+      event_source: ["manual", "connector", "tracking", "demo", "woocommerce"],
       event_status: ["pending", "approved", "rejected"],
       team_role: ["owner", "admin", "member", "viewer"],
     },
