@@ -20,6 +20,7 @@ import TimeRangePicker from '@/components/TimeRangePicker';
 import HeatmapViewer from '@/components/HeatmapViewer';
 import ABTestManager from '@/components/ABTestManager';
 import { EventAnalytics } from '@/components/EventAnalytics';
+import { UnifiedAnalyticsDashboard } from '@/components/UnifiedAnalyticsDashboard';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
 
 interface EventRow {
@@ -30,7 +31,7 @@ interface EventRow {
   views: number | null;
   clicks: number | null;
   flagged?: boolean;
-  source?: string;
+  source: string; // Required field for unified analytics
 }
 
 
@@ -251,6 +252,9 @@ const WidgetAnalytics = () => {
         <Card><CardHeader><CardTitle>Flagged</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{flaggedStats.count}</CardContent></Card>
         <Card><CardHeader><CardTitle>Flagged Rate</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{flaggedStats.ratio.toFixed(1)}%</CardContent></Card>
       </div>
+
+      {/* Phase 6: Unified Analytics with Source Split */}
+      <UnifiedAnalyticsDashboard events={events} widgetId={id!} />
 
       {/* Event Analytics - Demo vs Real Data Insights */}
       <EventAnalytics />

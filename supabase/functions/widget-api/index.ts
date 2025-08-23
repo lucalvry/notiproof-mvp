@@ -163,23 +163,24 @@ serve(async (req) => {
           const businessType = profile?.business_type || 'saas';
           const displayRules = widgetData.display_rules || {};
           
-          // Get blending configuration
-          const blendingConfig = displayRules.event_blending || {
-            natural_weight: 50,
-            quick_win_weight: 50,
+          // Phase 5: Unified Display Engine with Smart Rotation Logic
+          const displayConfig = displayRules.display_engine || {
+            natural_ratio: 0.8, // Default 80/20 split
+            quick_win_ratio: 0.2,
             auto_graduation: true,
             min_natural_threshold: 10,
             max_quick_wins_per_session: 3,
-            rotation_interval_ms: 8000
+            prioritize_natural: true
           };
 
-          // Fetch natural/manual events
+          // Fetch natural events (manual, connector, demo but NOT quick_win)
           let naturalQuery = supabase
             .from('events')
             .select('*')
             .eq('widget_id', widgetId)
             .eq('flagged', false)
-            .or('source.eq.manual,source.eq.demo,and(source.eq.connector,status.eq.approved)');
+            .neq('source', 'quick_win') // Exclude quick-wins from naturals
+            .eq('status', 'approved');
 
           // Apply event type filter for natural events
           if (eventTypeFilter) {
@@ -188,18 +189,19 @@ serve(async (req) => {
 
           const { data: naturalEvents, error: naturalError } = await naturalQuery
             .order('created_at', { ascending: false })
-            .limit(20);
+            .limit(50);
 
-          // Fetch quick-win events
+          // Fetch active quick-win events
           const { data: quickWinEvents, error: quickWinError } = await supabase
             .from('events')
             .select('*')
             .eq('widget_id', widgetId)
             .eq('source', 'quick_win')
             .eq('flagged', false)
+            .eq('status', 'approved')
             .or('expires_at.is.null,expires_at.gt.now()')
             .order('created_at', { ascending: false })
-            .limit(10);
+            .limit(20);
 
           if (naturalError || quickWinError) {
             console.error('Error fetching events:', naturalError || quickWinError);
@@ -209,28 +211,51 @@ serve(async (req) => {
             );
           }
 
-          // Blend events using the EventBlendingService logic
           const allNaturalEvents = naturalEvents || [];
           const allQuickWinEvents = quickWinEvents || [];
-          
-          // Simple blending logic (Phase 2 implementation)
-          const requestedCount = 10;
-          const naturalCount = Math.round((requestedCount * blendingConfig.natural_weight) / 100);
-          const quickWinCount = Math.min(
-            requestedCount - naturalCount,
-            blendingConfig.max_quick_wins_per_session || 3,
-            allQuickWinEvents.length
-          );
 
-          const selectedNatural = allNaturalEvents.slice(0, naturalCount);
-          const selectedQuickWins = allQuickWinEvents.slice(0, quickWinCount);
-          
-          // Combine and shuffle events
-          const blendedEvents = [...selectedNatural, ...selectedQuickWins]
+          // Phase 5: Smart Rotation Logic
+          const requestedCount = 10;
+          let selectedEvents: any[] = [];
+
+          if (allNaturalEvents.length === 0) {
+            // Fallback: No naturals, show quick-wins only
+            selectedEvents = allQuickWinEvents.slice(0, requestedCount);
+            console.log('Display Engine: Fallback mode - showing quick-wins only');
+          } else if (allNaturalEvents.length >= displayConfig.min_natural_threshold) {
+            // Graduation mode: Enough naturals, apply ratio
+            const naturalCount = Math.ceil(requestedCount * displayConfig.natural_ratio);
+            const quickWinCount = Math.min(
+              requestedCount - naturalCount,
+              displayConfig.max_quick_wins_per_session,
+              allQuickWinEvents.length
+            );
+            
+            selectedEvents = [
+              ...allNaturalEvents.slice(0, naturalCount),
+              ...allQuickWinEvents.slice(0, quickWinCount)
+            ];
+            console.log(`Display Engine: Graduation mode - ${naturalCount} naturals, ${quickWinCount} quick-wins`);
+          } else {
+            // Blending mode: Fill gaps with quick-wins
+            const availableNaturals = allNaturalEvents.length;
+            const quickWinFillCount = Math.min(
+              requestedCount - availableNaturals,
+              displayConfig.max_quick_wins_per_session,
+              allQuickWinEvents.length
+            );
+            
+            selectedEvents = [
+              ...allNaturalEvents,
+              ...allQuickWinEvents.slice(0, quickWinFillCount)
+            ];
+            console.log(`Display Engine: Blending mode - ${availableNaturals} naturals, ${quickWinFillCount} quick-wins`);
+          }
+
+          // Shuffle for natural display variation while maintaining source awareness
+          const events = selectedEvents
             .sort(() => Math.random() - 0.5)
             .slice(0, requestedCount);
-
-          const events = blendedEvents;
 
           if (error) {
             console.error('Error fetching events:', error);

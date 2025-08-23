@@ -4,15 +4,19 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { Plus, ArrowLeft } from 'lucide-react';
 import { CreateEventForm } from '@/components/CreateEventForm';
+import { SourceAwareEventsList } from '@/components/SourceAwareEventsList';
+import { UnifiedAnalyticsDashboard } from '@/components/UnifiedAnalyticsDashboard';
 
 interface EventRow {
   id: string;
   event_type: string;
   event_data: any;
   created_at: string;
+  views: number | null;
+  clicks: number | null;
+  source: string; // Allow all source types from database
 }
 
 const WidgetEvents = () => {
@@ -30,10 +34,10 @@ const WidgetEvents = () => {
     setLoading(true);
     const { data } = await supabase
       .from('events')
-      .select('id, event_type, event_data, created_at')
+      .select('id, event_type, event_data, created_at, views, clicks, source')
       .eq('widget_id', id)
       .order('created_at', { ascending: false })
-      .limit(100);
+      .limit(200);
     setEvents(data || []);
     setLoading(false);
   };
@@ -116,53 +120,11 @@ const WidgetEvents = () => {
         />
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Events</CardTitle>
-          <CardDescription>Newest first</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-4 gap-2 mb-3">
-            <Input placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
-            <select className="border rounded px-3 py-2 bg-background" value={filterType} onChange={(e) => setFilterType(e.target.value as any)}>
-              <option value="all">All types</option>
-              <option value="view">Views</option>
-              <option value="click">Clicks</option>
-              <option value="custom">Custom</option>
-            </select>
-            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          </div>
-          {loading ? (
-            <div className="text-muted-foreground">Loading...</div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Message</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((e) => (
-                  <TableRow key={e.id}>
-                    <TableCell>{new Date(e.created_at).toLocaleString()}</TableCell>
-                    <TableCell>{e.event_type}</TableCell>
-                    <TableCell className="max-w-[380px] truncate">{e.event_data?.message || '-'}</TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" variant="outline" className="text-destructive" onClick={() => deleteEvent(e.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      {/* Phase 6: Unified Analytics Dashboard */}
+      <UnifiedAnalyticsDashboard events={events} widgetId={id!} />
+
+      {/* Phase 6: Source-Aware Events Management */}
+      <SourceAwareEventsList widgetId={id!} />
     </div>
   );
 };
