@@ -15,6 +15,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useSmartMessages } from '@/hooks/useSmartMessages';
 import { MessageGenerationService } from '@/services/messageGenerationService';
 import { NotificationTypeService } from '@/services/notificationTypeService';
+import { EventSourceIndicator } from '@/components/EventSourceIndicator';
+import { QuickWinManager } from '@/components/QuickWinManager';
+import { GraduationProgress } from '@/components/GraduationProgress';
 
 interface Event {
   id: string;
@@ -515,56 +518,64 @@ export default function EnhancedEventsManager() {
         </div>
       </div>
 
-      {/* Bulk Import Dialog */}
-      <Dialog open={showBulkImport} onOpenChange={setShowBulkImport}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Bulk Import Events</DialogTitle>
-            <DialogDescription>
-              Import events from a CSV file. Required columns: event_type, message
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="csv-file">CSV File</Label>
-              <Input
-                id="csv-file"
-                type="file"
-                accept=".csv"
-                onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="business-type-import">Business Type for Imported Events</Label>
-              <Select value={selectedBusinessType} onValueChange={setSelectedBusinessType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {businessTypes.map(type => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              CSV Format Example:<br/>
-              event_type,message,user_name,user_location<br/>
-              purchase,"John bought Pro Plan","John D.","New York"
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleBulkImport} disabled={!csvFile}>
-                Import Events
-              </Button>
-              <Button variant="outline" onClick={() => setShowBulkImport(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <Tabs defaultValue="events" className="w-full">
+        <TabsList>
+          <TabsTrigger value="events">Event Management</TabsTrigger>
+          <TabsTrigger value="quick-wins">Quick-Win Templates</TabsTrigger>
+          <TabsTrigger value="graduation">Graduation Progress</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="events" className="space-y-6">
+          {/* Bulk Import Dialog */}
+          <Dialog open={showBulkImport} onOpenChange={setShowBulkImport}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Bulk Import Events</DialogTitle>
+                <DialogDescription>
+                  Import events from a CSV file. Required columns: event_type, message
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="csv-file">CSV File</Label>
+                  <Input
+                    id="csv-file"
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="business-type-import">Business Type for Imported Events</Label>
+                  <Select value={selectedBusinessType} onValueChange={setSelectedBusinessType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {businessTypes.map(type => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  CSV Format Example:<br/>
+                  event_type,message,user_name,user_location<br/>
+                  purchase,"John bought Pro Plan","John D.","New York"
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleBulkImport} disabled={!csvFile}>
+                    Import Events
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowBulkImport(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
       {/* Enhanced Create Form */}
       {showCreateForm && (
@@ -872,10 +883,11 @@ export default function EnhancedEventsManager() {
                 {filteredEvents.map((event) => (
                   <TableRow key={event.id}>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span>{getEventIcon(event.event_type)}</span>
-                        <Badge variant="outline">{event.event_type}</Badge>
-                      </div>
+                          <div className="flex items-center gap-2">
+                            <span>{getEventIcon(event.event_type)}</span>
+                            <Badge variant="outline">{event.event_type}</Badge>
+                            {event.source && <EventSourceIndicator source={event.source} />}
+                          </div>
                     </TableCell>
                     <TableCell className="max-w-md">
                       <div className="truncate">{event.message_template || 'No message'}</div>
@@ -966,6 +978,26 @@ export default function EnhancedEventsManager() {
           )}
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="quick-wins" className="space-y-6">
+          {widgets.length > 0 && (
+            <QuickWinManager 
+              widgetId={widgets[0].id} 
+              businessType={selectedBusinessType}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="graduation" className="space-y-6">
+          {widgets.length > 0 && (
+            <GraduationProgress 
+              widgetId={widgets[0].id} 
+              businessType={selectedBusinessType}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -139,22 +139,98 @@ serve(async (req) => {
             }
           }
 
-          // Get widget events - include manual events, demo events, and approved connector events (reviews)
-          let query = supabase
+          // Get widget with display rules for event blending
+          const { data: widgetData, error: widgetFetchError } = await supabase
+            .from('widgets')
+            .select('display_rules, user_id')
+            .eq('id', widgetId)
+            .single();
+
+          if (widgetFetchError || !widgetData) {
+            return new Response(
+              JSON.stringify({ error: 'Widget configuration not found' }),
+              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Get user profile for business type
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('business_type')
+            .eq('id', widgetData.user_id)
+            .single();
+
+          const businessType = profile?.business_type || 'saas';
+          const displayRules = widgetData.display_rules || {};
+          
+          // Get blending configuration
+          const blendingConfig = displayRules.event_blending || {
+            natural_weight: 50,
+            quick_win_weight: 50,
+            auto_graduation: true,
+            min_natural_threshold: 10,
+            max_quick_wins_per_session: 3,
+            rotation_interval_ms: 8000
+          };
+
+          // Fetch natural/manual events
+          let naturalQuery = supabase
             .from('events')
             .select('*')
             .eq('widget_id', widgetId)
             .eq('flagged', false)
-            .or('source.eq.demo,source.neq.connector,and(source.eq.connector,status.eq.approved)');
+            .or('source.eq.manual,source.eq.demo,and(source.eq.connector,status.eq.approved)');
 
-          // Apply event type filter if notification types are configured
+          // Apply event type filter for natural events
           if (eventTypeFilter) {
-            query = query.or(eventTypeFilter);
+            naturalQuery = naturalQuery.or(eventTypeFilter);
           }
 
-          const { data: events, error } = await query
+          const { data: naturalEvents, error: naturalError } = await naturalQuery
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+          // Fetch quick-win events
+          const { data: quickWinEvents, error: quickWinError } = await supabase
+            .from('events')
+            .select('*')
+            .eq('widget_id', widgetId)
+            .eq('source', 'quick_win')
+            .eq('flagged', false)
+            .or('expires_at.is.null,expires_at.gt.now()')
             .order('created_at', { ascending: false })
             .limit(10);
+
+          if (naturalError || quickWinError) {
+            console.error('Error fetching events:', naturalError || quickWinError);
+            return new Response(
+              JSON.stringify({ error: 'Failed to fetch events' }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Blend events using the EventBlendingService logic
+          const allNaturalEvents = naturalEvents || [];
+          const allQuickWinEvents = quickWinEvents || [];
+          
+          // Simple blending logic (Phase 2 implementation)
+          const requestedCount = 10;
+          const naturalCount = Math.round((requestedCount * blendingConfig.natural_weight) / 100);
+          const quickWinCount = Math.min(
+            requestedCount - naturalCount,
+            blendingConfig.max_quick_wins_per_session || 3,
+            allQuickWinEvents.length
+          );
+
+          const selectedNatural = allNaturalEvents.slice(0, naturalCount);
+          const selectedQuickWins = allQuickWinEvents.slice(0, quickWinCount);
+          
+          // Combine and shuffle events
+          const blendedEvents = [...selectedNatural, ...selectedQuickWins]
+            .sort(() => Math.random() - 0.5)
+            .slice(0, requestedCount);
+
+          const events = blendedEvents;
 
           if (error) {
             console.error('Error fetching events:', error);

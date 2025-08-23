@@ -59,13 +59,26 @@ export const WebhookVerifier = ({ webhookUrl, platform }: WebhookVerifierProps) 
       if (response.ok) {
         const result = await response.json();
         setTestResult('success');
-        setTestMessage(`Webhook test successful! Created ${result.eventsCreated || 1} event(s).`);
+        setTestMessage(`✅ Webhook test successful! ${result.eventsCreated ? `Created ${result.eventsCreated} event(s)` : 'Endpoint responded correctly'}.`);
         toast({
           title: 'Webhook Test Successful',
           description: 'Your webhook is properly configured and responding.',
         });
       } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorText = await response.text().catch(() => '');
+        let errorMessage = `HTTP ${response.status}`;
+        
+        if (response.status === 401) {
+          errorMessage += ' - Authentication error. Please verify webhook configuration.';
+        } else if (response.status === 404) {
+          errorMessage += ' - Webhook endpoint not found. Check the URL.';
+        } else if (response.status === 500) {
+          errorMessage += ' - Server error. Check function logs for details.';
+        } else {
+          errorMessage += errorText ? `: ${errorText}` : `: ${response.statusText}`;
+        }
+        
+        throw new Error(errorMessage);
       }
     } catch (error) {
       setTestResult('error');

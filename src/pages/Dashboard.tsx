@@ -248,6 +248,23 @@ const Dashboard = () => {
         <GenuineAnalyticsDashboard />
       )}
 
+      {/* Graduation Progress */}
+      {hasWidgets && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Event System Status</CardTitle>
+            <CardDescription>
+              Track your progress from quick-wins to natural events
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Monitor your widget's graduation progress in the widget analytics section.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Enhanced Sections for Existing Users */}
       {hasWidgets && (
         <OnboardingProgress compact />

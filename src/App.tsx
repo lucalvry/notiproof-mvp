@@ -60,74 +60,74 @@ function AppContent() {
   return (
     <>
       <Routes>
-            <Route path="/" element={<RootRedirect />} />
-            <Route path="/auth/login" element={<Login />} />
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/auth/signup" element={<Signup />} />
-            <Route path="/auth/forgot" element={<ForgotPassword />} />
-            <Route path="/auth/reset-password" element={<ResetPassword />} />
-            <Route path="/live-test" element={<LiveTest />} />
-            
-            {/* User Dashboard Routes */}
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<Dashboard />} />
-              <Route path="widgets" element={<DashboardWidgets />} />
-              <Route path="widgets/create" element={<CreateWidget />} />
-              <Route path="widgets/:id/edit" element={<EditWidget />} />
-              <Route path="widgets/:id/events" element={<WidgetEvents />} />
-              <Route path="widgets/:id/analytics" element={<WidgetAnalytics />} />
-              <Route path="campaigns" element={<Campaigns />} />
-              <Route path="campaigns/create" element={<CreateCampaign />} />
-              <Route path="campaigns/:id/edit" element={<EditCampaign />} />
-              <Route path="campaigns/wizard" element={<CampaignWizard />} />
-              <Route path="social-connectors" element={<SocialConnectors />} />
-              <Route path="social-connectors/:id" element={<SocialConnectorDetail />} />
-              <Route path="moderation" element={<ModerationQueue />} />
-              <Route path="teams" element={<Teams />} />
-              <Route path="templates" element={<TemplatesMarketplace />} />
-              <Route path="events" element={<EventsManager />} />
-              <Route path="installation" element={<Installation />} />
-              <Route path="integrations" element={<Integrations />} />
-              <Route path="settings" element={<DashboardSettings />} />
-              <Route path="billing" element={<Billing />} />
-            </Route>
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="/auth/login" element={<Login />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/auth/signup" element={<Signup />} />
+        <Route path="/auth/forgot" element={<ForgotPassword />} />
+        <Route path="/auth/reset-password" element={<ResetPassword />} />
+        <Route path="/live-test" element={<LiveTest />} />
+        
+        {/* User Dashboard Routes */}
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="widgets" element={<DashboardWidgets />} />
+          <Route path="widgets/create" element={<CreateWidget />} />
+          <Route path="widgets/:id/edit" element={<EditWidget />} />
+          <Route path="widgets/:id/events" element={<WidgetEvents />} />
+          <Route path="widgets/:id/analytics" element={<WidgetAnalytics />} />
+          <Route path="campaigns" element={<Campaigns />} />
+          <Route path="campaigns/create" element={<CreateCampaign />} />
+          <Route path="campaigns/:id/edit" element={<EditCampaign />} />
+          <Route path="campaigns/wizard" element={<CampaignWizard />} />
+          <Route path="social-connectors" element={<SocialConnectors />} />
+          <Route path="social-connectors/:id" element={<SocialConnectorDetail />} />
+          <Route path="moderation" element={<ModerationQueue />} />
+          <Route path="teams" element={<Teams />} />
+          <Route path="templates" element={<TemplatesMarketplace />} />
+          <Route path="events" element={<EventsManager />} />
+          <Route path="installation" element={<Installation />} />
+          <Route path="integrations" element={<Integrations />} />
+          <Route path="settings" element={<DashboardSettings />} />
+          <Route path="billing" element={<Billing />} />
+        </Route>
 
-            {/* Admin Routes */}
-            <Route 
-              path="/admin" 
-              element={
-                <ProtectedRoute adminOnly>
-                  <AdminLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<AdminDashboard />} />
-              <Route path="users" element={<AdminUsers />} />
-              <Route path="users/:id" element={<AdminUserDetail />} />
-              <Route path="widgets" element={<AdminWidgets />} />
-              <Route path="widgets/:id" element={<AdminWidgetDetail />} />
-              <Route path="events" element={<AdminEvents />} />
-              <Route path="alerts" element={<AdminAlerts />} />
-              <Route path="settings" element={<AdminSettings />} />
-            </Route>
+        {/* Admin Routes */}
+        <Route 
+          path="/admin" 
+          element={
+            <ProtectedRoute adminOnly>
+              <AdminLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<AdminDashboard />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="users/:id" element={<AdminUserDetail />} />
+          <Route path="widgets" element={<AdminWidgets />} />
+          <Route path="widgets/:id" element={<AdminWidgetDetail />} />
+          <Route path="events" element={<AdminEvents />} />
+          <Route path="alerts" element={<AdminAlerts />} />
+          <Route path="settings" element={<AdminSettings />} />
+        </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <HelpSidebar />
-          {currentTour && (
-            <InteractiveTour 
-              tour={currentTour} 
-              isActive={true}
-            />
-          )}
-        </>
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      <HelpSidebar />
+      {currentTour && (
+        <InteractiveTour 
+          tour={currentTour} 
+          isActive={true}
+        />
+      )}
+    </>
   );
 }
 

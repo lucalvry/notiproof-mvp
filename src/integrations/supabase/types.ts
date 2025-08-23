@@ -148,6 +148,42 @@ export type Database = {
         }
         Relationships: []
       }
+      event_templates: {
+        Row: {
+          business_type: Database["public"]["Enums"]["business_type"]
+          created_at: string
+          event_type: string
+          id: string
+          integration_type: Database["public"]["Enums"]["integration_type"]
+          is_active: boolean | null
+          placeholders: Json
+          priority: number | null
+          template: string
+        }
+        Insert: {
+          business_type: Database["public"]["Enums"]["business_type"]
+          created_at?: string
+          event_type: string
+          id?: string
+          integration_type: Database["public"]["Enums"]["integration_type"]
+          is_active?: boolean | null
+          placeholders?: Json
+          priority?: number | null
+          template: string
+        }
+        Update: {
+          business_type?: Database["public"]["Enums"]["business_type"]
+          created_at?: string
+          event_type?: string
+          id?: string
+          integration_type?: Database["public"]["Enums"]["integration_type"]
+          is_active?: boolean | null
+          placeholders?: Json
+          priority?: number | null
+          template?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           business_context: Json | null
@@ -160,12 +196,20 @@ export type Database = {
           expires_at: string | null
           flagged: boolean
           id: string
+          integration_type:
+            | Database["public"]["Enums"]["integration_type"]
+            | null
           ip: string | null
           message_template: string | null
+          moderation_status:
+            | Database["public"]["Enums"]["moderation_status"]
+            | null
           page_url: string | null
+          quality_score: number | null
           source: Database["public"]["Enums"]["event_source"] | null
           status: Database["public"]["Enums"]["event_status"] | null
           user_agent: string | null
+          user_email: string | null
           user_location: string | null
           user_name: string | null
           variant_id: string | null
@@ -183,12 +227,20 @@ export type Database = {
           expires_at?: string | null
           flagged?: boolean
           id?: string
+          integration_type?:
+            | Database["public"]["Enums"]["integration_type"]
+            | null
           ip?: string | null
           message_template?: string | null
+          moderation_status?:
+            | Database["public"]["Enums"]["moderation_status"]
+            | null
           page_url?: string | null
+          quality_score?: number | null
           source?: Database["public"]["Enums"]["event_source"] | null
           status?: Database["public"]["Enums"]["event_status"] | null
           user_agent?: string | null
+          user_email?: string | null
           user_location?: string | null
           user_name?: string | null
           variant_id?: string | null
@@ -206,12 +258,20 @@ export type Database = {
           expires_at?: string | null
           flagged?: boolean
           id?: string
+          integration_type?:
+            | Database["public"]["Enums"]["integration_type"]
+            | null
           ip?: string | null
           message_template?: string | null
+          moderation_status?:
+            | Database["public"]["Enums"]["moderation_status"]
+            | null
           page_url?: string | null
+          quality_score?: number | null
           source?: Database["public"]["Enums"]["event_source"] | null
           status?: Database["public"]["Enums"]["event_status"] | null
           user_agent?: string | null
+          user_email?: string | null
           user_location?: string | null
           user_name?: string | null
           variant_id?: string | null
@@ -514,6 +574,42 @@ export type Database = {
         }
         Relationships: []
       }
+      integration_connectors: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          integration_type: Database["public"]["Enums"]["integration_type"]
+          last_sync: string | null
+          name: string
+          status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          integration_type: Database["public"]["Enums"]["integration_type"]
+          last_sync?: string | null
+          name: string
+          status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          integration_type?: Database["public"]["Enums"]["integration_type"]
+          last_sync?: string | null
+          name?: string
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       integration_hooks: {
         Row: {
           created_at: string
@@ -658,6 +754,51 @@ export type Database = {
           name?: string
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
+        }
+        Relationships: []
+      }
+      quick_win_templates: {
+        Row: {
+          business_type: Database["public"]["Enums"]["business_type"]
+          category: string
+          created_at: string
+          default_metadata: Json
+          description: string | null
+          event_type: string
+          id: string
+          is_active: boolean
+          name: string
+          required_fields: Json
+          template_message: string
+          updated_at: string
+        }
+        Insert: {
+          business_type: Database["public"]["Enums"]["business_type"]
+          category?: string
+          created_at?: string
+          default_metadata?: Json
+          description?: string | null
+          event_type: string
+          id?: string
+          is_active?: boolean
+          name: string
+          required_fields?: Json
+          template_message: string
+          updated_at?: string
+        }
+        Update: {
+          business_type?: Database["public"]["Enums"]["business_type"]
+          category?: string
+          created_at?: string
+          default_metadata?: Json
+          description?: string | null
+          event_type?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          required_fields?: Json
+          template_message?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -960,6 +1101,64 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "tracking_pixels_widget_id_fkey"
+            columns: ["widget_id"]
+            isOneToOne: false
+            referencedRelation: "widgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_quick_wins: {
+        Row: {
+          created_at: string
+          custom_metadata: Json
+          expires_at: string | null
+          id: string
+          is_enabled: boolean
+          template_id: string
+          updated_at: string
+          user_id: string
+          widget_id: string
+        }
+        Insert: {
+          created_at?: string
+          custom_metadata?: Json
+          expires_at?: string | null
+          id?: string
+          is_enabled?: boolean
+          template_id: string
+          updated_at?: string
+          user_id: string
+          widget_id: string
+        }
+        Update: {
+          created_at?: string
+          custom_metadata?: Json
+          expires_at?: string | null
+          id?: string
+          is_enabled?: boolean
+          template_id?: string
+          updated_at?: string
+          user_id?: string
+          widget_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_quick_wins_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "quick_win_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_quick_wins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_quick_wins_widget_id_fkey"
             columns: ["widget_id"]
             isOneToOne: false
             referencedRelation: "widgets"
@@ -1314,8 +1513,32 @@ export type Database = {
         | "manufacturing"
         | "media"
         | "legal"
-      event_source: "manual" | "connector" | "tracking" | "demo" | "woocommerce"
+      event_source:
+        | "manual"
+        | "connector"
+        | "tracking"
+        | "demo"
+        | "woocommerce"
+        | "quick_win"
       event_status: "pending" | "approved" | "rejected"
+      integration_type:
+        | "manual"
+        | "shopify"
+        | "woocommerce"
+        | "stripe"
+        | "paystack"
+        | "flutterwave"
+        | "google_reviews"
+        | "trustpilot"
+        | "typeform"
+        | "hubspot"
+        | "wpforms"
+        | "custom_sdk"
+        | "api"
+        | "form_hook"
+        | "javascript_api"
+        | "webhook"
+      moderation_status: "pending" | "approved" | "rejected" | "flagged"
       team_role: "owner" | "admin" | "member" | "viewer"
     }
     CompositeTypes: {
@@ -1470,8 +1693,34 @@ export const Constants = {
         "media",
         "legal",
       ],
-      event_source: ["manual", "connector", "tracking", "demo", "woocommerce"],
+      event_source: [
+        "manual",
+        "connector",
+        "tracking",
+        "demo",
+        "woocommerce",
+        "quick_win",
+      ],
       event_status: ["pending", "approved", "rejected"],
+      integration_type: [
+        "manual",
+        "shopify",
+        "woocommerce",
+        "stripe",
+        "paystack",
+        "flutterwave",
+        "google_reviews",
+        "trustpilot",
+        "typeform",
+        "hubspot",
+        "wpforms",
+        "custom_sdk",
+        "api",
+        "form_hook",
+        "javascript_api",
+        "webhook",
+      ],
+      moderation_status: ["pending", "approved", "rejected", "flagged"],
       team_role: ["owner", "admin", "member", "viewer"],
     },
   },
