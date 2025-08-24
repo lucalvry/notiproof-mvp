@@ -50,6 +50,7 @@ import EventsManager from "./pages/EventsManager";
 import CampaignWizard from "./pages/CampaignWizard";
 import EditCampaign from "./pages/EditCampaign";
 import DemoCleanup from "./pages/DemoCleanup";
+import WidgetQuickWins from "./pages/WidgetQuickWins";
 
 // Updated routing configuration for Phase 5, 6 & 7
 const queryClient = new QueryClient();
@@ -83,6 +84,7 @@ function AppContent() {
           <Route path="widgets/create" element={<CreateWidget />} />
           <Route path="widgets/:id/edit" element={<EditWidget />} />
           <Route path="widgets/:id/events" element={<WidgetEvents />} />
+          <Route path="widgets/:id/quick-wins" element={<WidgetQuickWins />} />
           <Route path="widgets/:id/analytics" element={<WidgetAnalytics />} />
           <Route path="campaigns" element={<Campaigns />} />
           <Route path="campaigns/create" element={<CreateCampaign />} />
