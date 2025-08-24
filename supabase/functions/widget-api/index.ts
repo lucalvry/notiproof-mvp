@@ -108,11 +108,11 @@ serve(async (req) => {
 
           // Get allowed event types based on notification types
           const notificationTypes = widget.notification_types || [];
-          let eventTypeFilter = '';
+          let allowedEventTypes: string[] = [];
           
           if (notificationTypes.length > 0) {
             // Map notification types to event types
-            const allowedEventTypes = new Set<string>();
+            const allowedEventTypesSet = new Set<string>();
             
             // Notification type to event type mapping
             const notificationEventMapping: Record<string, string[]> = {
@@ -130,13 +130,10 @@ serve(async (req) => {
             
             notificationTypes.forEach((typeId: string) => {
               const eventTypes = notificationEventMapping[typeId] || [];
-              eventTypes.forEach(eventType => allowedEventTypes.add(eventType));
+              eventTypes.forEach(eventType => allowedEventTypesSet.add(eventType));
             });
             
-            if (allowedEventTypes.size > 0) {
-              const eventTypesArray = Array.from(allowedEventTypes);
-              eventTypeFilter = eventTypesArray.map(et => `event_type.eq.${et}`).join(',');
-            }
+            allowedEventTypes = Array.from(allowedEventTypesSet);
           }
 
           // Get widget with display rules for event blending
@@ -173,7 +170,7 @@ serve(async (req) => {
             prioritize_natural: true
           };
 
-          // Fetch natural events (manual, connector, demo but NOT quick_win)
+          // Fetch natural events with proper priority order
           let naturalQuery = supabase
             .from('events')
             .select('*')
@@ -182,14 +179,41 @@ serve(async (req) => {
             .neq('source', 'quick_win') // Exclude quick-wins from naturals
             .eq('status', 'approved');
 
-          // Apply event type filter for natural events
-          if (eventTypeFilter) {
-            naturalQuery = naturalQuery.or(eventTypeFilter);
+          // Apply event type filter for natural events using proper Supabase syntax
+          if (allowedEventTypes.length > 0) {
+            naturalQuery = naturalQuery.in('event_type', allowedEventTypes);
           }
 
+          console.log(`Natural events query for widget ${widgetId}:`, {
+            allowedEventTypes,
+            notificationTypes
+          });
+
+          // Prioritize natural events: purchase > conversion > contact > review > signup > view > visitor
+          const eventTypePriority = ['purchase', 'conversion', 'contact', 'review', 'signup', 'view', 'visitor'];
+          
           const { data: naturalEvents, error: naturalError } = await naturalQuery
             .order('created_at', { ascending: false })
-            .limit(50);
+            .limit(100); // Get more to allow for better filtering
+
+          // Sort natural events by priority (purchase events first, then by recency)
+          const sortedNaturalEvents = naturalEvents ? naturalEvents.sort((a, b) => {
+            const aPriority = eventTypePriority.indexOf(a.event_type) !== -1 ? eventTypePriority.indexOf(a.event_type) : 999;
+            const bPriority = eventTypePriority.indexOf(b.event_type) !== -1 ? eventTypePriority.indexOf(b.event_type) : 999;
+            
+            if (aPriority !== bPriority) {
+              return aPriority - bPriority; // Lower index = higher priority
+            }
+            
+            // Same priority, sort by recency
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          }) : [];
+
+          console.log(`Natural events found for widget ${widgetId}:`, {
+            totalNaturalEvents: sortedNaturalEvents.length,
+            eventTypes: sortedNaturalEvents.map(e => ({ type: e.event_type, source: e.source, created: e.created_at })),
+            naturalError
+          });
 
           // Fetch active quick-win events
           const { data: quickWinEvents, error: quickWinError } = await supabase
@@ -211,8 +235,16 @@ serve(async (req) => {
             );
           }
 
-          const allNaturalEvents = naturalEvents || [];
+          const allNaturalEvents = sortedNaturalEvents || [];
           const allQuickWinEvents = quickWinEvents || [];
+
+          console.log(`Display Engine for widget ${widgetId}:`, {
+            naturalEventsFound: allNaturalEvents.length,
+            quickWinEventsFound: allQuickWinEvents.length,
+            naturalEventTypes: allNaturalEvents.map(e => e.event_type),
+            quickWinEventTypes: allQuickWinEvents.map(e => e.event_type),
+            displayConfig
+          });
 
           // Phase 5: Smart Rotation Logic
           const requestedCount = 10;
