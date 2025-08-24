@@ -5,7 +5,7 @@ const LiveTest = () => {
     // Add the widget script to the page
     const script = document.createElement('script');
     script.src = '/widget.js';
-    script.setAttribute('data-widget-id', '1e1f990c-0bd5-49b5-ac14-6a0414ff50d3');
+    script.setAttribute('data-widget-id', 'dafa31fc-519d-450f-968d-5601a9024df6');
     script.setAttribute('data-api-base', 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api');
     script.setAttribute('data-disable-beacon', 'true');
     document.head.appendChild(script);

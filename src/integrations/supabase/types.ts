@@ -1364,6 +1364,8 @@ export type Database = {
       }
       widgets: {
         Row: {
+          allow_fallback_content: boolean | null
+          allowed_event_sources: string[] | null
           campaign_id: string | null
           created_at: string | null
           display_rules: Json
@@ -1379,6 +1381,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          allow_fallback_content?: boolean | null
+          allowed_event_sources?: string[] | null
           campaign_id?: string | null
           created_at?: string | null
           display_rules?: Json
@@ -1394,6 +1398,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          allow_fallback_content?: boolean | null
+          allowed_event_sources?: string[] | null
           campaign_id?: string | null
           created_at?: string | null
           display_rules?: Json
@@ -1430,11 +1436,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_all_template_events: {
+        Args: { _user_id: string }
+        Returns: undefined
+      }
       cleanup_expired_demo_events: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
       clear_demo_events: {
+        Args: { _user_id: string }
+        Returns: undefined
+      }
+      clear_manual_events: {
         Args: { _user_id: string }
         Returns: undefined
       }

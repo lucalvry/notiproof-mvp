@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
-import { CalendarIcon, Plus, X, Sparkles, RefreshCw } from 'lucide-react';
+import { CalendarIcon, Plus, X, Sparkles, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -38,6 +38,7 @@ const eventTypes = [
 // Enhanced location data will be managed by the EnhancedLocationInput component
 
 export const CreateEventForm = ({ widgetId, onEventCreated, onCancel }: CreateEventFormProps) => {
+  // DEPRECATED: Manual event creation is discouraged. Use natural integrations and quick-wins instead.
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [date, setDate] = useState<Date>();
@@ -247,9 +248,12 @@ export const CreateEventForm = ({ widgetId, onEventCreated, onCancel }: CreateEv
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create Manual Event</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-yellow-600" />
+          Create Manual Event (Deprecated)
+        </CardTitle>
         <CardDescription>
-          Add a custom event to display in your widget notifications
+          ⚠️ Manual events are discouraged. Use integrations for natural events and quick-win templates for warm-up content.
         </CardDescription>
       </CardHeader>
       <CardContent>

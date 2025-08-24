@@ -1,0 +1,22 @@
+-- Clean up any remaining demo-like events based on message_template content only
+DELETE FROM public.events 
+WHERE message_template LIKE '%people are viewing this page right now%'
+   OR message_template LIKE '%people are browsing right now%'
+   OR message_template LIKE '%people added this to cart today%'
+   OR message_template LIKE '%people bought this in the last hour%'
+   OR message_template LIKE 'Someone just signed up!'
+   OR message_template LIKE 'New user joined from%'
+   OR message_template LIKE 'Someone just made a purchase!'
+   OR message_template LIKE 'New customer from%'
+   OR message_template LIKE '"Amazing product!" - Sarah M.'
+   OR message_template LIKE '"Best service ever!" - John D.'
+   OR message_template LIKE '"Highly recommended!" - Lisa K.'
+   OR message_template LIKE '"Love this company!" - Mike R.'
+   OR message_template LIKE 'Trusted by%customers'
+   OR message_template LIKE 'Join%happy customers'
+   OR message_template LIKE 'Over%satisfied clients'
+   OR message_template LIKE 'Rated 5 stars by customers'
+   OR message_template LIKE 'Limited offer%hours left!'
+   OR message_template LIKE 'Sale ends soon%'
+   OR message_template LIKE 'Only%items left in stock!'
+   OR message_template LIKE 'Flash sale%remaining!';

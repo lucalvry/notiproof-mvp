@@ -257,14 +257,6 @@ serve(async (req) => {
             .sort(() => Math.random() - 0.5)
             .slice(0, requestedCount);
 
-          if (error) {
-            console.error('Error fetching events:', error);
-            return new Response(
-              JSON.stringify({ error: 'Failed to fetch events' }),
-              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-
           // Transform events for widget display using business context
           const transformedEvents = events?.map(event => {
             // Use message_template if available, otherwise generate from business context

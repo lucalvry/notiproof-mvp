@@ -6,8 +6,9 @@
   const widgetId = currentScript?.getAttribute('data-widget-id');
   const apiBase = currentScript?.getAttribute('data-api-base') || 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
   const disableBeacon = currentScript?.getAttribute('data-disable-beacon') === 'true';
+  // Removed fallback support - only real events allowed
   
-  console.log('NotiProof: Initializing widget', { widgetId, apiBase, disableBeacon });
+  console.log('NotiProof: Initializing widget (real events only)', { widgetId, apiBase, disableBeacon });
   
   if (!widgetId) {
     console.error('NotiProof: Missing data-widget-id attribute');
@@ -22,53 +23,13 @@
     template_name: 'live-activity'
   };
 
-  // Template content mapping
-  const templateContent = {
-    'notification-popup': {
-      icon: '🔔',
-      messages: [
-        'Someone just signed up!',
-        'New user joined from New York!',
-        'Someone just made a purchase!',
-        'New customer from California!'
-      ]
-    },
-    'testimonial-popup': {
-      icon: '⭐',
-      messages: [
-        '"Amazing product!" - Sarah M.',
-        '"Best service ever!" - John D.',
-        '"Highly recommended!" - Lisa K.',
-        '"Love this company!" - Mike R.'
-      ]
-    },
-    'live-activity': {
-      icon: '⚡',
-      messages: [
-        '12 people are viewing this page right now',
-        '5 people bought this in the last hour',
-        '25 people are browsing right now',
-        '8 people added this to cart today'
-      ]
-    },
-    'social-proof': {
-      icon: '✅',
-      messages: [
-        'Trusted by 1,000+ customers',
-        'Join 5,000+ happy customers',
-        'Over 2,500 satisfied clients',
-        'Rated 5 stars by customers'
-      ]
-    },
-    'urgency-timer': {
-      icon: '⏰',
-      messages: [
-        'Limited offer - 2 hours left!',
-        'Sale ends soon - Act fast!',
-        'Only 3 items left in stock!',
-        'Flash sale - 1 hour remaining!'
-      ]
-    }
+  // Template icons only (no fallback messages)
+  const templateIcons = {
+    'notification-popup': '🔔',
+    'testimonial-popup': '⭐',
+    'live-activity': '⚡',
+    'social-proof': '✅',
+    'urgency-timer': '⏰'
   };
   
   // Display rules with sane defaults
@@ -155,7 +116,7 @@
       return event.context_template;
     }
     
-    // Priority 5: Smart message generation from event data
+    // Priority 5: Smart message generation from event data (only if real data exists)
     if (event?.event_data) {
       const smartMessage = generateSmartMessage(event);
       if (smartMessage) {
@@ -163,26 +124,24 @@
       }
     }
     
-    // Priority 6: Template fallback
-    const template = templateContent[config.template_name] || templateContent['notification-popup'];
-    const messages = template.messages;
-    return messages[Math.floor(Math.random() * messages.length)];
+    // CRITICAL: NO FALLBACK MESSAGES - only real events are shown
+    console.log('NotiProof: No valid message found for event, skipping display');
+    return null;
   }
 
-  // Generate smart message from event data
+  // Generate smart message from event data - ONLY for legitimate events with real data
   function generateSmartMessage(event) {
     const eventData = event.event_data || {};
-    const eventType = event.event_type || 'view';
+    const eventType = event.event_type || '';
     
-    // Extract relevant data
+    // Extract relevant data - MUST have real data, no fabrication
     const name = eventData.user_name || event.user_name || eventData.name;
     const location = eventData.user_location || event.user_location || eventData.location;
     const product = eventData.product || eventData.service;
     const amount = eventData.amount || eventData.value;
     const rating = eventData.rating;
-    const count = eventData.count;
     
-    // Generate contextual message based on event type and available data
+    // ONLY generate messages for events with real user data
     switch (eventType) {
       case 'purchase':
         if (name && location && product && amount) {
@@ -191,10 +150,8 @@
         if (name && product) {
           return `${name} just purchased ${product}`;
         }
-        if (location) {
-          return `Someone from ${location} just made a purchase`;
-        }
-        return "Someone just made a purchase";
+        // NO FALLBACK - only show if we have real data
+        return null;
         
       case 'signup':
         if (name && location) {
@@ -203,28 +160,15 @@
         if (name) {
           return `${name} just joined`;
         }
-        if (location) {
-          return `Someone from ${location} just signed up`;
-        }
-        return "Someone just signed up";
+        // NO FALLBACK - only show if we have real data
+        return null;
         
       case 'review':
         if (name && rating && product) {
           return `${name} left a ${rating}-star review for ${product}`;
         }
-        if (rating) {
-          return `Someone left a ${rating}-star review`;
-        }
-        return "New customer review received";
-        
-      case 'view':
-        if (count && product) {
-          return `${count} people are viewing ${product} right now`;
-        }
-        if (count) {
-          return `${count} people are browsing right now`;
-        }
-        return "Someone is viewing this page";
+        // NO FALLBACK - only show if we have real data
+        return null;
         
       case 'conversion':
         if (name && location) {
@@ -233,34 +177,29 @@
         if (name) {
           return `${name} just took action`;
         }
-        return "Someone just converted";
+        // NO FALLBACK - only show if we have real data
+        return null;
         
       default:
-        if (name && location) {
-          return `${name} from ${location} is active`;
-        }
-        if (name) {
-          return `${name} is engaging with your site`;
-        }
-        return "New visitor activity detected";
+        // NO GENERIC MESSAGES - only show legitimate event data
+        return null;
     }
   }
 
   // Get template-appropriate content with enhanced message priority
   function getTemplateContent(event) {
-    const template = templateContent[config.template_name] || templateContent['notification-popup'];
+    const icon = templateIcons[config.template_name] || templateIcons['notification-popup'];
     const message = extractMessage(event);
-    return `${template.icon} ${message}`;
+    // ONLY return content if we have a real message
+    return message ? `${icon} ${message}` : null;
   }
 
   // Create widget element
   function createWidget(event = {}) {
     // Ensure we have proper event data for tracking
     if (!event.message) {
-      const template = templateContent[config.template_name] || templateContent['notification-popup'];
-      const messages = template.messages;
-      event.message = messages[Math.floor(Math.random() * messages.length)];
-      console.log('NotiProof: Generated default message for tracking:', event.message);
+      event.message = extractMessage(event) || '';
+      console.log('NotiProof: Generated message for tracking:', event.message);
     }
     
     const widget = document.createElement('div');
@@ -298,6 +237,12 @@
     }
     
     const content = getTemplateContent(event);
+    
+    // CRITICAL: Don't create widget if no valid content
+    if (!content) {
+      console.log('NotiProof: No valid content for event, widget not created');
+      return;
+    }
     
     widget.innerHTML = `
       ${config.showCloseButton ? '<button class="notiproof-close" style="position: absolute; top: 8px; right: 8px; background: none; border: none; font-size: 18px; cursor: pointer; color: #999;">×</button>' : ''}
@@ -515,8 +460,15 @@
           lastEventTime = latestEvent;
           
           // Add new events to queue, prioritizing recent ones
+          // STRICT FILTERING: Only show natural, integration, and quick-win events
           const newEvents = events
-            .filter(event => event.status === 'approved' || event.source === 'demo')
+            .filter(event => {
+              const isApproved = event.status === 'approved';
+              const isLegitimateSource = ['natural', 'integration', 'quick-win'].includes(event.source);
+              const notTemplate = event.source !== 'template' && event.source !== 'demo' && event.source !== 'manual';
+              console.log('NotiProof: Event filter -', event.source, 'approved:', isApproved, 'legitimate:', isLegitimateSource, 'not template:', notTemplate);
+              return isApproved && isLegitimateSource && notTemplate;
+            })
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
           
           eventQueue = [...newEvents, ...eventQueue].slice(0, 50); // Keep max 50 events
@@ -524,21 +476,23 @@
           // Display the highest priority event
           const eventToShow = selectBestEvent(eventQueue);
           if (eventToShow) {
-            console.log('NotiProof: Displaying prioritized event:', eventToShow);
+            console.log('NotiProof: Displaying legitimate event:', eventToShow);
             createWidget(eventToShow);
           } else {
-            showFallbackWidget();
+            console.log('NotiProof: No legitimate events found - widget will remain hidden');
+            // No fallback - only show real events
           }
         } else {
-          showFallbackWidget();
+          console.log('NotiProof: No events available - widget will remain hidden');
+          // No fallback - only legitimate events
         }
       } else {
-        console.warn('NotiProof: Events fetch responded with non-OK status', response.status);
-        showFallbackWidget();
+        console.warn('NotiProof: Events fetch failed with status', response.status);
+        // No fallback on API errors - only show real events
       }
     } catch (error) {
-      console.warn('NotiProof: Could not fetch events, showing template default:', error);
-      showFallbackWidget();
+      console.warn('NotiProof: Could not fetch events - widget will remain hidden:', error);
+      // No fallback on network errors - only show real events
     }
   }
   
@@ -572,13 +526,17 @@
       };
       score += eventTypePriority[event.event_type] || 10;
       
-      // Source priority (manual > API > demo)
+      // Source priority (exclude manual events entirely)
       const sourcePriority = {
-        'manual': 50,
         'api': 40,
         'integration': 30,
-        'demo': 10
+        'quick_win': 35,
+        'connector': 45,
+        'natural': 50
       };
+      if (event.source === 'manual') {
+        return -1; // Exclude manual events
+      }
       score += sourcePriority[event.source] || 5;
       
       return score;
@@ -592,17 +550,13 @@
     return scoredEvents[0]?.event;
   }
   
-  // Show fallback template widget
+  // Show fallback template widget - DISABLED TO PREVENT FAKE NOTIFICATIONS
   function showFallbackWidget() {
-    console.log('NotiProof: No events available, using template content');
-    const template = templateContent[config.template_name] || templateContent['notification-popup'];
-    const messages = template.messages;
-    const defaultEvent = {
-      message: messages[Math.floor(Math.random() * messages.length)],
-      template_name: config.template_name,
-      source: 'template'
-    };
-    createWidget(defaultEvent);
+    console.log('NotiProof: Fallback disabled - no legitimate events available');
+    console.log('NotiProof: Widget configured to show only natural/real events');
+    // Fallback template content generation is now disabled
+    // This prevents fake "X people viewing" messages from appearing
+    return;
   }
 
   // Initialize widget with rules & triggers
@@ -729,7 +683,7 @@
           
           // Update event queue with new events
           const approvedEvents = newEvents.filter(event => 
-            event.status === 'approved' || event.source === 'demo'
+            event.status === 'approved' && event.source !== 'demo' && event.source !== 'manual'
           );
           
           if (approvedEvents.length > 0) {

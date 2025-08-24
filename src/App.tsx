@@ -49,6 +49,7 @@ import TemplatesMarketplace from "./pages/TemplatesMarketplace";
 import EventsManager from "./pages/EventsManager";
 import CampaignWizard from "./pages/CampaignWizard";
 import EditCampaign from "./pages/EditCampaign";
+import DemoCleanup from "./pages/DemoCleanup";
 
 // Updated routing configuration for Phase 5, 6 & 7
 const queryClient = new QueryClient();
@@ -98,6 +99,9 @@ function AppContent() {
           <Route path="settings" element={<DashboardSettings />} />
           <Route path="billing" element={<Billing />} />
         </Route>
+
+        {/* Demo Cleanup Route */}
+        <Route path="/demo-cleanup" element={<DemoCleanup />} />
 
         {/* Admin Routes */}
         <Route 

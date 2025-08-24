@@ -1,0 +1,23 @@
+-- Clean up demo and template events to ensure only real data is shown
+DELETE FROM public.events 
+WHERE source IN ('demo', 'template', 'manual') 
+   OR message LIKE '%people are viewing this page right now%'
+   OR message LIKE '%people are browsing right now%'
+   OR message LIKE '%people added this to cart today%'
+   OR message LIKE '%people bought this in the last hour%'
+   OR message LIKE 'Someone just signed up!'
+   OR message LIKE 'New user joined from%'
+   OR message LIKE 'Someone just made a purchase!'
+   OR message LIKE 'New customer from%'
+   OR message LIKE '"Amazing product!" - Sarah M.'
+   OR message LIKE '"Best service ever!" - John D.'
+   OR message LIKE '"Highly recommended!" - Lisa K.'
+   OR message LIKE '"Love this company!" - Mike R.'
+   OR message LIKE 'Trusted by%customers'
+   OR message LIKE 'Join%happy customers'
+   OR message LIKE 'Over%satisfied clients'
+   OR message LIKE 'Rated 5 stars by customers'
+   OR message LIKE 'Limited offer%hours left!'
+   OR message LIKE 'Sale ends soon%'
+   OR message LIKE 'Only%items left in stock!'
+   OR message LIKE 'Flash sale%remaining!';
