@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { EnhancedQuickWinTemplate, FieldSchema, QuickWinFormData } from '@/types/quickWin';
-import { getTemplatesByBusinessType, getTemplateById } from '@/data/enhancedQuickWinTemplates';
+import { FieldSchema, QuickWinFormData } from '@/types/quickWin';
+import { useQuickWinTemplates } from '@/hooks/useQuickWinTemplates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,25 +28,24 @@ export const EnhancedQuickWinTemplateSelector = ({
   open,
   onOpenChange
 }: EnhancedQuickWinTemplateSelectorProps) => {
-  const [selectedTemplate, setSelectedTemplate] = useState<EnhancedQuickWinTemplate | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [expiresAt, setExpiresAt] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  const templates = getTemplatesByBusinessType(businessType);
+  const { templates, loading } = useQuickWinTemplates(businessType);
   const categories = Array.from(new Set(templates.map(t => t.category)));
 
   const filteredTemplates = templates.filter(template => {
     const matchesCategory = activeCategory === 'all' || template.category === activeCategory;
     const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         template.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         template.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+                         template.description.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
-  const handleTemplateSelect = (template: EnhancedQuickWinTemplate) => {
+  const handleTemplateSelect = (template: any) => {
     setSelectedTemplate(template);
     setFormData(template.default_metadata || {});
     setFormErrors({});
@@ -124,7 +123,19 @@ export const EnhancedQuickWinTemplateSelector = ({
 
     const errors: Record<string, string> = {};
     
-    Object.entries(selectedTemplate.form_schema).forEach(([fieldName, field]) => {
+    // Parse required_fields if it's from database
+    const requiredFields = selectedTemplate.required_fields || [];
+    const formSchema: Record<string, FieldSchema> = {};
+    
+    requiredFields.forEach((fieldName: string) => {
+      formSchema[fieldName] = {
+        type: 'text',
+        label: fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' '),
+        required: true
+      };
+    });
+    
+    Object.entries(formSchema).forEach(([fieldName, field]) => {
       const error = validateField(fieldName, field, formData[fieldName]);
       if (error) {
         errors[fieldName] = error;
@@ -143,8 +154,8 @@ export const EnhancedQuickWinTemplateSelector = ({
       fieldValues: formData,
       expiresAt: expiresAt || undefined,
       customization: {
-        style: selectedTemplate.preview_config.style,
-        theme: selectedTemplate.preview_config.theme
+        style: 'notification',
+        theme: 'default'
       }
     };
 
@@ -261,7 +272,11 @@ export const EnhancedQuickWinTemplateSelector = ({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto">
-          {!selectedTemplate ? (
+          {loading ? (
+            <div className="text-center py-8">
+              <p>Loading templates...</p>
+            </div>
+          ) : !selectedTemplate ? (
             <div className="space-y-4">
               {/* Search and Filters */}
               <div className="flex gap-4">
@@ -295,8 +310,7 @@ export const EnhancedQuickWinTemplateSelector = ({
                           <div className="flex items-start justify-between">
                             <div>
                               <CardTitle className="text-sm flex items-center gap-2">
-                                {template.preview_config.icon} {template.name}
-                                {template.is_premium && <Crown className="w-3 h-3 text-yellow-500" />}
+                                🎯 {template.name}
                               </CardTitle>
                               <CardDescription className="text-xs mt-1">
                                 {template.description}
@@ -310,30 +324,13 @@ export const EnhancedQuickWinTemplateSelector = ({
                             {template.template_message}
                           </div>
                           
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="flex items-center gap-1">
-                                <TrendingUp className="w-3 h-3" />
-                                CVR: {template.performance_hints.conversion_rate}%
-                              </span>
-                              <span className={`flex items-center gap-1 ${getPerformanceColor(template.performance_hints.conversion_rate || 0)}`}>
-                                <Star className="w-3 h-3" />
-                                {template.performance_hints.engagement_score}/10
-                              </span>
-                            </div>
-                            
-                            <Progress 
-                              value={(template.performance_hints.conversion_rate || 0) * 5} 
-                              className="h-1"
-                            />
-                          </div>
-                          
                           <div className="flex flex-wrap gap-1">
-                            {template.tags.slice(0, 3).map(tag => (
-                              <Badge key={tag} variant="secondary" className="text-xs">
-                                {tag}
-                              </Badge>
-                            ))}
+                            <Badge variant="secondary" className="text-xs">
+                              {template.category}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {template.event_type}
+                            </Badge>
                           </div>
                         </CardContent>
                       </Card>
@@ -357,8 +354,7 @@ export const EnhancedQuickWinTemplateSelector = ({
                   <div className="flex items-start justify-between">
                     <div>
                       <CardTitle className="flex items-center gap-2">
-                        {selectedTemplate.preview_config.icon} {selectedTemplate.name}
-                        {selectedTemplate.is_premium && <Crown className="w-4 h-4 text-yellow-500" />}
+                        🎯 {selectedTemplate.name}
                       </CardTitle>
                       <CardDescription>{selectedTemplate.description}</CardDescription>
                     </div>
@@ -375,9 +371,9 @@ export const EnhancedQuickWinTemplateSelector = ({
                     <Info className="h-4 w-4" />
                     <AlertDescription>
                       <div className="flex justify-between text-sm">
-                        <span>Conversion Rate: <strong>{selectedTemplate.performance_hints.conversion_rate}%</strong></span>
-                        <span>Industry Avg: <strong>{selectedTemplate.performance_hints.industry_benchmark}%</strong></span>
-                        <span>Engagement: <strong>{selectedTemplate.performance_hints.engagement_score}/10</strong></span>
+                        <span>Event Type: <strong>{selectedTemplate.event_type}</strong></span>
+                        <span>Category: <strong>{selectedTemplate.category}</strong></span>
+                        <span>Fields Required: <strong>{selectedTemplate.required_fields?.length || 0}</strong></span>
                       </div>
                     </AlertDescription>
                   </Alert>
@@ -395,9 +391,15 @@ export const EnhancedQuickWinTemplateSelector = ({
                 
                 <CardContent>
                   <div className="grid gap-4 md:grid-cols-2">
-                    {Object.entries(selectedTemplate.form_schema).map(([fieldName, field]) =>
-                      renderField(fieldName, field)
-                    )}
+                    {selectedTemplate.required_fields?.map((fieldName: string) => {
+                      const field: FieldSchema = {
+                        type: 'text',
+                        label: fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' '),
+                        required: true,
+                        placeholder: `Enter ${fieldName.replace(/_/g, ' ')}`
+                      };
+                      return renderField(fieldName, field);
+                    })}
                   </div>
 
                   <div className="mt-6 space-y-2">

@@ -294,29 +294,51 @@ serve(async (req) => {
             // Use message_template if available, otherwise generate from business context
             let message = event.message_template;
             
-            if (!message && event.business_type && event.user_name && event.user_location) {
-              // Generate message based on business context
-              const messageData = {
-                name: event.user_name,
-                location: event.user_location,
-                product: event.event_data?.product_name || event.event_data?.service,
-                amount: event.event_data?.price || (event.event_data?.amount ? parseFloat(event.event_data.amount.replace(/[^\d.]/g, '')) : undefined),
-                service: event.event_data?.service || event.event_data?.product_name,
-                count: event.event_data?.quantity || event.event_data?.count
-              };
+            // Generate messages for natural events based on event type and data
+            if (!message || message === 'null' || message === 'undefined') {
+              const eventData = event.event_data || {};
+              const pageUrl = eventData.page_url || event.page_url;
+              const userAgent = eventData.user_agent || event.user_agent;
               
-              // Use business-specific message generation
-              if (event.business_type === 'ecommerce' && event.event_type === 'purchase') {
-                message = `${messageData.name} from ${messageData.location} just bought ${messageData.product}${messageData.amount ? ` for $${messageData.amount}` : ''}`;
-              } else if (event.business_type === 'saas' && event.event_type === 'signup') {
-                message = `${messageData.name} from ${messageData.location} just started a free trial`;
-              } else if (event.business_type === 'services' && event.event_type === 'booking') {
-                message = `${messageData.name} from ${messageData.location} booked a consultation`;
+              if (event.event_type === 'pageview' || event.event_type === 'view') {
+                // Extract page title or use URL
+                let pageTitle = 'your website';
+                if (pageUrl) {
+                  try {
+                    const url = new URL(pageUrl);
+                    pageTitle = url.pathname === '/' ? 'your homepage' : 
+                               url.pathname.split('/').filter(Boolean).pop()?.replace(/-/g, ' ') || 'your website';
+                  } catch {
+                    pageTitle = 'your website';
+                  }
+                }
+                message = `Someone is browsing ${pageTitle} right now`;
+              } else if (event.event_type === 'click') {
+                message = `A visitor just engaged with your content`;
+              } else if (event.business_type && event.user_name && event.user_location) {
+                // Generate message based on business context
+                const messageData = {
+                  name: event.user_name,
+                  location: event.user_location,
+                  product: event.event_data?.product_name || event.event_data?.service,
+                  amount: event.event_data?.price || (event.event_data?.amount ? parseFloat(event.event_data.amount.replace(/[^\d.]/g, '')) : undefined),
+                  service: event.event_data?.service || event.event_data?.product_name,
+                  count: event.event_data?.quantity || event.event_data?.count
+                };
+                
+                // Use business-specific message generation
+                if (event.business_type === 'ecommerce' && event.event_type === 'purchase') {
+                  message = `${messageData.name} from ${messageData.location} just bought ${messageData.product}${messageData.amount ? ` for $${messageData.amount}` : ''}`;
+                } else if (event.business_type === 'saas' && event.event_type === 'signup') {
+                  message = `${messageData.name} from ${messageData.location} just started a free trial`;
+                } else if (event.business_type === 'services' && event.event_type === 'booking') {
+                  message = `${messageData.name} from ${messageData.location} booked a consultation`;
+                }
               }
             }
             
-            // Fallback to event_data.message or generic message
-            if (!message) {
+            // Final fallback to event_data.message or generic message
+            if (!message || message === 'null' || message === 'undefined') {
               message = event.event_data?.message || 'New activity detected';
             }
             
