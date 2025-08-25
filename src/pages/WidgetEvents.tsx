@@ -97,6 +97,11 @@ const WidgetEvents = () => {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link to={`/dashboard/widgets/${id}/quick-wins`}>
+              Quick-Wins
+            </Link>
+          </Button>
           <Button variant="outline" onClick={addTestEvent}>
             <Plus className="h-4 w-4 mr-2" />
             Quick Test Event
