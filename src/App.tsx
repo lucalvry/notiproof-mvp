@@ -19,7 +19,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import DashboardWidgets from "./pages/DashboardWidgets";
-import CreateWidget from "./pages/CreateWidget";
+import WebsiteManagement from "./pages/WebsiteManagement";
 import EditWidget from "./pages/EditWidget";
 import Installation from "./pages/Installation";
 import DashboardSettings from "./pages/DashboardSettings";
@@ -81,11 +81,11 @@ function AppContent() {
         >
           <Route index element={<Dashboard />} />
           <Route path="widgets" element={<DashboardWidgets />} />
-          <Route path="widgets/create" element={<CreateWidget />} />
           <Route path="widgets/:id/edit" element={<EditWidget />} />
           <Route path="widgets/:id/events" element={<WidgetEvents />} />
           <Route path="widgets/:id/quick-wins" element={<WidgetQuickWins />} />
           <Route path="widgets/:id/analytics" element={<WidgetAnalytics />} />
+          <Route path="websites" element={<WebsiteManagement />} />
           <Route path="campaigns" element={<Campaigns />} />
           <Route path="campaigns/create" element={<CreateCampaign />} />
           <Route path="campaigns/:id/edit" element={<EditCampaign />} />

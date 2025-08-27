@@ -164,6 +164,7 @@ export default function IntegrationHub() {
         .from('integration_connectors')
         .insert({
           user_id: user.user.id,
+          website_id: 'temp-website-id', // Will be updated when we add website context
           integration_type: selectedIntegration.id,
           name: formData.name || selectedIntegration.name,
           config: formData,

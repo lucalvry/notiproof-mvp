@@ -8,10 +8,12 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { TrendingUp, Users, MousePointer, Eye, Calendar, Download, ExternalLink } from 'lucide-react';
 import { useWidgetImpression } from '@/hooks/useWidgetImpression';
 import { useRealTimePresence } from '@/hooks/useRealTimePresence';
+import { WebsiteAnalyticsFilter } from './WebsiteAnalyticsFilter';
 
 interface RealTimeAnalyticsProps {
   widgetId?: string;
   timeRange?: '24h' | '7d' | '30d';
+  websiteId?: string;
 }
 
 interface AnalyticsMetrics {
@@ -28,7 +30,8 @@ const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accen
 
 export const RealTimeAnalyticsDashboard = ({ 
   widgetId, 
-  timeRange = '7d' 
+  timeRange = '7d',
+  websiteId
 }: RealTimeAnalyticsProps) => {
   const { profile } = useAuth();
   const [metrics, setMetrics] = useState<AnalyticsMetrics>({
@@ -42,6 +45,7 @@ export const RealTimeAnalyticsDashboard = ({
   });
   const [isLoading, setIsLoading] = useState(true);
   const [selectedWidget, setSelectedWidget] = useState<string | null>(widgetId || null);
+  const [selectedWebsiteId, setSelectedWebsiteId] = useState<string | null>(websiteId || null);
   const [userWidgets, setUserWidgets] = useState<any[]>([]);
 
   const { onlineCount } = useRealTimePresence({
@@ -55,15 +59,21 @@ export const RealTimeAnalyticsDashboard = ({
       fetchUserWidgets();
       fetchRealTimeMetrics();
     }
-  }, [profile?.id, selectedWidget, timeRange]);
+  }, [profile?.id, selectedWidget, selectedWebsiteId, timeRange]);
 
   const fetchUserWidgets = async () => {
     try {
-      const { data: widgets, error } = await supabase
+      let widgetsQuery = supabase
         .from('widgets')
-        .select('id, name, status')
+        .select('id, name, status, website_id, websites(name, domain, is_verified)')
         .eq('user_id', profile?.id)
         .eq('status', 'active');
+
+      if (selectedWebsiteId) {
+        widgetsQuery = widgetsQuery.eq('website_id', selectedWebsiteId);
+      }
+
+      const { data: widgets, error } = await widgetsQuery;
 
       if (error) {
         console.error('Error fetching widgets:', error);
@@ -303,7 +313,7 @@ export const RealTimeAnalyticsDashboard = ({
 
   return (
     <div className="space-y-6">
-      {/* Header with Widget Selector */}
+      {/* Header with Website and Widget Selectors */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Real-Time Analytics Dashboard</h2>
@@ -321,8 +331,15 @@ export const RealTimeAnalyticsDashboard = ({
         </div>
       </div>
 
+      {/* Website Filter */}
+      <WebsiteAnalyticsFilter
+        selectedWebsiteId={selectedWebsiteId}
+        onWebsiteChange={setSelectedWebsiteId}
+        showVerificationStatus={true}
+      />
+
       {/* Widget Selector */}
-      {userWidgets.length > 1 && (
+      {userWidgets.length > 0 && (
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 flex-wrap">
@@ -333,18 +350,31 @@ export const RealTimeAnalyticsDashboard = ({
                   variant={selectedWidget === widget.id ? "default" : "outline"}
                   size="sm"
                   onClick={() => setSelectedWidget(widget.id)}
+                  className="flex items-center gap-2"
                 >
                   {widget.name}
+                  {widget.websites?.is_verified && (
+                    <Badge variant="outline" className="text-xs">
+                      ✓
+                    </Badge>
+                  )}
                 </Button>
               ))}
-              <Button
-                variant={selectedWidget === null ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedWidget(null)}
-              >
-                All Widgets
-              </Button>
+              {userWidgets.length > 1 && (
+                <Button
+                  variant={selectedWidget === null ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedWidget(null)}
+                >
+                  All Widgets
+                </Button>
+              )}
             </div>
+            {selectedWebsiteId && (
+              <div className="mt-2 text-xs text-muted-foreground">
+                Filtered by website: {userWidgets[0]?.websites?.name}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

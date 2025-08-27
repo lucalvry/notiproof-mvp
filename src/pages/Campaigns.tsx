@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useWebsites } from '@/hooks/useWebsites';
 import { Plus, Edit, Trash2, Calendar, Play, Pause, RotateCcw, Settings, Eye, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +31,7 @@ const statusConfig = {
 
 const Campaigns = () => {
   const { profile } = useAuth();
+  const { selectedWebsite } = useWebsites();
   const { toast } = useToast();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);

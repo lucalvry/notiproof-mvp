@@ -67,31 +67,135 @@
   let lastClickTime = 0;
   const CLICK_DEDUPE_WINDOW = 1000;
 
-  // Fetch widget configuration
-  async function fetchWidgetConfig() {
+  // Cache manager for config and events
+  const cache = {
+    config: {
+      data: null,
+      etag: null,
+      timestamp: 0,
+      ttl: 15 * 60 * 1000 // 15 minutes
+    },
+    events: {
+      data: [],
+      etag: null,
+      timestamp: 0,
+      ttl: 30 * 1000 // 30 seconds
+    }
+  };
+
+  // Load cache from localStorage
+  function loadCache() {
     try {
-      console.log('NotiProof: Fetching widget config from:', `${apiBase}/api/widgets/${widgetId}`);
-      const response = await fetch(`${apiBase}/api/widgets/${widgetId}`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('NotiProof: Widget config response:', data);
-        
-        if (data.style_config) {
-          config = { ...config, ...data.style_config };
+      const configCache = localStorage.getItem(`notiproof-config-${widgetId}`);
+      const eventsCache = localStorage.getItem(`notiproof-events-${widgetId}`);
+      
+      if (configCache) {
+        const cached = JSON.parse(configCache);
+        if (Date.now() - cached.timestamp < cache.config.ttl) {
+          cache.config = cached;
+          console.log('NotiProof: Config loaded from cache');
         }
-        if (data.template_name) {
-          config.template_name = data.template_name;
+      }
+      
+      if (eventsCache) {
+        const cached = JSON.parse(eventsCache);
+        if (Date.now() - cached.timestamp < cache.events.ttl) {
+          cache.events = cached;
+          console.log('NotiProof: Events loaded from cache');
         }
-        if (data.display_rules) {
-          rules = { ...rules, ...data.display_rules };
-        }
-        console.log('NotiProof: Widget config loaded:', { template: config.template_name, styleConfig: data.style_config, displayRules: rules });
-      } else {
-        console.warn('NotiProof: Widget config fetch failed with status:', response.status);
       }
     } catch (error) {
-      console.warn('NotiProof: Could not fetch widget config, using defaults:', error);
+      console.warn('NotiProof: Cache load error:', error);
     }
+  }
+
+  // Save cache to localStorage
+  function saveCache(type, data, etag) {
+    try {
+      const cacheData = {
+        data,
+        etag,
+        timestamp: Date.now()
+      };
+      cache[type] = cacheData;
+      localStorage.setItem(`notiproof-${type}-${widgetId}`, JSON.stringify(cacheData));
+    } catch (error) {
+      console.warn('NotiProof: Cache save error:', error);
+    }
+  }
+
+  // Hash function for ETags
+  function simpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(16);
+  }
+
+  // Fetch widget configuration with caching
+  async function fetchWidgetConfig() {
+    try {
+      // Check if we have valid cached config
+      if (cache.config.data && Date.now() - cache.config.timestamp < cache.config.ttl) {
+        console.log('NotiProof: Using cached config');
+        applyConfig(cache.config.data);
+        return;
+      }
+
+      const headers = {};
+      if (cache.config.etag) {
+        headers['If-None-Match'] = cache.config.etag;
+      }
+
+      console.log('NotiProof: Fetching widget config from:', `${apiBase}/api/widgets/${widgetId}`);
+      const response = await fetch(`${apiBase}/api/widgets/${widgetId}`, { headers });
+      
+      if (response.status === 304) {
+        console.log('NotiProof: Config not modified (304), using cache');
+        cache.config.timestamp = Date.now(); // Refresh timestamp
+        saveCache('config', cache.config.data, cache.config.etag);
+        applyConfig(cache.config.data);
+        return;
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        const etag = response.headers.get('ETag');
+        
+        console.log('NotiProof: Widget config response:', data);
+        saveCache('config', data, etag);
+        applyConfig(data);
+      } else {
+        console.warn('NotiProof: Widget config fetch failed with status:', response.status);
+        // Use cached data as fallback
+        if (cache.config.data) {
+          applyConfig(cache.config.data);
+        }
+      }
+    } catch (error) {
+      console.warn('NotiProof: Could not fetch widget config:', error);
+      // Use cached data as fallback
+      if (cache.config.data) {
+        applyConfig(cache.config.data);
+      }
+    }
+  }
+
+  // Apply configuration
+  function applyConfig(data) {
+    if (data.style_config) {
+      config = { ...config, ...data.style_config };
+    }
+    if (data.template_name) {
+      config.template_name = data.template_name;
+    }
+    if (data.display_rules) {
+      rules = { ...rules, ...data.display_rules };
+    }
+    console.log('NotiProof: Widget config applied:', { template: config.template_name, styleConfig: data.style_config, displayRules: rules });
   }
 
   // Enhanced message extraction with priority hierarchy
@@ -308,6 +412,48 @@
     });
   }
 
+  // Website verification ping - sends once per session
+  async function sendVerificationPing() {
+    try {
+      // Only send verification ping once per session
+      const verificationKey = `notiproof-verified-${widgetId}`;
+      if (localStorage.getItem(verificationKey)) {
+        console.log('NotiProof: Verification already sent this session');
+        return;
+      }
+
+      const url = `${apiBase}/api/widgets/${widgetId}/verify`;
+      const payload = {
+        domain: window.location.hostname,
+        page_url: window.location.href,
+        user_agent: navigator.userAgent,
+        referrer: document.referrer,
+        timestamp: new Date().toISOString(),
+        session_id: sessionId
+      };
+      
+      console.log('NotiProof: Sending verification ping for domain:', window.location.hostname);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        // Mark as verified for this session
+        localStorage.setItem(verificationKey, Date.now().toString());
+        console.log('NotiProof: Website verification successful');
+      } else {
+        console.warn('NotiProof: Website verification failed:', response.status);
+      }
+    } catch (error) {
+      console.warn('NotiProof: Could not send verification ping', error);
+    }
+  }
+
   // Enhanced visitor tracking with country detection
   async function trackVisitorSession() {
     try {
@@ -435,64 +581,122 @@
     });
   }
 
-  // Enhanced event fetching with real-time updates and message priority
+  // Enhanced event fetching with caching and throttling
   let eventQueue = [];
   let lastEventTime = 0;
+  let lastFetchTime = 0;
+  let isVisible = true;
+  
+  // Track document visibility
+  document.addEventListener('visibilitychange', () => {
+    isVisible = !document.hidden;
+    console.log('NotiProof: Visibility changed:', isVisible ? 'visible' : 'hidden');
+    if (isVisible) {
+      // Resume fetching when tab becomes visible
+      setTimeout(fetchAndDisplayEvents, 1000);
+    }
+  });
   
   async function fetchAndDisplayEvents() {
     try {
+      // Don't fetch when tab is hidden
+      if (!isVisible) {
+        console.log('NotiProof: Skipping fetch - tab hidden');
+        return;
+      }
+
+      // Throttle requests - minimum 30 seconds between fetches
+      const now = Date.now();
+      if (now - lastFetchTime < 30000) {
+        console.log('NotiProof: Throttling fetch request');
+        return;
+      }
+      lastFetchTime = now;
+
       await fetchWidgetConfig();
-      console.log('NotiProof: Fetching events from:', `${apiBase}/api/widgets/${widgetId}/events`);
+
+      // Check if we have valid cached events
+      if (cache.events.data.length > 0 && Date.now() - cache.events.timestamp < cache.events.ttl) {
+        console.log('NotiProof: Using cached events');
+        processEvents(cache.events.data);
+        return;
+      }
+
+      const headers = {};
+      if (cache.events.etag) {
+        headers['If-None-Match'] = cache.events.etag;
+      }
+
+      const url = `${apiBase}/api/widgets/${widgetId}/events?limit=12&fields=message,created_at,metadata,event_type,source,status&since=${lastEventTime}`;
+      console.log('NotiProof: Fetching events from:', url);
       
-      const response = await fetch(`${apiBase}/api/widgets/${widgetId}/events?since=${lastEventTime}`);
+      const response = await fetch(url, { headers });
       console.log('NotiProof: Events response status:', response.status);
+      
+      if (response.status === 304) {
+        console.log('NotiProof: Events not modified (304), using cache');
+        cache.events.timestamp = Date.now(); // Refresh timestamp
+        saveCache('events', cache.events.data, cache.events.etag);
+        processEvents(cache.events.data);
+        return;
+      }
       
       if (response.ok) {
         const events = await response.json();
+        const etag = response.headers.get('ETag');
+        
         console.log('NotiProof: Events received:', events);
         
         if (events && events.length > 0) {
-          // Update last event time for real-time updates
-          const latestEvent = events.reduce((latest, event) => {
-            const eventTime = new Date(event.created_at || event.updated_at).getTime();
-            return eventTime > latest ? eventTime : latest;
-          }, lastEventTime);
-          lastEventTime = latestEvent;
-          
-          // Add new events to queue, prioritizing recent ones
-          // STRICT FILTERING: Only show natural, integration, and quick-win events
-          const newEvents = events
-            .filter(event => {
-              const isApproved = event.status === 'approved';
-              const isLegitimateSource = ['natural', 'integration', 'quick-win'].includes(event.source);
-              const notTemplate = event.source !== 'template' && event.source !== 'demo' && event.source !== 'manual';
-              console.log('NotiProof: Event filter -', event.source, 'approved:', isApproved, 'legitimate:', isLegitimateSource, 'not template:', notTemplate);
-              return isApproved && isLegitimateSource && notTemplate;
-            })
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          
-          eventQueue = [...newEvents, ...eventQueue].slice(0, 50); // Keep max 50 events
-          
-          // Display the highest priority event
-          const eventToShow = selectBestEvent(eventQueue);
-          if (eventToShow) {
-            console.log('NotiProof: Displaying legitimate event:', eventToShow);
-            createWidget(eventToShow);
-          } else {
-            console.log('NotiProof: No legitimate events found - widget will remain hidden');
-            // No fallback - only show real events
-          }
+          saveCache('events', events, etag);
+          processEvents(events);
         } else {
           console.log('NotiProof: No events available - widget will remain hidden');
-          // No fallback - only legitimate events
         }
       } else {
         console.warn('NotiProof: Events fetch failed with status', response.status);
-        // No fallback on API errors - only show real events
+        // Use cached events as fallback
+        if (cache.events.data.length > 0) {
+          processEvents(cache.events.data);
+        }
       }
     } catch (error) {
-      console.warn('NotiProof: Could not fetch events - widget will remain hidden:', error);
-      // No fallback on network errors - only show real events
+      console.warn('NotiProof: Could not fetch events:', error);
+      // Use cached events as fallback
+      if (cache.events.data.length > 0) {
+        processEvents(cache.events.data);
+      }
+    }
+  }
+
+  function processEvents(events) {
+    // Update last event time for real-time updates
+    const latestEvent = events.reduce((latest, event) => {
+      const eventTime = new Date(event.created_at || event.updated_at).getTime();
+      return eventTime > latest ? eventTime : latest;
+    }, lastEventTime);
+    lastEventTime = latestEvent;
+    
+    // STRICT FILTERING: Only show natural, integration, and quick-win events
+    const newEvents = events
+      .filter(event => {
+        const isApproved = event.status === 'approved';
+        const isLegitimateSource = ['natural', 'integration', 'quick-win'].includes(event.source);
+        const notTemplate = event.source !== 'template' && event.source !== 'demo' && event.source !== 'manual';
+        console.log('NotiProof: Event filter -', event.source, 'approved:', isApproved, 'legitimate:', isLegitimateSource, 'not template:', notTemplate);
+        return isApproved && isLegitimateSource && notTemplate;
+      })
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    eventQueue = [...newEvents, ...eventQueue].slice(0, 50); // Keep max 50 events
+    
+    // Display the highest priority event
+    const eventToShow = selectBestEvent(eventQueue);
+    if (eventToShow) {
+      console.log('NotiProof: Displaying legitimate event:', eventToShow);
+      createWidget(eventToShow);
+    } else {
+      console.log('NotiProof: No legitimate events found - widget will remain hidden');
     }
   }
   
@@ -577,6 +781,9 @@
     await fetchWidgetConfig();
     updateScroll();
 
+    // Send verification ping first
+    await sendVerificationPing();
+    
     // Track initial visitor session
     await trackVisitorSession();
     

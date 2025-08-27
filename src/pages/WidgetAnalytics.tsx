@@ -21,6 +21,7 @@ import HeatmapViewer from '@/components/HeatmapViewer';
 import ABTestManager from '@/components/ABTestManager';
 import { EventAnalytics } from '@/components/EventAnalytics';
 import { UnifiedAnalyticsDashboard } from '@/components/UnifiedAnalyticsDashboard';
+import { WebsiteAnalyticsFilter } from '@/components/WebsiteAnalyticsFilter';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
 
 interface EventRow {
@@ -45,18 +46,55 @@ const WidgetAnalytics = () => {
     from: startOfDay(subDays(new Date(), 6)),
     to: endOfDay(new Date())
   });
+  const [selectedWebsiteId, setSelectedWebsiteId] = useState<string | null>(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [summary, setSummary] = useState<any>(null);
+  const pageSize = 50; // Optimized page size
+
+  // Fetch summary analytics from new endpoint
+  useEffect(() => {
+    const fetchSummary = async () => {
+      if (!id) return;
+      
+      try {
+        const range = `${Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24))}d`;
+        const response = await supabase.functions.invoke('analytics-api', {
+          body: { 
+            path: `/api/analytics/widgets/${id}/summary?range=${range}`
+          }
+        });
+        
+        if (response.data) {
+          setSummary(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching analytics summary:', error);
+      }
+    };
+
+    fetchSummary();
+  }, [id, dateRange, selectedWebsiteId]);
 
   useEffect(() => {
     const load = async () => {
       if (!id) return;
-      const { data } = await supabase
+      
+      let eventsQuery = supabase
         .from('events')
-        .select('id, event_type, event_data, created_at, views, clicks, flagged, source')
+        .select('id, event_type, event_data, created_at, views, clicks, flagged, source, website_id')
         .eq('widget_id', id)
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString())
         .order('created_at', { ascending: false })
         .limit(2000);
+
+      if (selectedWebsiteId) {
+        eventsQuery = eventsQuery.eq('website_id', selectedWebsiteId);
+      }
+
+      const { data } = await eventsQuery;
       
       console.log('Events loaded for analytics:', { count: data?.length, widgetId: id, dateRange });
       setEvents(data || []);
@@ -88,7 +126,7 @@ const WidgetAnalytics = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, dateRange]);
+  }, [id, dateRange, selectedWebsiteId]);
 
   // Time of day distribution (0-23 hours)
   const byHour = useMemo(() => {
@@ -223,6 +261,13 @@ const WidgetAnalytics = () => {
           className="w-80"
         />
       </div>
+
+      {/* Website Filter for Analytics */}
+      <WebsiteAnalyticsFilter
+        selectedWebsiteId={selectedWebsiteId}
+        onWebsiteChange={setSelectedWebsiteId}
+        showVerificationStatus={true}
+      />
 
       <div className="grid md:grid-cols-8 gap-4">
         <Card><CardHeader><CardTitle>Views</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.totalViews}</CardContent></Card>
@@ -387,6 +432,52 @@ const WidgetAnalytics = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Summary Analytics from New Endpoint */}
+      {summary && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Performance Summary (Cached)</CardTitle>
+            <CardDescription>
+              Analytics for the past {summary.period} - cached for optimal performance
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold">{summary.metrics.impressions}</div>
+                <div className="text-sm text-muted-foreground">Impressions</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{summary.metrics.clicks}</div>
+                <div className="text-sm text-muted-foreground">Clicks</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{summary.metrics.total_events}</div>
+                <div className="text-sm text-muted-foreground">Events</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{summary.metrics.ctr}%</div>
+                <div className="text-sm text-muted-foreground">CTR</div>
+              </div>
+            </div>
+            
+            {/* Event Source Breakdown */}
+            {Object.keys(summary.breakdown.by_source).length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium mb-2">Events by Source:</h4>
+                <div className="flex gap-2 flex-wrap">
+                  {Object.entries(summary.breakdown.by_source).map(([source, count]) => (
+                    <Badge key={source} variant="outline">
+                      {source}: {String(count)}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Phase 3 Enhancements */}
       <div className="space-y-6">

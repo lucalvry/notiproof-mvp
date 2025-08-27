@@ -6,23 +6,34 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, ArrowRight, ArrowLeft, Wand2, Globe, Zap, Target } from 'lucide-react';
+import { CheckCircle, ArrowRight, ArrowLeft, Wand2, Globe, Zap, Target, Link as LinkIcon, Gift, Activity, Sparkles } from 'lucide-react';
 import { NotificationTypeSelector } from './NotificationTypeSelector';
 import { useAuth } from '@/hooks/useAuth';
+import { useWebsites } from '@/hooks/useWebsites';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { getTemplatesByBusinessType } from '@/data/enhancedQuickWinTemplates';
 
 interface WizardData {
   businessType: string;
   websiteUrl: string;
   primaryGoal: string;
+  eventSources: {
+    integrations: string[];
+    quickWins: Array<{
+      templateId: string;
+      customData: Record<string, any>;
+    }>;
+    naturalEvents: boolean;
+  };
   notificationTypes: string[];
   widgetStyle: {
     position: string;
     color: string;
     template: string;
   };
+  widgetName: string;
 }
 
 const businessTypes = [
@@ -57,6 +68,7 @@ interface QuickStartWizardProps {
 
 export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps = {}) => {
   const { profile } = useAuth();
+  const { selectedWebsite } = useWebsites();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
@@ -65,15 +77,21 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
     businessType: '',
     websiteUrl: '',
     primaryGoal: '',
+    eventSources: {
+      integrations: [],
+      quickWins: [],
+      naturalEvents: false
+    },
     notificationTypes: [],
     widgetStyle: {
       position: 'bottom-left',
       color: '#3B82F6',
       template: 'modern-popup'
-    }
+    },
+    widgetName: ''
   });
 
-  const totalSteps = 4;
+  const totalSteps = 6;
   const progress = (currentStep / totalSteps) * 100;
 
   const updateWizardData = (updates: Partial<WizardData>) => {
@@ -93,18 +111,45 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
   };
 
   const createWidget = async () => {
-    if (!profile) return;
+    if (!profile || !selectedWebsite) {
+      toast({
+        title: "No website selected",
+        description: "Please select a website before creating a widget. Verification is required for optimal performance.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if website is verified
+    if (!selectedWebsite.is_verified) {
+      toast({
+        title: "Website verification required",
+        description: "Please verify your website ownership before creating widgets for enhanced security and performance.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsCreating(true);
     try {
-      const widgetName = `${wizardData.businessType} Widget`;
+      const widgetName = wizardData.widgetName || `${wizardData.businessType} Widget`;
+      
+      // Determine allowed event sources based on user selection
+      const allowedSources = [];
+      if (wizardData.eventSources.integrations.length > 0) allowedSources.push('integration');
+      if (wizardData.eventSources.quickWins.length > 0) allowedSources.push('quick-win');
+      if (wizardData.eventSources.naturalEvents) allowedSources.push('natural');
       
       const { data, error } = await supabase
         .from('widgets')
         .insert({
           user_id: profile.id,
+          website_id: selectedWebsite.id,
           name: widgetName,
           template_name: wizardData.widgetStyle.template,
+          notification_types: wizardData.notificationTypes,
+          allowed_event_sources: allowedSources.length > 0 ? allowedSources : ['quick-win'],
+          allow_fallback_content: false, // No fallback for new unified widgets
           style_config: {
             position: wizardData.widgetStyle.position,
             color: wizardData.widgetStyle.color,
@@ -135,9 +180,39 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
 
       if (error) throw error;
 
+      // Create quick-win events if selected
+      if (wizardData.eventSources.quickWins.length > 0) {
+        // Get templates for the business type and create 2-3 default events
+        const templates = getTemplatesByBusinessType(wizardData.businessType);
+        const defaultEvents = templates.slice(0, 3).map((template, index) => ({
+          widget_id: data.id,
+          event_type: template.event_type,
+          event_data: {
+            message: template.template_message,
+            metadata: template.default_metadata,
+            template_id: template.id,
+            quick_win: true
+          },
+          source: 'quick_win' as const,
+          status: 'approved' as const,
+          business_type: wizardData.businessType as any,
+          created_at: new Date(Date.now() - (index * 1000 * 60 * 5)).toISOString() // Stagger by 5 minutes
+        }));
+
+        const { error: eventsError } = await supabase
+          .from('events')
+          .insert(defaultEvents);
+
+        if (eventsError) {
+          console.error('Error creating quick-win events:', eventsError);
+        } else {
+          console.log(`Created ${defaultEvents.length} quick-win events for widget ${data.id}`);
+        }
+      }
+
       toast({
         title: "Widget created successfully!",
-        description: "Your widget is ready to use. Copy the installation code to add it to your website.",
+        description: `Created widget with ${wizardData.eventSources.quickWins.length > 0 ? 'quick-win events' : 'event sources'} ready to go`,
       });
 
       onComplete?.(data.id);
@@ -160,9 +235,16 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
       case 2:
         return wizardData.primaryGoal;
       case 3:
-        return wizardData.notificationTypes.length > 0;
+        const hasEventSource = wizardData.eventSources.integrations.length > 0 || 
+                              wizardData.eventSources.quickWins.length > 0 || 
+                              wizardData.eventSources.naturalEvents;
+        return hasEventSource;
       case 4:
+        return wizardData.notificationTypes.length > 0;
+      case 5:
         return true;
+      case 6:
+        return wizardData.widgetName.trim().length > 0;
       default:
         return false;
     }
@@ -213,7 +295,30 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
                   placeholder="https://yourwebsite.com"
                   type="url"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  This should match your selected website: {selectedWebsite?.domain}
+                </p>
               </div>
+
+              {/* Website Verification Status */}
+              {selectedWebsite && (
+                <div className="p-3 border rounded-lg bg-muted/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-sm">Selected Website: {selectedWebsite.name}</div>
+                      <div className="text-xs text-muted-foreground">{selectedWebsite.domain}</div>
+                    </div>
+                    <Badge variant={selectedWebsite.is_verified ? "default" : "destructive"}>
+                      {selectedWebsite.is_verified ? "✓ Verified" : "⚠ Unverified"}
+                    </Badge>
+                  </div>
+                  {!selectedWebsite.is_verified && (
+                    <div className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded border">
+                      Website verification is recommended for enhanced security and performance. You can verify after creating the widget.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -259,10 +364,209 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
         return (
           <div className="space-y-6">
             <div className="text-center">
+              <LinkIcon className="h-12 w-12 text-primary mx-auto mb-4" />
+              <h2 className="text-2xl font-bold mb-2">Configure Event Sources</h2>
+              <p className="text-muted-foreground">
+                Choose how your widget will get real events to display
+              </p>
+            </div>
+
+            <div className="grid gap-4">
+              {/* Integrations Option */}
+              <Card 
+                className={`cursor-pointer transition-all ${
+                  wizardData.eventSources.integrations.length > 0
+                    ? 'ring-2 ring-primary border-primary bg-primary/5' 
+                    : 'hover:shadow-md hover:border-primary/50'
+                }`}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <LinkIcon className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base">Integrations</CardTitle>
+                        <CardDescription>Connect to your existing platforms</CardDescription>
+                      </div>
+                    </div>
+                    {wizardData.eventSources.integrations.length > 0 && (
+                      <CheckCircle className="h-5 w-5 text-primary" />
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Automatically pull real events from your business platforms
+                  </p>
+                  
+                  {/* Expandable integration options */}
+                  <div className="space-y-2">
+                    {['Shopify', 'WooCommerce', 'Stripe', 'Google Analytics', 'Mailchimp'].map((integration) => (
+                      <div key={integration} className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                        <span className="text-sm">{integration}</span>
+                        <input
+                          type="checkbox"
+                          checked={wizardData.eventSources.integrations.includes(integration.toLowerCase())}
+                          onChange={(e) => {
+                            const integrations = e.target.checked
+                              ? [...wizardData.eventSources.integrations, integration.toLowerCase()]
+                              : wizardData.eventSources.integrations.filter(i => i !== integration.toLowerCase());
+                            updateWizardData({ 
+                              eventSources: { 
+                                ...wizardData.eventSources, 
+                                integrations 
+                              } 
+                            });
+                          }}
+                          className="rounded"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </CardHeader>
+              </Card>
+
+              {/* Quick-Wins Option */}
+              <Card 
+                className={`cursor-pointer transition-all ${
+                  wizardData.eventSources.quickWins.length > 0
+                    ? 'ring-2 ring-primary border-primary bg-primary/5' 
+                    : 'hover:shadow-md hover:border-primary/50'
+                }`}
+                onClick={() => {
+                  // Show available templates for business type
+                  const businessTypeTemplates = getTemplatesByBusinessType(wizardData.businessType);
+                  const defaultTemplate = businessTypeTemplates[0];
+                  
+                  const newQuickWins = wizardData.eventSources.quickWins.length > 0 
+                    ? [] 
+                    : defaultTemplate ? [{
+                        templateId: defaultTemplate.id,
+                        customData: defaultTemplate.default_metadata
+                      }] : [];
+                  
+                  updateWizardData({ 
+                    eventSources: { 
+                      ...wizardData.eventSources, 
+                      quickWins: newQuickWins 
+                    } 
+                  });
+                }}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <Gift className="h-5 w-5 text-green-600" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base">Quick-Wins (60+ Templates)</CardTitle>
+                        <CardDescription>Launch real marketing campaigns</CardDescription>
+                      </div>
+                    </div>
+                    {wizardData.eventSources.quickWins.length > 0 && (
+                      <CheckCircle className="h-5 w-5 text-primary" />
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Create real offers and promotions from 60+ performance-optimized templates.
+                  </p>
+                  {wizardData.eventSources.quickWins.length > 0 && (
+                    <div className="mt-2 text-xs bg-green-50 text-green-700 p-2 rounded border">
+                      <Sparkles className="h-3 w-3 inline mr-1" />
+                      Will auto-select {getTemplatesByBusinessType(wizardData.businessType).slice(0, 3).length} templates for {wizardData.businessType} business
+                    </div>
+                  )}
+                  
+                  {/* Show template preview */}
+                  {wizardData.businessType && (
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      <span className="font-medium">Available for {wizardData.businessType}:</span>
+                      <div className="mt-1 space-y-1">
+                        {getTemplatesByBusinessType(wizardData.businessType).slice(0, 3).map((template, idx) => (
+                          <div key={idx} className="bg-muted/30 p-2 rounded text-xs">
+                            • {template.name}: {template.description}
+                          </div>
+                        ))}
+                        {getTemplatesByBusinessType(wizardData.businessType).length > 3 && (
+                          <div className="text-center text-primary font-medium">
+                            +{getTemplatesByBusinessType(wizardData.businessType).length - 3} more templates available
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </CardHeader>
+              </Card>
+
+              {/* Natural Events Option */}
+              <Card 
+                className={`cursor-pointer transition-all ${
+                  wizardData.eventSources.naturalEvents
+                    ? 'ring-2 ring-primary border-primary bg-primary/5' 
+                    : 'hover:shadow-md hover:border-primary/50'
+                }`}
+                onClick={() => {
+                  updateWizardData({ 
+                    eventSources: { 
+                      ...wizardData.eventSources, 
+                      naturalEvents: !wizardData.eventSources.naturalEvents 
+                    } 
+                  });
+                }}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <Activity className="h-5 w-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base">Natural Events</CardTitle>
+                        <CardDescription>Track real user interactions</CardDescription>
+                      </div>
+                    </div>
+                    {wizardData.eventSources.naturalEvents && (
+                      <CheckCircle className="h-5 w-5 text-primary" />
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Monitor signups, purchases, and page visits directly from your website.
+                  </p>
+                </CardHeader>
+              </Card>
+            </div>
+
+            {/* Selected Sources Summary */}
+            {(wizardData.eventSources.integrations.length > 0 || 
+              wizardData.eventSources.quickWins.length > 0 || 
+              wizardData.eventSources.naturalEvents) && (
+              <div className="mt-4 p-4 bg-muted rounded-lg">
+                <h4 className="font-medium mb-2">Selected Event Sources:</h4>
+                <div className="space-y-1 text-sm">
+                  {wizardData.eventSources.integrations.length > 0 && (
+                    <div>✅ Integrations: Ready to connect your platforms</div>
+                  )}
+                  {wizardData.eventSources.quickWins.length > 0 && (
+                    <div>✅ Marketing Offers: {wizardData.eventSources.quickWins.length} offer(s) configured</div>
+                  )}
+                  {wizardData.eventSources.naturalEvents && (
+                    <div>✅ Natural Events: Will track real user interactions</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case 4:
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
               <Zap className="h-12 w-12 text-primary mx-auto mb-4" />
               <h2 className="text-2xl font-bold mb-2">Choose notification types</h2>
               <p className="text-muted-foreground">
-                Select the types of notifications that will help achieve your goals
+                Select the types of notifications compatible with your event sources
               </p>
             </div>
 
@@ -274,7 +578,7 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
           </div>
         );
 
-      case 4:
+      case 5:
         return (
           <div className="space-y-6">
             <div className="text-center">
@@ -382,6 +686,59 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
           </div>
         );
 
+      case 6:
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <Wand2 className="h-12 w-12 text-primary mx-auto mb-4" />
+              <h2 className="text-2xl font-bold mb-2">Name your widget</h2>
+              <p className="text-muted-foreground">
+                Give your widget a descriptive name for easy management
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="widgetName">Widget Name</Label>
+                <Input
+                  id="widgetName"
+                  value={wizardData.widgetName}
+                  onChange={(e) => updateWizardData({ widgetName: e.target.value })}
+                  placeholder={`${wizardData.businessType || 'My'} Social Proof Widget`}
+                  required
+                />
+              </div>
+
+              {/* Widget Summary */}
+              <div className="p-4 bg-muted rounded-lg">
+                <h4 className="font-medium mb-3">Widget Summary</h4>
+                <div className="grid md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-muted-foreground">Business Type:</div>
+                    <div className="font-medium">{wizardData.businessType || 'Not specified'}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Primary Goal:</div>
+                    <div className="font-medium">{wizardData.primaryGoal || 'Not specified'}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Event Sources:</div>
+                    <div className="font-medium">
+                      {wizardData.eventSources.integrations.length > 0 && 'Integrations '}
+                      {wizardData.eventSources.quickWins.length > 0 && 'Marketing Offers '}
+                      {wizardData.eventSources.naturalEvents && 'Natural Events'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Notification Types:</div>
+                    <div className="font-medium">{wizardData.notificationTypes.length} selected</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
       default:
         return null;
     }
@@ -451,13 +808,21 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
             Next
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
-        ) : (
+        ) : currentStep === totalSteps ? (
           <Button 
             onClick={createWidget}
             disabled={!canProceed() || isCreating}
           >
             {isCreating ? 'Creating Widget...' : 'Create Widget'}
             <Wand2 className="h-4 w-4 ml-2" />
+          </Button>
+        ) : (
+          <Button 
+            onClick={nextStep}
+            disabled={!canProceed()}
+          >
+            Next
+            <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         )}
       </div>

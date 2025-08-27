@@ -7,14 +7,24 @@ import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Plus, Edit, Trash2, Calendar } from 'lucide-react';
 import { useUserQuickWins } from '@/hooks/useUserQuickWins';
 import { useQuickWinTemplates } from '@/hooks/useQuickWinTemplates';
+import { useEnhancedQuickWinTemplates } from '@/hooks/useEnhancedQuickWinTemplates';
+import { EnhancedQuickWinTemplateSelector } from '@/components/EnhancedQuickWinTemplateSelector';
 import { useAuth } from '@/hooks/useAuth';
+import { QuickWinFormData } from '@/types/quickWin';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 const WidgetQuickWins = () => {
   const { id } = useParams<{ id: string }>();
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [showEnhancedSelector, setShowEnhancedSelector] = useState(false);
   const { profile } = useAuth();
-  const { quickWins, loading, toggleQuickWin, removeQuickWin, addQuickWin } = useUserQuickWins(id);
+  const { toast } = useToast();
+  const { quickWins, loading, toggleQuickWin, removeQuickWin, addQuickWin, refetch } = useUserQuickWins(id);
   const { templates } = useQuickWinTemplates(profile?.business_type);
+  const { templates: enhancedTemplates, getTemplateStats } = useEnhancedQuickWinTemplates(profile?.business_type);
+  
+  const templateStats = getTemplateStats();
 
   if (loading) {
     return (
@@ -49,62 +59,90 @@ const WidgetQuickWins = () => {
             </p>
           </div>
         </div>
-        <Button onClick={() => setShowTemplateSelector(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add Quick-Win
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowEnhancedSelector(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add Quick-Win ({templateStats.total} templates)
+          </Button>
+        </div>
       </div>
 
-      {/* Template Selector Modal */}
-      {showTemplateSelector && (
-        <Card className="border-dashed">
-          <CardHeader>
-            <CardTitle>Choose Quick-Win Template</CardTitle>
-            <CardDescription>
-              Select a promotional template to create engaging notifications
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {templates.map((template) => (
-                <div key={template.id} className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-2">
-                      <h4 className="font-medium">{template.name}</h4>
-                      <p className="text-sm text-muted-foreground">{template.description}</p>
-                      <div className="bg-muted/50 rounded p-2 text-sm">
-                        <strong>Preview:</strong> {template.template_message}
-                      </div>
-                    </div>
-                    <Button
-                      onClick={async () => {
-                        try {
-                          await addQuickWin(template.id, template.default_metadata || {});
-                          setShowTemplateSelector(false);
-                        } catch (error) {
-                          console.error('Error adding quick-win:', error);
-                        }
-                      }}
-                    >
-                      Add
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              {templates.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No templates available for your business type.
-                </div>
-              )}
-              <div className="flex justify-end">
-                <Button variant="outline" onClick={() => setShowTemplateSelector(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Enhanced Template Selector */}
+      <EnhancedQuickWinTemplateSelector
+        businessType={profile?.business_type || 'ecommerce'}
+        open={showEnhancedSelector}
+        onOpenChange={setShowEnhancedSelector}
+        onSelectTemplate={async (formData: QuickWinFormData) => {
+          try {
+            // Find the enhanced template
+            const template = enhancedTemplates.find(t => t.id === formData.templateId);
+            if (!template) {
+              toast({
+                title: "Error",
+                description: "Template not found",
+                variant: "destructive"
+              });
+              return;
+            }
+
+            // Create the quick-win in user_quick_wins table
+            const { error } = await supabase
+              .from('user_quick_wins')
+              .insert({
+                user_id: profile?.id,
+                widget_id: id,
+                template_id: formData.templateId,
+                custom_metadata: formData.fieldValues,
+                expires_at: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null,
+                is_enabled: true
+              });
+
+            if (error) throw error;
+
+            // Also create an event immediately
+            const processedMessage = template.template_message.replace(
+              /\{(\w+)\}/g,
+              (match, key) => formData.fieldValues[key] || match
+            );
+
+            const { error: eventError } = await supabase
+              .from('events')
+              .insert({
+                widget_id: id,
+                event_type: template.event_type,
+                event_data: {
+                  message: processedMessage,
+                  metadata: formData.fieldValues,
+                  quick_win: true,
+                  template_id: formData.templateId
+                },
+                source: 'quick_win',
+                status: 'approved',
+                business_type: profile?.business_type as any,
+                message_template: processedMessage,
+                expires_at: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null
+              });
+
+            if (eventError) {
+              console.error('Error creating event:', eventError);
+            }
+
+            toast({
+              title: "Quick-Win Created!",
+              description: `Successfully created quick-win using ${template.name} template`,
+            });
+
+            refetch();
+          } catch (error) {
+            console.error('Error creating quick-win:', error);
+            toast({
+              title: "Error",
+              description: "Failed to create quick-win. Please try again.",
+              variant: "destructive"
+            });
+          }
+        }}
+      />
 
       {/* Current Quick-Wins */}
       <Card>
@@ -124,14 +162,17 @@ const WidgetQuickWins = () => {
               <p className="text-muted-foreground mb-4">
                 Create promotional notifications to engage visitors when natural events are low.
               </p>
-              <Button onClick={() => setShowTemplateSelector(true)}>
+              <Button onClick={() => setShowEnhancedSelector(true)}>
                 Create Your First Quick-Win
               </Button>
             </div>
           ) : (
             <div className="space-y-4">
               {quickWins.map((quickWin) => {
-                const template = templates.find(t => t.id === quickWin.template_id);
+                // First try to find in basic templates, then enhanced templates
+                const basicTemplate = templates.find(t => t.id === quickWin.template_id);
+                const enhancedTemplate = enhancedTemplates.find(t => t.id === quickWin.template_id);
+                const template = basicTemplate || enhancedTemplate;
                 
                 return (
                   <div key={quickWin.id} className="border rounded-lg p-4">
@@ -142,6 +183,11 @@ const WidgetQuickWins = () => {
                           <Badge variant={quickWin.is_enabled ? 'default' : 'secondary'}>
                             {quickWin.is_enabled ? 'Active' : 'Disabled'}
                           </Badge>
+                          {enhancedTemplate && (
+                            <Badge variant="secondary" className="gap-1">
+                              ✨ Enhanced
+                            </Badge>
+                          )}
                           {quickWin.expires_at && (
                             <Badge variant="outline" className="gap-1">
                               <Calendar className="h-3 w-3" />
@@ -178,6 +224,15 @@ const WidgetQuickWins = () => {
                                 </Badge>
                               ))}
                             </div>
+                          </div>
+                        )}
+                        
+                        {/* Show performance hints for enhanced templates */}
+                        {enhancedTemplate?.performance_hints && (
+                          <div className="text-xs text-muted-foreground">
+                            <span className="text-green-600">
+                              ⚡ Avg. conversion: {enhancedTemplate.performance_hints.conversion_rate}%
+                            </span>
                           </div>
                         )}
                       </div>

@@ -12,10 +12,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { NotificationTypeSelector } from '@/components/NotificationTypeSelector';
 import { DemoEventManager } from '@/components/DemoEventManager';
+import { EventSourcesManager } from '@/components/EventSourcesManager';
+import { EnhancedQuickWinManager } from '@/components/EnhancedQuickWinManager';
 
 const templates = [
   {
@@ -282,368 +285,315 @@ const { error } = await supabase
         <h1 className="text-3xl font-bold">Edit Widget</h1>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-8">
-        {/* Form */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Widget Configuration</CardTitle>
-              <CardDescription>
-                Update your social proof widget settings
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Widget Name</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g., Homepage Social Proof"
-                    required
-                  />
-                </div>
+      <Tabs defaultValue="configuration" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="configuration">Configuration</TabsTrigger>
+          <TabsTrigger value="event-sources">Event Sources</TabsTrigger>
+          <TabsTrigger value="quick-wins">Quick-Wins</TabsTrigger>
+          <TabsTrigger value="demo">Demo Mode</TabsTrigger>
+        </TabsList>
 
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select 
-                    value={formData.status} 
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+        <TabsContent value="configuration">
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Form */}
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Widget Configuration</CardTitle>
+                  <CardDescription>
+                    Update your social proof widget settings
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="name">Widget Name</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="e.g., Homepage Social Proof"
+                        required
+                      />
+                    </div>
 
-                <div>
-                  <Label htmlFor="campaign_id">Campaign (Optional)</Label>
-                  <Select 
-                    value={formData.campaign_id} 
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, campaign_id: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a campaign" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No Campaign</SelectItem>
-                      {campaigns.map((campaign) => (
-                        <SelectItem key={campaign.id} value={campaign.id}>
-                          {campaign.name} ({campaign.status})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Assign this widget to a campaign for coordinated display rules
-                  </p>
-                </div>
-
-                <div>
-                  <Label>Template</Label>
-                  <div className="grid gap-3 mt-2">
-                    {templates.map((template) => (
-                      <div
-                        key={template.id}
-                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                          formData.template_name === template.id
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                        onClick={() => setFormData(prev => ({ ...prev, template_name: template.id }))}
+                    <div>
+                      <Label htmlFor="status">Status</Label>
+                      <Select 
+                        value={formData.status} 
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
                       >
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-medium">{template.name}</h4>
-                          {formData.template_name === template.id && (
-                            <Badge>Selected</Badge>
-                          )}
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="campaign_id">Campaign (Optional)</Label>
+                      <Select 
+                        value={formData.campaign_id} 
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, campaign_id: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a campaign" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Campaign</SelectItem>
+                          {campaigns.map((campaign) => (
+                            <SelectItem key={campaign.id} value={campaign.id}>
+                              {campaign.name} ({campaign.status})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Assign this widget to a campaign for coordinated display rules
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label>Template</Label>
+                      <div className="grid gap-3 mt-2">
+                        {templates.map((template) => (
+                          <div
+                            key={template.id}
+                            className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                              formData.template_name === template.id
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border hover:border-primary/50'
+                            }`}
+                            onClick={() => setFormData(prev => ({ ...prev, template_name: template.id }))}
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <h4 className="font-medium">{template.name}</h4>
+                              {formData.template_name === template.id && (
+                                <Badge>Selected</Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              {template.description}
+                            </p>
+                            <div className="text-sm bg-muted p-2 rounded">
+                              {template.preview}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                     <div>
+                       <Label>Notification Types</Label>
+                       <NotificationTypeSelector
+                         selectedTypes={selectedNotificationTypes}
+                         onSelectionChange={setSelectedNotificationTypes}
+                         maxSelections={3}
+                       />
+                     </div>
+                      <div>
+                        <Label htmlFor="position">Position</Label>
+                        <Select 
+                          value={formData.position} 
+                          onValueChange={(value) => setFormData(prev => ({ ...prev, position: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                            <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                            <SelectItem value="top-left">Top Left</SelectItem>
+                            <SelectItem value="top-right">Top Right</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="delay">Delay (ms)</Label>
+                        <Input
+                          id="delay"
+                          type="number"
+                          value={formData.delay}
+                          onChange={(e) => setFormData(prev => ({ ...prev, delay: e.target.value }))}
+                          min="0"
+                          step="500"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="color">Primary Color</Label>
+                        <div className="flex gap-2 mt-1">
+                          <Input
+                            id="color"
+                            type="color"
+                            value={formData.color}
+                            onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                            className="w-16 h-10"
+                          />
+                          <Input
+                            value={formData.color}
+                            onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                            placeholder="#3B82F6"
+                            className="flex-1"
+                          />
                         </div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {template.description}
-                        </p>
-                        <div className="text-sm bg-muted p-2 rounded">
-                          {template.preview}
+                      </div>
+
+                      {/* Display Rules */}
+                      <div className="space-y-3 border-t pt-4">
+                        <h4 className="font-medium">Display Rules</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="show_duration_ms">Show Duration (ms)</Label>
+                            <Input id="show_duration_ms" type="number" value={displayRules.show_duration_ms}
+                              onChange={(e) => setDisplayRules(prev => ({ ...prev, show_duration_ms: Number(e.target.value) }))} />
+                          </div>
+                          <div>
+                            <Label htmlFor="interval_ms">Interval Between (ms)</Label>
+                            <Input id="interval_ms" type="number" value={displayRules.interval_ms}
+                              onChange={(e) => setDisplayRules(prev => ({ ...prev, interval_ms: Number(e.target.value) }))} />
+                          </div>
+                          <div>
+                            <Label htmlFor="max_per_page">Max Per Page</Label>
+                            <Input id="max_per_page" type="number" value={displayRules.max_per_page}
+                              onChange={(e) => setDisplayRules(prev => ({ ...prev, max_per_page: Number(e.target.value) }))} />
+                          </div>
+                          <div>
+                            <Label htmlFor="max_per_session">Max Per Session</Label>
+                            <Input id="max_per_session" type="number" value={displayRules.max_per_session}
+                              onChange={(e) => setDisplayRules(prev => ({ ...prev, max_per_session: Number(e.target.value) }))} />
+                          </div>
+                          <div>
+                            <Label htmlFor="min_time_on_page_ms">Min Time on Page (ms)</Label>
+                            <Input id="min_time_on_page_ms" type="number" value={displayRules.triggers.min_time_on_page_ms}
+                              onChange={(e) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, min_time_on_page_ms: Number(e.target.value) } }))} />
+                          </div>
+                          <div>
+                            <Label htmlFor="scroll_depth_pct">Scroll Depth (%)</Label>
+                            <Input id="scroll_depth_pct" type="number" value={displayRules.triggers.scroll_depth_pct}
+                              onChange={(e) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, scroll_depth_pct: Number(e.target.value) } }))} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 items-center">
+                          <div className="flex items-center justify-between rounded-md border p-3">
+                            <Label className="mr-4">Exit Intent</Label>
+                            <Switch checked={displayRules.triggers.exit_intent}
+                              onCheckedChange={(v) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, exit_intent: v } }))} />
+                          </div>
+                          <div className="flex items-center justify-between rounded-md border p-3">
+                            <Label className="mr-4">Verified Only</Label>
+                            <Switch checked={displayRules.enforce_verified_only}
+                              onCheckedChange={(v) => setDisplayRules(prev => ({ ...prev, enforce_verified_only: v }))} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>URL Allowlist (comma separated)</Label>
+                            <Input value={displayRules.url_allowlist}
+                              onChange={(e) => setDisplayRules(prev => ({ ...prev, url_allowlist: e.target.value }))} />
+                          </div>
+                          <div>
+                            <Label>URL Denylist (comma separated)</Label>
+                            <Input value={displayRules.url_denylist}
+                              onChange={(e) => setDisplayRules(prev => ({ ...prev, url_denylist: e.target.value }))} />
+                          </div>
+                          <div>
+                            <Label>Referrer Allowlist</Label>
+                            <Input value={displayRules.referrer_allowlist}
+                              onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_allowlist: e.target.value }))} />
+                          </div>
+                          <div>
+                            <Label>Referrer Denylist</Label>
+                            <Input value={displayRules.referrer_denylist}
+                              onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_denylist: e.target.value }))} />
+                          </div>
+                          <div>
+                            <Label>Geo Allowlist (ISO country codes, comma separated)</Label>
+                            <Input value={displayRules.geo_allowlist}
+                              onChange={(e) => setDisplayRules(prev => ({ ...prev, geo_allowlist: e.target.value.toUpperCase() }))} />
+                          </div>
+                          <div>
+                            <Label>Geo Denylist (ISO country codes, comma separated)</Label>
+                            <Input value={displayRules.geo_denylist}
+                              onChange={(e) => setDisplayRules(prev => ({ ...prev, geo_denylist: e.target.value.toUpperCase() }))} />
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
 
-                 <div>
-                   <Label>Notification Types</Label>
-                   <NotificationTypeSelector
-                     selectedTypes={selectedNotificationTypes}
-                     onSelectionChange={setSelectedNotificationTypes}
-                     maxSelections={3}
-                   />
-                 </div>
-                  <div>
-                    <Label htmlFor="position">Position</Label>
-                    <Select 
-                      value={formData.position} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, position: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                        <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                        <SelectItem value="top-left">Top Left</SelectItem>
-                        <SelectItem value="top-right">Top Right</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      <Button type="submit" className="w-full" disabled={loading || !formData.template_name}>
+                        {loading ? 'Updating...' : 'Update Widget'}
+                      </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
 
-                  <div>
-                    <Label htmlFor="delay">Delay (ms)</Label>
-                    <Input
-                      id="delay"
-                      type="number"
-                      value={formData.delay}
-                      onChange={(e) => setFormData(prev => ({ ...prev, delay: e.target.value }))}
-                      min="0"
-                      step="500"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="color">Primary Color</Label>
-                    <div className="flex gap-2 mt-1">
-                      <Input
-                        id="color"
-                        type="color"
-                        value={formData.color}
-                        onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                        className="w-16 h-10"
-                      />
-                      <Input
-                        value={formData.color}
-                        onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                        placeholder="#3B82F6"
-                        className="flex-1"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Display Rules */}
-                  <div className="space-y-3 border-t pt-4">
-                    <h4 className="font-medium">Display Rules</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="show_duration_ms">Show Duration (ms)</Label>
-                        <Input id="show_duration_ms" type="number" value={displayRules.show_duration_ms}
-                          onChange={(e) => setDisplayRules(prev => ({ ...prev, show_duration_ms: Number(e.target.value) }))} />
-                      </div>
-                      <div>
-                        <Label htmlFor="interval_ms">Interval Between (ms)</Label>
-                        <Input id="interval_ms" type="number" value={displayRules.interval_ms}
-                          onChange={(e) => setDisplayRules(prev => ({ ...prev, interval_ms: Number(e.target.value) }))} />
-                      </div>
-                      <div>
-                        <Label htmlFor="max_per_page">Max Per Page</Label>
-                        <Input id="max_per_page" type="number" value={displayRules.max_per_page}
-                          onChange={(e) => setDisplayRules(prev => ({ ...prev, max_per_page: Number(e.target.value) }))} />
-                      </div>
-                      <div>
-                        <Label htmlFor="max_per_session">Max Per Session</Label>
-                        <Input id="max_per_session" type="number" value={displayRules.max_per_session}
-                          onChange={(e) => setDisplayRules(prev => ({ ...prev, max_per_session: Number(e.target.value) }))} />
-                      </div>
-                      <div>
-                        <Label htmlFor="min_time_on_page_ms">Min Time on Page (ms)</Label>
-                        <Input id="min_time_on_page_ms" type="number" value={displayRules.triggers.min_time_on_page_ms}
-                          onChange={(e) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, min_time_on_page_ms: Number(e.target.value) } }))} />
-                      </div>
-                      <div>
-                        <Label htmlFor="scroll_depth_pct">Scroll Depth (%)</Label>
-                        <Input id="scroll_depth_pct" type="number" value={displayRules.triggers.scroll_depth_pct}
-                          onChange={(e) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, scroll_depth_pct: Number(e.target.value) } }))} />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 items-center">
-                      <div className="flex items-center justify-between rounded-md border p-3">
-                        <Label className="mr-4">Exit Intent</Label>
-                        <Switch checked={displayRules.triggers.exit_intent}
-                          onCheckedChange={(v) => setDisplayRules(prev => ({ ...prev, triggers: { ...prev.triggers, exit_intent: v } }))} />
-                      </div>
-                      <div className="flex items-center justify-between rounded-md border p-3">
-                        <Label className="mr-4">Verified Only</Label>
-                        <Switch checked={displayRules.enforce_verified_only}
-                          onCheckedChange={(v) => setDisplayRules(prev => ({ ...prev, enforce_verified_only: v }))} />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>URL Allowlist (comma separated)</Label>
-                        <Input value={displayRules.url_allowlist}
-                          onChange={(e) => setDisplayRules(prev => ({ ...prev, url_allowlist: e.target.value }))} />
-                      </div>
-                      <div>
-                        <Label>URL Denylist (comma separated)</Label>
-                        <Input value={displayRules.url_denylist}
-                          onChange={(e) => setDisplayRules(prev => ({ ...prev, url_denylist: e.target.value }))} />
-                      </div>
-                      <div>
-                        <Label>Referrer Allowlist</Label>
-                        <Input value={displayRules.referrer_allowlist}
-                          onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_allowlist: e.target.value }))} />
-                      </div>
-                      <div>
-                        <Label>Referrer Denylist</Label>
-                        <Input value={displayRules.referrer_denylist}
-                          onChange={(e) => setDisplayRules(prev => ({ ...prev, referrer_denylist: e.target.value }))} />
-                      </div>
-                      <div>
-                        <Label>Geo Allowlist (ISO country codes, comma separated)</Label>
-                        <Input value={displayRules.geo_allowlist}
-                          onChange={(e) => setDisplayRules(prev => ({ ...prev, geo_allowlist: e.target.value.toUpperCase() }))} />
-                      </div>
-                      <div>
-                        <Label>Geo Denylist (ISO country codes, comma separated)</Label>
-                        <Input value={displayRules.geo_denylist}
-                          onChange={(e) => setDisplayRules(prev => ({ ...prev, geo_denylist: e.target.value.toUpperCase() }))} />
+            {/* Preview */}
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Preview</CardTitle>
+                  <CardDescription>
+                    See how your widget will look
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-muted/30 p-8 rounded-lg">
+                    <div className="max-w-sm mx-auto">
+                      <div
+                        className="p-4 rounded-lg shadow-lg border"
+                        style={{
+                          backgroundColor: 'white',
+                          borderColor: formData.color,
+                          borderWidth: '2px'
+                        }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className="w-3 h-3 rounded-full mt-1.5"
+                            style={{ backgroundColor: formData.color }}
+                          ></div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 truncate">
+                              Someone from New York
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              just made a purchase
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              2 minutes ago
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
 
-                  <Button type="submit" className="w-full" disabled={loading || !formData.template_name}>
-                    {loading ? 'Updating...' : 'Update Widget'}
-                  </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
+        <TabsContent value="event-sources">
+          <EventSourcesManager widgetId={id || ''} />
+        </TabsContent>
 
-        {/* Preview & Demo Manager */}
-        <div className="space-y-6">
-          {/* Demo Event Manager */}
-          {id && selectedNotificationTypes.length > 0 && profile?.business_type && (
-            <DemoEventManager
-              widgetId={id}
-              notificationTypes={selectedNotificationTypes}
-              businessType={profile.business_type}
-            />
-          )}
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Preview</CardTitle>
-              <CardDescription>
-                See how your updated widget will look
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {formData.template_name ? (
-                <div className="relative bg-muted rounded-lg p-8 min-h-[300px]">
-                  <div 
-                    className={`absolute p-4 bg-background border rounded-lg shadow-lg max-w-xs ${
-                      formData.position.includes('bottom') ? 'bottom-4' : 'top-4'
-                    } ${
-                      formData.position.includes('right') ? 'right-4' : 'left-4'
-                    } ${
-                      formData.status === 'inactive' ? 'opacity-50' : ''
-                    }`}
-                    style={{ borderLeftColor: formData.color, borderLeftWidth: '4px' }}
-                  >
-                    <div className="text-sm">
-                      {templates.find(t => t.id === formData.template_name)?.preview}
-                    </div>
-                    {formData.status === 'inactive' && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        (Widget is inactive)
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-center text-muted-foreground">
-                    Website Preview
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12 text-muted-foreground">
-                  Select a template to see preview
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <TabsContent value="quick-wins">
+          <EnhancedQuickWinManager widgetId={id || ''} />
+        </TabsContent>
 
-        {/* Goals */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Goal Definitions</CardTitle>
-              <CardDescription>Track conversions by URL match, custom event, or label</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-3">
-                  <Input placeholder="Name" value={newGoal.name} onChange={(e) => setNewGoal({ ...newGoal, name: e.target.value })} />
-                  <Select value={newGoal.type} onValueChange={(v) => setNewGoal({ ...newGoal, type: v })}>
-                    <SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="url_match">URL Match</SelectItem>
-                      <SelectItem value="custom_event">Custom Event</SelectItem>
-                      <SelectItem value="label">Label</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input placeholder="Pattern (e.g. /checkout)" value={newGoal.pattern} onChange={(e) => setNewGoal({ ...newGoal, pattern: e.target.value })} />
-                </div>
-                <Button type="button" onClick={async () => {
-                  if (!id) return;
-                  const { error } = await supabase.from('goals').insert({ widget_id: id, ...newGoal } as any);
-                  if (!error) {
-                    setNewGoal({ name: '', type: 'url_match', pattern: '' });
-                    const { data } = await (supabase.from('goals').select('*').eq('widget_id', id) as any);
-                    setGoals(data || []);
-                    toast({ title: 'Goal added' });
-                  } else {
-                    toast({ title: 'Error', description: 'Failed to add goal', variant: 'destructive' });
-                  }
-                }}>Add Goal</Button>
-
-                <div className="border rounded-md">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Pattern</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {goals.map((g) => (
-                        <TableRow key={g.id}>
-                          <TableCell>{g.name}</TableCell>
-                          <TableCell><Badge>{g.type}</Badge></TableCell>
-                          <TableCell>{g.pattern}</TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="outline" size="sm" onClick={async () => {
-                              const { error } = await supabase.from('goals').delete().eq('id', g.id);
-                              if (!error) {
-                                setGoals(goals.filter((x) => x.id !== g.id));
-                              }
-                            }}>Delete</Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {goals.length === 0 && (
-                        <TableRow><TableCell colSpan={4} className="text-muted-foreground">No goals yet</TableCell></TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+        <TabsContent value="demo">
+          <DemoEventManager 
+            widgetId={id || ''} 
+            notificationTypes={selectedNotificationTypes}
+            businessType={profile?.business_type || 'ecommerce'}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

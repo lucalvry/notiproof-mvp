@@ -11,8 +11,10 @@ import {
   Shield,
   Users,
   Layout,
-  Activity
+  Activity,
+  Globe
 } from "lucide-react";
+import { WebsiteSelector } from './WebsiteSelector';
 import { NavLink, useLocation } from "react-router-dom";
 
 import {
@@ -39,7 +41,7 @@ export function DashboardSidebar() {
   const userItems = [
     { title: "Overview", url: "/dashboard", icon: Home, exact: true },
     { title: "Widgets", url: "/dashboard/widgets", icon: Blocks },
-    { title: "Create Widget", url: "/dashboard/widgets/create", icon: Plus },
+    { title: "Websites", url: "/dashboard/websites", icon: Globe },
     { title: "Events", url: "/dashboard/events", icon: Activity },
     { title: "Campaigns", url: "/dashboard/campaigns", icon: Calendar },
     { title: "Social Connectors", url: "/dashboard/social-connectors", icon: Share2 },
@@ -58,6 +60,10 @@ export function DashboardSidebar() {
       collapsible="icon"
     >
       <SidebarContent>
+        <div className="p-3">
+          <WebsiteSelector />
+        </div>
+        
         <SidebarGroup>
           <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
           <SidebarGroupContent>

@@ -3,8 +3,36 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, if-none-match',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+}
+
+// Helper functions for caching
+function generateETag(data: any): string {
+  const str = JSON.stringify(data);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return `"${Math.abs(hash).toString(16)}"`;
+}
+
+function getCacheHeaders(type: 'config' | 'events'): Record<string, string> {
+  if (type === 'config') {
+    return {
+      'Cache-Control': 'public, max-age=300, s-maxage=900, stale-while-revalidate=86400',
+    };
+  } else {
+    return {
+      'Cache-Control': 'public, max-age=10, s-maxage=60',
+    };
+  }
+}
+
+function shouldReturnNotModified(requestETag: string | null, currentETag: string): boolean {
+  return requestETag === currentETag;
 }
 
 serve(async (req) => {
@@ -42,6 +70,122 @@ serve(async (req) => {
       const subPath = pathParts[4];
       console.log('Widget API diagnostics (direct):', { pathParts, widgetId, subPath });
       
+      // Handle website verification
+      if (subPath === 'verify' && req.method === 'POST') {
+        const body = await req.json();
+        const { domain, page_url, user_agent, referrer, session_id } = body;
+        
+        console.log('Widget API: Website verification request', { widgetId, domain, page_url });
+        
+        // Get client IP with GDPR compliance (anonymized)
+        const fullIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || '';
+        const anonymizedIp = fullIp ? fullIp.split('.').slice(0, 3).join('.') + '.0' : '';
+        
+        // Verify widget exists and get associated website
+        const { data: widget, error: widgetError } = await supabase
+          .from('widgets')
+          .select(`
+            id, 
+            status, 
+            user_id,
+            website_id,
+            websites!inner (
+              id,
+              domain,
+              user_id,
+              is_verified
+            )
+          `)
+          .eq('id', widgetId)
+          .eq('status', 'active')
+          .single();
+
+        if (widgetError || !widget) {
+          console.log('Widget API: Widget not found or inactive for verification', widgetError);
+          return new Response(
+            JSON.stringify({ error: 'Widget not found or inactive' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Check if domain matches registered website domain
+        const websiteDomain = widget.websites.domain.replace(/^https?:\/\//, '').replace(/^www\./, '');
+        const requestDomain = domain.replace(/^www\./, '');
+        
+        const isValidDomain = websiteDomain === requestDomain || 
+                             websiteDomain === `www.${requestDomain}` ||
+                             requestDomain === `www.${websiteDomain}`;
+
+        if (isValidDomain) {
+          // Call verification function
+          const { data: verificationResult, error: verificationError } = await supabase
+            .rpc('verify_website', {
+              _website_id: widget.website_id,
+              _verification_type: 'widget_ping',
+              _verification_data: {
+                widget_id: widgetId,
+                domain: domain,
+                page_url: page_url,
+                session_id: session_id,
+                referrer: referrer
+              },
+              _ip_address: anonymizedIp,
+              _user_agent: user_agent
+            });
+
+          if (verificationError) {
+            console.error('Widget API: Verification function error:', verificationError);
+            return new Response(
+              JSON.stringify({ error: 'Verification failed' }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          console.log('Widget API: Website verification successful', { website_id: widget.website_id, domain });
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              verified: true,
+              message: 'Website verified successfully' 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          console.log('Widget API: Domain mismatch for verification', { 
+            registered: websiteDomain, 
+            requested: requestDomain 
+          });
+          
+          // Log failed verification attempt
+          await supabase
+            .from('website_verifications')
+            .insert({
+              website_id: widget.website_id,
+              verification_type: 'widget_ping',
+              verification_data: {
+                widget_id: widgetId,
+                domain: domain,
+                page_url: page_url,
+                registered_domain: websiteDomain,
+                requested_domain: requestDomain,
+                error: 'domain_mismatch'
+              },
+              is_successful: false,
+              ip_address: anonymizedIp,
+              user_agent: user_agent
+            });
+
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              verified: false,
+              message: 'Domain mismatch - widget domain does not match registered website' 
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
       // Handle visitor session tracking
       if (subPath === 'visitor-session' && req.method === 'POST') {
         const body = await req.json();
@@ -92,6 +236,12 @@ serve(async (req) => {
       }
       if (subPath === 'events') {
         if (req.method === 'GET') {
+          const url = new URL(req.url);
+          const requestETag = req.headers.get('If-None-Match');
+          const limit = parseInt(url.searchParams.get('limit') || '12');
+          const fields = url.searchParams.get('fields')?.split(',') || ['*'];
+          const since = url.searchParams.get('since');
+          
           // First get the widget to check notification types
           const { data: widget, error: widgetError } = await supabase
             .from('widgets')
@@ -247,7 +397,7 @@ serve(async (req) => {
           });
 
           // Phase 5: Smart Rotation Logic
-          const requestedCount = 10;
+          const requestedCount = limit;
           let selectedEvents: any[] = [];
 
           if (allNaturalEvents.length === 0) {
@@ -289,8 +439,22 @@ serve(async (req) => {
             .sort(() => Math.random() - 0.5)
             .slice(0, requestedCount);
 
+          // Apply field projection if specified
+          let responseEvents = events;
+          if (fields.length > 0 && !fields.includes('*')) {
+            responseEvents = events.map(event => {
+              const projected: any = {};
+              fields.forEach(field => {
+                if (event.hasOwnProperty(field)) {
+                  projected[field] = event[field];
+                }
+              });
+              return projected;
+            });
+          }
+
           // Transform events for widget display using business context
-          const transformedEvents = events?.map(event => {
+          const transformedEvents = responseEvents?.map(event => {
             // Use message_template if available, otherwise generate from business context
             let message = event.message_template;
             
@@ -350,9 +514,31 @@ serve(async (req) => {
             };
           }).filter(event => event.message && event.message !== 'undefined') || [];
 
+          // Generate ETag for events response
+          const eventsETag = generateETag(transformedEvents);
+
+          // Check if client has current version
+          if (shouldReturnNotModified(requestETag, eventsETag)) {
+            return new Response(null, {
+              status: 304,
+              headers: {
+                ...corsHeaders,
+                'ETag': eventsETag,
+                ...getCacheHeaders('events')
+              }
+            });
+          }
+
           return new Response(
             JSON.stringify(transformedEvents),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            {
+              headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json',
+                'ETag': eventsETag,
+                ...getCacheHeaders('events')
+              }
+            }
           );
         }
         
@@ -671,8 +857,98 @@ serve(async (req) => {
       }
 
       
+      // Handle runtime bundle endpoint (config + events)
+      if (subPath === 'runtime' && req.method === 'GET') {
+        const requestETag = req.headers.get('If-None-Match');
+        
+        // Get widget configuration
+        const { data: widget, error: widgetError } = await supabase
+          .from('widgets')
+          .select('*')
+          .eq('id', widgetId)
+          .eq('status', 'active')
+          .single();
+
+        if (widgetError || !widget) {
+          return new Response(
+            JSON.stringify({ error: 'Widget not found' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Get limited events with field projection
+        const url = new URL(req.url);
+        const limit = parseInt(url.searchParams.get('limit') || '12');
+        const fields = url.searchParams.get('fields')?.split(',') || ['*'];
+        
+        let eventsQuery = supabase
+          .from('events')
+          .select(fields.join(','))
+          .eq('widget_id', widgetId)
+          .eq('status', 'approved')
+          .eq('flagged', false)
+          .in('source', ['natural', 'integration', 'quick-win'])
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        const { data: events } = await eventsQuery;
+
+        const runtimeData = {
+          config: {
+            id: widget.id,
+            name: widget.name,
+            template_name: widget.template_name,
+            style_config: widget.style_config,
+            display_rules: widget.display_rules
+          },
+          events: events || [],
+          timestamp: new Date().toISOString()
+        };
+
+        // Generate ETag for response
+        const responseETag = generateETag(runtimeData);
+
+        // Check if client has current version
+        if (shouldReturnNotModified(requestETag, responseETag)) {
+          return new Response(null, {
+            status: 304,
+            headers: {
+              ...corsHeaders,
+              'ETag': responseETag,
+              ...getCacheHeaders('events')
+            }
+          });
+        }
+
+        // Return 204 if no events to reduce payload
+        if (!events || events.length === 0) {
+          return new Response(null, {
+            status: 204,
+            headers: {
+              ...corsHeaders,
+              'ETag': responseETag,
+              ...getCacheHeaders('events')
+            }
+          });
+        }
+
+        return new Response(
+          JSON.stringify(runtimeData),
+          {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+              'ETag': responseETag,
+              ...getCacheHeaders('events')
+            }
+          }
+        );
+      }
+
       // Handle widget operations
       if (req.method === 'GET') {
+        const requestETag = req.headers.get('If-None-Match');
+        
         // Get widget details
         const { data: widget, error } = await supabase
           .from('widgets')
@@ -696,15 +972,45 @@ serve(async (req) => {
             }
           };
 
+          const mockETag = generateETag(mockWidget);
           return new Response(
             JSON.stringify(mockWidget),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            {
+              headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json',
+                'ETag': mockETag,
+                ...getCacheHeaders('config')
+              }
+            }
           );
+        }
+
+        // Generate ETag for widget config
+        const configETag = generateETag(widget);
+
+        // Check if client has current version
+        if (shouldReturnNotModified(requestETag, configETag)) {
+          return new Response(null, {
+            status: 304,
+            headers: {
+              ...corsHeaders,
+              'ETag': configETag,
+              ...getCacheHeaders('config')
+            }
+          });
         }
 
         return new Response(
           JSON.stringify(widget),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+              'ETag': configETag,
+              ...getCacheHeaders('config')
+            }
+          }
         );
       }
     } else if (isFunctionCall && pathParts.length >= 6) {

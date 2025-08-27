@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useWebsites } from '@/hooks/useWebsites';
 import { QuickStartWizard } from '@/components/QuickStartWizard';
 import { OnboardingProgress } from '@/components/OnboardingProgress';
 import { IntegrationStatusDashboard } from '@/components/IntegrationStatusDashboard';
@@ -34,6 +35,7 @@ interface IntegrationStatus {
 
 const Dashboard = () => {
   const { profile } = useAuth();
+  const { selectedWebsite } = useWebsites();
   const [stats, setStats] = useState<Stats>({
     totalNotifications: 0,
     totalClicks: 0,
@@ -54,11 +56,17 @@ const Dashboard = () => {
       if (!profile) return;
 
       try {
-        // Fetch user's widgets
-        const { data: widgets } = await supabase
+        // Fetch user's widgets filtered by selected website
+        let widgetsQuery = supabase
           .from('widgets')
           .select('id')
           .eq('user_id', profile.id);
+        
+        if (selectedWebsite) {
+          widgetsQuery = widgetsQuery.eq('website_id', selectedWebsite.id);
+        }
+        
+        const { data: widgets } = await widgetsQuery;
 
         const widgetIds = widgets?.map(w => w.id) || [];
         setHasWidgets(widgetIds.length > 0);
@@ -116,7 +124,7 @@ const Dashboard = () => {
     };
 
     fetchDashboardData();
-  }, [profile]);
+  }, [profile, selectedWebsite]);
 
   if (loading) {
     return (

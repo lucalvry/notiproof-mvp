@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Edit, Trash2, Eye, EyeOff } from 'lucide-react';
+import { useWebsites } from '@/hooks/useWebsites';
+import { Plus, Edit, Trash2, Eye, EyeOff, Zap, BarChart3 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { QuickStartWizard } from '@/components/QuickStartWizard';
 
 interface Widget {
   id: string;
@@ -17,47 +20,76 @@ interface Widget {
   _count?: {
     events: number;
   };
+  quickWinCount?: number;
 }
 
 const Widgets = () => {
   const { profile } = useAuth();
+  const { selectedWebsite } = useWebsites();
   const { toast } = useToast();
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showWizard, setShowWizard] = useState(false);
 
   useEffect(() => {
-    const fetchWidgets = async () => {
-      if (!profile) return;
+    fetchWidgets();
+  }, [profile, selectedWebsite, toast]);
 
-      try {
-        const { data, error } = await supabase
-          .from('widgets')
-          .select(`
+  const fetchWidgets = async () => {
+    if (!profile) return;
+
+    try {
+      setLoading(true);
+      let query = supabase
+        .from('widgets')
+        .select(`
+          id,
+          name,
+          template_name,
+          status,
+          created_at,
+          website_id,
+          websites!inner (
             id,
             name,
-            template_name,
-            status,
-            created_at
-          `)
-          .eq('user_id', profile.id)
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        setWidgets(data || []);
-      } catch (error) {
-        console.error('Error fetching widgets:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load widgets",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
+            domain,
+            business_type
+          )
+        `)
+        .eq('user_id', profile.id);
+      
+      if (selectedWebsite) {
+        query = query.eq('website_id', selectedWebsite.id);
       }
-    };
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
 
-    fetchWidgets();
-  }, [profile, toast]);
+      if (error) throw error;
+
+      // Fetch Quick-Win counts for each widget
+      const widgetsWithQuickWins = await Promise.all(
+        (data || []).map(async (widget) => {
+          const { count } = await supabase
+            .from('user_quick_wins')
+            .select('*', { count: 'exact', head: true })
+            .eq('widget_id', widget.id);
+          
+          return { ...widget, quickWinCount: count || 0 };
+        })
+      );
+
+      setWidgets(widgetsWithQuickWins);
+    } catch (error) {
+      console.error('Error fetching widgets:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load widgets",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggleWidgetStatus = async (widgetId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
@@ -149,11 +181,9 @@ const Widgets = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">My Widgets</h1>
-        <Button asChild>
-          <Link to="/widgets/create">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Widget
-          </Link>
+        <Button onClick={() => setShowWizard(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Create Widget
         </Button>
       </div>
 
@@ -164,11 +194,9 @@ const Widgets = () => {
             <p className="text-muted-foreground mb-4">
               Create your first widget to start displaying social proof notifications on your website.
             </p>
-            <Button asChild>
-              <Link to="/widgets/create">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Widget
-              </Link>
+            <Button onClick={() => setShowWizard(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Your First Widget
             </Button>
           </CardContent>
         </Card>
@@ -187,9 +215,30 @@ const Widgets = () => {
                     </CardTitle>
                     <CardDescription>
                       Template: {widget.template_name} • Created {new Date(widget.created_at).toLocaleDateString()}
+                      {widget.quickWinCount > 0 && (
+                        <span className="ml-2">• {widget.quickWinCount} Quick-Win{widget.quickWinCount !== 1 ? 's' : ''}</span>
+                      )}
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                    >
+                      <Link to={`/dashboard/widgets/${widget.id}/quick-wins`}>
+                        <Zap className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                    >
+                      <Link to={`/dashboard/widgets/${widget.id}/analytics`}>
+                        <BarChart3 className="h-4 w-4" />
+                      </Link>
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -224,6 +273,25 @@ const Widgets = () => {
           ))}
         </div>
       )}
+
+      <Dialog open={showWizard} onOpenChange={setShowWizard}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Widget</DialogTitle>
+          </DialogHeader>
+          <QuickStartWizard 
+            onComplete={(widgetId) => {
+              setShowWizard(false);
+              fetchWidgets(); // Refresh the widgets list
+              toast({
+                title: "Widget created!",
+                description: "Your new widget has been created successfully.",
+              });
+            }}
+            onSkip={() => setShowWizard(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

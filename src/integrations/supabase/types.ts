@@ -214,6 +214,7 @@ export type Database = {
           user_name: string | null
           variant_id: string | null
           views: number | null
+          website_id: string | null
           widget_id: string
         }
         Insert: {
@@ -245,6 +246,7 @@ export type Database = {
           user_name?: string | null
           variant_id?: string | null
           views?: number | null
+          website_id?: string | null
           widget_id: string
         }
         Update: {
@@ -276,6 +278,7 @@ export type Database = {
           user_name?: string | null
           variant_id?: string | null
           views?: number | null
+          website_id?: string | null
           widget_id?: string
         }
         Relationships: [
@@ -585,6 +588,7 @@ export type Database = {
           status: string | null
           updated_at: string
           user_id: string
+          website_id: string
         }
         Insert: {
           config?: Json
@@ -596,6 +600,7 @@ export type Database = {
           status?: string | null
           updated_at?: string
           user_id: string
+          website_id: string
         }
         Update: {
           config?: Json
@@ -607,6 +612,7 @@ export type Database = {
           status?: string | null
           updated_at?: string
           user_id?: string
+          website_id?: string
         }
         Relationships: []
       }
@@ -1213,6 +1219,101 @@ export type Database = {
           },
         ]
       }
+      website_verifications: {
+        Row: {
+          created_at: string
+          id: string
+          ip_address: string | null
+          is_successful: boolean | null
+          user_agent: string | null
+          verification_data: Json | null
+          verification_type: string
+          verified_at: string | null
+          website_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          is_successful?: boolean | null
+          user_agent?: string | null
+          verification_data?: Json | null
+          verification_type: string
+          verified_at?: string | null
+          website_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          is_successful?: boolean | null
+          user_agent?: string | null
+          verification_data?: Json | null
+          verification_type?: string
+          verified_at?: string | null
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_verifications_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      websites: {
+        Row: {
+          business_type: Database["public"]["Enums"]["business_type"]
+          created_at: string
+          domain: string
+          favicon_url: string | null
+          id: string
+          is_verified: boolean
+          last_verification_at: string | null
+          name: string
+          status: string
+          updated_at: string
+          user_id: string
+          verification_attempts: number | null
+          verification_method: string | null
+          verification_token: string | null
+        }
+        Insert: {
+          business_type?: Database["public"]["Enums"]["business_type"]
+          created_at?: string
+          domain: string
+          favicon_url?: string | null
+          id?: string
+          is_verified?: boolean
+          last_verification_at?: string | null
+          name: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          verification_attempts?: number | null
+          verification_method?: string | null
+          verification_token?: string | null
+        }
+        Update: {
+          business_type?: Database["public"]["Enums"]["business_type"]
+          created_at?: string
+          domain?: string
+          favicon_url?: string | null
+          id?: string
+          is_verified?: boolean
+          last_verification_at?: string | null
+          name?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          verification_attempts?: number | null
+          verification_method?: string | null
+          verification_token?: string | null
+        }
+        Relationships: []
+      }
       widget_impressions: {
         Row: {
           created_at: string
@@ -1379,6 +1480,7 @@ export type Database = {
           template_name: string
           updated_at: string | null
           user_id: string
+          website_id: string
         }
         Insert: {
           allow_fallback_content?: boolean | null
@@ -1396,6 +1498,7 @@ export type Database = {
           template_name: string
           updated_at?: string | null
           user_id: string
+          website_id: string
         }
         Update: {
           allow_fallback_content?: boolean | null
@@ -1413,6 +1516,7 @@ export type Database = {
           template_name?: string
           updated_at?: string | null
           user_id?: string
+          website_id?: string
         }
         Relationships: [
           {
@@ -1463,11 +1567,25 @@ export type Database = {
         Args: { _types?: string[]; _user_id: string }
         Returns: number
       }
+      get_user_primary_website: {
+        Args: { _user_id: string }
+        Returns: string
+      }
       get_user_team_memberships: {
         Args: { _user_id: string }
         Returns: {
           organization_id: string
           role: Database["public"]["Enums"]["team_role"]
+        }[]
+      }
+      get_website_by_domain: {
+        Args: { _domain: string }
+        Returns: {
+          domain: string
+          id: string
+          is_verified: boolean
+          name: string
+          user_id: string
         }[]
       }
       has_role: {
@@ -1497,6 +1615,16 @@ export type Database = {
           _org_id: string
           _roles: Database["public"]["Enums"]["team_role"][]
           _user_id: string
+        }
+        Returns: boolean
+      }
+      verify_website: {
+        Args: {
+          _ip_address?: string
+          _user_agent?: string
+          _verification_data?: Json
+          _verification_type: string
+          _website_id: string
         }
         Returns: boolean
       }

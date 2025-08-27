@@ -34,13 +34,6 @@ export const ENHANCED_QUICK_WIN_TEMPLATES: EnhancedQuickWinTemplate[] = [
         validation: {
           options: ['2 hours', '6 hours', '12 hours', '24 hours', '48 hours', '3 days']
         }
-      },
-      sale_link: {
-        type: 'url',
-        label: 'Sale Page URL',
-        placeholder: 'https://yourstore.com/sale',
-        required: false,
-        helpText: 'Link to your sale page'
       }
     },
     default_metadata: {
@@ -68,7 +61,7 @@ export const ENHANCED_QUICK_WIN_TEMPLATES: EnhancedQuickWinTemplate[] = [
     category: 'credibility',
     business_type: 'ecommerce',
     event_type: 'recent_purchase',
-    template_message: '🛒 {customer_name} from {location} just bought {product_name} ({time_ago})',
+    template_message: '🛒 {customer_name} from {location} just bought {product_name}',
     form_schema: {
       customer_name: {
         type: 'text',
@@ -91,27 +84,12 @@ export const ENHANCED_QUICK_WIN_TEMPLATES: EnhancedQuickWinTemplate[] = [
         placeholder: 'Wireless Headphones',
         required: true,
         validation: { maxLength: 100 }
-      },
-      time_ago: {
-        type: 'select',
-        label: 'Time Since Purchase',
-        required: true,
-        validation: {
-          options: ['2 minutes ago', '5 minutes ago', '15 minutes ago', '1 hour ago', '2 hours ago']
-        }
-      },
-      product_link: {
-        type: 'url',
-        label: 'Product Link',
-        placeholder: 'https://yourstore.com/product',
-        required: false
       }
     },
     default_metadata: {
       customer_name: 'Sarah M.',
       location: 'New York, NY',
-      product_name: 'Wireless Headphones',
-      time_ago: '5 minutes ago'
+      product_name: 'Premium Product'
     },
     preview_config: {
       style: 'notification',
@@ -133,29 +111,21 @@ export const ENHANCED_QUICK_WIN_TEMPLATES: EnhancedQuickWinTemplate[] = [
     category: 'promotion',
     business_type: 'ecommerce',
     event_type: 'free_shipping',
-    template_message: '🚚 FREE shipping on orders over ${threshold}! You\'re only ${remaining_amount} away!',
+    template_message: '🚚 FREE shipping on orders over ${threshold}! Add ${remaining_amount} more to qualify!',
     form_schema: {
       threshold: {
         type: 'number',
         label: 'Free Shipping Threshold',
         placeholder: '50',
         required: true,
-        validation: { min: 10, max: 500 },
-        helpText: 'Minimum order amount for free shipping'
+        validation: { min: 10, max: 500 }
       },
       remaining_amount: {
         type: 'number',
         label: 'Amount Remaining',
         placeholder: '25',
         required: true,
-        validation: { min: 1, max: 500 },
-        helpText: 'How much more customer needs to spend'
-      },
-      offer_link: {
-        type: 'url',
-        label: 'Shop Now Link',
-        placeholder: 'https://yourstore.com/shop',
-        required: false
+        validation: { min: 1, max: 500 }
       }
     },
     default_metadata: {
@@ -206,20 +176,13 @@ export const ENHANCED_QUICK_WIN_TEMPLATES: EnhancedQuickWinTemplate[] = [
         label: 'Key Feature',
         placeholder: 'Advanced Analytics',
         required: false,
-        validation: { maxLength: 100 },
-        helpText: 'Highlight your best feature'
-      },
-      signup_link: {
-        type: 'url',
-        label: 'Signup Link',
-        placeholder: 'https://yourapp.com/signup',
-        required: false
+        validation: { maxLength: 100 }
       }
     },
     default_metadata: {
-      product_name: 'TaskMaster Pro',
+      product_name: 'Our Platform',
       trial_duration: '14',
-      key_feature: 'Advanced Analytics'
+      key_feature: 'Premium Features'
     },
     preview_config: {
       style: 'modal',
@@ -253,21 +216,14 @@ export const ENHANCED_QUICK_WIN_TEMPLATES: EnhancedQuickWinTemplate[] = [
       benefit_description: {
         type: 'textarea',
         label: 'Benefit Description',
-        placeholder: 'Get actionable insights automatically generated from your data',
+        placeholder: 'Get actionable insights automatically',
         required: true,
-        validation: { maxLength: 200 },
-        helpText: 'Explain how this feature helps users'
-      },
-      learn_more_link: {
-        type: 'url',
-        label: 'Learn More Link',
-        placeholder: 'https://yourapp.com/features/ai-insights',
-        required: false
+        validation: { maxLength: 200 }
       }
     },
     default_metadata: {
-      feature_name: 'AI-Powered Insights',
-      benefit_description: 'Get actionable insights automatically generated from your data'
+      feature_name: 'Smart Analytics',
+      benefit_description: 'Get powerful insights automatically'
     },
     preview_config: {
       style: 'notification',
@@ -316,12 +272,6 @@ export const ENHANCED_QUICK_WIN_TEMPLATES: EnhancedQuickWinTemplate[] = [
         validation: {
           options: ['30 minutes', '45 minutes', '60 minutes', '90 minutes']
         }
-      },
-      booking_link: {
-        type: 'url',
-        label: 'Booking Link',
-        placeholder: 'https://calendly.com/yourname',
-        required: false
       }
     },
     default_metadata: {
@@ -343,61 +293,378 @@ export const ENHANCED_QUICK_WIN_TEMPLATES: EnhancedQuickWinTemplate[] = [
     tags: ['consultation', 'free', 'services', 'limited-time']
   },
 
-  // EVENTS TEMPLATES  
+  // MARKETING AGENCY TEMPLATES
   {
-    id: 'events-early-bird',
-    name: 'Early Bird Special',
-    description: 'Promote early bird pricing for events',
-    category: 'promotion',
-    business_type: 'events',
-    event_type: 'early_bird',
-    template_message: '🐦 Early Bird: Save {discount_amount}% on {event_name} tickets! Only {spots_left} spots left at this price!',
+    id: 'agency-case-study',
+    name: 'Success Case Study',
+    description: 'Showcase client results and testimonials',
+    category: 'credibility',
+    business_type: 'marketing_agency',
+    event_type: 'case_study',
+    template_message: '📈 Case Study: How we helped {client_industry} increase {metric} by {improvement}% in {timeframe}',
     form_schema: {
-      event_name: {
-        type: 'text',
-        label: 'Event Name',
-        placeholder: 'Digital Marketing Summit 2024',
+      client_industry: {
+        type: 'select',
+        label: 'Client Industry',
         required: true,
-        validation: { maxLength: 100 }
+        validation: {
+          options: ['E-commerce', 'SaaS', 'Healthcare', 'Finance', 'Real Estate', 'Education', 'Manufacturing']
+        }
       },
-      discount_amount: {
+      metric: {
+        type: 'select',
+        label: 'Key Metric',
+        required: true,
+        validation: {
+          options: ['sales', 'leads', 'traffic', 'conversions', 'ROI', 'engagement']
+        }
+      },
+      improvement: {
         type: 'number',
-        label: 'Early Bird Discount %',
-        placeholder: '30',
+        label: 'Improvement Percentage',
+        placeholder: '150',
         required: true,
-        validation: { min: 10, max: 70 }
+        validation: { min: 10, max: 1000 }
       },
-      spots_left: {
-        type: 'number',
-        label: 'Spots Remaining',
-        placeholder: '25',
+      timeframe: {
+        type: 'select',
+        label: 'Timeframe',
         required: true,
-        validation: { min: 1, max: 1000 }
-      },
-      registration_link: {
-        type: 'url',
-        label: 'Registration Link',
-        placeholder: 'https://yoursite.com/register',
-        required: false
+        validation: {
+          options: ['30 days', '60 days', '90 days', '6 months', '1 year']
+        }
       }
     },
     default_metadata: {
-      event_name: 'Digital Marketing Summit 2024',
-      discount_amount: 30,
-      spots_left: 25
+      client_industry: 'E-commerce',
+      metric: 'sales',
+      improvement: 150,
+      timeframe: '90 days'
+    },
+    preview_config: {
+      style: 'notification',
+      theme: 'success',
+      icon: '📈',
+      colorScheme: 'green'
+    },
+    performance_hints: {
+      conversion_rate: 16.4,
+      engagement_score: 9.1,
+      industry_benchmark: 12.8
+    },
+    tags: ['case-study', 'results', 'credibility', 'testimonial']
+  },
+  {
+    id: 'agency-audit',
+    name: 'Free Marketing Audit',
+    description: 'Offer free marketing audits or assessments',
+    category: 'promotion',
+    business_type: 'marketing_agency',
+    event_type: 'free_audit',
+    template_message: '🔍 FREE {audit_type} Audit - We\'ll analyze your {focus_area} and show you exactly how to improve!',
+    form_schema: {
+      audit_type: {
+        type: 'select',
+        label: 'Audit Type',
+        required: true,
+        validation: {
+          options: ['Marketing', 'SEO', 'Social Media', 'PPC', 'Website', 'Content']
+        }
+      },
+      focus_area: {
+        type: 'select',
+        label: 'Focus Area',
+        required: true,
+        validation: {
+          options: ['website performance', 'ad campaigns', 'social presence', 'content strategy', 'SEO rankings']
+        }
+      }
+    },
+    default_metadata: {
+      audit_type: 'Marketing',
+      focus_area: 'website performance'
+    },
+    preview_config: {
+      style: 'modal',
+      theme: 'info',
+      icon: '🔍',
+      colorScheme: 'blue'
+    },
+    performance_hints: {
+      conversion_rate: 19.7,
+      engagement_score: 8.8,
+      industry_benchmark: 15.3
+    },
+    tags: ['audit', 'free', 'assessment', 'consultation']
+  },
+
+  // NGO/NON-PROFIT TEMPLATES
+  {
+    id: 'ngo-impact',
+    name: 'Impact Achievement',
+    description: 'Showcase mission impact and achievements',
+    category: 'credibility',
+    business_type: 'ngo',
+    event_type: 'impact_milestone',
+    template_message: '🌟 IMPACT: Together we\'ve {achievement_description} - {number_achieved} {impact_unit} and counting!',
+    form_schema: {
+      achievement_description: {
+        type: 'text',
+        label: 'Achievement Description',
+        placeholder: 'provided clean water access',
+        required: true,
+        validation: { maxLength: 80 }
+      },
+      number_achieved: {
+        type: 'number',
+        label: 'Number Achieved',
+        placeholder: '5000',
+        required: true,
+        validation: { min: 10, max: 10000000 }
+      },
+      impact_unit: {
+        type: 'select',
+        label: 'Impact Unit',
+        required: true,
+        validation: {
+          options: ['people helped', 'families served', 'children educated', 'trees planted', 'meals provided', 'homes built']
+        }
+      }
+    },
+    default_metadata: {
+      achievement_description: 'provided clean water access',
+      number_achieved: 5000,
+      impact_unit: 'people helped'
+    },
+    preview_config: {
+      style: 'banner',
+      theme: 'success',
+      icon: '🌟',
+      colorScheme: 'green'
+    },
+    performance_hints: {
+      conversion_rate: 14.2,
+      engagement_score: 9.6,
+      industry_benchmark: 11.8
+    },
+    tags: ['impact', 'milestone', 'social-good', 'transparency']
+  },
+  {
+    id: 'ngo-donation',
+    name: 'Donation Drive',
+    description: 'Promote donation campaigns and fundraising',
+    category: 'promotion',
+    business_type: 'ngo',
+    event_type: 'donation_campaign',
+    template_message: '💝 Help us reach our goal! ${raised_amount} raised of ${goal_amount} - Every ${minimum_donation} makes a difference!',
+    form_schema: {
+      raised_amount: {
+        type: 'number',
+        label: 'Amount Raised',
+        placeholder: '15000',
+        required: true,
+        validation: { min: 100, max: 10000000 }
+      },
+      goal_amount: {
+        type: 'number',
+        label: 'Goal Amount',
+        placeholder: '25000',
+        required: true,
+        validation: { min: 500, max: 10000000 }
+      },
+      minimum_donation: {
+        type: 'number',
+        label: 'Minimum Donation',
+        placeholder: '25',
+        required: true,
+        validation: { min: 5, max: 1000 }
+      }
+    },
+    default_metadata: {
+      raised_amount: 15000,
+      goal_amount: 25000,
+      minimum_donation: 25
     },
     preview_config: {
       style: 'banner',
       theme: 'urgency',
-      icon: '🐦',
-      colorScheme: 'orange'
+      icon: '💝',
+      colorScheme: 'red'
     },
     performance_hints: {
-      conversion_rate: 16.9,
-      engagement_score: 8.4,
-      industry_benchmark: 13.7
+      conversion_rate: 12.5,
+      engagement_score: 8.9,
+      industry_benchmark: 9.7
     },
-    tags: ['early-bird', 'discount', 'limited-spots', 'events']
+    tags: ['donation', 'fundraising', 'campaign', 'charity']
+  },
+
+  // EDUCATION TEMPLATES
+  {
+    id: 'education-enrollment',
+    name: 'Course Enrollment',
+    description: 'Promote course enrollments and education programs',
+    category: 'promotion',
+    business_type: 'education',
+    event_type: 'course_enrollment',
+    template_message: '🎓 {course_name} - {spots_remaining} spots left! Join {enrolled_count}+ students already enrolled',
+    form_schema: {
+      course_name: {
+        type: 'text',
+        label: 'Course Name',
+        placeholder: 'Digital Marketing Fundamentals',
+        required: true,
+        validation: { maxLength: 80 }
+      },
+      spots_remaining: {
+        type: 'number',
+        label: 'Spots Remaining',
+        placeholder: '15',
+        required: true,
+        validation: { min: 1, max: 500 }
+      },
+      enrolled_count: {
+        type: 'number',
+        label: 'Students Enrolled',
+        placeholder: '120',
+        required: true,
+        validation: { min: 10, max: 100000 }
+      }
+    },
+    default_metadata: {
+      course_name: 'Digital Marketing Fundamentals',
+      spots_remaining: 15,
+      enrolled_count: 120
+    },
+    preview_config: {
+      style: 'notification',
+      theme: 'urgency',
+      icon: '🎓',
+      colorScheme: 'purple'
+    },
+    performance_hints: {
+      conversion_rate: 18.3,
+      engagement_score: 8.7,
+      industry_benchmark: 14.9
+    },
+    tags: ['enrollment', 'education', 'limited-spots', 'course']
+  },
+  {
+    id: 'education-scholarship',
+    name: 'Scholarship Opportunity',
+    description: 'Promote scholarships and financial aid',
+    category: 'promotion',
+    business_type: 'education',
+    event_type: 'scholarship_offer',
+    template_message: '💰 {scholarship_name} - Up to ${scholarship_amount} available! Application deadline: {deadline}',
+    form_schema: {
+      scholarship_name: {
+        type: 'text',
+        label: 'Scholarship Name',
+        placeholder: 'Merit Excellence Scholarship',
+        required: true,
+        validation: { maxLength: 60 }
+      },
+      scholarship_amount: {
+        type: 'number',
+        label: 'Scholarship Amount',
+        placeholder: '5000',
+        required: true,
+        validation: { min: 500, max: 100000 }
+      },
+      deadline: {
+        type: 'text',
+        label: 'Application Deadline',
+        placeholder: 'March 15th',
+        required: true,
+        validation: { maxLength: 30 }
+      }
+    },
+    default_metadata: {
+      scholarship_name: 'Merit Excellence Scholarship',
+      scholarship_amount: 5000,
+      deadline: 'March 15th'
+    },
+    preview_config: {
+      style: 'banner',
+      theme: 'success',
+      icon: '💰',
+      colorScheme: 'green'
+    },
+    performance_hints: {
+      conversion_rate: 21.4,
+      engagement_score: 9.3,
+      industry_benchmark: 17.6
+    },
+    tags: ['scholarship', 'financial-aid', 'opportunity', 'deadline']
+  },
+
+  // REAL ESTATE TEMPLATES
+  {
+    id: 'realestate-listing',
+    name: 'New Property Listing',
+    description: 'Showcase new property listings',
+    category: 'feature',
+    business_type: 'real_estate',
+    event_type: 'new_listing',
+    template_message: '🏡 NEW LISTING: {property_type} in {location} - ${price} | {bedrooms}bd {bathrooms}ba',
+    form_schema: {
+      property_type: {
+        type: 'select',
+        label: 'Property Type',
+        required: true,
+        validation: {
+          options: ['House', 'Condo', 'Townhouse', 'Apartment', 'Commercial', 'Land']
+        }
+      },
+      location: {
+        type: 'text',
+        label: 'Location/Neighborhood',
+        placeholder: 'Downtown Miami',
+        required: true,
+        validation: { maxLength: 50 }
+      },
+      price: {
+        type: 'number',
+        label: 'Price',
+        placeholder: '450000',
+        required: true,
+        validation: { min: 50000, max: 50000000 }
+      },
+      bedrooms: {
+        type: 'number',
+        label: 'Bedrooms',
+        placeholder: '3',
+        required: true,
+        validation: { min: 1, max: 20 }
+      },
+      bathrooms: {
+        type: 'number',
+        label: 'Bathrooms',
+        placeholder: '2',
+        required: true,
+        validation: { min: 1, max: 20 }
+      }
+    },
+    default_metadata: {
+      property_type: 'House',
+      location: 'Downtown',
+      price: 450000,
+      bedrooms: 3,
+      bathrooms: 2
+    },
+    preview_config: {
+      style: 'notification',
+      theme: 'info',
+      icon: '🏡',
+      colorScheme: 'blue'
+    },
+    performance_hints: {
+      conversion_rate: 13.7,
+      engagement_score: 8.4,
+      industry_benchmark: 10.9
+    },
+    tags: ['listing', 'property', 'new', 'real-estate']
   },
 
   // BLOG/CONTENT TEMPLATES
@@ -415,8 +682,7 @@ export const ENHANCED_QUICK_WIN_TEMPLATES: EnhancedQuickWinTemplate[] = [
         label: 'Current Subscriber Count',
         placeholder: '1200',
         required: true,
-        validation: { min: 50, max: 1000000 },
-        helpText: 'Round to nearest hundred for believability'
+        validation: { min: 50, max: 1000000 }
       },
       content_type: {
         type: 'select',
@@ -425,25 +691,11 @@ export const ENHANCED_QUICK_WIN_TEMPLATES: EnhancedQuickWinTemplate[] = [
         validation: {
           options: ['Marketing', 'Business', 'Tech', 'Design', 'Productivity', 'Lifestyle']
         }
-      },
-      incentive: {
-        type: 'text',
-        label: 'Signup Incentive',
-        placeholder: 'Free Marketing Checklist',
-        required: false,
-        validation: { maxLength: 50 }
-      },
-      signup_link: {
-        type: 'url',
-        label: 'Signup Form Link',
-        placeholder: 'https://yoursite.com/newsletter',
-        required: false
       }
     },
     default_metadata: {
       subscriber_count: 1200,
-      content_type: 'Marketing',
-      incentive: 'Free Marketing Checklist'
+      content_type: 'Marketing'
     },
     preview_config: {
       style: 'sidebar',
@@ -457,6 +709,56 @@ export const ENHANCED_QUICK_WIN_TEMPLATES: EnhancedQuickWinTemplate[] = [
       industry_benchmark: 9.3
     },
     tags: ['newsletter', 'subscribers', 'content', 'email-marketing']
+  },
+  {
+    id: 'blog-download',
+    name: 'Free Download',
+    description: 'Promote lead magnets and free resources',
+    category: 'promotion',
+    business_type: 'blog',
+    event_type: 'resource_download',
+    template_message: '📥 Get your FREE {resource_type}: "{resource_title}" - Downloaded {download_count}+ times!',
+    form_schema: {
+      resource_type: {
+        type: 'select',
+        label: 'Resource Type',
+        required: true,
+        validation: {
+          options: ['eBook', 'Template', 'Checklist', 'Guide', 'Toolkit', 'Worksheet']
+        }
+      },
+      resource_title: {
+        type: 'text',
+        label: 'Resource Title',
+        placeholder: 'Ultimate Content Marketing Guide',
+        required: true,
+        validation: { maxLength: 80 }
+      },
+      download_count: {
+        type: 'number',
+        label: 'Download Count',
+        placeholder: '500',
+        required: true,
+        validation: { min: 50, max: 100000 }
+      }
+    },
+    default_metadata: {
+      resource_type: 'eBook',
+      resource_title: 'Ultimate Content Marketing Guide',
+      download_count: 500
+    },
+    preview_config: {
+      style: 'notification',
+      theme: 'success',
+      icon: '📥',
+      colorScheme: 'green'
+    },
+    performance_hints: {
+      conversion_rate: 13.8,
+      engagement_score: 8.2,
+      industry_benchmark: 10.5
+    },
+    tags: ['download', 'lead-magnet', 'free-resource']
   }
 ];
 

@@ -38,7 +38,6 @@ export function AppSidebar() {
   const userItems = [
     { title: "Dashboard", url: "/dashboard", icon: Home },
     { title: "My Widgets", url: "/widgets", icon: Blocks },
-    { title: "Create Widget", url: "/widgets/create", icon: Plus },
     { title: "Installation", url: "/installation", icon: Code },
   ];
 

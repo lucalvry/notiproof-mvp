@@ -73,6 +73,7 @@ const CampaignWizard = () => {
         .from('widgets')
         .insert({
           user_id: profile.id,
+          website_id: 'temp-website-id', // Will be updated when we add website context
           name: `${selectedPreset.name} Widget`,
           template_name: selectedTemplate.id,
           style_config: {

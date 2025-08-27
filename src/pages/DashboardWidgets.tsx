@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Link } from 'react-router-dom';
 import { Edit, Trash2, ToggleLeft, ToggleRight, Plus, Eye, MousePointer, BarChart3 } from 'lucide-react';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { QuickStartWizard } from '@/components/QuickStartWizard';
 interface Widget {
   id: string;
   name: string;
@@ -30,6 +32,7 @@ const DashboardWidgets = () => {
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [filterTemplate, setFilterTemplate] = useState<'all' | string>('all');
+  const [showWizard, setShowWizard] = useState(false);
 
   const templateOptions = Array.from(new Set(widgets.map(w => w.template_name).filter(name => name && name.trim() !== '')));
 
@@ -213,11 +216,9 @@ const DashboardWidgets = () => {
           <h1 className="text-3xl font-bold">My Widgets</h1>
           <p className="text-muted-foreground">Manage your social proof widgets</p>
         </div>
-        <Button asChild className="gap-2">
-          <Link to="/dashboard/widgets/create">
-            <Plus className="h-4 w-4" />
-            Create New Widget
-          </Link>
+        <Button onClick={() => setShowWizard(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Create New Widget
         </Button>
       </div>
 
@@ -267,8 +268,8 @@ const DashboardWidgets = () => {
             <p className="text-muted-foreground text-center mb-4">
               Create your first widget to start showing social proof notifications on your website.
             </p>
-            <Button asChild>
-              <Link to="/dashboard/widgets/create">Create Your First Widget</Link>
+            <Button onClick={() => setShowWizard(true)}>
+              Create Your First Widget
             </Button>
           </CardContent>
         </Card>
@@ -365,10 +366,29 @@ const DashboardWidgets = () => {
               </CardContent>
             </Card>
           ))}
-        </div>
-      )}
-    </div>
-  );
-};
+         </div>
+       )}
 
-export default DashboardWidgets;
+       <Dialog open={showWizard} onOpenChange={setShowWizard}>
+         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+           <DialogHeader>
+             <DialogTitle>Create New Widget</DialogTitle>
+           </DialogHeader>
+           <QuickStartWizard 
+             onComplete={(widgetId) => {
+               setShowWizard(false);
+               fetchWidgets(); // Refresh the widgets list
+               toast({
+                 title: "Widget created!",
+                 description: "Your new widget has been created successfully.",
+               });
+             }}
+             onSkip={() => setShowWizard(false)}
+           />
+         </DialogContent>
+       </Dialog>
+     </div>
+   );
+ };
+ 
+ export default DashboardWidgets;
