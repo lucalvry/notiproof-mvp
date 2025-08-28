@@ -72,14 +72,18 @@ const Dashboard = () => {
         setHasWidgets(widgetIds.length > 0);
 
         if (widgetIds.length > 0) {
-          // Fetch events for stats
+          // Fetch events for stats (exclude tracking data like pageviews)
           const { data: events } = await supabase
             .from('events')
-            .select('views, clicks')
-            .in('widget_id', widgetIds);
+            .select('views, clicks, source, event_type')
+            .in('widget_id', widgetIds)
+            .not('source', 'eq', 'tracking');
 
-          // Calculate stats
-          const totalEvents = events?.length || 0;
+          // Calculate stats - only count actual social proof notifications
+          const socialProofEvents = events?.filter(event => 
+            event.source !== 'tracking' && event.event_type !== 'pageview'
+          ) || [];
+          const totalEvents = socialProofEvents.length;
           const totalClicks = events?.reduce((sum, event) => sum + (event.clicks || 0), 0) || 0;
           const totalViews = events?.reduce((sum, event) => sum + (event.views || 0), 0) || 0;
 
