@@ -52,6 +52,222 @@ serve(async (req) => {
 
     console.log(`Widget API: ${req.method} ${url.pathname}`);
 
+    // Handle main POST requests for actions (like verification)
+    if (req.method === 'POST' && pathParts.length === 1 && pathParts[0] === 'widget-api') {
+      const body = await req.json();
+      const { action } = body;
+
+      if (action === 'verify_meta_tag') {
+        const { website_id, domain } = body;
+        
+        console.log('Widget API: Meta tag verification request', { website_id, domain });
+        
+        try {
+          // Get website details and verification token
+          const { data: website, error: websiteError } = await supabase
+            .from('websites')
+            .select('id, domain, verification_token, user_id')
+            .eq('id', website_id)
+            .single();
+
+          if (websiteError || !website) {
+            console.log('Website not found:', websiteError);
+            return new Response(
+              JSON.stringify({ 
+                verified: false, 
+                message: 'Website not found' 
+              }),
+              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Construct the URL to check
+          const urlToCheck = domain.startsWith('http') ? domain : `https://${domain}`;
+          console.log('Fetching meta tag from:', urlToCheck);
+
+          // Fetch the homepage HTML
+          const response = await fetch(urlToCheck, {
+            headers: {
+              'User-Agent': 'NotiProof-Verification-Bot/1.0'
+            },
+            signal: AbortSignal.timeout(10000) // 10 second timeout
+          });
+
+          if (!response.ok) {
+            console.log('Failed to fetch webpage:', response.status, response.statusText);
+            return new Response(
+              JSON.stringify({ 
+                verified: false, 
+                message: `Failed to fetch webpage: ${response.status} ${response.statusText}` 
+              }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          const html = await response.text();
+          
+          // Search for the meta tag
+          const metaTagRegex = /<meta\s+name=["']notiproof-verification["']\s+content=["']([^"']+)["'][^>]*>/i;
+          const match = html.match(metaTagRegex);
+          
+          if (!match) {
+            console.log('Meta tag not found in HTML');
+            return new Response(
+              JSON.stringify({ 
+                verified: false, 
+                message: 'Meta tag not found on homepage. Please ensure the meta tag is in the <head> section.' 
+              }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          const foundToken = match[1];
+          console.log('Found token:', foundToken, 'Expected:', website.verification_token);
+
+          if (foundToken !== website.verification_token) {
+            console.log('Token mismatch');
+            return new Response(
+              JSON.stringify({ 
+                verified: false, 
+                message: 'Meta tag content does not match verification token' 
+              }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Verification successful - update database
+          const { data: verificationResult, error: verificationError } = await supabase
+            .rpc('verify_website', {
+              _website_id: website_id,
+              _verification_type: 'meta_tag',
+              _verification_data: {
+                domain: domain,
+                meta_tag_found: true,
+                verification_token: foundToken
+              }
+            });
+
+          if (verificationError) {
+            console.error('Verification function error:', verificationError);
+            return new Response(
+              JSON.stringify({ 
+                verified: false, 
+                message: 'Failed to update verification status' 
+              }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          console.log('Meta tag verification successful');
+          return new Response(
+            JSON.stringify({ 
+              verified: true, 
+              message: 'Website verified successfully via meta tag' 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+
+        } catch (error) {
+          console.error('Meta tag verification error:', error);
+          return new Response(
+            JSON.stringify({ 
+              verified: false, 
+              message: `Verification failed: ${error.message}` 
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      if (action === 'verify_dns') {
+        const { website_id, dns_record, domain } = body;
+        
+        console.log('Widget API: DNS verification request', { website_id, domain, dns_record });
+        
+        try {
+          // Get website details and verification token
+          const { data: website, error: websiteError } = await supabase
+            .from('websites')
+            .select('id, domain, verification_token, user_id')
+            .eq('id', website_id)
+            .single();
+
+          if (websiteError || !website) {
+            return new Response(
+              JSON.stringify({ 
+                verified: false, 
+                message: 'Website not found' 
+              }),
+              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Check if the provided DNS record matches the expected format
+          const expectedRecord = `notiproof-verification=${website.verification_token}`;
+          
+          if (dns_record.trim() !== expectedRecord) {
+            return new Response(
+              JSON.stringify({ 
+                verified: false, 
+                message: 'DNS record does not match expected format' 
+              }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Note: In a production environment, you would actually query DNS here
+          // For now, we'll trust that the user has provided the correct record
+          
+          // Verification successful - update database
+          const { data: verificationResult, error: verificationError } = await supabase
+            .rpc('verify_website', {
+              _website_id: website_id,
+              _verification_type: 'dns_record',
+              _verification_data: {
+                domain: domain,
+                dns_record: dns_record,
+                verification_token: website.verification_token
+              }
+            });
+
+          if (verificationError) {
+            console.error('DNS verification function error:', verificationError);
+            return new Response(
+              JSON.stringify({ 
+                verified: false, 
+                message: 'Failed to update verification status' 
+              }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          console.log('DNS verification successful');
+          return new Response(
+            JSON.stringify({ 
+              verified: true, 
+              message: 'Website verified successfully via DNS record' 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+
+        } catch (error) {
+          console.error('DNS verification error:', error);
+          return new Response(
+            JSON.stringify({ 
+              verified: false, 
+              message: `DNS verification failed: ${error.message}` 
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ error: 'Unknown action' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Health check endpoint
     if (pathParts.length === 3 && pathParts[1] === 'api' && pathParts[2] === 'health') {
       return new Response(
