@@ -133,7 +133,18 @@ export const QuickWinTemplateSelector = ({
 
             {templates.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                No templates available for {businessType} business type.
+                <div className="space-y-3">
+                  <Zap className="w-12 h-12 mx-auto opacity-50" />
+                  <div>
+                    <p className="font-medium">No templates available</p>
+                    <p className="text-sm">
+                      {businessType && businessType !== 'saas' 
+                        ? `No templates found for "${businessType}" business type. Try selecting "All business types" above.`
+                        : 'No quick-win templates are currently available.'
+                      }
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
           </div>

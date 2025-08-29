@@ -11,6 +11,7 @@ import { Copy, Check, ShoppingCart, Mail, Code, ExternalLink, AlertCircle, Check
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { WebhookVerifier } from '@/components/WebhookVerifier';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
 
 interface Integration {
   id: string;
@@ -20,6 +21,7 @@ interface Integration {
 }
 
 export default function Integrations() {
+  const { selectedWebsite, isSwitching } = useWebsiteContext();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedWebhook, setCopiedWebhook] = useState('');
@@ -38,7 +40,7 @@ export default function Integrations() {
 
   useEffect(() => {
     loadIntegrations();
-  }, []);
+  }, [selectedWebsite]);
 
   const loadIntegrations = async () => {
     try {
@@ -128,7 +130,7 @@ export default function Integrations() {
     return integrations.some(integration => integration.type === type);
   };
 
-  if (loading) {
+  if (loading || isSwitching) {
     return (
       <div className="container mx-auto p-6">
         <div className="flex items-center justify-center h-64">

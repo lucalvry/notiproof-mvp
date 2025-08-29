@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
 
 interface SocialConnector {
   id: string;
@@ -58,6 +59,7 @@ const connectorTypes = {
 
 const SocialConnectors: React.FC = () => {
   const { profile } = useAuth();
+  const { selectedWebsite, isSwitching } = useWebsiteContext();
   const { toast } = useToast();
   const [connectors, setConnectors] = useState<SocialConnector[]>([]);
   const [widgets, setWidgets] = useState<Widget[]>([]);
@@ -75,7 +77,7 @@ const SocialConnectors: React.FC = () => {
       loadConnectors();
       loadWidgets();
     }
-  }, [profile]);
+  }, [profile, selectedWebsite]);
 
   const loadConnectors = async () => {
     try {
@@ -240,7 +242,7 @@ const SocialConnectors: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (loading || isSwitching) {
     return (
       <div className="space-y-6">
         <div className="h-8 bg-muted rounded animate-pulse" />

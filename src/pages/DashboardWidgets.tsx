@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useWebsites } from '@/hooks/useWebsites';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ interface Widget {
 
 const DashboardWidgets = () => {
   const { profile } = useAuth();
+  const { selectedWebsite } = useWebsites();
   const { toast } = useToast();
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,17 +79,23 @@ const DashboardWidgets = () => {
         supabase.removeChannel(channel);
       };
     }
-  }, [profile]);
+  }, [profile, selectedWebsite]);
 
   const fetchWidgets = async () => {
     if (!profile?.id) return;
 
     try {
-      // Fetch widgets
-      const { data: widgetsData, error } = await supabase
+      // Fetch widgets filtered by selected website
+      let widgetsQuery = supabase
         .from('widgets')
         .select('*')
-        .eq('user_id', profile.id)
+        .eq('user_id', profile.id);
+        
+      if (selectedWebsite) {
+        widgetsQuery = widgetsQuery.eq('website_id', selectedWebsite.id);
+      }
+      
+      const { data: widgetsData, error } = await widgetsQuery
         .order('created_at', { ascending: false });
 
       if (error) throw error;

@@ -18,6 +18,10 @@ import { NotificationTypeService } from '@/services/notificationTypeService';
 import { EventSourceIndicator } from '@/components/EventSourceIndicator';
 import { QuickWinManager } from '@/components/QuickWinManager';
 import { GraduationProgress } from '@/components/GraduationProgress';
+import { useWebsites } from '@/hooks/useWebsites';
+import { useAuth } from '@/hooks/useAuth';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
+import { GenuineAnalyticsDashboard } from './GenuineAnalyticsDashboard';
 
 interface Event {
   id: string;
@@ -72,6 +76,8 @@ const eventTypes = [
 ];
 
 export default function EnhancedEventsManager() {
+  const { profile } = useAuth();
+  const { selectedWebsite, isSwitching } = useWebsiteContext();
   const [events, setEvents] = useState<Event[]>([]);
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +125,7 @@ export default function EnhancedEventsManager() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [profile, selectedWebsite]);
 
   useEffect(() => {
     if (currentMessage && !formData.message) {
@@ -128,25 +134,46 @@ export default function EnhancedEventsManager() {
   }, [currentMessage]);
 
   const loadData = async () => {
+    if (!profile) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       
-      const { data: widgetsData, error: widgetsError } = await supabase
+      // Fetch widgets filtered by user and selected website
+      let widgetsQuery = supabase
         .from('widgets')
         .select('id, name, status')
+        .eq('user_id', profile.id)
         .eq('status', 'active');
+      
+      if (selectedWebsite) {
+        widgetsQuery = widgetsQuery.eq('website_id', selectedWebsite.id);
+      }
+      
+      const { data: widgetsData, error: widgetsError } = await widgetsQuery;
 
       if (widgetsError) throw widgetsError;
       setWidgets(widgetsData || []);
 
-      const { data: eventsData, error: eventsError } = await supabase
-        .from('events')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
+      // Fetch events only for user's widgets
+      const widgetIds = widgetsData?.map(w => w.id) || [];
+      
+      if (widgetIds.length > 0) {
+        const { data: eventsData, error: eventsError } = await supabase
+          .from('events')
+          .select('*')
+          .in('widget_id', widgetIds)
+          .order('created_at', { ascending: false })
+          .limit(100);
 
-      if (eventsError) throw eventsError;
-      setEvents(eventsData || []);
+        if (eventsError) throw eventsError;
+        setEvents(eventsData || []);
+      } else {
+        setEvents([]);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -482,7 +509,7 @@ export default function EnhancedEventsManager() {
     return matchesSearch && matchesWidget && matchesType;
   });
 
-  if (loading) {
+  if (loading || isSwitching) {
     return (
       <div className="container mx-auto p-6">
         <div className="flex items-center justify-center h-64">
@@ -984,7 +1011,7 @@ export default function EnhancedEventsManager() {
           {widgets.length > 0 && (
             <QuickWinManager 
               widgetId={widgets[0].id} 
-              businessType={selectedBusinessType}
+              businessType={selectedWebsite?.business_type || 'saas'}
             />
           )}
         </TabsContent>

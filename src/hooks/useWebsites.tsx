@@ -25,6 +25,32 @@ export const useWebsites = () => {
   const [selectedWebsite, setSelectedWebsite] = useState<Website | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Load selected website from localStorage on mount
+  const loadSelectedWebsite = () => {
+    const savedWebsiteId = localStorage.getItem('selectedWebsiteId');
+    if (savedWebsiteId && websites.length > 0) {
+      const website = websites.find(w => w.id === savedWebsiteId);
+      if (website) {
+        setSelectedWebsite(website);
+        return;
+      }
+    }
+    // Fallback to first website if no saved selection or saved website not found
+    if (websites.length > 0 && !selectedWebsite) {
+      setSelectedWebsite(websites[0]);
+    }
+  };
+
+  // Custom setSelectedWebsite that persists to localStorage
+  const setSelectedWebsiteWithPersistence = (website: Website | null) => {
+    setSelectedWebsite(website);
+    if (website) {
+      localStorage.setItem('selectedWebsiteId', website.id);
+    } else {
+      localStorage.removeItem('selectedWebsiteId');
+    }
+  };
+
   const fetchWebsites = async () => {
     if (!user) return;
 
@@ -39,9 +65,17 @@ export const useWebsites = () => {
 
       setWebsites(data || []);
       
-      // Set first website as selected if none selected
-      if (!selectedWebsite && data && data.length > 0) {
-        setSelectedWebsite(data[0]);
+      // Load selected website from localStorage or set first as default
+      const savedWebsiteId = localStorage.getItem('selectedWebsiteId');
+      if (savedWebsiteId && data) {
+        const savedWebsite = data.find(w => w.id === savedWebsiteId);
+        if (savedWebsite) {
+          setSelectedWebsite(savedWebsite);
+        } else if (data.length > 0) {
+          setSelectedWebsiteWithPersistence(data[0]);
+        }
+      } else if (!selectedWebsite && data && data.length > 0) {
+        setSelectedWebsiteWithPersistence(data[0]);
       }
     } catch (error) {
       console.error('Error fetching websites:', error);
@@ -67,7 +101,7 @@ export const useWebsites = () => {
 
       setWebsites(prev => [...prev, data]);
       if (!selectedWebsite) {
-        setSelectedWebsite(data);
+        setSelectedWebsiteWithPersistence(data);
       }
 
       return data;
@@ -90,7 +124,7 @@ export const useWebsites = () => {
 
       setWebsites(prev => prev.map(w => w.id === id ? data : w));
       if (selectedWebsite?.id === id) {
-        setSelectedWebsite(data);
+        setSelectedWebsiteWithPersistence(data);
       }
 
       return data;
@@ -112,7 +146,7 @@ export const useWebsites = () => {
       setWebsites(prev => prev.filter(w => w.id !== id));
       if (selectedWebsite?.id === id) {
         const remaining = websites.filter(w => w.id !== id);
-        setSelectedWebsite(remaining.length > 0 ? remaining[0] : null);
+        setSelectedWebsiteWithPersistence(remaining.length > 0 ? remaining[0] : null);
       }
 
       return true;
@@ -129,7 +163,7 @@ export const useWebsites = () => {
   return {
     websites,
     selectedWebsite,
-    setSelectedWebsite,
+    setSelectedWebsite: setSelectedWebsiteWithPersistence,
     loading,
     createWebsite,
     updateWebsite,

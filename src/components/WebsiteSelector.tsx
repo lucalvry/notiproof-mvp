@@ -9,13 +9,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
 import { useWebsites } from '@/hooks/useWebsites';
 import { AddWebsiteDialog } from './AddWebsiteDialog';
 import { EditWebsiteDialog } from './EditWebsiteDialog';
 import { WebsiteVerificationStatus } from './WebsiteVerificationStatus';
 
 export const WebsiteSelector = () => {
-  const { websites, selectedWebsite, setSelectedWebsite } = useWebsites();
+  const { selectedWebsite, setSelectedWebsite } = useWebsiteContext();
+  const { websites } = useWebsites();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
 

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useWebsites } from '@/hooks/useWebsites';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
 import { Plus, Edit, Trash2, Eye, EyeOff, Zap, BarChart3 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -25,7 +25,7 @@ interface Widget {
 
 const Widgets = () => {
   const { profile } = useAuth();
-  const { selectedWebsite } = useWebsites();
+  const { selectedWebsite, isSwitching } = useWebsiteContext();
   const { toast } = useToast();
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,7 +151,7 @@ const Widgets = () => {
     }
   };
 
-  if (loading) {
+  if (loading || isSwitching) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">

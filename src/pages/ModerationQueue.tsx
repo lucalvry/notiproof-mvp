@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, X, Star, Calendar, User } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
 
 interface EventItem {
   id: string;
@@ -31,6 +32,7 @@ interface EventItem {
 
 const ModerationQueue: React.FC = () => {
   const { profile } = useAuth();
+  const { selectedWebsite, isSwitching } = useWebsiteContext();
   const { toast } = useToast();
   const [items, setItems] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,15 +42,21 @@ const ModerationQueue: React.FC = () => {
     if (profile?.id) {
       loadItems();
     }
-  }, [profile, filter]);
+  }, [profile, filter, selectedWebsite]);
 
   const loadItems = async () => {
     try {
-      // Get user's widgets to filter events
-      const { data: widgets, error: widgetsError } = await supabase
+      // Get user's widgets to filter events, optionally by website
+      let widgetsQuery = supabase
         .from('widgets')
         .select('id')
         .eq('user_id', profile?.id);
+      
+      if (selectedWebsite?.id) {
+        widgetsQuery = widgetsQuery.eq('website_id', selectedWebsite.id);
+      }
+      
+      const { data: widgets, error: widgetsError } = await widgetsQuery;
 
       if (widgetsError) throw widgetsError;
       
@@ -162,7 +170,7 @@ const ModerationQueue: React.FC = () => {
     );
   };
 
-  if (loading) {
+  if (loading || isSwitching) {
     return (
       <div className="space-y-6">
         <div className="h-8 bg-muted rounded animate-pulse" />

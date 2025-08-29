@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useWebsites } from '@/hooks/useWebsites';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
 import { Plus, Edit, Trash2, Calendar, Play, Pause, RotateCcw, Settings, Eye, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -31,7 +31,7 @@ const statusConfig = {
 
 const Campaigns = () => {
   const { profile } = useAuth();
-  const { selectedWebsite } = useWebsites();
+  const { selectedWebsite, isSwitching } = useWebsiteContext();
   const { toast } = useToast();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +42,7 @@ const Campaigns = () => {
 
       try {
         // Fetch campaigns with widget counts
-        const { data: campaignData, error: campaignError } = await supabase
+        let campaignsQuery = supabase
           .from('campaigns' as any)
           .select(`
             id,
@@ -54,7 +54,11 @@ const Campaigns = () => {
             auto_repeat,
             created_at
           `)
-          .eq('user_id', profile.id)
+          .eq('user_id', profile.id);
+        
+        // Note: Campaigns table doesn't have website_id, but we'll show all campaigns
+        // This is acceptable since campaigns are user-level, not website-level
+        const { data: campaignData, error: campaignError } = await campaignsQuery
           .order('created_at', { ascending: false });
 
         if (campaignError) throw campaignError;
@@ -79,7 +83,7 @@ const Campaigns = () => {
     };
 
     fetchCampaigns();
-  }, [profile, toast]);
+  }, [profile, selectedWebsite, toast]);
 
   const updateCampaignStatus = async (campaignId: string, newStatus: string) => {
     try {
@@ -184,7 +188,7 @@ const Campaigns = () => {
     return actions;
   };
 
-  if (loading) {
+  if (loading || isSwitching) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">

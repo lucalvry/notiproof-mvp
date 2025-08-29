@@ -28,6 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import { QuickWinFormData } from '@/types/quickWin';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
 
 interface EnhancedQuickWinManagerProps {
   widgetId: string;
@@ -39,9 +40,13 @@ export const EnhancedQuickWinManager = ({ widgetId }: EnhancedQuickWinManagerPro
   const [editingQuickWin, setEditingQuickWin] = useState<any>(null);
 
   const { profile } = useAuth();
+  const { selectedWebsite } = useWebsiteContext();
   const { toast } = useToast();
   const { quickWins, loading, toggleQuickWin, removeQuickWin, refetch } = useUserQuickWins(widgetId);
-  const { templates: enhancedTemplates, getTemplateStats } = useEnhancedQuickWinTemplates(profile?.business_type);
+  
+  // Use website business_type instead of profile business_type
+  const businessType = selectedWebsite?.business_type || profile?.business_type || 'saas';
+  const { templates: enhancedTemplates, getTemplateStats } = useEnhancedQuickWinTemplates(businessType);
   
   const templateStats = getTemplateStats();
 
@@ -358,7 +363,7 @@ export const EnhancedQuickWinManager = ({ widgetId }: EnhancedQuickWinManagerPro
 
       {/* Template Selector */}
       <EnhancedQuickWinTemplateSelector
-        businessType={profile?.business_type || 'ecommerce'}
+        businessType={businessType}
         open={showTemplateSelector}
         onOpenChange={setShowTemplateSelector}
         onSelectTemplate={handleCreateQuickWin}

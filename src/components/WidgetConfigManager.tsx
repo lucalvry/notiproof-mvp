@@ -89,7 +89,7 @@ export default function WidgetConfigManager() {
         .from('widgets')
         .update({ 
           allow_fallback_content: false,
-          allowed_event_sources: ['natural', 'integration', 'quick-win']
+          allowed_event_sources: ['natural', 'integration', 'quick_win']
         })
         .eq('user_id', profile?.id);
 
@@ -98,7 +98,7 @@ export default function WidgetConfigManager() {
       setWidgets(prev => prev.map(w => ({
         ...w,
         allow_fallback_content: false,
-        allowed_event_sources: ['natural', 'integration', 'quick-win']
+        allowed_event_sources: ['natural', 'integration', 'quick_win']
       })));
 
       toast({

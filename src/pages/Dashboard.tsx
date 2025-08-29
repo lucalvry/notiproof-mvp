@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useWebsites } from '@/hooks/useWebsites';
 import { QuickStartWizard } from '@/components/QuickStartWizard';
-import { OnboardingProgress } from '@/components/OnboardingProgress';
+
 import { IntegrationStatusDashboard } from '@/components/IntegrationStatusDashboard';
 import { Activity, MousePointer, Eye, Plus, Wand2, ShoppingCart, Mail, Plug } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -208,7 +208,7 @@ const Dashboard = () => {
             </CardContent>
           </Card>
           
-          <OnboardingProgress />
+          
         </div>
       )}
 
@@ -277,10 +277,6 @@ const Dashboard = () => {
         </Card>
       )}
 
-      {/* Enhanced Sections for Existing Users */}
-      {hasWidgets && (
-        <OnboardingProgress compact />
-      )}
 
       {/* Integration Status Dashboard */}
       <IntegrationStatusDashboard />

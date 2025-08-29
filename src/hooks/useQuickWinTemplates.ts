@@ -39,6 +39,7 @@ export const useQuickWinTemplates = (businessType?: string) => {
         .order('category', { ascending: true })
         .order('name', { ascending: true });
 
+      // First try with business type filter
       if (businessType) {
         query = query.eq('business_type', businessType as any);
       }
@@ -47,8 +48,24 @@ export const useQuickWinTemplates = (businessType?: string) => {
 
       if (error) throw error;
 
+      let finalData = data || [];
+
+      // If no templates found for specific business type, fall back to all templates
+      if (businessType && finalData.length === 0) {
+        console.log(`No templates found for business type '${businessType}', falling back to all templates`);
+        const { data: allData, error: allError } = await supabase
+          .from('quick_win_templates')
+          .select('*')
+          .eq('is_active', true)
+          .order('category', { ascending: true })
+          .order('name', { ascending: true });
+
+        if (allError) throw allError;
+        finalData = allData || [];
+      }
+
       // Process the data to convert Json types to proper TypeScript types
-      const processedData = (data || []).map(template => ({
+      const processedData = finalData.map(template => ({
         ...template,
         required_fields: Array.isArray(template.required_fields) 
           ? template.required_fields 

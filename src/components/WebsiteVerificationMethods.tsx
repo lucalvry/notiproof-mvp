@@ -151,18 +151,14 @@ export const WebsiteVerificationMethods = ({
     <div className="space-y-6">
       <div className="text-center">
         <Globe className="h-12 w-12 text-primary mx-auto mb-4" />
-        <h2 className="text-2xl font-bold">Website Verification Methods</h2>
+        <h2 className="text-2xl font-bold">Alternative Verification Methods</h2>
         <p className="text-muted-foreground">
-          Choose your preferred method to verify ownership of {website.domain}
+          Optional verification methods for {website.domain} - most users should use the automatic script installation
         </p>
       </div>
 
-      <Tabs defaultValue="widget" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="widget" className="flex items-center gap-2">
-            <Zap className="h-4 w-4" />
-            Widget Install
-          </TabsTrigger>
+      <Tabs defaultValue="meta" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="meta" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
             Meta Tag
@@ -173,85 +169,16 @@ export const WebsiteVerificationMethods = ({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="widget" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-green-600" />
-                Automatic Widget Verification
-              </CardTitle>
-              <CardDescription>
-                Install a widget on your website and verification will happen automatically.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {userWidgets.length > 0 && (
-                <div>
-                  <Label htmlFor="widgetSelect">Select a Widget ID:</Label>
-                  <select
-                    id="widgetSelect"
-                    className="w-full mt-1 p-2 border rounded-md bg-background"
-                    value={selectedWidgetId}
-                    onChange={(e) => setSelectedWidgetId(e.target.value)}
-                  >
-                    {userWidgets.map((widget) => (
-                      <option key={widget.id} value={widget.id}>
-                        {widget.name} ({widget.id})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              
-              <div>
-                <Label>Widget Installation Code:</Label>
-                <div className="relative mt-2">
-                  <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto pr-12">
-{getWidgetCode()}
-                  </pre>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="absolute top-2 right-2"
-                    onClick={() => copyToClipboard(getWidgetCode(), 'Widget code')}
-                  >
-                    {copied === 'Widget code' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-              
-              {userWidgets.length === 0 ? (
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    You need to create a widget first before using this verification method. Use Meta Tag or DNS verification instead, or create a widget after verification.
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    Install the code above on your website. Verification happens automatically when the widget loads on your site.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <Badge variant="outline" className="w-fit">
-                ✓ Recommended method - works automatically
-              </Badge>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="meta" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-blue-600" />
-                HTML Meta Tag Verification
+                HTML Meta Tag Verification (Alternative)
               </CardTitle>
               <CardDescription>
-                Add a meta tag to your website's homepage HTML head section.
+                Advanced option: Manually add a meta tag to your website's homepage HTML head section.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -275,7 +202,7 @@ export const WebsiteVerificationMethods = ({
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  Add this meta tag to the &lt;head&gt; section of your homepage at {website.domain}
+                  Note: Most users should use the automatic script installation instead. This method is for advanced users who prefer manual verification.
                 </AlertDescription>
               </Alert>
 
@@ -295,10 +222,10 @@ export const WebsiteVerificationMethods = ({
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Globe className="h-5 w-5 text-purple-600" />
-                DNS TXT Record Verification
+                DNS TXT Record Verification (Enterprise)
               </CardTitle>
               <CardDescription>
-                Add a DNS TXT record to verify domain ownership (recommended for enterprises).
+                Enterprise option: Add a DNS TXT record to verify domain ownership. Consider using automatic script installation for simpler setup.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -335,7 +262,7 @@ Value: {dnsRecordValue}
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  DNS changes can take up to 24 hours to propagate. Make sure to add the TXT record to your domain's DNS settings.
+                  DNS changes can take up to 24 hours to propagate. For faster setup, consider using the automatic script installation method instead.
                 </AlertDescription>
               </Alert>
 

@@ -297,7 +297,7 @@ serve(async (req) => {
         const fullIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || '';
         const anonymizedIp = fullIp ? fullIp.split('.').slice(0, 3).join('.') + '.0' : '';
         
-        // Verify widget exists and get associated website
+        // Verify widget exists and get associated website (allow inactive widgets for verification)
         const { data: widget, error: widgetError } = await supabase
           .from('widgets')
           .select(`
@@ -313,7 +313,6 @@ serve(async (req) => {
             )
           `)
           .eq('id', widgetId)
-          .eq('status', 'active')
           .single();
 
         if (widgetError || !widget) {
@@ -355,6 +354,19 @@ serve(async (req) => {
               JSON.stringify({ error: 'Verification failed' }),
               { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
+          }
+
+          // After successful verification, activate all inactive widgets for this website
+          const { error: activationError } = await supabase
+            .from('widgets')
+            .update({ status: 'active' })
+            .eq('website_id', widget.website_id)
+            .eq('status', 'inactive');
+
+          if (activationError) {
+            console.error('Widget API: Failed to activate widgets:', activationError);
+          } else {
+            console.log('Widget API: Activated inactive widgets for verified website');
           }
 
           console.log('Widget API: Website verification successful', { website_id: widget.website_id, domain });
@@ -1234,6 +1246,134 @@ serve(async (req) => {
       const subPath = pathParts[7];
       console.log('Widget API diagnostics (function call):', { pathParts, widgetId, subPath });
       
+      // Handle website verification
+      if (subPath === 'verify' && req.method === 'POST') {
+        const body = await req.json();
+        const { domain, page_url, user_agent, referrer, session_id } = body;
+        
+        console.log('Widget API: Website verification request (functions/v1)', { widgetId, domain, page_url });
+        
+        // Get client IP with GDPR compliance (anonymized)
+        const fullIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || '';
+        const anonymizedIp = fullIp ? fullIp.split('.').slice(0, 3).join('.') + '.0' : '';
+        
+        // Verify widget exists and get associated website (allow inactive widgets for verification)
+        const { data: widget, error: widgetError } = await supabase
+          .from('widgets')
+          .select(`
+            id, 
+            status, 
+            user_id,
+            website_id,
+            websites!inner (
+              id,
+              domain,
+              user_id,
+              is_verified
+            )
+          `)
+          .eq('id', widgetId)
+          .single();
+
+        if (widgetError || !widget) {
+          console.log('Widget API: Widget not found for verification (functions/v1)', widgetError);
+          return new Response(
+            JSON.stringify({ error: 'Widget not found' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Check if domain matches registered website domain
+        const websiteDomain = widget.websites.domain.replace(/^https?:\/\//, '').replace(/^www\./, '');
+        const requestDomain = domain.replace(/^www\./, '');
+        
+        const isValidDomain = websiteDomain === requestDomain || 
+                             websiteDomain === `www.${requestDomain}` ||
+                             requestDomain === `www.${websiteDomain}`;
+
+        if (isValidDomain) {
+          // Call verification function
+          const { data: verificationResult, error: verificationError } = await supabase
+            .rpc('verify_website', {
+              _website_id: widget.website_id,
+              _verification_type: 'widget_ping',
+              _verification_data: {
+                widget_id: widgetId,
+                domain: domain,
+                page_url: page_url,
+                session_id: session_id,
+                referrer: referrer
+              },
+              _ip_address: anonymizedIp,
+              _user_agent: user_agent
+            });
+
+          if (verificationError) {
+            console.error('Widget API: Verification function error (functions/v1):', verificationError);
+            return new Response(
+              JSON.stringify({ error: 'Verification failed' }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // After successful verification, activate all inactive widgets for this website
+          const { error: activationError } = await supabase
+            .from('widgets')
+            .update({ status: 'active' })
+            .eq('website_id', widget.website_id)
+            .eq('status', 'inactive');
+
+          if (activationError) {
+            console.error('Widget API: Failed to activate widgets (functions/v1):', activationError);
+          } else {
+            console.log('Widget API: Activated inactive widgets for verified website (functions/v1)');
+          }
+
+          console.log('Widget API: Website verification successful (functions/v1)', { website_id: widget.website_id, domain });
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              verified: true,
+              message: 'Website verified successfully' 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          console.log('Widget API: Domain mismatch for verification (functions/v1)', { 
+            registered: websiteDomain, 
+            requested: requestDomain 
+          });
+          
+          // Log failed verification attempt
+          await supabase
+            .from('website_verifications')
+            .insert({
+              website_id: widget.website_id,
+              verification_type: 'widget_ping',
+              verification_data: {
+                widget_id: widgetId,
+                domain: domain,
+                page_url: page_url,
+                registered_domain: websiteDomain,
+                requested_domain: requestDomain,
+                error: 'domain_mismatch'
+              },
+              is_successful: false,
+              ip_address: anonymizedIp,
+              user_agent: user_agent
+            });
+
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              verified: false,
+              message: 'Domain mismatch - widget domain does not match registered website' 
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+      
       // Handle visitor session tracking
       if (subPath === 'visitor-session' && req.method === 'POST') {
         const body = await req.json();
@@ -1285,34 +1425,137 @@ serve(async (req) => {
       
       if (subPath === 'events') {
         if (req.method === 'GET') {
-          // Get widget events - include manual events, demo events, and approved connector events (reviews)
-          const { data: events, error } = await supabase
-            .from('events')
+          // Get widget configuration for source ordering
+          const { data: widget, error: widgetError } = await supabase
+            .from('widgets')
             .select('*')
-            .eq('widget_id', widgetId)
-            .eq('flagged', false)
-            .or('source.eq.demo,source.neq.connector,and(source.eq.connector,status.eq.approved)')
-            .order('created_at', { ascending: false })
-            .limit(10);
+            .eq('id', widgetId)
+            .eq('status', 'active')
+            .single();
 
-          if (error) {
-            console.error('Error fetching events:', error);
+          if (widgetError || !widget) {
+            console.log('Widget not found for events (functions/v1):', widgetError);
             return new Response(
-              JSON.stringify({ error: 'Failed to fetch events' }),
-              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              JSON.stringify([]),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
 
-          // Transform events for widget display - only return events with proper messages
-          const transformedEvents = events?.filter(event => 
-            event.event_data?.message && event.event_data.message !== 'undefined'
-          ).map(event => ({
-            id: event.id,
-            message: event.event_data.message,
-            type: event.event_type,
-            created_at: event.created_at
-          })) || [];
+          // Display Engine logic - fetch events in source priority order: Integration → Quick-Wins → Natural
+          const url = new URL(req.url);
+          const limit = parseInt(url.searchParams.get('limit') || '12');
+          const allowedEventSources = widget.allowed_event_sources || ['natural'];
+          
+          // Collect events from different sources
+          let displayEvents: any[] = [];
+          
+          // 1. Integration events (connectors, reviews, etc.)
+          if (allowedEventSources.includes('connector') || allowedEventSources.includes('integration')) {
+            const { data: connectorEvents } = await supabase
+              .from('events')
+              .select('*')
+              .eq('widget_id', widgetId)
+              .eq('source', 'connector')
+              .eq('status', 'approved')
+              .eq('flagged', false)
+              .order('created_at', { ascending: false })
+              .limit(Math.ceil(limit * 0.4)); // 40% from connectors
+            
+            if (connectorEvents) {
+              displayEvents.push(...connectorEvents);
+            }
+          }
+          
+          // 2. Quick-Win events
+          if (allowedEventSources.includes('quick_win') || allowedEventSources.includes('quick-win')) {
+            const { data: quickWinEvents } = await supabase
+              .from('events')
+              .select('*')
+              .eq('widget_id', widgetId)
+              .eq('source', 'quick_win')
+              .eq('status', 'approved')
+              .eq('flagged', false)
+              .or('expires_at.is.null,expires_at.gt.now()')
+              .order('created_at', { ascending: false })
+              .limit(Math.ceil(limit * 0.4)); // 40% from quick-wins
+            
+            if (quickWinEvents) {
+              displayEvents.push(...quickWinEvents);
+            }
+          }
+          
+          // 3. Natural events (manual, organic)
+          if (allowedEventSources.includes('natural') || allowedEventSources.includes('manual')) {
+            const { data: naturalEvents } = await supabase
+              .from('events')
+              .select('*')
+              .eq('widget_id', widgetId)
+              .in('source', ['natural', 'manual', 'demo'])
+              .eq('status', 'approved')
+              .eq('flagged', false)
+              .order('created_at', { ascending: false })
+              .limit(Math.ceil(limit * 0.3)); // 30% from natural
+            
+            if (naturalEvents) {
+              displayEvents.push(...naturalEvents);
+            }
+          }
+          
+          // Transform events for widget display with proper message generation
+          const transformedEvents = displayEvents
+            .slice(0, limit)
+            .map(event => {
+              let message = '';
+              
+              // Generate message based on source and event type
+              if (event.source === 'connector' && event.event_data?.content) {
+                // For review/testimonial connectors
+                const rating = event.event_data.rating ? '⭐'.repeat(Math.min(event.event_data.rating, 5)) : '';
+                const author = event.event_data.author_name || 'Someone';
+                message = `${rating} ${author} said: "${event.event_data.content.substring(0, 80)}..."`;
+              } else if (event.source === 'quick_win' && event.event_data?.message) {
+                // For quick-win events
+                message = event.event_data.message;
+              } else if (event.event_data?.message) {
+                // For events with existing messages
+                message = event.event_data.message;
+              } else {
+                // Generate message based on event type and business context
+                const eventType = event.event_type || 'activity';
+                const location = event.event_data?.location || event.user_location || 'somewhere';
+                
+                switch (eventType) {
+                  case 'purchase':
+                  case 'order':
+                    message = `Someone from ${location} just made a purchase`;
+                    break;
+                  case 'signup':
+                  case 'registration':
+                    message = `${event.user_name || 'Someone'} from ${location} just signed up`;
+                    break;
+                  case 'booking':
+                  case 'appointment':
+                    message = `Someone from ${location} just booked a consultation`;
+                    break;
+                  case 'conversion':
+                    message = `Someone from ${location} just converted`;
+                    break;
+                  default:
+                    message = `Someone from ${location} is viewing this page`;
+                }
+              }
+              
+              return {
+                id: event.id,
+                message,
+                type: event.event_type,
+                created_at: event.created_at,
+                source: event.source
+              };
+            })
+            .filter(event => event.message && event.message !== 'undefined');
 
+          console.log(`Widget API: Returning ${transformedEvents.length} events for widget ${widgetId} (functions/v1)`);
           return new Response(
             JSON.stringify(transformedEvents),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

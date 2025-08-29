@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -39,6 +40,7 @@ interface EventRow {
 const COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 const WidgetAnalytics = () => {
+  const { selectedWebsite, isSwitching } = useWebsiteContext();
   const { id } = useParams<{ id: string }>();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [goals, setGoals] = useState<any[]>([]);
@@ -75,7 +77,7 @@ const WidgetAnalytics = () => {
     };
 
     fetchSummary();
-  }, [id, dateRange, selectedWebsiteId]);
+  }, [id, dateRange, selectedWebsiteId, selectedWebsite]);
 
   useEffect(() => {
     const load = async () => {
@@ -247,6 +249,19 @@ const WidgetAnalytics = () => {
       return { name: g.name, type: g.type, pattern: g.pattern, conversions, denomViews, rate };
     });
   }, [goals, events]);
+
+  if (isSwitching) {
+    return (
+      <div className="space-y-6">
+        <div className="h-8 bg-muted rounded animate-pulse" />
+        <div className="grid md:grid-cols-8 gap-4">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="h-20 bg-muted rounded animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

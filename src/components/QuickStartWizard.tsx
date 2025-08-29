@@ -39,11 +39,11 @@ interface WizardData {
 const businessTypes = [
   { value: 'ecommerce', label: 'E-commerce Store', icon: '🛒' },
   { value: 'saas', label: 'SaaS Platform', icon: '💻' },
-  { value: 'service', label: 'Service Business', icon: '🔧' },
+  { value: 'services', label: 'Service Business', icon: '🔧' },
   { value: 'education', label: 'Education/Course', icon: '🎓' },
-  { value: 'agency', label: 'Agency/Consultancy', icon: '🏢' },
+  { value: 'marketing_agency', label: 'Agency/Consultancy', icon: '🏢' },
   { value: 'blog', label: 'Blog/Content Site', icon: '📝' },
-  { value: 'nonprofit', label: 'Non-Profit', icon: '❤️' },
+  { value: 'ngo', label: 'Non-Profit', icon: '❤️' },
   { value: 'other', label: 'Other', icon: '📋' }
 ];
 
@@ -114,17 +114,7 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
     if (!profile || !selectedWebsite) {
       toast({
         title: "No website selected",
-        description: "Please select a website before creating a widget. Verification is required for optimal performance.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Check if website is verified
-    if (!selectedWebsite.is_verified) {
-      toast({
-        title: "Website verification required",
-        description: "Please verify your website ownership before creating widgets for enhanced security and performance.",
+        description: "Please select a website before creating a widget.",
         variant: "destructive",
       });
       return;
@@ -137,7 +127,7 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
       // Determine allowed event sources based on user selection
       const allowedSources = [];
       if (wizardData.eventSources.integrations.length > 0) allowedSources.push('integration');
-      if (wizardData.eventSources.quickWins.length > 0) allowedSources.push('quick-win');
+      if (wizardData.eventSources.quickWins.length > 0) allowedSources.push('quick_win');
       if (wizardData.eventSources.naturalEvents) allowedSources.push('natural');
       
       const { data, error } = await supabase
@@ -148,7 +138,7 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
           name: widgetName,
           template_name: wizardData.widgetStyle.template,
           notification_types: wizardData.notificationTypes,
-          allowed_event_sources: allowedSources.length > 0 ? allowedSources : ['quick-win'],
+          allowed_event_sources: allowedSources.length > 0 ? allowedSources : ['quick_win'],
           allow_fallback_content: false, // No fallback for new unified widgets
           style_config: {
             position: wizardData.widgetStyle.position,
@@ -173,7 +163,7 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
             geo_allowlist: [],
             geo_denylist: [],
           },
-          status: 'active'
+          status: selectedWebsite.is_verified ? 'active' : 'inactive'
         })
         .select()
         .single();
@@ -212,7 +202,9 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
 
       toast({
         title: "Widget created successfully!",
-        description: `Created widget with ${wizardData.eventSources.quickWins.length > 0 ? 'quick-win events' : 'event sources'} ready to go`,
+        description: selectedWebsite.is_verified 
+          ? `Widget is active with ${wizardData.eventSources.quickWins.length > 0 ? 'quick-win events' : 'event sources'} ready to go`
+          : "Widget created and will activate automatically when you install the script on your website",
       });
 
       onComplete?.(data.id);
@@ -313,8 +305,8 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
                     </Badge>
                   </div>
                   {!selectedWebsite.is_verified && (
-                    <div className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded border">
-                      Website verification is recommended for enhanced security and performance. You can verify after creating the widget.
+                    <div className="mt-2 text-xs text-blue-600 bg-blue-50 p-2 rounded border">
+                      ✨ Your widget will be created as inactive and automatically activate when you install the script on your website.
                     </div>
                   )}
                 </div>
@@ -436,8 +428,19 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
                 onClick={() => {
                   // Show available templates for business type
                   const businessTypeTemplates = getTemplatesByBusinessType(wizardData.businessType);
-                  const defaultTemplate = businessTypeTemplates[0];
                   
+                  if (businessTypeTemplates.length === 0) {
+                    // If no templates for this business type, show a helpful message but still allow selection
+                    updateWizardData({ 
+                      eventSources: { 
+                        ...wizardData.eventSources, 
+                        quickWins: wizardData.eventSources.quickWins.length > 0 ? [] : [{ templateId: 'fallback', customData: {} }]
+                      } 
+                    });
+                    return;
+                  }
+                  
+                  const defaultTemplate = businessTypeTemplates[0];
                   const newQuickWins = wizardData.eventSources.quickWins.length > 0 
                     ? [] 
                     : defaultTemplate ? [{
@@ -460,41 +463,25 @@ export const QuickStartWizard = ({ onComplete, onSkip }: QuickStartWizardProps =
                         <Gift className="h-5 w-5 text-green-600" />
                       </div>
                       <div>
-                        <CardTitle className="text-base">Quick-Wins (60+ Templates)</CardTitle>
-                        <CardDescription>Launch real marketing campaigns</CardDescription>
+                        <CardTitle className="text-base">Quick-Wins ({getTemplatesByBusinessType(wizardData.businessType).length}+ Templates)</CardTitle>
+                        <CardDescription>Ready-to-use social proof messages</CardDescription>
                       </div>
                     </div>
                     {wizardData.eventSources.quickWins.length > 0 && (
                       <CheckCircle className="h-5 w-5 text-primary" />
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Create real offers and promotions from 60+ performance-optimized templates.
-                  </p>
-                  {wizardData.eventSources.quickWins.length > 0 && (
-                    <div className="mt-2 text-xs bg-green-50 text-green-700 p-2 rounded border">
-                      <Sparkles className="h-3 w-3 inline mr-1" />
-                      Will auto-select {getTemplatesByBusinessType(wizardData.businessType).slice(0, 3).length} templates for {wizardData.businessType} business
+                  {getTemplatesByBusinessType(wizardData.businessType).length === 0 ? (
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                      <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                        ⚠️ No pre-built templates available for "{wizardData.businessType}" business type yet. 
+                        You can still select this option and add custom quick-wins later in the widget settings.
+                      </p>
                     </div>
-                  )}
-                  
-                  {/* Show template preview */}
-                  {wizardData.businessType && (
-                    <div className="mt-3 text-xs text-muted-foreground">
-                      <span className="font-medium">Available for {wizardData.businessType}:</span>
-                      <div className="mt-1 space-y-1">
-                        {getTemplatesByBusinessType(wizardData.businessType).slice(0, 3).map((template, idx) => (
-                          <div key={idx} className="bg-muted/30 p-2 rounded text-xs">
-                            • {template.name}: {template.description}
-                          </div>
-                        ))}
-                        {getTemplatesByBusinessType(wizardData.businessType).length > 3 && (
-                          <div className="text-center text-primary font-medium">
-                            +{getTemplatesByBusinessType(wizardData.businessType).length - 3} more templates available
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Show engaging messages while you set up integrations. Perfect for new websites.
+                    </p>
                   )}
                 </CardHeader>
               </Card>

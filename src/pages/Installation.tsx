@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Copy, ExternalLink } from 'lucide-react';
+import { useWebsites } from '@/hooks/useWebsites';
+import { Copy, ExternalLink, Globe, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { HelpTooltip } from '@/components/help/RichTooltip';
@@ -19,6 +21,7 @@ interface Widget {
 
 const Installation = () => {
   const { profile } = useAuth();
+  const { selectedWebsite } = useWebsites();
   const { toast } = useToast();
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [selectedWidget, setSelectedWidget] = useState<string>('');
@@ -28,20 +31,23 @@ const Installation = () => {
 
   useEffect(() => {
     const fetchWidgets = async () => {
-      if (!profile) return;
+      if (!profile || !selectedWebsite) return;
 
       try {
         const { data, error } = await supabase
           .from('widgets')
           .select('id, name, status')
           .eq('user_id', profile.id)
-          .eq('status', 'active')
+          .eq('website_id', selectedWebsite.id)
+          .in('status', ['active', 'inactive'])
           .order('created_at', { ascending: false });
 
         if (error) throw error;
         setWidgets(data || []);
         if (data && data.length > 0) {
           setSelectedWidget(data[0].id);
+        } else {
+          setSelectedWidget('');
         }
       } catch (error) {
         console.error('Error fetching widgets:', error);
@@ -51,7 +57,7 @@ const Installation = () => {
     };
 
     fetchWidgets();
-  }, [profile]);
+  }, [profile, selectedWebsite]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -63,16 +69,17 @@ const Installation = () => {
 
   const normalizedHost = (hostType === 'custom' && customHost ? customHost : 'https://preview--notiproof-mvp.lovable.app').replace(/\/+$/, '');
   const embedCode = selectedWidget ? `
-  <!-- NotiProof Widget -->
+  <!-- NotiProof Widget (Auto-Verification + Event Tracking) -->
   <script src="${normalizedHost}/widget.js"
           data-widget-id="${selectedWidget}"
           data-api-base="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api"
           data-disable-beacon="true"
+          data-auto-verify="true"
           defer></script>
     `.trim() : '';
 
   const dynamicEmbedCode = selectedWidget ? `
-  <!-- NotiProof Widget (Dynamic Injection with defer) -->
+  <!-- NotiProof Widget (Dynamic Injection with Auto-Verification) -->
   <script>
     (function() {
       var script = document.createElement('script');
@@ -81,6 +88,7 @@ const Installation = () => {
       script.setAttribute('data-widget-id', '${selectedWidget}');
       script.setAttribute('data-api-base', 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api');
       script.setAttribute('data-disable-beacon', 'true');
+      script.setAttribute('data-auto-verify', 'true');
       document.head.appendChild(script);
     })();
   </script>
@@ -102,6 +110,25 @@ const Installation = () => {
     );
   }
 
+  if (!selectedWebsite) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Installation</h1>
+          <p className="text-muted-foreground">
+            Add social proof notifications to your website
+          </p>
+        </div>
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Please select a website from the dropdown in the top navigation to view installation instructions.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -109,17 +136,37 @@ const Installation = () => {
         <p className="text-muted-foreground">
           Add social proof notifications to your website
         </p>
+        <div className="flex items-center gap-2 mt-2">
+          <Globe className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">
+            Installing for: <span className="font-medium text-foreground">{selectedWebsite.name}</span> ({selectedWebsite.domain})
+          </span>
+          {!selectedWebsite.is_verified && (
+            <Badge variant="outline" className="text-amber-600 border-amber-200">
+              Unverified
+            </Badge>
+          )}
+        </div>
       </div>
+
+      {!selectedWebsite.is_verified && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            This website is not verified. While you can still install widgets, verifying your website helps ensure proper functionality and security.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {widgets.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
-            <h3 className="text-lg font-semibold mb-2">No active widgets</h3>
+            <h3 className="text-lg font-semibold mb-2">No active widgets for {selectedWebsite.name}</h3>
             <p className="text-muted-foreground mb-4">
-              You need to create and activate at least one widget before you can install it.
+              You need to create and activate at least one widget for this website before you can install it.
             </p>
             <Button asChild>
-              <a href="/dashboard/widgets/create">Create Your First Widget</a>
+              <a href="/dashboard/widgets/create">Create Widget for {selectedWebsite.name}</a>
             </Button>
           </CardContent>
         </Card>
@@ -272,13 +319,17 @@ const Installation = () => {
                   </div>
                   
                   <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg" data-tour="test-installation">
-                    <h4 className="font-medium mb-2">Installation Steps:</h4>
+                    <h4 className="font-medium mb-2">🚀 One Script Does Everything:</h4>
                     <ol className="list-decimal list-inside space-y-1 text-sm">
                       <li>Copy one of the snippets above</li>
                       <li>Paste it just before the closing &lt;/head&gt; tag on your website</li>
-                      <li>The widget will automatically start displaying notifications</li>
-                      <li>Add events via the dashboard or API to show social proof</li>
+                      <li><strong>Website verification happens automatically</strong> when the script loads</li>
+                      <li><strong>Widget activates automatically</strong> after successful verification</li>
+                      <li>Start seeing social proof notifications immediately</li>
                     </ol>
+                    <div className="mt-3 text-xs text-blue-600 bg-blue-100 p-2 rounded">
+                      💡 No separate verification steps needed - just install and go!
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -290,37 +341,37 @@ const Installation = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold">
+                  <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                    ✓
+                  </div>
+                  <div>
+                    <p className="font-medium">Automatic Verification</p>
+                    <p className="text-sm text-muted-foreground">
+                      Website verification happens instantly when script loads
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                    ✓
+                  </div>
+                  <div>
+                    <p className="font-medium">Widget Auto-Activation</p>
+                    <p className="text-sm text-muted-foreground">
+                      Your widgets activate automatically after verification
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
                     1
                   </div>
                   <div>
-                    <p className="font-medium">Add Events</p>
+                    <p className="font-medium">Monitor & Optimize</p>
                     <p className="text-sm text-muted-foreground">
-                      Create events to display as social proof notifications
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold">
-                    2
-                  </div>
-                  <div>
-                    <p className="font-medium">Test Your Widget</p>
-                    <p className="text-sm text-muted-foreground">
-                      Visit your website to see the notifications in action
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold">
-                    3
-                  </div>
-                  <div>
-                    <p className="font-medium">Monitor Performance</p>
-                    <p className="text-sm text-muted-foreground">
-                      Check your dashboard for views, clicks, and engagement metrics
+                      Track performance and add more events via dashboard
                     </p>
                   </div>
                 </div>

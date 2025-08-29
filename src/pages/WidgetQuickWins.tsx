@@ -13,16 +13,21 @@ import { useAuth } from '@/hooks/useAuth';
 import { QuickWinFormData } from '@/types/quickWin';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
 
 const WidgetQuickWins = () => {
   const { id } = useParams<{ id: string }>();
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [showEnhancedSelector, setShowEnhancedSelector] = useState(false);
   const { profile } = useAuth();
+  const { selectedWebsite } = useWebsiteContext();
   const { toast } = useToast();
   const { quickWins, loading, toggleQuickWin, removeQuickWin, addQuickWin, refetch } = useUserQuickWins(id);
-  const { templates } = useQuickWinTemplates(profile?.business_type);
-  const { templates: enhancedTemplates, getTemplateStats } = useEnhancedQuickWinTemplates(profile?.business_type);
+  
+  // Use website business_type instead of profile business_type
+  const businessType = selectedWebsite?.business_type || profile?.business_type || 'saas';
+  const { templates } = useQuickWinTemplates(businessType);
+  const { templates: enhancedTemplates, getTemplateStats } = useEnhancedQuickWinTemplates(businessType);
   
   const templateStats = getTemplateStats();
 
@@ -69,7 +74,7 @@ const WidgetQuickWins = () => {
 
       {/* Enhanced Template Selector */}
       <EnhancedQuickWinTemplateSelector
-        businessType={profile?.business_type || 'ecommerce'}
+        businessType={businessType}
         open={showEnhancedSelector}
         onOpenChange={setShowEnhancedSelector}
         onSelectTemplate={async (formData: QuickWinFormData) => {

@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/components/ui/use-toast';
+import { Badge } from '@/components/ui/badge';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Download, Star, Eye, Filter, Grid3X3, List } from 'lucide-react';
@@ -50,6 +51,7 @@ interface Tag {
 
 const TemplatesMarketplace: React.FC = () => {
   const { profile } = useAuth();
+  const { selectedWebsite, isSwitching } = useWebsiteContext();
   const { toast } = useToast();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -63,7 +65,7 @@ const TemplatesMarketplace: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [selectedCategory, selectedTag, sortBy]);
+  }, [selectedCategory, selectedTag, sortBy, selectedWebsite]);
 
   const loadData = async () => {
     try {
@@ -200,7 +202,7 @@ const TemplatesMarketplace: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (loading || isSwitching) {
     return (
       <div className="space-y-6">
         <div className="h-8 bg-muted rounded animate-pulse" />
