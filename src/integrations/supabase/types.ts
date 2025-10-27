@@ -184,6 +184,36 @@ export type Database = {
         }
         Relationships: []
       }
+      email_preferences: {
+        Row: {
+          created_at: string | null
+          id: string
+          marketing_emails: boolean | null
+          security_alerts: boolean | null
+          updated_at: string | null
+          user_id: string
+          weekly_reports: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          marketing_emails?: boolean | null
+          security_alerts?: boolean | null
+          updated_at?: string | null
+          user_id: string
+          weekly_reports?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          marketing_emails?: boolean | null
+          security_alerts?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+          weekly_reports?: boolean | null
+        }
+        Relationships: []
+      }
       event_templates: {
         Row: {
           business_type: Database["public"]["Enums"]["business_type"]
@@ -676,6 +706,78 @@ export type Database = {
         }
         Relationships: []
       }
+      integration_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          integration_type: string
+          request_data: Json | null
+          response_data: Json | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          integration_type: string
+          request_data?: Json | null
+          response_data?: Json | null
+          status: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          integration_type?: string
+          request_data?: Json | null
+          response_data?: Json | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      integrations_config: {
+        Row: {
+          config: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          integration_type: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          integration_type: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          integration_type?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       marketplace_templates: {
         Row: {
           category: string
@@ -931,6 +1033,78 @@ export type Database = {
           rating?: number | null
           source_url?: string | null
           type?: string
+        }
+        Relationships: []
+      }
+      subscription_plans: {
+        Row: {
+          created_at: string | null
+          features: Json | null
+          id: string
+          is_active: boolean | null
+          max_events_per_month: number | null
+          max_websites: number | null
+          name: string
+          price_monthly: number | null
+          price_yearly: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          max_events_per_month?: number | null
+          max_websites?: number | null
+          name: string
+          price_monthly?: number | null
+          price_yearly?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          max_events_per_month?: number | null
+          max_websites?: number | null
+          name?: string
+          price_monthly?: number | null
+          price_yearly?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      system_settings: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
         }
         Relationships: []
       }
@@ -1235,6 +1409,56 @@ export type Database = {
         }
         Relationships: []
       }
+      user_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          plan_id: string
+          status: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan_id: string
+          status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan_id?: string
+          status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       visitor_sessions: {
         Row: {
           created_at: string
@@ -1278,6 +1502,50 @@ export type Database = {
             columns: ["widget_id"]
             isOneToOne: false
             referencedRelation: "widgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      website_settings: {
+        Row: {
+          border_radius: number | null
+          brand_color: string | null
+          created_at: string | null
+          display_notifications: boolean | null
+          id: string
+          mobile_notifications: boolean | null
+          sound_effects: boolean | null
+          updated_at: string | null
+          website_id: string
+        }
+        Insert: {
+          border_radius?: number | null
+          brand_color?: string | null
+          created_at?: string | null
+          display_notifications?: boolean | null
+          id?: string
+          mobile_notifications?: boolean | null
+          sound_effects?: boolean | null
+          updated_at?: string | null
+          website_id: string
+        }
+        Update: {
+          border_radius?: number | null
+          brand_color?: string | null
+          created_at?: string | null
+          display_notifications?: boolean | null
+          id?: string
+          mobile_notifications?: boolean | null
+          sound_effects?: boolean | null
+          updated_at?: string | null
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_settings_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: true
+            referencedRelation: "websites"
             referencedColumns: ["id"]
           },
         ]
@@ -1657,6 +1925,10 @@ export type Database = {
         Args: { article_uuid: string }
         Returns: undefined
       }
+      increment_event_counter: {
+        Args: { counter_type: string; event_id: string }
+        Returns: undefined
+      }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
       log_admin_action: {
@@ -1667,6 +1939,18 @@ export type Database = {
           _resource_id?: string
           _resource_type: string
           _user_agent?: string
+        }
+        Returns: string
+      }
+      log_integration_action: {
+        Args: {
+          _action: string
+          _details?: Json
+          _duration_ms?: number
+          _error_message?: string
+          _integration_type: string
+          _status: string
+          _user_id?: string
         }
         Returns: string
       }

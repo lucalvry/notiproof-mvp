@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Globe, CheckCircle2, Clock, XCircle, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +27,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useWebsites } from "@/hooks/useWebsites";
+import { supabase } from "@/integrations/supabase/client";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const mockWebsites = [
   {
@@ -49,73 +52,88 @@ const mockWebsites = [
   },
 ];
 
-const platforms = [
-  "Shopify",
-  "WooCommerce",
-  "WordPress",
-  "Magento",
-  "Framer",
-  "Wix",
-  "Squarespace",
-  "BigCommerce",
-  "Custom",
+const businessTypes = [
+  { value: "ecommerce", label: "E-Commerce" },
+  { value: "saas", label: "SaaS" },
+  { value: "services", label: "Services" },
+  { value: "blog", label: "Blog/Content" },
+  { value: "education", label: "Education" },
+  { value: "healthcare", label: "Healthcare" },
+  { value: "real_estate", label: "Real Estate" },
+  { value: "hospitality", label: "Hospitality" },
+  { value: "retail", label: "Retail" },
+  { value: "fitness", label: "Fitness" },
+  { value: "beauty", label: "Beauty" },
+  { value: "food_beverage", label: "Food & Beverage" },
+  { value: "travel", label: "Travel" },
+  { value: "finance", label: "Finance" },
+  { value: "technology", label: "Technology" },
+  { value: "consulting", label: "Consulting" },
+  { value: "marketing_agency", label: "Marketing Agency" },
+  { value: "events", label: "Events" },
+  { value: "ngo", label: "Non-Profit/NGO" },
+  { value: "automotive", label: "Automotive" },
+  { value: "manufacturing", label: "Manufacturing" },
+  { value: "media", label: "Media" },
+  { value: "legal", label: "Legal" },
 ];
 
 export default function Websites() {
-  const [websites] = useState(mockWebsites);
+  const [userId, setUserId] = useState<string>();
+  const { websites, isLoading, addWebsite, deleteWebsite } = useWebsites(userId);
+  
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserId(user?.id);
+    });
+  }, []);
+  
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [snippetDialogOpen, setSnippetDialogOpen] = useState(false);
-  const [selectedWebsite, setSelectedWebsite] = useState<typeof mockWebsites[0] | null>(null);
+  const [selectedWebsite, setSelectedWebsite] = useState<any>(null);
   const [newSite, setNewSite] = useState({
     name: "",
     domain: "",
-    platform: "",
+    businessType: "",
   });
 
   const sitesUsed = websites.length;
   const sitesAllowed = 10;
   const canAddSite = sitesUsed < sitesAllowed;
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "verified":
-        return (
-          <Badge variant="default" className="bg-success text-success-foreground">
-            <CheckCircle2 className="mr-1 h-3 w-3" />
-            Active
-          </Badge>
-        );
-      case "pending_verification":
-        return (
-          <Badge variant="default" className="bg-pending text-pending-foreground">
-            <Clock className="mr-1 h-3 w-3" />
-            Pending
-          </Badge>
-        );
-      case "failed":
-        return (
-          <Badge variant="destructive">
-            <XCircle className="mr-1 h-3 w-3" />
-            Failed
-          </Badge>
-        );
-      default:
-        return null;
+  const getStatusBadge = (is_verified: boolean) => {
+    if (is_verified) {
+      return (
+        <Badge variant="default" className="bg-success text-success-foreground">
+          <CheckCircle2 className="mr-1 h-3 w-3" />
+          Active
+        </Badge>
+      );
     }
+    return (
+      <Badge variant="default" className="bg-pending text-pending-foreground">
+        <Clock className="mr-1 h-3 w-3" />
+        Pending
+      </Badge>
+    );
   };
 
   const handleAddWebsite = () => {
-    if (!newSite.name || !newSite.domain || !newSite.platform) {
+    if (!newSite.name || !newSite.domain || !newSite.businessType) {
       toast.error("Please fill in all fields");
       return;
     }
 
-    // TODO: Implement actual website creation
+    addWebsite({
+      name: newSite.name,
+      domain: newSite.domain,
+      business_type: newSite.businessType,
+    });
+    
     setAddDialogOpen(false);
     setVerifyDialogOpen(true);
-    toast.success("Website added! Please verify your site.");
   };
 
   return (
@@ -162,76 +180,94 @@ export default function Websites() {
       </Card>
 
       {/* Websites Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {websites.map((site) => (
-          <Card key={site.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <Globe className="h-5 w-5 text-primary" />
+      {isLoading ? (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-10 w-full" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-32 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {websites.map((site) => (
+            <Card key={site.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                      <Globe className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">{site.name}</CardTitle>
+                      <CardDescription>{site.domain}</CardDescription>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-lg">{site.name}</CardTitle>
-                    <CardDescription>{site.domain}</CardDescription>
-                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => {
+                        setSelectedWebsite(site);
+                        setEditDialogOpen(true);
+                      }}>
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        setSelectedWebsite(site);
+                        setSnippetDialogOpen(true);
+                      }}>
+                        View snippet
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="text-destructive"
+                        onClick={() => deleteWebsite(site.id)}
+                      >
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => {
-                      setSelectedWebsite(site);
-                      setEditDialogOpen(true);
-                    }}>
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => {
-                      setSelectedWebsite(site);
-                      setSnippetDialogOpen(true);
-                    }}>
-                      View snippet
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Status</span>
-                {getStatusBadge(site.status)}
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Platform</span>
-                <span className="text-sm font-medium">{site.platform}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Campaigns</span>
-                <span className="text-sm font-medium">{site.campaigns}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Views</span>
-                <span className="text-sm font-medium">
-                  {site.views.toLocaleString()}
-                </span>
-              </div>
-              <Button
-                variant="outline"
-                className="w-full"
-                disabled={site.status !== "verified"}
-              >
-                View Dashboard
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Status</span>
+                  {getStatusBadge(site.is_verified)}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Business Type</span>
+                  <span className="text-sm font-medium capitalize">{site.business_type.replace(/_/g, ' ')}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Widgets</span>
+                  <span className="text-sm font-medium">{site.widgetCount || 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Views</span>
+                  <span className="text-sm font-medium">
+                    {site.totalViews?.toLocaleString() || '0'}
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={!site.is_verified}
+                >
+                  View Dashboard
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Add Website Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
@@ -262,20 +298,20 @@ export default function Websites() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="platform">Platform</Label>
+              <Label htmlFor="businessType">Business Type</Label>
               <Select
-                value={newSite.platform}
+                value={newSite.businessType}
                 onValueChange={(value) =>
-                  setNewSite({ ...newSite, platform: value })
+                  setNewSite({ ...newSite, businessType: value })
                 }
               >
-                <SelectTrigger id="platform">
-                  <SelectValue placeholder="Select platform" />
+                <SelectTrigger id="businessType">
+                  <SelectValue placeholder="Select business type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {platforms.map((platform) => (
-                    <SelectItem key={platform} value={platform}>
-                      {platform}
+                  {businessTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -360,15 +396,15 @@ export default function Websites() {
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-platform">Platform</Label>
-              <Select defaultValue={selectedWebsite?.platform}>
-                <SelectTrigger id="edit-platform">
+              <Label htmlFor="edit-businessType">Business Type</Label>
+              <Select defaultValue={selectedWebsite?.business_type}>
+                <SelectTrigger id="edit-businessType">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {platforms.map((platform) => (
-                    <SelectItem key={platform} value={platform}>
-                      {platform}
+                  {businessTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -1,18 +1,21 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Play, Pause, BarChart, Settings, Activity } from "lucide-react";
+import { ArrowLeft, Play, Pause, BarChart, Settings, Activity, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useCampaignMetrics } from "@/hooks/useCampaignMetrics";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CampaignDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [campaign, setCampaign] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const metrics = useCampaignMetrics(id);
 
   useEffect(() => {
     fetchCampaign();
@@ -53,8 +56,13 @@ export default function CampaignDetails() {
     }
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-full">Loading...</div>;
+  if (loading || metrics.loading) {
+    return (
+      <div className="mx-auto max-w-7xl space-y-6">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
   }
 
   if (!campaign) {
@@ -94,6 +102,10 @@ export default function CampaignDetails() {
               </>
             )}
           </Button>
+          <Button variant="outline" onClick={() => navigate(`/campaigns`)}>
+            <Edit className="h-4 w-4 mr-2" />
+            Edit
+          </Button>
         </div>
       </div>
 
@@ -114,7 +126,7 @@ export default function CampaignDetails() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {campaign.settings?.impressions || 0}
+                  {metrics.totalViews.toLocaleString()}
                 </div>
                 <p className="text-xs text-muted-foreground">Total views</p>
               </CardContent>
@@ -126,7 +138,7 @@ export default function CampaignDetails() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {campaign.settings?.clicks || 0}
+                  {metrics.totalClicks.toLocaleString()}
                 </div>
                 <p className="text-xs text-muted-foreground">CTA interactions</p>
               </CardContent>
@@ -138,7 +150,7 @@ export default function CampaignDetails() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {((campaign.settings?.clicks || 0) / (campaign.settings?.impressions || 1) * 100).toFixed(2)}%
+                  {metrics.ctr.toFixed(2)}%
                 </div>
                 <p className="text-xs text-muted-foreground">Click-through rate</p>
               </CardContent>

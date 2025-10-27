@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/NotiProof_Logo.png";
 
 export default function Login() {
@@ -17,12 +18,28 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
 
-    // TODO: Implement actual auth with Lovable Cloud
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      if (!data.user) throw new Error("Login failed");
+
       toast.success("Logged in successfully!");
       navigate("/websites");
+    } catch (error: any) {
+      console.error("Login error:", error);
+      if (error.message?.includes("Invalid login credentials")) {
+        toast.error("Invalid email or password");
+      } else {
+        toast.error(error.message || "Failed to login");
+      }
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (

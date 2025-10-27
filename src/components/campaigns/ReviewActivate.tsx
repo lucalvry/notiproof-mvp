@@ -33,7 +33,13 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
         name: campaignName,
         description: `${campaignData.type} campaign - ${campaignData.data_source}`,
         status: "draft",
-        display_rules: campaignData.settings || {},
+        display_rules: {
+          ...campaignData.settings,
+          frequency: campaignData.rules?.frequency,
+          sessionLimit: campaignData.rules?.sessionLimit,
+          pageTargeting: campaignData.rules?.pageTargeting,
+          deviceTargeting: campaignData.rules?.deviceTargeting,
+        },
       });
 
       if (error) throw error;
@@ -41,7 +47,8 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
       onComplete();
     } catch (error) {
       console.error("Error saving campaign:", error);
-      toast.error("Failed to save campaign");
+      const errorMessage = error instanceof Error ? error.message : "Failed to save campaign";
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -58,20 +65,77 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { error } = await supabase.from("campaigns").insert({
-        user_id: user.id,
-        name: campaignName,
-        description: `${campaignData.type} campaign - ${campaignData.data_source}`,
-        status: "active",
-        display_rules: campaignData.settings || {},
-      });
+      // Get user's primary website
+      const { data: websites } = await supabase
+        .from("websites")
+        .select("id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true })
+        .limit(1);
 
-      if (error) throw error;
-      toast.success("Campaign activated successfully!");
+      if (!websites || websites.length === 0) {
+        toast.error("Please create a website first");
+        setSaving(false);
+        return;
+      }
+
+      const websiteId = websites[0].id;
+
+      // Create campaign
+      const { data: campaign, error: campaignError } = await supabase
+        .from("campaigns")
+        .insert({
+          user_id: user.id,
+          name: campaignName,
+          description: `${campaignData.type} campaign - ${campaignData.data_source}`,
+          status: "active",
+          display_rules: {
+            ...campaignData.settings,
+            frequency: campaignData.rules?.frequency,
+            sessionLimit: campaignData.rules?.sessionLimit,
+            pageTargeting: campaignData.rules?.pageTargeting,
+            deviceTargeting: campaignData.rules?.deviceTargeting,
+          },
+        })
+        .select()
+        .single();
+
+      if (campaignError) throw campaignError;
+
+      // Create widget for this campaign
+      const { error: widgetError } = await supabase
+        .from("widgets")
+        .insert({
+          user_id: user.id,
+          website_id: websiteId,
+          campaign_id: campaign.id,
+          name: `${campaignName} Widget`,
+          template_name: campaignData.settings?.layout || "notification",
+          status: "active",
+          integration: campaignData.data_source || "manual",
+          style_config: {
+            borderRadius: campaignData.settings?.borderRadius,
+            showImage: campaignData.settings?.showImage,
+            headline: campaignData.settings?.headline,
+            subtext: campaignData.settings?.subtext,
+            ctaEnabled: campaignData.settings?.ctaEnabled,
+            ctaLabel: campaignData.settings?.ctaLabel,
+          },
+          display_rules: {
+            show_duration_ms: 5000,
+            interval_ms: (campaignData.rules?.frequency || 10) * 1000,
+            max_per_session: campaignData.rules?.sessionLimit || 5,
+          },
+        });
+
+      if (widgetError) throw widgetError;
+
+      toast.success("Campaign and widget created successfully!");
       onComplete();
     } catch (error) {
       console.error("Error activating campaign:", error);
-      toast.error("Failed to activate campaign");
+      const errorMessage = error instanceof Error ? error.message : "Failed to activate campaign";
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }

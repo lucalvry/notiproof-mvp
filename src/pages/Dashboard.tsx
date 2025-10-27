@@ -1,38 +1,50 @@
 import { TrendingUp, Eye, MousePointer, Zap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-const stats = [
-  {
-    title: "Total Views",
-    value: "12,420",
-    change: "+12.5%",
-    icon: Eye,
-    trend: "up",
-  },
-  {
-    title: "Clicks",
-    value: "1,240",
-    change: "+8.2%",
-    icon: MousePointer,
-    trend: "up",
-  },
-  {
-    title: "Conversions",
-    value: "186",
-    change: "+23.1%",
-    icon: Zap,
-    trend: "up",
-  },
-  {
-    title: "Conversion Rate",
-    value: "15.0%",
-    change: "+2.4%",
-    icon: TrendingUp,
-    trend: "up",
-  },
-];
+import { useWidgetStats } from "@/hooks/useWidgetStats";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 
 export default function Dashboard() {
+  const [userId, setUserId] = useState<string>();
+  const { data: stats, isLoading } = useWidgetStats(userId);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserId(user?.id);
+    });
+  }, []);
+
+  const statCards = [
+    {
+      title: "Total Views",
+      value: isLoading ? "..." : stats?.totalViews.toLocaleString() || "0",
+      change: "+12.5%",
+      icon: Eye,
+      trend: "up",
+    },
+    {
+      title: "Clicks",
+      value: isLoading ? "..." : stats?.totalClicks.toLocaleString() || "0",
+      change: "+8.2%",
+      icon: MousePointer,
+      trend: "up",
+    },
+    {
+      title: "Active Widgets",
+      value: isLoading ? "..." : stats?.activeWidgets.toString() || "0",
+      change: "+23.1%",
+      icon: Zap,
+      trend: "up",
+    },
+    {
+      title: "Conversion Rate",
+      value: isLoading ? "..." : `${stats?.conversionRate.toFixed(1) || "0.0"}%`,
+      change: "+2.4%",
+      icon: TrendingUp,
+      trend: "up",
+    },
+  ];
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
@@ -44,7 +56,7 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
+        {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
             <Card key={stat.title}>

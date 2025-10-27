@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useAdminMetrics } from "@/hooks/useAdminMetrics";
 import { supabase } from "@/integrations/supabase/client";
-import { Users, Globe, Megaphone, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
+import { Users, Globe, Megaphone, DollarSign, TrendingUp, AlertTriangle, Eye, MousePointer, Zap, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { DashboardSkeleton } from "@/components/ui/loading-skeletons";
+import { toast } from "sonner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface Stats {
   totalUsers: number;
@@ -14,6 +18,7 @@ interface Stats {
 
 export default function AdminDashboard() {
   const { loading: authLoading } = useAdminAuth();
+  const { data: metrics, isLoading: metricsLoading } = useAdminMetrics();
   const [stats, setStats] = useState<Stats>({
     totalUsers: 0,
     activeWebsites: 0,
@@ -30,22 +35,40 @@ export default function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
+      setLoading(true);
+      
       // Fetch total users count
-      const { count: usersCount } = await supabase
+      const { count: usersCount, error: usersError } = await supabase
         .from("profiles")
         .select("*", { count: "exact", head: true });
 
+      if (usersError) throw usersError;
+
       // Fetch active websites count
-      const { count: websitesCount } = await supabase
+      const { count: websitesCount, error: websitesError } = await supabase
         .from("websites")
         .select("*", { count: "exact", head: true })
         .eq("status", "active");
 
+      if (websitesError) throw websitesError;
+
       // Fetch active campaigns count
-      const { count: campaignsCount } = await supabase
+      const { count: campaignsCount, error: campaignsError } = await supabase
         .from("campaigns")
         .select("*", { count: "exact", head: true })
         .eq("status", "active");
+
+      if (campaignsError) throw campaignsError;
+
+      // Fetch platform-wide metrics from events
+      const { data: eventsData, error: eventsError } = await supabase
+        .from("events")
+        .select("views, clicks");
+
+      if (eventsError) throw eventsError;
+
+      const totalViews = eventsData?.reduce((sum, e) => sum + (e.views || 0), 0) || 0;
+      const totalClicks = eventsData?.reduce((sum, e) => sum + (e.clicks || 0), 0) || 0;
 
       setStats({
         totalUsers: usersCount || 0,
@@ -53,15 +76,16 @@ export default function AdminDashboard() {
         activeCampaigns: campaignsCount || 0,
         monthlyRevenue: 0, // TODO: Integrate with Stripe
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching stats:", error);
+      toast.error("Failed to load dashboard stats");
     } finally {
       setLoading(false);
     }
   };
 
-  if (authLoading || loading) {
-    return <div className="flex items-center justify-center h-full">Loading...</div>;
+  if (authLoading || loading || metricsLoading) {
+    return <DashboardSkeleton />;
   }
 
   const statCards = [
@@ -151,32 +175,168 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Quick Stats */}
+      {/* Platform-Wide Metrics */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Total Events</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics?.platformWide.totalEvents.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              {metrics?.platformWide.eventsToday} today
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Total Views</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics?.platformWide.totalViews.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              Across all widgets
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
+            <MousePointer className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics?.platformWide.totalClicks.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              {metrics?.platformWide.totalViews 
+                ? ((metrics.platformWide.totalClicks / metrics.platformWide.totalViews) * 100).toFixed(2)
+                : 0}% click rate
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Active Widgets</CardTitle>
+            <Zap className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics?.platformWide.activeWidgets}</div>
+            <p className="text-xs text-muted-foreground">
+              Running campaigns
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top Performers */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Platform Growth</CardTitle>
-            <CardDescription>Last 30 days</CardDescription>
+            <CardTitle>Top Performing Widgets</CardTitle>
+            <CardDescription>Highest views in the platform</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-              Chart placeholder - Integrate with Recharts
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Widget</TableHead>
+                  <TableHead className="text-right">Views</TableHead>
+                  <TableHead className="text-right">Clicks</TableHead>
+                  <TableHead className="text-right">Rate</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {metrics?.topPerformers.widgets.map((widget) => (
+                  <TableRow key={widget.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{widget.name}</div>
+                        <div className="text-xs text-muted-foreground">{widget.website_name}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">{widget.views.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{widget.clicks.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{widget.clickRate.toFixed(1)}%</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Event Volume</CardTitle>
-            <CardDescription>Daily activity</CardDescription>
+            <CardTitle>Top Users</CardTitle>
+            <CardDescription>Most active users by views</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-              Chart placeholder - Integrate with Recharts
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead className="text-right">Views</TableHead>
+                  <TableHead className="text-right">Widgets</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {metrics?.topPerformers.users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{user.name}</div>
+                        <div className="text-xs text-muted-foreground">{user.email}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">{user.totalViews.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{user.widgetCount}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       </div>
+
+      {/* Integration Health */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Integration Health</CardTitle>
+          <CardDescription>
+            {metrics?.integrationHealth.activeConnectors} of {metrics?.integrationHealth.totalConnectors} connectors active
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {metrics?.integrationHealth.failedSyncs === 0 ? (
+            <div className="flex items-start gap-4 rounded-lg border p-4">
+              <AlertTriangle className="h-5 w-5 text-success mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-medium">All integrations healthy</h4>
+                <p className="text-sm text-muted-foreground">
+                  No sync errors detected
+                </p>
+              </div>
+              <Badge variant="outline">System</Badge>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {metrics?.integrationHealth.lastSyncErrors.map((error, i) => (
+                <div key={i} className="flex items-start gap-4 rounded-lg border border-destructive/50 p-4">
+                  <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
+                  <div className="flex-1">
+                    <h4 className="font-medium">{error.connector_id} sync failed</h4>
+                    <p className="text-sm text-muted-foreground">{error.error_message}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(error.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                  <Badge variant="destructive">Error</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,1 +1,19 @@
 project_id = "lapodiikscsyrbdgvukd"
+
+[functions.widget-api]
+verify_jwt = false
+
+[functions.test-integration]
+verify_jwt = true
+
+[functions.webhook-shopify]
+verify_jwt = false
+
+[functions.webhook-stripe]
+verify_jwt = false
+
+[functions.admin-user-actions]
+verify_jwt = true
+
+[functions.system-metrics]
+verify_jwt = true

@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/NotiProof_Logo.png";
 
-const plans = [
+const planOptions = [
   { id: "starter", name: "Starter", sites: 1, price: "Free" },
   { id: "pro", name: "Pro", sites: 10, price: "$29/mo" },
   { id: "business", name: "Business", sites: 20, price: "$99/mo" },
@@ -17,6 +18,7 @@ const plans = [
 export default function Signup() {
   const navigate = useNavigate();
   const [step, setStep] = useState<"account" | "plan">("account");
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [selectedPlan, setSelectedPlan] = useState("starter");
@@ -31,12 +33,53 @@ export default function Signup() {
     e.preventDefault();
     setLoading(true);
 
-    // TODO: Implement actual auth with Lovable Cloud
-    setTimeout(() => {
+    try {
+      // Sign up the user with Supabase
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/websites`,
+          data: {
+            full_name: fullName,
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      if (!data.user) throw new Error("Failed to create account");
+
+      // Create subscription record
+      const selectedPlanName = planOptions.find(p => p.id === selectedPlan)?.name;
+      const { data: planData } = await supabase
+        .from("subscription_plans")
+        .select("id")
+        .eq("name", selectedPlanName)
+        .single();
+
+      if (planData) {
+        await supabase.from("user_subscriptions").insert({
+          user_id: data.user.id,
+          plan_id: planData.id,
+          status: "active",
+          current_period_start: new Date().toISOString(),
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        });
+      }
+
       toast.success("Account created successfully!");
       navigate("/websites");
+    } catch (error: any) {
+      console.error("Signup error:", error);
+      if (error.message?.includes("already registered")) {
+        toast.error("This email is already registered. Please sign in.");
+      } else {
+        toast.error(error.message || "Failed to create account");
+      }
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -57,6 +100,17 @@ export default function Signup() {
         {step === "account" ? (
           <form onSubmit={handleAccountSubmit}>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  type="text"
+                  placeholder="John Doe"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -97,7 +151,7 @@ export default function Signup() {
           <form onSubmit={handlePlanSubmit}>
             <CardContent className="space-y-4">
               <RadioGroup value={selectedPlan} onValueChange={setSelectedPlan}>
-                {plans.map((plan) => (
+                {planOptions.map((plan) => (
                   <div
                     key={plan.id}
                     className="flex items-center space-x-3 rounded-lg border p-4 hover:bg-accent/5"

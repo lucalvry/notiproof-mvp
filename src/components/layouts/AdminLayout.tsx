@@ -6,11 +6,13 @@ import {
   Globe,
   Megaphone,
   CreditCard,
+  Plug,
   FileText,
   Settings,
   Menu,
   LogOut,
   User,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,7 +45,9 @@ const navItems: NavItem[] = [
   { label: "Websites", icon: Globe, path: "/admin/websites" },
   { label: "Campaigns", icon: Megaphone, path: "/admin/campaigns" },
   { label: "Billing & Plans", icon: CreditCard, path: "/admin/billing" },
+  { label: "Integrations", icon: Plug, path: "/admin/integrations" },
   { label: "Logs", icon: FileText, path: "/admin/logs" },
+  { label: "System Health", icon: Activity, path: "/admin/system" },
   { label: "Settings", icon: Settings, path: "/admin/settings", adminOnly: true },
 ];
 
