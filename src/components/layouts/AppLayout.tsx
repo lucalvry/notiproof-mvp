@@ -1,0 +1,256 @@
+import { ReactNode, useState } from "react";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
+import logo from "@/assets/NotiProof_Logo.png";
+
+interface NavItem {
+  label: string;
+  icon: any;
+  path: string;
+  section: "website" | "global";
+}
+
+const navItems: NavItem[] = [
+  { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard", section: "website" },
+  { label: "Campaigns", icon: Megaphone, path: "/campaigns", section: "website" },
+  { label: "Analytics", icon: BarChart, path: "/analytics", section: "website" },
+  { label: "Settings", icon: Settings, path: "/settings", section: "website" },
+  { label: "All Websites", icon: Globe, path: "/websites", section: "global" },
+  { label: "Billing", icon: CreditCard, path: "/billing", section: "global" },
+  { label: "Account", icon: User, path: "/account", section: "global" },
+];
+
+export function AppLayout() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Mock data - will be replaced with real data
+  const currentWebsite = "example.com";
+  const sitesUsed = 2;
+  const sitesAllowed = 10;
+
+  const handleNavigation = (path: string) => {
+    navigate(path);
+    setSidebarOpen(false);
+  };
+
+  const SidebarContent = () => (
+    <div className="flex h-full flex-col">
+      <div className="flex-1 space-y-6 py-6">
+        {/* Website Section */}
+        <div className="px-3">
+          <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Website
+          </h3>
+          <nav className="space-y-1">
+            {navItems
+              .filter((item) => item.section === "website")
+              .map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+                return (
+                  <Button
+                    key={item.path}
+                    variant={isActive ? "secondary" : "ghost"}
+                    className={cn(
+                      "w-full justify-start",
+                      sidebarCollapsed && "justify-center px-2"
+                    )}
+                    onClick={() => handleNavigation(item.path)}
+                  >
+                    <Icon className={cn("h-4 w-4", !sidebarCollapsed && "mr-2")} />
+                    {!sidebarCollapsed && <span>{item.label}</span>}
+                  </Button>
+                );
+              })}
+          </nav>
+        </div>
+
+        {/* Global Section */}
+        <div className="px-3">
+          <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Global
+          </h3>
+          <nav className="space-y-1">
+            {navItems
+              .filter((item) => item.section === "global")
+              .map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+                return (
+                  <Button
+                    key={item.path}
+                    variant={isActive ? "secondary" : "ghost"}
+                    className={cn(
+                      "w-full justify-start",
+                      sidebarCollapsed && "justify-center px-2"
+                    )}
+                    onClick={() => handleNavigation(item.path)}
+                  >
+                    <Icon className={cn("h-4 w-4", !sidebarCollapsed && "mr-2")} />
+                    {!sidebarCollapsed && <span>{item.label}</span>}
+                  </Button>
+                );
+              })}
+          </nav>
+        </div>
+      </div>
+
+      {/* Bottom Section */}
+      <div className="border-t p-3">
+        <nav className="space-y-1">
+          <Button
+            variant="ghost"
+            className={cn(
+              "w-full justify-start",
+              sidebarCollapsed && "justify-center px-2"
+            )}
+          >
+            <HelpCircle className={cn("h-4 w-4", !sidebarCollapsed && "mr-2")} />
+            {!sidebarCollapsed && <span>Help</span>}
+          </Button>
+          <Button
+            variant="ghost"
+            className={cn(
+              "w-full justify-start",
+              sidebarCollapsed && "justify-center px-2"
+            )}
+          >
+            <FileText className={cn("h-4 w-4", !sidebarCollapsed && "mr-2")} />
+            {!sidebarCollapsed && <span>Docs</span>}
+          </Button>
+          <Button
+            variant="ghost"
+            className={cn(
+              "w-full justify-start",
+              sidebarCollapsed && "justify-center px-2"
+            )}
+          >
+            <MessageSquare className={cn("h-4 w-4", !sidebarCollapsed && "mr-2")} />
+            {!sidebarCollapsed && <span>Feedback</span>}
+          </Button>
+        </nav>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex min-h-screen w-full">
+      {/* Desktop Sidebar */}
+      <aside
+        className={cn(
+          "hidden lg:block border-r bg-sidebar transition-all duration-300",
+          sidebarCollapsed ? "w-16" : "w-64"
+        )}
+      >
+        <div className="flex h-16 items-center justify-between border-b px-4">
+          {!sidebarCollapsed && (
+            <img src={logo} alt="NotiProof" className="h-8" />
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+        </div>
+        <SidebarContent />
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex flex-1 flex-col">
+        {/* Header */}
+        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
+          {/* Mobile Menu */}
+          <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="lg:hidden">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-64 p-0">
+              <div className="flex h-16 items-center border-b px-4">
+                <img src={logo} alt="NotiProof" className="h-8" />
+              </div>
+              <SidebarContent />
+            </SheetContent>
+          </Sheet>
+
+          {/* Logo (mobile) */}
+          <img src={logo} alt="NotiProof" className="h-8 lg:hidden" />
+
+          <div className="flex-1" />
+
+          {/* Website Selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Globe className="h-4 w-4" />
+                <span className="hidden md:inline">{currentWebsite}</span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem>{currentWebsite}</DropdownMenuItem>
+              <DropdownMenuItem>mystore.com</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleNavigation("/websites")}>
+                All Websites
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Usage Meter */}
+          <div className="hidden items-center gap-2 md:flex">
+            <span className="text-sm text-muted-foreground">
+              {sitesUsed} / {sitesAllowed} sites
+            </span>
+            <Button size="sm" onClick={() => handleNavigation("/billing")}>
+              Upgrade
+            </Button>
+          </div>
+
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <User className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleNavigation("/account")}>
+                Account Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate("/login")}>
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-auto bg-background p-4 md:p-6">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}

@@ -1,153 +1,140 @@
-import { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { Navigate, useLocation, Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { toast } from "sonner";
+import logo from "@/assets/NotiProof_Logo.png";
 
-const Signup = () => {
-  const { user, signUp } = useAuth();
-  const location = useLocation();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [websiteName, setWebsiteName] = useState('');
-  const [domain, setDomain] = useState('');
-  const [businessType, setBusinessType] = useState('');
+const plans = [
+  { id: "starter", name: "Starter", sites: 1, price: "Free" },
+  { id: "pro", name: "Pro", sites: 10, price: "$29/mo" },
+  { id: "business", name: "Business", sites: 20, price: "$99/mo" },
+];
+
+export default function Signup() {
+  const navigate = useNavigate();
+  const [step, setStep] = useState<"account" | "plan">("account");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState("starter");
   const [loading, setLoading] = useState(false);
 
-  const from = location.state?.from?.pathname || '/dashboard';
+  const handleAccountSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setStep("plan");
+  };
 
-  // Redirect if already authenticated
-  if (user) {
-    return <Navigate to={from} replace />;
-  }
-
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handlePlanSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await signUp(email, password, name, { websiteName, domain, businessType });
-    setLoading(false);
+
+    // TODO: Implement actual auth with Lovable Cloud
+    setTimeout(() => {
+      toast.success("Account created successfully!");
+      navigate("/websites");
+      setLoading(false);
+    }, 1000);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-          <CardDescription>
-            Join NotiProof to create social proof notifications
-          </CardDescription>
+        <CardHeader className="space-y-4 text-center">
+          <div className="mx-auto">
+            <img src={logo} alt="NotiProof" className="h-12" />
+          </div>
+          <div>
+            <CardTitle className="text-2xl">Create your account</CardTitle>
+            <CardDescription>
+              {step === "account" ? "Get started with NotiProof" : "Choose your plan"}
+            </CardDescription>
+          </div>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSignUp} className="space-y-4">
-            <div>
-              <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your full name"
-                  minLength={2}
-                  required
-                />
-            </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
+
+        {step === "account" ? (
+          <form onSubmit={handleAccountSubmit}>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
+                  placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email address"
                   required
                 />
-            </div>
-            <div>
-              <Label htmlFor="password">Password</Label>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
                   type="password"
+                  placeholder="Min. 8 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Create a strong password (min 6 characters)"
                   required
-                  minLength={6}
-                />
-            </div>
-            
-            <div className="space-y-4 pt-2 border-t">
-              <h3 className="text-lg font-medium">Website Information</h3>
-              
-              <div>
-                <Label htmlFor="websiteName">Website Name</Label>
-                <Input
-                  id="websiteName"
-                  type="text"
-                  value={websiteName}
-                  onChange={(e) => setWebsiteName(e.target.value)}
-                  placeholder="My Awesome Website"
-                  required
+                  minLength={8}
                 />
               </div>
-              
-              <div>
-                <Label htmlFor="domain">Domain</Label>
-                <Input
-                  id="domain"
-                  type="text"
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
-                  placeholder="example.com"
-                  required
-                />
-              </div>
-              
-              <div>
-                <Label>Business Type</Label>
-                <Select value={businessType} onValueChange={setBusinessType} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your business type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ecommerce">E-commerce</SelectItem>
-                    <SelectItem value="saas">SaaS</SelectItem>
-                    <SelectItem value="services">Services</SelectItem>
-                    <SelectItem value="events">Events</SelectItem>
-                    <SelectItem value="blog">Blog/Content</SelectItem>
-                    <SelectItem value="marketing_agency">Marketing Agency</SelectItem>
-                    <SelectItem value="ngo">Non-Profit</SelectItem>
-                    <SelectItem value="education">Education</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creating account...' : 'Create Account'}
-            </Button>
+            </CardContent>
+            <CardFooter className="flex flex-col space-y-4">
+              <Button type="submit" className="w-full">
+                Continue
+              </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link to="/login" className="text-primary hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </CardFooter>
           </form>
-          
-          <div className="mt-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              Already have an account?{' '}
-              <Link to="/auth/login" className="text-primary hover:underline">
-                Sign in
-              </Link>
-            </p>
-          </div>
-        </CardContent>
+        ) : (
+          <form onSubmit={handlePlanSubmit}>
+            <CardContent className="space-y-4">
+              <RadioGroup value={selectedPlan} onValueChange={setSelectedPlan}>
+                {plans.map((plan) => (
+                  <div
+                    key={plan.id}
+                    className="flex items-center space-x-3 rounded-lg border p-4 hover:bg-accent/5"
+                  >
+                    <RadioGroupItem value={plan.id} id={plan.id} />
+                    <Label
+                      htmlFor={plan.id}
+                      className="flex flex-1 cursor-pointer items-center justify-between"
+                    >
+                      <div>
+                        <p className="font-medium">{plan.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Up to {plan.sites} {plan.sites === 1 ? "site" : "sites"}
+                        </p>
+                      </div>
+                      <span className="font-semibold">{plan.price}</span>
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </CardContent>
+            <CardFooter className="flex flex-col space-y-4">
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Creating account..." : "Create account"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => setStep("account")}
+              >
+                Back
+              </Button>
+            </CardFooter>
+          </form>
+        )}
       </Card>
     </div>
   );
-};
-
-export default Signup;
+}
