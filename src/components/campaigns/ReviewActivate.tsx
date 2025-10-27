@@ -25,15 +25,15 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
 
     setSaving(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
       const { error } = await supabase.from("campaigns").insert({
+        user_id: user.id,
         name: campaignName,
-        type: campaignData.type,
-        data_source: campaignData.data_source,
+        description: `${campaignData.type} campaign - ${campaignData.data_source}`,
         status: "draft",
-        settings: campaignData.settings,
-        rules: campaignData.rules,
-        field_map: campaignData.field_map,
-        website_id: "00000000-0000-0000-0000-000000000000", // TODO: Replace with actual website_id
+        display_rules: campaignData.settings || {},
       });
 
       if (error) throw error;
@@ -55,15 +55,15 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
 
     setSaving(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
       const { error } = await supabase.from("campaigns").insert({
+        user_id: user.id,
         name: campaignName,
-        type: campaignData.type,
-        data_source: campaignData.data_source,
+        description: `${campaignData.type} campaign - ${campaignData.data_source}`,
         status: "active",
-        settings: campaignData.settings,
-        rules: campaignData.rules,
-        field_map: campaignData.field_map,
-        website_id: "00000000-0000-0000-0000-000000000000", // TODO: Replace with actual website_id
+        display_rules: campaignData.settings || {},
       });
 
       if (error) throw error;

@@ -10,18 +10,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { CampaignWizard } from "@/components/campaigns/CampaignWizard";
 import { useNavigate } from "react-router-dom";
 
+// Using database schema types
 interface Campaign {
   id: string;
+  user_id: string;
   name: string;
-  type: string;
-  data_source: string;
+  description: string | null;
   status: string;
-  settings: any;
-  rules: any;
-  field_map: any;
-  website_id: string;
+  organization_id: string | null;
+  display_rules: any;
+  start_date: string | null;
+  end_date: string | null;
+  auto_repeat: boolean;
+  repeat_config: any;
   created_at: string;
   updated_at: string;
+  // For backward compatibility with existing usage
+  type?: string;
+  data_source?: string;
+  settings?: any;
+  rules?: any;
+  field_map?: any;
+  website_id?: string;
 }
 
 export default function Campaigns() {
@@ -69,17 +79,22 @@ export default function Campaigns() {
 
   const handleDuplicate = async (campaign: Campaign) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
       const { error } = await supabase
         .from("campaigns")
         .insert({
+          user_id: user.id,
           name: `${campaign.name} (Copy)`,
-          type: campaign.type,
-          data_source: campaign.data_source,
+          description: campaign.description,
           status: "draft",
-          settings: campaign.settings,
-          rules: campaign.rules,
-          field_map: campaign.field_map,
-          website_id: campaign.website_id,
+          display_rules: campaign.display_rules,
+          start_date: campaign.start_date,
+          end_date: campaign.end_date,
+          auto_repeat: campaign.auto_repeat,
+          repeat_config: campaign.repeat_config,
+          organization_id: campaign.organization_id,
         });
 
       if (error) throw error;
@@ -149,12 +164,9 @@ export default function Campaigns() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Campaign Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Data Source</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Start Date</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Impressions</TableHead>
-                  <TableHead className="text-right">Clicks</TableHead>
-                  <TableHead className="text-right">CTR %</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -166,8 +178,10 @@ export default function Campaigns() {
                     onClick={() => navigate(`/campaigns/${campaign.id}`)}
                   >
                     <TableCell className="font-medium">{campaign.name}</TableCell>
-                    <TableCell className="capitalize">{campaign.type.replace("-", " ")}</TableCell>
-                    <TableCell className="capitalize">{campaign.data_source || "—"}</TableCell>
+                    <TableCell className="capitalize">{campaign.description || "—"}</TableCell>
+                    <TableCell className="capitalize">
+                      {campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : "—"}
+                    </TableCell>
                     <TableCell>
                       <Badge
                         variant={
@@ -180,19 +194,6 @@ export default function Campaigns() {
                       >
                         {campaign.status}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {campaign.settings?.impressions || 0}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {campaign.settings?.clicks || 0}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {calculateCTR(
-                        campaign.settings?.impressions || 0,
-                        campaign.settings?.clicks || 0
-                      )}
-                      %
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>

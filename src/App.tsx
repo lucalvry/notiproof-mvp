@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppLayout } from "./components/layouts/AppLayout";
+import { AdminLayout } from "./components/layouts/AdminLayout";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Websites from "./pages/Websites";
@@ -15,6 +16,8 @@ import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
 import Account from "./pages/Account";
 import NotFound from "./pages/NotFound";
+import AdminLogin from "./pages/admin/Login";
+import AdminDashboard from "./pages/admin/Dashboard";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +32,14 @@ const App = () => (
           <Route path="/signup" element={<Signup />} />
           <Route path="/" element={<Navigate to="/websites" replace />} />
           
+          {/* Admin Routes */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
+          </Route>
+          
+          {/* User Routes */}
           <Route element={<AppLayout />}>
             <Route path="/websites" element={<Websites />} />
             <Route path="/dashboard" element={<Dashboard />} />
