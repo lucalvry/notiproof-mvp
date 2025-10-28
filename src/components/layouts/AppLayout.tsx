@@ -1,7 +1,9 @@
 import { ReactNode, useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare, Plug } from "lucide-react";
+import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare, Plug, Layout } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useWebsiteContext } from "@/contexts/WebsiteContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +31,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard", section: "website" },
   { label: "Campaigns", icon: Megaphone, path: "/campaigns", section: "website" },
+  { label: "Templates", icon: Layout, path: "/templates", section: "website" },
   { label: "Analytics", icon: BarChart, path: "/analytics", section: "website" },
   { label: "Integrations", icon: Plug, path: "/integrations", section: "website" },
   { label: "Settings", icon: Settings, path: "/settings", section: "website" },
@@ -45,10 +48,10 @@ export function AppLayout() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Mock data - will be replaced with real data
-  const currentWebsite = "example.com";
-  const sitesUsed = 2;
-  const sitesAllowed = 10;
+  // Real data from contexts and hooks
+  const { currentWebsite, setCurrentWebsite, websites, isLoading: websitesLoading } = useWebsiteContext();
+  const { sitesAllowed, planName, isBusinessPlan, isLoading: subscriptionLoading } = useSubscription(user?.id);
+  const sitesUsed = websites.length;
 
   useEffect(() => {
     // Check initial auth state
@@ -81,7 +84,7 @@ export function AppLayout() {
     navigate("/login");
   };
 
-  if (loading) {
+  if (loading || websitesLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-muted-foreground">Loading...</p>
@@ -247,16 +250,25 @@ export function AppLayout() {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="gap-2">
                 <Globe className="h-4 w-4" />
-                <span className="hidden md:inline">{currentWebsite}</span>
+                <span className="hidden md:inline">
+                  {currentWebsite?.domain || "Select Website"}
+                </span>
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem>{currentWebsite}</DropdownMenuItem>
-              <DropdownMenuItem>mystore.com</DropdownMenuItem>
+              {websites.map((website) => (
+                <DropdownMenuItem
+                  key={website.id}
+                  onClick={() => setCurrentWebsite(website)}
+                  className={currentWebsite?.id === website.id ? "bg-accent" : ""}
+                >
+                  {website.domain}
+                </DropdownMenuItem>
+              ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => handleNavigation("/websites")}>
-                All Websites
+                + Add New Website
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -266,9 +278,12 @@ export function AppLayout() {
             <span className="text-sm text-muted-foreground">
               {sitesUsed} / {sitesAllowed} sites
             </span>
-            <Button size="sm" onClick={() => handleNavigation("/billing")}>
-              Upgrade
-            </Button>
+            <span className="text-xs text-muted-foreground">({planName})</span>
+            {!subscriptionLoading && (!isBusinessPlan || sitesUsed >= sitesAllowed * 0.8) && (
+              <Button size="sm" onClick={() => handleNavigation("/billing")}>
+                Upgrade
+              </Button>
+            )}
           </div>
 
           {/* User Menu */}

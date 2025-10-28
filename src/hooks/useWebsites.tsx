@@ -9,6 +9,7 @@ export interface Website {
   is_verified: boolean;
   created_at: string;
   business_type: string;
+  verification_token?: string;
   widgetCount?: number;
   totalViews?: number;
 }
@@ -121,6 +122,7 @@ export const useWebsites = (userId: string | undefined) => {
     websites: websites || [],
     isLoading,
     addWebsite: addWebsite.mutate,
+    addWebsiteAsync: addWebsite.mutateAsync,
     deleteWebsite: deleteWebsite.mutate,
   };
 };

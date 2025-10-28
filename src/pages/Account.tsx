@@ -117,8 +117,10 @@ export default function Account() {
 
       const { error } = await supabase
         .from("profiles")
-        .update({ name: fullName })
-        .eq("id", user.id);
+        .upsert(
+          { id: user.id, name: fullName },
+          { onConflict: "id" }
+        );
 
       if (error) throw error;
       toast.success("Profile updated successfully!");
@@ -248,15 +250,6 @@ export default function Account() {
             <p className="text-sm text-muted-foreground">
               Contact support to change your email
             </p>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="company">Company Name</Label>
-            <Input 
-              id="company" 
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              placeholder="Optional"
-            />
           </div>
           <Button onClick={handleSaveProfile} disabled={saving}>
             {saving ? "Saving..." : "Save Changes"}

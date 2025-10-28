@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { WebhookConnector } from "./WebhookConnector";
 
 interface IntegrationConnectionDialogProps {
   integration: any;
@@ -141,7 +142,7 @@ export function IntegrationConnectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Connect {integration.name}</DialogTitle>
           <DialogDescription>
@@ -149,6 +150,16 @@ export function IntegrationConnectionDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {(integration.id === 'webhook' || integration.id === 'zapier') ? (
+          <WebhookConnector 
+            websiteId={websiteId || ''} 
+            onSuccess={() => {
+              onSuccess();
+              onOpenChange(false);
+            }}
+            integrationType={integration.id === 'zapier' ? 'zapier' : 'webhook'}
+          />
+        ) : (
         <div className="space-y-4">
           {integration.id === "shopify" && (
             <>
@@ -240,6 +251,7 @@ export function IntegrationConnectionDialog({
             </Button>
           </div>
         </div>
+        )}
       </DialogContent>
     </Dialog>
   );

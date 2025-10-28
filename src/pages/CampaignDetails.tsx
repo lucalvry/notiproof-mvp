@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Play, Pause, BarChart, Settings, Activity, Edit } from "lucide-react";
+import { ArrowLeft, Play, Pause, BarChart, Settings, Activity, Edit, Copy, Code } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,11 +9,13 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCampaignMetrics } from "@/hooks/useCampaignMetrics";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
 
 export default function CampaignDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [campaign, setCampaign] = useState<any>(null);
+  const [widgets, setWidgets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const metrics = useCampaignMetrics(id);
 
@@ -31,6 +33,14 @@ export default function CampaignDetails() {
 
       if (error) throw error;
       setCampaign(data);
+
+      // Fetch widgets for this campaign
+      const { data: widgetData } = await supabase
+        .from("widgets")
+        .select("id, name, website_id")
+        .eq("campaign_id", id);
+      
+      setWidgets(widgetData || []);
     } catch (error) {
       console.error("Error fetching campaign:", error);
       toast.error("Failed to load campaign");
@@ -79,7 +89,7 @@ export default function CampaignDetails() {
           <div>
             <h1 className="text-3xl font-bold">{campaign.name}</h1>
             <p className="text-muted-foreground capitalize">
-              {campaign.type.replace("-", " ")} • {campaign.data_source}
+              {campaign.type?.replace("-", " ") || "Campaign"} {campaign.data_source ? `• ${campaign.data_source}` : ""}
             </p>
           </div>
           <Badge
@@ -221,7 +231,57 @@ export default function CampaignDetails() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="settings">
+        <TabsContent value="settings" className="space-y-6">
+          {/* Widget Installation Codes */}
+          {widgets.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Code className="h-5 w-5" />
+                  Widget Installation Codes
+                </CardTitle>
+                <CardDescription>
+                  Copy and paste these codes into your website to display notifications
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {widgets.map((widget) => (
+                  <div key={widget.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">{widget.name}</Label>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const code = `<script src="${window.location.origin}/widget.js" data-widget-id="${widget.id}"></script>`;
+                          navigator.clipboard.writeText(code);
+                          toast.success("Widget code copied!");
+                        }}
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copy Code
+                      </Button>
+                    </div>
+                    <div className="rounded-lg bg-muted p-4">
+                      <code className="text-sm break-all font-mono">
+                        {`<script src="${window.location.origin}/widget.js" data-widget-id="${widget.id}"></script>`}
+                      </code>
+                    </div>
+                  </div>
+                ))}
+                <div className="rounded-lg border bg-card p-4">
+                  <h4 className="font-medium text-sm mb-2">Installation Instructions:</h4>
+                  <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+                    <li>Copy the widget code above</li>
+                    <li>Paste it into your website's HTML</li>
+                    <li>Place it right before the closing {`</body>`} tag</li>
+                    <li>Save and publish - notifications will appear automatically!</li>
+                  </ol>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
           <Card>
             <CardHeader>
               <CardTitle>Campaign Settings</CardTitle>

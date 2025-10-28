@@ -1,4 +1,4 @@
-project_id = "lapodiikscsyrbdgvukd"
+project_id = "ewymvxhpkswhsirdrjub"
 
 [functions.widget-api]
 verify_jwt = false
@@ -16,4 +16,22 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.system-metrics]
+verify_jwt = true
+
+[functions.resend-confirmation]
+verify_jwt = true
+
+[functions.send-team-invitation]
+verify_jwt = true
+
+[functions.sync-google-reviews]
+verify_jwt = true
+
+[functions.sync-instagram]
+verify_jwt = true
+
+[functions.sync-twitter]
+verify_jwt = true
+
+[functions.load-test]
 verify_jwt = true

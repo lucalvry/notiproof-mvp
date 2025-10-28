@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -9,6 +9,8 @@ import { DesignEditor } from "./DesignEditor";
 import { RulesTargeting } from "./RulesTargeting";
 import { DataMapping } from "./DataMapping";
 import { ReviewActivate } from "./ReviewActivate";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface CampaignWizardProps {
   open: boolean;
@@ -37,6 +39,59 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
   });
 
   const progress = ((currentStep + 1) / STEPS.length) * 100;
+
+  // Check for template parameter on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const templateId = urlParams.get('template');
+    
+    if (templateId && open) {
+      fetchAndApplyTemplate(templateId);
+    }
+  }, [open]);
+
+  const fetchAndApplyTemplate = async (templateId: string) => {
+    try {
+      const { data: template, error } = await supabase
+        .from('marketplace_templates')
+        .select('*')
+        .eq('id', templateId)
+        .single();
+
+      if (error) throw error;
+
+      if (template) {
+        const templateConfig = typeof template.template_config === 'string' 
+          ? JSON.parse(template.template_config) 
+          : template.template_config;
+        
+        const styleConfig = typeof template.style_config === 'string'
+          ? JSON.parse(template.style_config)
+          : template.style_config;
+
+        const displayRules = typeof template.display_rules === 'string'
+          ? JSON.parse(template.display_rules)
+          : template.display_rules;
+
+        updateCampaignData({
+          name: template.name,
+          settings: { ...templateConfig, ...styleConfig },
+          rules: displayRules || {},
+        });
+
+        // Also update download count
+        await supabase
+          .from('marketplace_templates')
+          .update({ download_count: (template.download_count || 0) + 1 })
+          .eq('id', templateId);
+
+        toast.success(`Template "${template.name}" applied!`);
+      }
+    } catch (error) {
+      console.error('Error loading template:', error);
+      toast.error("Failed to load template");
+    }
+  };
 
   const handleNext = () => {
     if (currentStep < STEPS.length - 1) {

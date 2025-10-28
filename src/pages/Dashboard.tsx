@@ -1,11 +1,13 @@
 import { TrendingUp, Eye, MousePointer, Zap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWidgetStats } from "@/hooks/useWidgetStats";
+import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 
 export default function Dashboard() {
   const [userId, setUserId] = useState<string>();
+  const { currentWebsite } = useWebsiteContext();
   const { data: stats, isLoading } = useWidgetStats(userId);
 
   useEffect(() => {
@@ -18,30 +20,22 @@ export default function Dashboard() {
     {
       title: "Total Views",
       value: isLoading ? "..." : stats?.totalViews.toLocaleString() || "0",
-      change: "+12.5%",
       icon: Eye,
-      trend: "up",
     },
     {
       title: "Clicks",
       value: isLoading ? "..." : stats?.totalClicks.toLocaleString() || "0",
-      change: "+8.2%",
       icon: MousePointer,
-      trend: "up",
     },
     {
       title: "Active Widgets",
       value: isLoading ? "..." : stats?.activeWidgets.toString() || "0",
-      change: "+23.1%",
       icon: Zap,
-      trend: "up",
     },
     {
       title: "Conversion Rate",
       value: isLoading ? "..." : `${stats?.conversionRate.toFixed(1) || "0.0"}%`,
-      change: "+2.4%",
       icon: TrendingUp,
-      trend: "up",
     },
   ];
 
@@ -50,7 +44,7 @@ export default function Dashboard() {
       <div>
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground">
-          Overview of your proof campaigns
+          {currentWebsite ? `Overview for ${currentWebsite.domain}` : "Overview of your proof campaigns"}
         </p>
       </div>
 
@@ -68,8 +62,8 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="text-xs text-success">
-                  {stat.change} from last period
+                <p className="text-xs text-muted-foreground">
+                  Last 30 days
                 </p>
               </CardContent>
             </Card>

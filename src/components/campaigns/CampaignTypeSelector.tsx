@@ -1,4 +1,4 @@
-import { ShoppingCart, Users, Trophy, MessageSquare, Zap, Upload } from "lucide-react";
+import { ShoppingCart, Users, Trophy, MessageSquare, Zap, Upload, Camera, Calendar, Headphones, Newspaper, TrendingUp, Heart, Award, CreditCard, DollarSign, Shield, GraduationCap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ interface CampaignType {
 }
 
 const CAMPAIGN_TYPES: CampaignType[] = [
+  // E-commerce
   {
     id: "recent-purchase",
     title: "Recent Purchase",
@@ -36,6 +37,7 @@ const CAMPAIGN_TYPES: CampaignType[] = [
     icon: <Users className="h-6 w-6" />,
     category: "E-commerce",
   },
+  // SaaS/Agency
   {
     id: "new-signup",
     title: "New Signup",
@@ -60,6 +62,132 @@ const CAMPAIGN_TYPES: CampaignType[] = [
     icon: <MessageSquare className="h-6 w-6" />,
     category: "SaaS/Agency",
   },
+  // Music & Photography
+  {
+    id: "portfolio-showcase",
+    title: "Portfolio Showcase",
+    description: "Display recent work or bookings",
+    example: "Jessica just booked a wedding shoot for June 2024",
+    icon: <Camera className="h-6 w-6" />,
+    category: "Music & Photography",
+  },
+  {
+    id: "event-booking",
+    title: "Event Bookings",
+    description: "Show concert tickets or session bookings",
+    example: "Michael from Austin just booked a portrait session",
+    icon: <Calendar className="h-6 w-6" />,
+    category: "Music & Photography",
+  },
+  {
+    id: "stream-listener",
+    title: "Stream/Listener Count",
+    description: "Display current listeners or viewers",
+    example: "127 people are listening to your latest album",
+    icon: <Headphones className="h-6 w-6" />,
+    category: "Music & Photography",
+  },
+  // News & Media
+  {
+    id: "breaking-news",
+    title: "Breaking News Alert",
+    description: "Highlight urgent news updates",
+    example: "🔴 BREAKING: Major announcement just published",
+    icon: <Newspaper className="h-6 w-6" />,
+    category: "News & Media",
+  },
+  {
+    id: "trending-article",
+    title: "Trending Articles",
+    description: "Show most-read content",
+    example: "1.2K people reading: 'Tech Industry Trends 2024'",
+    icon: <TrendingUp className="h-6 w-6" />,
+    category: "News & Media",
+  },
+  {
+    id: "live-readers",
+    title: "Live Reader Count",
+    description: "Display active readers on site",
+    example: "345 readers online now",
+    icon: <Users className="h-6 w-6" />,
+    category: "News & Media",
+  },
+  // NGO & Non-Profit
+  {
+    id: "donation-notification",
+    title: "Recent Donations",
+    description: "Show supporter contributions",
+    example: "Sarah from Seattle just donated $50 to clean water",
+    icon: <Heart className="h-6 w-6" />,
+    category: "NGO & Non-Profit",
+  },
+  {
+    id: "impact-milestone",
+    title: "Impact Milestones",
+    description: "Celebrate goals achieved",
+    example: "🎉 We've provided 10,000 meals this month!",
+    icon: <Award className="h-6 w-6" />,
+    category: "NGO & Non-Profit",
+  },
+  {
+    id: "volunteer-signup",
+    title: "Volunteer Sign-ups",
+    description: "Show community engagement",
+    example: "James just signed up to volunteer at our food drive",
+    icon: <Users className="h-6 w-6" />,
+    category: "NGO & Non-Profit",
+  },
+  // Finance & Fintech
+  {
+    id: "account-signup",
+    title: "Account Openings",
+    description: "Display new user registrations",
+    example: "Mike from Chicago just opened a savings account",
+    icon: <CreditCard className="h-6 w-6" />,
+    category: "Finance & Fintech",
+  },
+  {
+    id: "transaction-volume",
+    title: "Transaction Activity",
+    description: "Show platform usage anonymously",
+    example: "$2.4M in transactions processed today",
+    icon: <DollarSign className="h-6 w-6" />,
+    category: "Finance & Fintech",
+  },
+  {
+    id: "security-trust",
+    title: "Security & Trust",
+    description: "Highlight security features",
+    example: "Bank-level encryption • Trusted by 50K+ users",
+    icon: <Shield className="h-6 w-6" />,
+    category: "Finance & Fintech",
+  },
+  // Education & E-Learning
+  {
+    id: "course-enrollment",
+    title: "Course Enrollments",
+    description: "Show student registrations",
+    example: "Emma from London just enrolled in 'Web Development'",
+    icon: <GraduationCap className="h-6 w-6" />,
+    category: "Education & E-Learning",
+  },
+  {
+    id: "completion-milestone",
+    title: "Course Completions",
+    description: "Celebrate student achievements",
+    example: "🎓 David just completed 'Advanced Python'",
+    icon: <Award className="h-6 w-6" />,
+    category: "Education & E-Learning",
+  },
+  {
+    id: "live-students",
+    title: "Active Learners",
+    description: "Display current online students",
+    example: "234 students learning right now",
+    icon: <Users className="h-6 w-6" />,
+    category: "Education & E-Learning",
+  },
+  // Generic
   {
     id: "custom-event",
     title: "Custom Event",
@@ -84,7 +212,16 @@ interface CampaignTypeSelectorProps {
 }
 
 export function CampaignTypeSelector({ selectedType, onSelect }: CampaignTypeSelectorProps) {
-  const categories = ["E-commerce", "SaaS/Agency", "Generic"];
+  const categories = [
+    "E-commerce",
+    "SaaS/Agency",
+    "Music & Photography",
+    "News & Media",
+    "NGO & Non-Profit",
+    "Finance & Fintech",
+    "Education & E-Learning",
+    "Generic"
+  ];
 
   return (
     <div className="space-y-8">

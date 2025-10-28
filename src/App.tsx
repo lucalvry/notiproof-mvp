@@ -3,10 +3,13 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { WebsiteProvider } from "@/contexts/WebsiteContext";
 import { AppLayout } from "./components/layouts/AppLayout";
 import { AdminLayout } from "./components/layouts/AdminLayout";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Websites from "./pages/Websites";
 import Dashboard from "./pages/Dashboard";
 import Campaigns from "./pages/Campaigns";
@@ -30,7 +33,10 @@ import AdminLogs from "./pages/admin/Logs";
 import AdminSystem from "./pages/admin/System";
 import AdminSettings from "./pages/admin/Settings";
 import AdminHelpArticles from "./pages/admin/HelpArticles";
+import AdminTeams from "./pages/admin/Teams";
+import AcceptInvite from "./pages/AcceptInvite";
 import WidgetAnalytics from "./pages/WidgetAnalytics";
+import Templates from "./pages/Templates";
 
 const queryClient = new QueryClient();
 
@@ -40,9 +46,13 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <WebsiteProvider>
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/accept-invite" element={<AcceptInvite />} />
           <Route path="/" element={<Navigate to="/websites" replace />} />
           
           {/* Admin Routes */}
@@ -53,6 +63,7 @@ const App = () => (
             <Route path="users" element={<AdminUsers />} />
             <Route path="websites" element={<AdminWebsites />} />
             <Route path="campaigns" element={<AdminCampaigns />} />
+            <Route path="teams" element={<AdminTeams />} />
             <Route path="integrations" element={<AdminIntegrations />} />
             <Route path="billing" element={<AdminBilling />} />
             <Route path="logs" element={<AdminLogs />} />
@@ -67,6 +78,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/campaigns/:id" element={<CampaignDetails />} />
+            <Route path="/templates" element={<Templates />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/analytics/widget/:id" element={<WidgetAnalytics />} />
             <Route path="/integrations" element={<Integrations />} />
@@ -80,6 +92,7 @@ const App = () => (
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </WebsiteProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

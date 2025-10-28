@@ -44,6 +44,7 @@ const navItems: NavItem[] = [
   { label: "Users", icon: Users, path: "/admin/users" },
   { label: "Websites", icon: Globe, path: "/admin/websites" },
   { label: "Campaigns", icon: Megaphone, path: "/admin/campaigns" },
+  { label: "Teams", icon: Users, path: "/admin/teams" },
   { label: "Billing & Plans", icon: CreditCard, path: "/admin/billing" },
   { label: "Integrations", icon: Plug, path: "/admin/integrations" },
   { label: "Logs", icon: FileText, path: "/admin/logs" },

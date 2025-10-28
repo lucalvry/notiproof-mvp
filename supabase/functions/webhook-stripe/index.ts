@@ -17,8 +17,112 @@ Deno.serve(async (req) => {
     );
 
     const rawBody = await req.text();
+    const stripeSignature = req.headers.get('stripe-signature');
+    
+    // Verify Stripe webhook signature - MANDATORY
+    const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
+    if (!webhookSecret) {
+      console.error('STRIPE_WEBHOOK_SECRET not configured');
+      return new Response(JSON.stringify({ error: 'Webhook secret not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!stripeSignature) {
+      console.error('Missing Stripe signature header');
+      return new Response(JSON.stringify({ error: 'Missing signature' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Verify signature
+    {
+      const signatureElements = stripeSignature.split(',');
+      const timestamp = signatureElements.find(el => el.startsWith('t='))?.substring(2);
+      const signature = signatureElements.find(el => el.startsWith('v1='))?.substring(3);
+      
+      if (!timestamp || !signature) {
+        console.error('Invalid Stripe signature format');
+        return new Response(JSON.stringify({ error: 'Invalid signature format' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      const encoder = new TextEncoder();
+      const payloadData = encoder.encode(`${timestamp}.${rawBody}`);
+      const keyData = encoder.encode(webhookSecret);
+      
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      
+      const expectedSignature = await crypto.subtle.sign('HMAC', cryptoKey, payloadData);
+      const expectedHex = Array.from(new Uint8Array(expectedSignature))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+      
+      if (signature !== expectedHex) {
+        console.error('Invalid Stripe webhook signature');
+        return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      // Verify timestamp to prevent replay attacks (within 5 minutes)
+      const currentTime = Math.floor(Date.now() / 1000);
+      if (Math.abs(currentTime - parseInt(timestamp)) > 300) {
+        return new Response(JSON.stringify({ error: 'Request timestamp too old' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     const body = JSON.parse(rawBody);
     const eventType = body.type;
+
+    // Check for duplicate webhook using Stripe event ID
+    const idempotencyKey = `stripe:${body.id}`;
+
+    const { data: existing } = await supabase
+      .from('webhook_dedup')
+      .select('id, processed_at')
+      .eq('idempotency_key', idempotencyKey)
+      .single();
+
+    if (existing) {
+      console.log(`Duplicate Stripe webhook: ${body.id}`);
+      
+      await supabase.from('integration_logs').insert({
+        integration_type: 'stripe',
+        action: `webhook_${eventType}_duplicate`,
+        status: 'skipped',
+        details: { 
+          event_id: body.id, 
+          type: eventType,
+          original_processed_at: existing.processed_at 
+        },
+      });
+      
+      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Store idempotency key
+    await supabase.from('webhook_dedup').insert({
+      idempotency_key: idempotencyKey,
+      webhook_type: 'stripe',
+      payload: body
+    });
 
     await supabase.from('integration_logs').insert({
       integration_type: 'stripe',

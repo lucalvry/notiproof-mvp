@@ -121,6 +121,18 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
                     onCheckedChange={(checked) => updateDesign({ clickable: checked })}
                   />
                 </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Show Active Visitors</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Display real-time count of active visitors
+                    </p>
+                  </div>
+                  <Switch
+                    checked={design.show_active_visitors !== false}
+                    onCheckedChange={(checked) => updateDesign({ show_active_visitors: checked })}
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label>Fallback Logo</Label>
                   <Button variant="outline" className="w-full">

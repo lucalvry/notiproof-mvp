@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { WidgetInstallationSuccess } from "./WidgetInstallationSuccess";
 
 interface ReviewActivateProps {
   campaignData: any;
@@ -14,8 +16,11 @@ interface ReviewActivateProps {
 }
 
 export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps) {
+  const [searchParams] = useSearchParams();
   const [campaignName, setCampaignName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdWidget, setCreatedWidget] = useState<{ id: string; campaignId: string } | null>(null);
 
   const handleSaveDraft = async () => {
     if (!campaignName) {
@@ -65,21 +70,35 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Get user's primary website
-      const { data: websites } = await supabase
-        .from("websites")
-        .select("id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true })
-        .limit(1);
+      // Get website_id from URL params, campaign data, or user's first website
+      const websiteIdFromParams = searchParams.get('website');
+      const websiteIdFromCampaign = campaignData.website_id;
+      
+      let websiteId = websiteIdFromParams || websiteIdFromCampaign;
+      
+      if (!websiteId) {
+        // Fallback to user's first website
+        const { data: websites } = await supabase
+          .from("websites")
+          .select("id, business_type")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true })
+          .limit(1);
 
-      if (!websites || websites.length === 0) {
-        toast.error("Please create a website first");
-        setSaving(false);
-        return;
+        if (!websites || websites.length === 0) {
+          toast.error("Please create a website first");
+          setSaving(false);
+          return;
+        }
+        websiteId = websites[0].id;
       }
 
-      const websiteId = websites[0].id;
+      // Get business type for demo events
+      const { data: website } = await supabase
+        .from("websites")
+        .select("business_type")
+        .eq("id", websiteId)
+        .single();
 
       // Create campaign
       const { data: campaign, error: campaignError } = await supabase
@@ -103,7 +122,7 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
       if (campaignError) throw campaignError;
 
       // Create widget for this campaign
-      const { error: widgetError } = await supabase
+      const { data: newWidget, error: widgetError } = await supabase
         .from("widgets")
         .insert({
           user_id: user.id,
@@ -126,12 +145,25 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
             interval_ms: (campaignData.rules?.frequency || 10) * 1000,
             max_per_session: campaignData.rules?.sessionLimit || 5,
           },
-        });
+        })
+        .select()
+        .single();
 
       if (widgetError) throw widgetError;
 
+      // Auto-generate demo events based on business type
+      const demoEvents = generateDemoEvents(newWidget.id, website?.business_type || 'saas');
+      const { error: eventsError } = await supabase
+        .from("events")
+        .insert(demoEvents);
+
+      if (eventsError) console.error("Error creating demo events:", eventsError);
+
       toast.success("Campaign and widget created successfully!");
-      onComplete();
+      
+      // Show success modal with installation code
+      setCreatedWidget({ id: newWidget.id, campaignId: campaign.id });
+      setShowSuccessModal(true);
     } catch (error) {
       console.error("Error activating campaign:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to activate campaign";
@@ -145,7 +177,61 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
     toast.success("Test proof notification sent!");
   };
 
+  // Generate demo events based on business type
+  const generateDemoEvents = (widgetId: string, businessType: string) => {
+    const baseTime = new Date();
+    const demoMessages: Record<string, string[]> = {
+      ecommerce: [
+        'Sarah M. from New York just purchased Premium Package',
+        'John D. from Los Angeles added items to cart',
+        'Emma W. from Chicago completed checkout'
+      ],
+      saas: [
+        'Alex K. from San Francisco just started a free trial',
+        'Maria S. from Austin scheduled a demo',
+        'David L. from Seattle upgraded to Pro plan'
+      ],
+      services: [
+        'Michael B. just booked a consultation',
+        'Jennifer R. submitted a service request',
+        'Robert T. scheduled an appointment'
+      ],
+      default: [
+        'Someone from New York just signed up',
+        'A visitor from California engaged with your content',
+        'New activity on your site'
+      ]
+    };
+
+    const messages = demoMessages[businessType] || demoMessages.default;
+    
+    return messages.map((message, index) => ({
+      widget_id: widgetId,
+      event_type: businessType === 'ecommerce' ? 'purchase' : 'conversion',
+      source: 'demo' as const,
+      status: 'approved' as const,
+      message_template: message,
+      user_name: message.split(' ')[0],
+      user_location: message.includes('from') ? message.split('from ')[1].split(' just')[0] : 'United States',
+      created_at: new Date(baseTime.getTime() - (index * 5 * 60 * 1000)).toISOString(),
+      views: 0,
+      clicks: 0,
+      event_data: { demo: true }
+    }));
+  };
+
   return (
+    <>
+      <WidgetInstallationSuccess
+        open={showSuccessModal}
+        onClose={() => {
+          setShowSuccessModal(false);
+          onComplete();
+        }}
+        widgetId={createdWidget?.id || ""}
+        campaignName={campaignName}
+        campaignId={createdWidget?.campaignId || ""}
+      />
     <div className="space-y-6">
       <Card>
         <CardHeader>
@@ -279,6 +365,7 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
           Activate Campaign
         </Button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

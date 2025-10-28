@@ -6,6 +6,7 @@
   
   const script = document.currentScript;
   const widgetId = script.getAttribute('data-widget-id');
+  const siteToken = script.getAttribute('data-site-token');
   
   function log(...args) {
     if (DEBUG) {
@@ -17,12 +18,31 @@
     console.error('[NotiProof]', ...args);
   }
   
-  if (!widgetId) {
-    error('data-widget-id attribute is required');
+  // Check if we have either widgetId or siteToken
+  if (!widgetId && !siteToken) {
+    error('Either data-widget-id or data-site-token attribute is required');
     return;
   }
   
-  log('Initializing widget', widgetId);
+  const mode = siteToken ? 'site' : 'widget';
+  log(`Initializing NotiProof in ${mode} mode`, siteToken || widgetId);
+  
+  // Auto-verify website when using site token
+  async function autoVerifyWebsite() {
+    if (siteToken) {
+      try {
+        log('Auto-verifying website with token', siteToken);
+        const response = await fetch(`${API_BASE}/verify?token=${siteToken}`);
+        if (response.ok) {
+          log('Website auto-verified successfully');
+          return true;
+        }
+      } catch (err) {
+        log('Auto-verification failed', err);
+      }
+    }
+    return false;
+  }
   
   let eventQueue = [];
   let displayedCount = 0;
@@ -32,6 +52,16 @@
   const maxPerSession = 20;
   const showDuration = 5000;
   const interval = 8000;
+  
+  // Active Visitors Configuration
+  let activeVisitorInterval = null;
+  let currentActiveCount = 0;
+  let showActiveVisitors = true;
+  
+  const showActiveVisitorsAttr = script.getAttribute('data-show-active-visitors');
+  if (showActiveVisitorsAttr !== null) {
+    showActiveVisitors = showActiveVisitorsAttr !== 'false';
+  }
   
   function generateSessionId() {
     return 'np_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
@@ -132,15 +162,29 @@
   
   async function fetchEvents() {
     try {
-      log('Fetching events for widget', widgetId);
-      const response = await fetch(`${API_BASE}/events/${widgetId}`);
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch events: ${response.status} - ${errorText}`);
+      if (mode === 'site') {
+        // Fetch all widgets and events for the site
+        log('Fetching all widgets and events for site', siteToken);
+        const response = await fetch(`${API_BASE}/site/${siteToken}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to fetch site data: ${response.status} - ${errorText}`);
+        }
+        const data = await response.json();
+        eventQueue = data.events || [];
+        log('Site events fetched', { widgets: data.widgets?.length || 0, events: eventQueue.length });
+      } else {
+        // Legacy single widget mode
+        log('Fetching events for widget', widgetId);
+        const response = await fetch(`${API_BASE}/events/${widgetId}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to fetch events: ${response.status} - ${errorText}`);
+        }
+        const data = await response.json();
+        eventQueue = data.events || [];
+        log('Events fetched', { count: eventQueue.length });
       }
-      const data = await response.json();
-      eventQueue = data.events || [];
-      log('Events fetched', { count: eventQueue.length, events: eventQueue });
     } catch (err) {
       error('Failed to fetch events', err);
     }
@@ -180,12 +224,15 @@
   
   async function trackSession() {
     try {
-      log('Tracking session', { sessionId, widgetId });
+      // In site mode, we track session for the site token
+      const trackingId = mode === 'site' ? siteToken : widgetId;
+      log('Tracking session', { sessionId, mode, trackingId });
       const response = await fetch(`${API_BASE}/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          widget_id: widgetId,
+          widget_id: mode === 'widget' ? widgetId : null,
+          site_token: mode === 'site' ? siteToken : null,
           session_id: sessionId,
           page_url: window.location.href,
           user_agent: navigator.userAgent,
@@ -200,6 +247,95 @@
     }
   }
   
+  async function fetchActiveVisitorCount() {
+    try {
+      const endpoint = mode === 'site' 
+        ? `${API_BASE}/active-count?site_token=${siteToken}`
+        : `${API_BASE}/active-count?widget_id=${widgetId}`;
+      
+      log('Fetching active visitor count');
+      const response = await fetch(endpoint);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch active count: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      currentActiveCount = data.count || 0;
+      log('Active visitor count updated', currentActiveCount);
+      
+      // Show active visitor notification if count changed and is > 1
+      if (currentActiveCount > 1 && showActiveVisitors) {
+        showActiveVisitorNotification(currentActiveCount);
+      }
+    } catch (err) {
+      error('Failed to fetch active visitor count', err);
+    }
+  }
+  
+  function showActiveVisitorNotification(count) {
+    if (displayedCount >= maxPerPage || sessionCount >= maxPerSession) {
+      return;
+    }
+    
+    const container = document.getElementById('notiproof-container') || createNotificationElement();
+    
+    // Remove existing active visitor notification if present
+    const existing = container.querySelector('[data-type="active-visitors"]');
+    if (existing) {
+      existing.remove();
+    }
+    
+    const notification = document.createElement('div');
+    notification.setAttribute('data-type', 'active-visitors');
+    notification.style.cssText = `
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 10px;
+      max-width: 350px;
+      cursor: default;
+      transition: transform 0.2s, opacity 0.3s;
+      opacity: 0;
+      transform: translateX(-20px);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    `;
+    
+    const peopleText = count === 2 ? '1 other person' : `${count - 1} other people`;
+    
+    notification.innerHTML = `
+      <div style="width: 8px; height: 8px; background: #4ade80; border-radius: 50%; animation: pulse 2s infinite;"></div>
+      <div style="flex: 1; font-size: 14px; font-weight: 500;">
+        ${peopleText} ${count === 2 ? 'is' : 'are'} viewing this page
+      </div>
+    `;
+    
+    // Add pulse animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(1.2); }
+      }
+    `;
+    if (!document.head.querySelector('[data-notiproof-pulse]')) {
+      style.setAttribute('data-notiproof-pulse', 'true');
+      document.head.appendChild(style);
+    }
+    
+    container.appendChild(notification);
+    
+    setTimeout(() => {
+      notification.style.opacity = '1';
+      notification.style.transform = 'translateX(0)';
+    }, 10);
+    
+    log('Active visitor notification displayed', count);
+  }
+  
   function startDisplayLoop() {
     log('Starting display loop', { interval });
     setInterval(() => {
@@ -212,6 +348,7 @@
   
   async function init() {
     log('Initializing NotiProof widget');
+    await autoVerifyWebsite();
     await fetchEvents();
     trackSession();
     
@@ -223,6 +360,12 @@
     }
     
     startDisplayLoop();
+    
+    // Start active visitor tracking
+    if (showActiveVisitors) {
+      fetchActiveVisitorCount(); // Initial fetch
+      activeVisitorInterval = setInterval(fetchActiveVisitorCount, 15000); // Update every 15 seconds
+    }
     
     // Refresh events every minute
     setInterval(fetchEvents, 60000);

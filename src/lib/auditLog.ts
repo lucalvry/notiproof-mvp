@@ -16,35 +16,59 @@ interface AuditLogParams {
  */
 export async function logAdminAction(params: AuditLogParams): Promise<string | null> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError) {
+      console.error("Error fetching user for audit logging:", userError);
+      // Still try to log with null admin_id for critical tracking
+    }
     
     if (!user) {
-      console.error("No authenticated user found for audit logging");
-      return null;
+      console.warn("No authenticated user found for audit logging - action may be system-triggered");
     }
 
     const { data, error } = await supabase
       .from("audit_logs")
       .insert({
-        admin_id: user.id,
+        admin_id: user?.id || null,
         action: params.action,
         resource_type: params.resourceType,
         resource_id: params.resourceId,
-        details: params.details || {},
+        details: {
+          ...params.details,
+          // Add metadata for debugging
+          timestamp: new Date().toISOString(),
+          success: true,
+        },
         ip_address: params.ipAddress,
-        user_agent: params.userAgent || navigator.userAgent,
+        user_agent: params.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : 'server'),
       })
       .select("id")
       .single();
 
     if (error) {
-      console.error("Error logging admin action:", error);
+      console.error("Error logging admin action:", {
+        error,
+        action: params.action,
+        resourceType: params.resourceType,
+        resourceId: params.resourceId,
+      });
+      
+      // Attempt fallback logging to console for critical actions
+      if (params.action.includes('delete') || params.action.includes('suspend')) {
+        console.error("CRITICAL ACTION FAILED TO LOG:", JSON.stringify(params));
+      }
+      
       return null;
     }
 
     return data?.id || null;
   } catch (error) {
-    console.error("Failed to log admin action:", error);
+    console.error("Failed to log admin action - unexpected error:", {
+      error,
+      action: params.action,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
     return null;
   }
 }

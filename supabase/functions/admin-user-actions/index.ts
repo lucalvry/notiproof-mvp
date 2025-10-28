@@ -11,13 +11,23 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
+    const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: req.headers.get('Authorization')! },
+        },
+      }
     );
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    
     if (!user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
@@ -25,40 +35,134 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: isAdmin } = await supabase.rpc('is_admin', { _user_id: user.id });
+    const { data: isAdmin } = await supabaseClient.rpc('is_admin', { _user_id: user.id });
+
     if (!isAdmin) {
-      return new Response(JSON.stringify({ error: 'Forbidden: Admin access required' }), {
+      await supabaseAdmin.from('audit_logs').insert({
+        admin_id: user.id,
+        action: 'unauthorized_access_attempt',
+        resource_type: 'admin_api',
+        details: { endpoint: 'admin-user-actions' },
+      });
+
+      return new Response(JSON.stringify({ error: 'Forbidden - Admin access required' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const body = await req.json();
-    const { action, user_id, details } = body;
-
-    let result;
-    switch (action) {
-      case 'suspend':
-        result = await suspendUser(supabase, user_id, details);
-        break;
-      case 'reactivate':
-        result = await reactivateUser(supabase, user_id);
-        break;
-      case 'delete':
-        result = await softDeleteUser(supabase, user_id);
-        break;
-      case 'update_role':
-        result = await updateUserRole(supabase, user_id, details.role);
-        break;
-      default:
-        throw new Error('Invalid action');
+    const url = new URL(req.url);
+    const action = url.searchParams.get('action');
+    
+    // For GET requests, check query param for action
+    // For POST requests, check body
+    let requestAction = action;
+    let requestBody: any = {};
+    
+    if (req.method === 'POST') {
+      requestBody = await req.json();
+      requestAction = requestBody.action || action;
     }
 
-    await supabase.rpc('log_admin_action', {
-      _action: action,
-      _resource_type: 'user',
-      _resource_id: user_id,
-      _details: details || {},
+    if (requestAction === 'list-users' || req.method === 'GET') {
+      const { data: authUsers, error } = await supabaseAdmin.auth.admin.listUsers();
+      
+      if (error) throw error;
+
+      const { data: profiles } = await supabaseAdmin
+        .from('profiles')
+        .select('id, name');
+
+      const users = authUsers.users.map((authUser) => {
+        const profile = profiles?.find((p) => p.id === authUser.id);
+        return {
+          id: authUser.id,
+          email: authUser.email || '',
+          name: profile?.name || authUser.email || 'Unknown',
+          created_at: authUser.created_at,
+          email_confirmed_at: authUser.email_confirmed_at,
+          last_sign_in_at: authUser.last_sign_in_at,
+        };
+      });
+
+      await supabaseAdmin.from('audit_logs').insert({
+        admin_id: user.id,
+        action: 'list_users',
+        resource_type: 'user',
+        details: { count: users.length },
+      });
+
+      return new Response(JSON.stringify({ users }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (requestAction === 'suspend-user') {
+      const { userId } = requestBody;
+
+      await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: '876000h' });
+      
+      await supabaseAdmin.from('audit_logs').insert({
+        admin_id: user.id,
+        action: 'suspend_user',
+        resource_type: 'user',
+        resource_id: userId,
+        details: { reason: 'Admin action' },
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (requestAction === 'reactivate-user') {
+      const { userId } = requestBody;
+
+      await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: 'none' });
+      
+      await supabaseAdmin.from('audit_logs').insert({
+        admin_id: user.id,
+        action: 'reactivate_user',
+        resource_type: 'user',
+        resource_id: userId,
+        details: { reason: 'Admin action' },
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Keep existing functionality for backward compatibility
+    const { user_id, details } = requestBody;
+    
+    let result;
+    switch (requestAction) {
+      case 'suspend':
+        result = await suspendUser(supabaseAdmin, user_id, details);
+        break;
+      case 'reactivate':
+        result = await reactivateUser(supabaseAdmin, user_id);
+        break;
+      case 'delete':
+        result = await softDeleteUser(supabaseAdmin, user_id);
+        break;
+      case 'update_role':
+        result = await updateUserRole(supabaseAdmin, user_id, details.role);
+        break;
+      default:
+        return new Response(JSON.stringify({ error: 'Invalid action' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+    }
+
+    await supabaseAdmin.from('audit_logs').insert({
+      admin_id: user.id,
+      action: requestAction,
+      resource_type: 'user',
+      resource_id: user_id,
+      details: details || {},
     });
 
     return new Response(JSON.stringify({ success: true, result }), {

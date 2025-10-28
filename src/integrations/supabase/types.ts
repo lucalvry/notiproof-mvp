@@ -469,6 +469,36 @@ export type Database = {
           },
         ]
       }
+      help_article_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          slug: string
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          slug: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          slug?: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       help_article_feedback: {
         Row: {
           article_id: string
@@ -601,6 +631,13 @@ export type Database = {
           view_count?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_help_articles_category"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "help_article_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "help_articles_category_id_fkey"
             columns: ["category_id"]
@@ -1506,6 +1543,33 @@ export type Database = {
           },
         ]
       }
+      webhook_dedup: {
+        Row: {
+          created_at: string
+          id: string
+          idempotency_key: string
+          payload: Json | null
+          processed_at: string
+          webhook_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          payload?: Json | null
+          processed_at?: string
+          webhook_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          payload?: Json | null
+          processed_at?: string
+          webhook_type?: string
+        }
+        Relationships: []
+      }
       website_settings: {
         Row: {
           border_radius: number | null
@@ -1883,6 +1947,7 @@ export type Database = {
         Returns: undefined
       }
       cleanup_expired_demo_events: { Args: never; Returns: undefined }
+      cleanup_webhook_dedup: { Args: never; Returns: undefined }
       clear_demo_events: { Args: { _user_id: string }; Returns: undefined }
       clear_manual_events: { Args: { _user_id: string }; Returns: undefined }
       generate_demo_events: {
@@ -1891,6 +1956,14 @@ export type Database = {
           _user_id: string
         }
         Returns: undefined
+      }
+      get_active_visitor_count: {
+        Args: { _widget_id: string }
+        Returns: number
+      }
+      get_active_visitor_count_for_site: {
+        Args: { _website_id: string }
+        Returns: number
       }
       get_integration_count: {
         Args: { _types?: string[]; _user_id: string }
@@ -2035,6 +2108,7 @@ export type Database = {
         | "form_hook"
         | "javascript_api"
         | "webhook"
+        | "zapier"
       moderation_status: "pending" | "approved" | "rejected" | "flagged"
       team_role: "owner" | "admin" | "member" | "viewer"
     }
@@ -2216,6 +2290,7 @@ export const Constants = {
         "form_hook",
         "javascript_api",
         "webhook",
+        "zapier",
       ],
       moderation_status: ["pending", "approved", "rejected", "flagged"],
       team_role: ["owner", "admin", "member", "viewer"],

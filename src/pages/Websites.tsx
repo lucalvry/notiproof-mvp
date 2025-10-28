@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Plus, Globe, CheckCircle2, Clock, XCircle, MoreVertical } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Plus, Globe, CheckCircle2, Clock, XCircle, MoreVertical, AlertCircle, Copy, RefreshCw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,7 @@ import { toast } from "sonner";
 import { useWebsites } from "@/hooks/useWebsites";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConnectionWizard } from "@/components/websites/ConnectionWizard";
 
 const mockWebsites = [
   {
@@ -79,8 +81,9 @@ const businessTypes = [
 ];
 
 export default function Websites() {
+  const navigate = useNavigate();
   const [userId, setUserId] = useState<string>();
-  const { websites, isLoading, addWebsite, deleteWebsite } = useWebsites(userId);
+  const { websites, isLoading, addWebsiteAsync, deleteWebsite } = useWebsites(userId);
   
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -93,11 +96,41 @@ export default function Websites() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [snippetDialogOpen, setSnippetDialogOpen] = useState(false);
   const [selectedWebsite, setSelectedWebsite] = useState<any>(null);
+  const [showConnectionWizard, setShowConnectionWizard] = useState<string | null>(null);
   const [newSite, setNewSite] = useState({
     name: "",
     domain: "",
     businessType: "",
   });
+
+  // Real-time verification check
+  useEffect(() => {
+    const unverifiedSites = websites.filter(
+      site => !site.is_verified && (site.widgetCount || 0) > 0
+    );
+
+    if (unverifiedSites.length === 0) return;
+
+    const interval = setInterval(async () => {
+      for (const site of unverifiedSites) {
+        const { data, error } = await supabase
+          .from('websites')
+          .select('is_verified')
+          .eq('id', site.id)
+          .single();
+
+        if (!error && data?.is_verified) {
+          toast.success(`🎉 ${site.name} is now connected!`);
+          // Trigger refresh by setting userId again
+          supabase.auth.getUser().then(({ data: { user } }) => {
+            setUserId(user?.id);
+          });
+        }
+      }
+    }, 10000); // Check every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [websites]);
 
   const sitesUsed = websites.length;
   const sitesAllowed = 10;
@@ -120,20 +153,30 @@ export default function Websites() {
     );
   };
 
-  const handleAddWebsite = () => {
+  const handleAddWebsite = async () => {
     if (!newSite.name || !newSite.domain || !newSite.businessType) {
       toast.error("Please fill in all fields");
       return;
     }
 
-    addWebsite({
-      name: newSite.name,
-      domain: newSite.domain,
-      business_type: newSite.businessType,
-    });
-    
-    setAddDialogOpen(false);
-    setVerifyDialogOpen(true);
+    try {
+      const createdWebsite = await addWebsiteAsync({
+        name: newSite.name,
+        domain: newSite.domain,
+        business_type: newSite.businessType,
+      });
+      
+      if (createdWebsite) {
+        setSelectedWebsite(createdWebsite);
+        setShowConnectionWizard(createdWebsite.id);
+      }
+      
+      setAddDialogOpen(false);
+      setVerifyDialogOpen(true);
+    } catch (error) {
+      // Error is already handled by the mutation
+      console.error('Failed to add website:', error);
+    }
   };
 
   return (
@@ -180,6 +223,20 @@ export default function Websites() {
       </Card>
 
       {/* Websites Grid */}
+      {/* Show connection wizard for new unverified sites */}
+      {websites.some(site => !site.is_verified && showConnectionWizard === site.id) && (
+        <ConnectionWizard
+          website={websites.find(site => site.id === showConnectionWizard)!}
+          onViewCode={() => {
+            const site = websites.find(s => s.id === showConnectionWizard);
+            if (site) {
+              setSelectedWebsite(site);
+              setSnippetDialogOpen(true);
+            }
+          }}
+        />
+      )}
+
       {isLoading ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -256,13 +313,69 @@ export default function Websites() {
                     {site.totalViews?.toLocaleString() || '0'}
                   </span>
                 </div>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={!site.is_verified}
-                >
-                  View Dashboard
-                </Button>
+
+                {/* Action buttons based on state */}
+                <div className="space-y-2 pt-2">
+                  {site.widgetCount === 0 ? (
+                    <>
+                      <Button
+                        className="w-full"
+                        onClick={() => {
+                          navigate(`/campaigns?website=${site.id}`);
+                          setShowConnectionWizard(site.id);
+                        }}
+                      >
+                        Create First Widget
+                      </Button>
+                      <p className="text-xs text-muted-foreground text-center">
+                        Step 1: Create a widget to get started
+                      </p>
+                    </>
+                  ) : !site.is_verified ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          setSelectedWebsite(site);
+                          setSnippetDialogOpen(true);
+                        }}
+                      >
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        View Installation Code
+                      </Button>
+                      <div className="flex items-center justify-center gap-2 text-xs text-pending">
+                        <Clock className="h-3 w-3 animate-pulse" />
+                        <span>Waiting for widget installation...</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="w-full text-xs"
+                        onClick={() => setShowConnectionWizard(site.id)}
+                      >
+                        Show setup guide
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        className="w-full"
+                        onClick={() => navigate(`/analytics?website=${site.id}`)}
+                      >
+                        View Dashboard
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => navigate(`/campaigns?website=${site.id}`)}
+                      >
+                        Create Another Widget
+                      </Button>
+                    </>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -338,14 +451,28 @@ export default function Websites() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Installation Script</Label>
+              <div className="flex items-center justify-between">
+                <Label>Unified Installation Script</Label>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const code = `<script src="${window.location.origin}/widget.js" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`;
+                    navigator.clipboard.writeText(code);
+                    toast.success("Code copied to clipboard!");
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Code
+                </Button>
+              </div>
               <div className="rounded-lg bg-muted p-4">
-                <code className="text-sm">
-                  {`<script src="https://notiproof.com/widget.js" data-site-token="abc123xyz"></script>`}
+                <code className="text-sm break-all font-mono">
+                  {`<script src="${window.location.origin}/widget.js" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`}
                 </code>
               </div>
               <p className="text-sm text-muted-foreground">
-                Add this script before the closing {`</body>`} tag on your website
+                Add this script before the closing {`</body>`} tag. This single script handles verification and all widgets you create.
               </p>
             </div>
             <div className="rounded-lg border border-pending bg-pending/10 p-4">
@@ -429,43 +556,116 @@ export default function Websites() {
       <Dialog open={snippetDialogOpen} onOpenChange={setSnippetDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Installation Snippet</DialogTitle>
+            <DialogTitle>Website Verification Code</DialogTitle>
             <DialogDescription>
-              Copy and paste this code into your website
+              Add this code to your website's HTML before the closing {`</body>`} tag
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Script Tag</Label>
+              <div className="flex items-center justify-between">
+                <Label>Installation Code</Label>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const code = `<script src="${window.location.origin}/widget.js" data-site-token="${selectedWebsite?.verification_token}"></script>`;
+                      navigator.clipboard.writeText(code);
+                      toast.success("Code copied to clipboard!");
+                    }}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy Code
+                  </Button>
+              </div>
               <div className="rounded-lg bg-muted p-4">
-                <code className="text-sm break-all">
-                  {`<script src="https://notiproof.com/widget.js" data-site-token="${selectedWebsite?.id}abc"></script>`}
+                <code className="text-sm break-all font-mono">
+                  {`<script src="${window.location.origin}/widget.js" data-site-token="${selectedWebsite?.verification_token || 'TOKEN'}"></script>`}
                 </code>
               </div>
               <p className="text-sm text-muted-foreground">
-                Add this before the closing {`</body>`} tag
+                This unified script handles website verification AND displays all your widgets. Install it once and create unlimited widgets without changing your code!
               </p>
             </div>
-            <div className="space-y-2">
-              <Label>Installation Instructions</Label>
-              <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-                <li>Copy the script tag above</li>
-                <li>Open your website's HTML file or theme editor</li>
-                <li>Paste the script before the closing {`</body>`} tag</li>
-                <li>Save and publish your changes</li>
-                <li>Wait a few minutes for verification to complete</li>
-              </ol>
+            
+            <div className="rounded-lg border border-border bg-muted/50 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
+                  <AlertCircle className="h-4 w-4" />
+                </div>
+                <div className="space-y-2 flex-1">
+                  <h4 className="font-medium text-sm">Installation Steps</h4>
+                  <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+                    <li>Copy the code above</li>
+                    <li>Paste it into your website's HTML</li>
+                    <li>Place it right before the closing {`</body>`} tag</li>
+                    <li>Save and publish your website</li>
+                  </ol>
+                  <p className="text-xs text-muted-foreground pt-2">
+                    Verification usually happens within 10 seconds after the page loads.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shrink-0">
+                  ✨
+                </div>
+                <div className="space-y-2 flex-1">
+                  <h4 className="font-semibold text-sm">Unified Script Benefits</h4>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                    <li>Install once, works for all your widgets</li>
+                    <li>Automatically verifies your website</li>
+                    <li>No code changes needed when creating new widgets</li>
+                    <li>All widgets display according to their individual rules</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button onClick={() => {
-              navigator.clipboard.writeText(
-                `<script src="https://notiproof.com/widget.js" data-site-token="${selectedWebsite?.id}abc"></script>`
-              );
-              toast.success("Snippet copied to clipboard!");
-            }}>
-              Copy to Clipboard
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setSnippetDialogOpen(false)}>
+              Close
             </Button>
+            <Button 
+              variant="outline"
+              onClick={async () => {
+                const { data } = await supabase
+                  .from('websites')
+                  .select('is_verified, id')
+                  .eq('id', selectedWebsite?.id)
+                  .single();
+                
+                // Check widget count
+                const { count: widgetCount } = await supabase
+                  .from('widgets')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('website_id', data?.id);
+                
+                if (data?.is_verified && (widgetCount || 0) > 0) {
+                  toast.success("✅ Website verified and widget exists! Your notifications should be displaying.");
+                  setSnippetDialogOpen(false);
+                  window.location.reload();
+                } else if (data?.is_verified && (widgetCount || 0) === 0) {
+                  toast.info("✅ Website verified! Now create a widget to display notifications.");
+                } else {
+                  toast.info("Not verified yet. Make sure the verification code is installed correctly on your website.");
+                }
+              }}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Check Verification
+            </Button>
+            {selectedWebsite?.is_verified && (
+              <Button onClick={() => {
+                setSnippetDialogOpen(false);
+                navigate(`/campaigns?website=${selectedWebsite?.id}`);
+              }}>
+                Create First Widget
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

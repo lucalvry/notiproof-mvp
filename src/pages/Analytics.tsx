@@ -16,10 +16,10 @@ export default function Analytics() {
   }, []);
 
   const stats = [
-    { label: "Total Views", value: isLoading ? "..." : analytics?.totalViews.toLocaleString() || "0", icon: Eye, trend: "+12.5%" },
-    { label: "Total Clicks", value: isLoading ? "..." : analytics?.totalClicks.toLocaleString() || "0", icon: Users, trend: "+8.2%" },
-    { label: "Conversion Rate", value: isLoading ? "..." : `${analytics?.conversionRate.toFixed(1) || "0.0"}%`, icon: TrendingUp, trend: "+2.1%" },
-    { label: "Top Campaigns", value: isLoading ? "..." : analytics?.topCampaigns.length.toString() || "0", icon: BarChart3, trend: "—" },
+    { label: "Total Views", value: isLoading ? "..." : analytics?.totalViews.toLocaleString() || "0", icon: Eye },
+    { label: "Total Clicks", value: isLoading ? "..." : analytics?.totalClicks.toLocaleString() || "0", icon: Users },
+    { label: "Conversion Rate", value: isLoading ? "..." : `${analytics?.conversionRate.toFixed(1) || "0.0"}%`, icon: TrendingUp },
+    { label: "Top Campaigns", value: isLoading ? "..." : analytics?.topCampaigns.length.toString() || "0", icon: BarChart3 },
   ];
 
   return (
@@ -45,8 +45,8 @@ export default function Analytics() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="text-xs text-success">
-                  {stat.trend} from last month
+                <p className="text-xs text-muted-foreground">
+                  Last 30 days
                 </p>
               </CardContent>
             </Card>
@@ -123,26 +123,9 @@ export default function Analytics() {
             <CardDescription>Views by device type</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {[
-                { device: "Desktop", views: 6850, percentage: 55 },
-                { device: "Mobile", views: 4320, percentage: 35 },
-                { device: "Tablet", views: 1250, percentage: 10 },
-              ].map((device) => (
-                <div key={device.device} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{device.device}</span>
-                    <span className="text-muted-foreground">{device.views.toLocaleString()}</span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                    <div
-                      className="h-full bg-primary transition-all"
-                      style={{ width: `${device.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="text-muted-foreground text-center py-8">
+              Device tracking coming soon
+            </p>
           </CardContent>
         </Card>
       </div>

@@ -35,8 +35,8 @@ interface SocialConnector {
 
 const connectorTypes = [
   { value: "google_reviews", label: "Google Reviews", icon: Star },
-  { value: "trustpilot", label: "Trustpilot", icon: ThumbsUp },
-  { value: "product_reviews", label: "Product Reviews", icon: MessageCircle },
+  { value: "instagram", label: "Instagram", icon: MessageCircle },
+  { value: "twitter", label: "Twitter/X", icon: ThumbsUp },
 ];
 
 export function SocialProofConnectors() {
@@ -101,8 +101,10 @@ export function SocialProofConnectors() {
       
       if (formData.type === "google_reviews") {
         config.place_id = formData.placeId;
-      } else if (formData.type === "trustpilot") {
-        config.business_id = formData.businessId;
+      } else if (formData.type === "instagram") {
+        config.account_id = formData.businessId;
+      } else if (formData.type === "twitter") {
+        config.username = formData.businessId;
       }
 
       const { error } = await supabase
@@ -146,17 +148,42 @@ export function SocialProofConnectors() {
 
   const handleSync = async (connector: SocialConnector) => {
     try {
-      toast.info("Syncing reviews...");
+      toast.info("Syncing...");
       
-      // Update last_sync
-      const { error } = await supabase
-        .from("social_connectors")
-        .update({ last_sync: new Date().toISOString() })
-        .eq("id", connector.id);
+      let functionName = '';
+      const payload: any = { connectorId: connector.id };
+
+      // Determine which edge function to call based on connector type
+      switch (connector.type) {
+        case 'google_reviews':
+          functionName = 'sync-google-reviews';
+          payload.placeId = connector.config?.place_id;
+          break;
+        case 'instagram':
+          functionName = 'sync-instagram';
+          payload.accountId = connector.config?.account_id;
+          break;
+        case 'twitter':
+          functionName = 'sync-twitter';
+          payload.username = connector.config?.username;
+          break;
+        default:
+          throw new Error('Unsupported connector type');
+      }
+
+      // Call the appropriate edge function
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: payload,
+      });
 
       if (error) throw error;
 
-      toast.success("Sync initiated");
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      toast.success("Sync completed successfully");
       fetchConnectors();
     } catch (error) {
       console.error("Error syncing:", error);
@@ -228,11 +255,22 @@ export function SocialProofConnectors() {
                 </div>
               )}
 
-              {formData.type === "trustpilot" && (
+              {formData.type === "instagram" && (
                 <div className="space-y-2">
-                  <Label>Business ID</Label>
+                  <Label>Instagram Account ID</Label>
                   <Input
-                    placeholder="Your Trustpilot business ID"
+                    placeholder="Your Instagram Business Account ID"
+                    value={formData.businessId}
+                    onChange={(e) => setFormData({ ...formData, businessId: e.target.value })}
+                  />
+                </div>
+              )}
+
+              {formData.type === "twitter" && (
+                <div className="space-y-2">
+                  <Label>Twitter Username</Label>
+                  <Input
+                    placeholder="@username (without @)"
                     value={formData.businessId}
                     onChange={(e) => setFormData({ ...formData, businessId: e.target.value })}
                   />

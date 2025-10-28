@@ -66,26 +66,23 @@ export default function AdminUsers() {
 
   const fetchUsers = async () => {
     try {
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-      if (authError) throw authError;
-
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, name");
-      
-      if (profilesError) throw profilesError;
-
-      const combinedUsers = authUsers.users.map((authUser) => {
-        const profile = profiles?.find((p) => p.id === authUser.id);
-        return {
-          id: authUser.id,
-          email: authUser.email || "",
-          name: profile?.name || authUser.email || "Unknown",
-          created_at: authUser.created_at,
-          avatar_url: null,
-          role: "user",
-        };
+      const { data, error } = await supabase.functions.invoke('admin-user-actions', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
+
+      if (error) throw error;
+
+      const combinedUsers = data.users.map((user: any) => ({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        created_at: user.created_at,
+        avatar_url: null,
+        role: "user",
+      }));
 
       setUsers(combinedUsers);
     } catch (error: any) {
@@ -146,8 +143,12 @@ export default function AdminUsers() {
 
   const handleSuspendUser = async (userId: string) => {
     try {
-      await supabase.auth.admin.updateUserById(userId, { ban_duration: "876000h" });
-      await logAdminAction("suspend_user", userId, { reason: "Admin action" });
+      const { error } = await supabase.functions.invoke('admin-user-actions', {
+        body: { action: 'suspend-user', userId },
+      });
+      
+      if (error) throw error;
+      
       toast.success("User suspended successfully");
       fetchUsers();
     } catch (error) {
@@ -158,8 +159,12 @@ export default function AdminUsers() {
 
   const handleReactivateUser = async (userId: string) => {
     try {
-      await supabase.auth.admin.updateUserById(userId, { ban_duration: "none" });
-      await logAdminAction("reactivate_user", userId, { reason: "Admin action" });
+      const { error } = await supabase.functions.invoke('admin-user-actions', {
+        body: { action: 'reactivate-user', userId },
+      });
+      
+      if (error) throw error;
+      
       toast.success("User reactivated successfully");
       fetchUsers();
     } catch (error) {

@@ -17,8 +17,89 @@ Deno.serve(async (req) => {
     );
 
     const rawBody = await req.text();
+    const hmacHeader = req.headers.get('x-shopify-hmac-sha256');
     const topic = req.headers.get('x-shopify-topic');
+    
+    // Verify Shopify webhook signature - MANDATORY
+    const secret = Deno.env.get('SHOPIFY_WEBHOOK_SECRET');
+    if (!secret) {
+      console.error('SHOPIFY_WEBHOOK_SECRET not configured');
+      return new Response(JSON.stringify({ error: 'Webhook secret not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!hmacHeader) {
+      console.error('Missing HMAC signature header');
+      return new Response(JSON.stringify({ error: 'Missing signature' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Verify HMAC signature
+    {
+      const encoder = new TextEncoder();
+      const keyData = encoder.encode(secret);
+      const messageData = encoder.encode(rawBody);
+      
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      
+      const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
+      const calculatedHmac = btoa(String.fromCharCode(...new Uint8Array(signature)));
+      
+      if (hmacHeader !== calculatedHmac) {
+        console.error('Invalid Shopify webhook signature');
+        return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     const body = JSON.parse(rawBody);
+    
+    // Check for duplicate webhook using idempotency key
+    const idempotencyKey = `shopify:${topic}:${body.id}`;
+
+    const { data: existing } = await supabase
+      .from('webhook_dedup')
+      .select('id, processed_at')
+      .eq('idempotency_key', idempotencyKey)
+      .single();
+
+    if (existing) {
+      console.log(`Duplicate webhook detected: ${idempotencyKey}, originally processed at ${existing.processed_at}`);
+      
+      await supabase.from('integration_logs').insert({
+        integration_type: 'shopify',
+        action: `webhook_${topic}_duplicate`,
+        status: 'skipped',
+        details: { 
+          topic, 
+          webhook_id: body.id,
+          original_processed_at: existing.processed_at 
+        },
+      });
+      
+      return new Response(JSON.stringify({ success: true, duplicate: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Store idempotency key BEFORE processing
+    await supabase.from('webhook_dedup').insert({
+      idempotency_key: idempotencyKey,
+      webhook_type: 'shopify',
+      payload: body
+    });
     
     await supabase.from('integration_logs').insert({
       integration_type: 'shopify',
