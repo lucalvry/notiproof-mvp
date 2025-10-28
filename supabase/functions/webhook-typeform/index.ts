@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-webhook-token',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, typeform-signature',
 };
 
 serve(async (req) => {
@@ -17,9 +17,8 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get webhook token from header or query param
-    const webhookToken = req.headers.get('x-webhook-token') || 
-                        new URL(req.url).searchParams.get('token');
+    // Get webhook token from query param
+    const webhookToken = new URL(req.url).searchParams.get('token');
 
     if (!webhookToken) {
       console.error('Missing webhook token');
@@ -34,7 +33,7 @@ serve(async (req) => {
       .from('integration_connectors')
       .select('*, websites!inner(id, user_id, domain)')
       .eq('config->>webhook_token', webhookToken)
-      .in('integration_type', ['webhook', 'zapier'])
+      .eq('integration_type', 'typeform')
       .eq('status', 'active')
       .single();
 
@@ -47,44 +46,10 @@ serve(async (req) => {
     }
 
     const payload = await req.json();
-    console.log('Generic webhook received', { 
+    console.log('Typeform webhook received', { 
       connector_id: connector.id,
-      website_id: connector.website_id,
-      payload_keys: Object.keys(payload)
+      event_type: payload.event_type
     });
-
-    // Get field mapping from connector config
-    const fieldMapping = connector.config.field_mapping || {};
-    
-    // Extract fields using mapping
-    const extractField = (path: string, defaultValue: any = null) => {
-      if (!path) return defaultValue;
-      const keys = path.split('.');
-      let value = payload;
-      for (const key of keys) {
-        if (value && typeof value === 'object' && key in value) {
-          value = value[key];
-        } else {
-          return defaultValue;
-        }
-      }
-      return value;
-    };
-
-    const eventData = {
-      event_type: extractField(fieldMapping.event_type, 'conversion'),
-      message_template: extractField(fieldMapping.message, 'New activity detected'),
-      user_name: extractField(fieldMapping.user_name, null),
-      user_location: extractField(fieldMapping.user_location, null),
-      page_url: extractField(fieldMapping.page_url, null),
-      event_data: {
-        raw_payload: payload,
-        ...Object.entries(fieldMapping.custom_fields || {}).reduce((acc, [key, path]) => {
-          acc[key] = extractField(path as string);
-          return acc;
-        }, {} as Record<string, any>)
-      }
-    };
 
     // Get widget for this website
     const { data: widget } = await supabaseClient
@@ -98,27 +63,55 @@ serve(async (req) => {
     if (!widget) {
       console.error('No active widget found for website', connector.website_id);
       return new Response(JSON.stringify({ 
-        error: 'No active widget configured',
-        message: 'Please create and activate a widget first'
+        error: 'No active widget configured'
       }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
+    // Extract form response details
+    const formResponse = payload.form_response;
+    const answers = formResponse?.answers || [];
+    
+    // Try to find name and email from answers
+    let userName = 'Someone';
+    let userEmail = null;
+    
+    for (const answer of answers) {
+      if (answer.type === 'email' && answer.email) {
+        userEmail = answer.email;
+      }
+      if ((answer.field?.ref?.includes('name') || answer.field?.title?.toLowerCase().includes('name')) && answer.text) {
+        userName = answer.text;
+      }
+    }
+
+    const formTitle = payload.form_response?.definition?.title || 'a form';
+    const message = `${userName} just submitted ${formTitle}`;
+
     // Create event
     const { data: event, error: eventError } = await supabaseClient
       .from('events')
       .insert({
         widget_id: widget.id,
-        event_type: eventData.event_type,
-        message_template: eventData.message_template,
-        user_name: eventData.user_name,
-        user_location: eventData.user_location,
-        page_url: eventData.page_url || connector.websites.domain,
-        event_data: eventData.event_data,
+        event_type: 'conversion',
+        message_template: message,
+        user_name: userName,
+        user_location: null,
+        page_url: connector.websites.domain,
+        event_data: {
+          form_id: formResponse?.form_id,
+          response_id: formResponse?.token,
+          answers: answers.map((a: any) => ({
+            type: a.type,
+            question: a.field?.title,
+            answer: a.text || a.email || a.choice?.label || a.number
+          })),
+          submitted_at: formResponse?.submitted_at
+        },
         source: 'integration',
-        integration_type: connector.integration_type,
+        integration_type: 'typeform',
         status: 'approved'
       })
       .select()
@@ -133,29 +126,28 @@ serve(async (req) => {
     await supabaseClient
       .from('integration_logs')
       .insert({
-        integration_type: connector.integration_type,
-        action: 'webhook_received',
+        integration_type: 'typeform',
+        action: 'form_submission',
         status: 'success',
         user_id: connector.websites.user_id,
         details: {
           connector_id: connector.id,
           event_id: event.id,
-          payload_size: JSON.stringify(payload).length
+          form_id: formResponse?.form_id
         }
       });
 
-    console.log('Event created successfully', { event_id: event.id });
+    console.log('Typeform event created successfully', { event_id: event.id });
 
     return new Response(JSON.stringify({ 
       success: true,
-      event_id: event.id,
-      message: 'Webhook processed successfully'
+      event_id: event.id
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('Webhook processing error:', error);
+    console.error('Typeform webhook error:', error);
     
     return new Response(JSON.stringify({ 
       error: 'Internal server error',

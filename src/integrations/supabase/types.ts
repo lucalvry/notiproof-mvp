@@ -2109,6 +2109,7 @@ export type Database = {
         | "javascript_api"
         | "webhook"
         | "zapier"
+        | "calendly"
       moderation_status: "pending" | "approved" | "rejected" | "flagged"
       team_role: "owner" | "admin" | "member" | "viewer"
     }
@@ -2291,6 +2292,7 @@ export const Constants = {
         "javascript_api",
         "webhook",
         "zapier",
+        "calendly",
       ],
       moderation_status: ["pending", "approved", "rejected", "flagged"],
       team_role: ["owner", "admin", "member", "viewer"],

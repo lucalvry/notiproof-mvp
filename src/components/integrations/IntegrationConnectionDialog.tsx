@@ -150,14 +150,14 @@ export function IntegrationConnectionDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {(integration.id === 'webhook' || integration.id === 'zapier') ? (
+        {(integration.id === 'webhook' || integration.id === 'zapier' || integration.id === 'typeform' || integration.id === 'calendly') ? (
           <WebhookConnector 
             websiteId={websiteId || ''} 
             onSuccess={() => {
               onSuccess();
               onOpenChange(false);
             }}
-            integrationType={integration.id === 'zapier' ? 'zapier' : 'webhook'}
+            integrationType={integration.id as 'webhook' | 'zapier' | 'typeform' | 'calendly'}
           />
         ) : (
         <div className="space-y-4">

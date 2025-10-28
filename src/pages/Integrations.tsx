@@ -38,6 +38,20 @@ const availableIntegrations = [
     icon: Zap,
   },
   {
+    id: "typeform",
+    name: "Typeform",
+    type: "forms",
+    description: "Show notifications when forms are submitted",
+    icon: Settings,
+  },
+  {
+    id: "calendly",
+    name: "Calendly",
+    type: "scheduling",
+    description: "Display notifications for new bookings",
+    icon: Settings,
+  },
+  {
     id: "shopify",
     name: "Shopify",
     type: "ecommerce",
@@ -195,6 +209,7 @@ export default function Integrations() {
       <Tabs defaultValue="webhook" className="space-y-6">
         <TabsList>
           <TabsTrigger value="webhook">Webhooks</TabsTrigger>
+          <TabsTrigger value="forms">Forms & Scheduling</TabsTrigger>
           <TabsTrigger value="ecommerce">E-Commerce</TabsTrigger>
           <TabsTrigger value="social">Social Proof</TabsTrigger>
         </TabsList>
@@ -203,6 +218,95 @@ export default function Integrations() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {integrations
               .filter(int => int.type === "webhook" || int.type === "automation")
+              .map((integration) => {
+              const Icon = integration.icon;
+              const isConnected = integration.status === "connected";
+              const hasError = integration.status === "error";
+              
+              return (
+                <Card key={integration.id}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                          <Icon className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">{integration.name}</CardTitle>
+                          <Badge
+                            variant={isConnected ? "default" : hasError ? "destructive" : "secondary"}
+                            className="mt-1"
+                          >
+                            {isConnected && <CheckCircle className="h-3 w-3 mr-1" />}
+                            {hasError && <AlertCircle className="h-3 w-3 mr-1" />}
+                            {!isConnected && !hasError && <XCircle className="h-3 w-3 mr-1" />}
+                            {integration.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      {integration.description}
+                    </p>
+                    
+                    {isConnected && (
+                      <div className="space-y-2 text-sm">
+                        {integration.lastSync && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Last sync:</span>
+                            <span>{new Date(integration.lastSync).toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      {!isConnected ? (
+                        <Button 
+                          className="flex-1"
+                          onClick={() => handleConnect(integration)}
+                        >
+                          <Plug className="h-4 w-4 mr-2" />
+                          Connect
+                        </Button>
+                      ) : (
+                        <>
+                          <Button 
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => handleSync(integration)}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Sync
+                          </Button>
+                          <Button 
+                            variant="outline"
+                            onClick={() => handleConnect(integration)}
+                          >
+                            <Settings className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="destructive"
+                            onClick={() => handleDisconnect(integration)}
+                          >
+                            Disconnect
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="forms" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {integrations
+              .filter(int => int.type === "forms" || int.type === "scheduling")
               .map((integration) => {
               const Icon = integration.icon;
               const isConnected = integration.status === "connected";
