@@ -10,7 +10,7 @@ import { toast } from "sonner";
 interface WebhookConnectorProps {
   websiteId: string;
   onSuccess: () => void;
-  integrationType?: 'webhook' | 'zapier' | 'typeform' | 'calendly';
+  integrationType?: string;
 }
 
 export function WebhookConnector({ websiteId, onSuccess, integrationType = 'webhook' }: WebhookConnectorProps) {
@@ -40,7 +40,7 @@ export function WebhookConnector({ websiteId, onSuccess, integrationType = 'webh
         .from('integration_connectors')
         .select('*')
         .eq('website_id', websiteId)
-        .eq('integration_type', integrationType)
+        .eq('integration_type', integrationType as any)
         .eq('status', 'active')
         .maybeSingle();
 

@@ -11,8 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, ExternalLink } from "lucide-react";
 import { WebhookConnector } from "./WebhookConnector";
+import { getIntegrationMetadata } from "@/lib/integrationMetadata";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface IntegrationConnectionDialogProps {
   integration: any;
@@ -180,25 +182,51 @@ export function IntegrationConnectionDialog({
     }
   };
 
+  const metadata = getIntegrationMetadata(integration.id);
+  const isWebhookBased = metadata.connectorType === 'webhook' || metadata.connectorType === 'zapier_proxy';
+  const isOAuthBased = metadata.connectorType === 'oauth' || metadata.requiresOauth;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Connect {integration.name}</DialogTitle>
           <DialogDescription>
-            Enter your {integration.name} credentials to connect
+            {isWebhookBased 
+              ? `Set up webhook integration for ${integration.name}`
+              : isOAuthBased
+              ? `Authorize ${integration.name} to connect`
+              : `Enter your ${integration.name} credentials to connect`
+            }
           </DialogDescription>
         </DialogHeader>
 
-        {(integration.id === 'webhook' || integration.id === 'zapier' || integration.id === 'typeform' || integration.id === 'calendly') ? (
+        {isWebhookBased ? (
           <WebhookConnector 
             websiteId={websiteId || ''} 
             onSuccess={() => {
               onSuccess();
               onOpenChange(false);
             }}
-            integrationType={integration.id as 'webhook' | 'zapier' | 'typeform' | 'calendly'}
+            integrationType={integration.id}
           />
+        ) : isOAuthBased ? (
+          <div className="space-y-4">
+            <Alert>
+              <AlertDescription>
+                This integration requires OAuth authorization. Click the button below to connect your {integration.name} account.
+              </AlertDescription>
+            </Alert>
+            <Button 
+              className="w-full" 
+              onClick={() => {
+                toast.info(`OAuth flow for ${integration.name} will be available soon`);
+              }}
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Authorize {integration.name}
+            </Button>
+          </div>
         ) : (
         <div className="space-y-4">
           {integration.id === "shopify" && (
