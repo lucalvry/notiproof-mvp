@@ -174,6 +174,16 @@ export const WEBHOOK_ENDPOINT_MAP: Record<string, string> = {
   'gumroad': 'webhook-generic',
   'thinkific': 'webhook-generic',
   'plaid': 'webhook-generic',
+  
+  // Phase 3: Market Expansion - Use generic handler
+  'razorpay': 'webhook-generic',
+  'flutterwave': 'webhook-generic',
+  'mixpanel': 'webhook-generic',
+  'circle': 'webhook-generic',
+  'learndash': 'webhook-generic',
+  'beehiiv': 'webhook-generic',
+  'convertkit': 'webhook-generic',
+  'framer': 'webhook-generic',
 };
 
 /**
