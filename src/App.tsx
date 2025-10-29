@@ -34,6 +34,7 @@ import AdminSystem from "./pages/admin/System";
 import AdminSettings from "./pages/admin/Settings";
 import AdminHelpArticles from "./pages/admin/HelpArticles";
 import AdminTeams from "./pages/admin/Teams";
+import AdminManagement from "./pages/admin/AdminManagement";
 import AcceptInvite from "./pages/AcceptInvite";
 import WidgetAnalytics from "./pages/WidgetAnalytics";
 import Templates from "./pages/Templates";
@@ -66,6 +67,7 @@ const App = () => (
             <Route path="teams" element={<AdminTeams />} />
             <Route path="integrations" element={<AdminIntegrations />} />
             <Route path="billing" element={<AdminBilling />} />
+            <Route path="admin-management" element={<AdminManagement />} />
             <Route path="logs" element={<AdminLogs />} />
             <Route path="system" element={<AdminSystem />} />
             <Route path="settings" element={<AdminSettings />} />

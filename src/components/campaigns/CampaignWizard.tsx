@@ -133,10 +133,11 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
         );
       case 1:
         return (
-          <DataSourceSelector
-            selectedSource={campaignData.data_source}
-            onSelect={(source) => updateCampaignData({ data_source: source })}
-          />
+            <DataSourceSelector
+              selectedSource={campaignData.data_source}
+              campaignType={campaignData.type}
+              onSelect={(source) => updateCampaignData({ data_source: source })}
+            />
         );
       case 2:
         return (

@@ -100,7 +100,7 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
         .eq("id", websiteId)
         .single();
 
-      // Create campaign
+      // Create campaign with start/end dates
       const { data: campaign, error: campaignError } = await supabase
         .from("campaigns")
         .insert({
@@ -108,6 +108,8 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
           name: campaignName,
           description: `${campaignData.type} campaign - ${campaignData.data_source}`,
           status: "active",
+          start_date: campaignData.rules?.startDate || new Date().toISOString(),
+          end_date: campaignData.rules?.endDate || null,
           display_rules: {
             ...campaignData.settings,
             frequency: campaignData.rules?.frequency,
@@ -132,6 +134,7 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
           template_name: campaignData.settings?.layout || "notification",
           status: "active",
           integration: campaignData.data_source || "manual",
+          allowed_event_sources: ['natural', 'integration', 'quick-win', 'demo'],
           style_config: {
             borderRadius: campaignData.settings?.borderRadius,
             showImage: campaignData.settings?.showImage,

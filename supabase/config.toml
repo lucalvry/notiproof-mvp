@@ -35,3 +35,27 @@ verify_jwt = true
 
 [functions.load-test]
 verify_jwt = true
+
+[functions.create-webhook-connector]
+verify_jwt = true
+
+[functions.webhook-generic]
+verify_jwt = false
+
+[functions.ga4-auth]
+verify_jwt = false
+
+[functions.ga4-realtime]
+verify_jwt = false
+
+[functions.webhook-paypal]
+verify_jwt = false
+
+[functions.webhook-wordpress]
+verify_jwt = false
+
+[functions.webhook-webflow]
+verify_jwt = false
+
+[functions.webhook-jotform]
+verify_jwt = false

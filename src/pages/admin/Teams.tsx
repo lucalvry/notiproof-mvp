@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,74 @@ export default function Teams() {
   const [selectedOrg, setSelectedOrg] = useState("");
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [invitations, setInvitations] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      fetchData();
+    }
+  }, [authLoading]);
+
+  const fetchData = async () => {
+    await Promise.all([
+      fetchOrganizations(),
+      fetchInvitations(),
+      fetchTeamMembers(),
+    ]);
+  };
+
+  const fetchOrganizations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("organizations")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setOrganizations(data || []);
+    } catch (error) {
+      console.error("Error fetching organizations:", error);
+    }
+  };
+
+  const fetchInvitations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("team_invitations")
+        .select(`
+          *,
+          organization:organizations(name),
+          inviter:profiles!invited_by(name)
+        `)
+        .is("accepted_at", null)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setInvitations(data || []);
+    } catch (error) {
+      console.error("Error fetching invitations:", error);
+    }
+  };
+
+  const fetchTeamMembers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("team_members")
+        .select(`
+          *,
+          organization:organizations(name),
+          profile:profiles!user_id(name, email)
+        `)
+        .order("joined_at", { ascending: false });
+
+      if (error) throw error;
+      setTeamMembers(data || []);
+    } catch (error) {
+      console.error("Error fetching team members:", error);
+    }
+  };
 
   const handleSendInvitation = async () => {
     if (!inviteEmail || !selectedOrg || !inviteRole) {
@@ -29,12 +97,13 @@ export default function Teams() {
 
     setLoading(true);
     try {
+      const org = organizations.find(o => o.id === selectedOrg);
       const { data, error } = await supabase.functions.invoke('send-team-invitation', {
         body: {
           email: inviteEmail,
           organizationId: selectedOrg,
           role: inviteRole,
-          organizationName: "Your Organization", // TODO: Get from org data
+          organizationName: org?.name || "Your Organization",
         },
       });
 
@@ -55,11 +124,68 @@ export default function Teams() {
       setInviteEmail("");
       setInviteRole("member");
       setDialogOpen(false);
+      fetchInvitations();
     } catch (error: any) {
       console.error("Error sending invitation:", error);
       toast.error(error.message || "Failed to send invitation");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendInvitation = async (invitationId: string) => {
+    try {
+      toast.info("Resending invitation...");
+      // Update invitation expiry
+      const { error } = await supabase
+        .from("team_invitations")
+        .update({ 
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() 
+        })
+        .eq("id", invitationId);
+
+      if (error) throw error;
+
+      toast.success("Invitation resent successfully");
+      fetchInvitations();
+    } catch (error: any) {
+      toast.error("Failed to resend invitation");
+    }
+  };
+
+  const handleDeleteInvitation = async (invitationId: string) => {
+    if (!confirm("Are you sure you want to delete this invitation?")) return;
+
+    try {
+      const { error } = await supabase
+        .from("team_invitations")
+        .delete()
+        .eq("id", invitationId);
+
+      if (error) throw error;
+
+      toast.success("Invitation deleted");
+      fetchInvitations();
+    } catch (error: any) {
+      toast.error("Failed to delete invitation");
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!confirm("Are you sure you want to remove this team member?")) return;
+
+    try {
+      const { error } = await supabase
+        .from("team_members")
+        .delete()
+        .eq("id", memberId);
+
+      if (error) throw error;
+
+      toast.success("Member removed");
+      fetchTeamMembers();
+    } catch (error: any) {
+      toast.error("Failed to remove member");
     }
   };
 
@@ -106,8 +232,17 @@ export default function Teams() {
                     <SelectValue placeholder="Select organization" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="org-1">Organization 1</SelectItem>
-                    <SelectItem value="org-2">Organization 2</SelectItem>
+                    {organizations.length > 0 ? (
+                      organizations.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>
+                          {org.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="none" disabled>
+                        No organizations available
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -155,28 +290,53 @@ export default function Teams() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow>
-                <TableCell>user@example.com</TableCell>
-                <TableCell>Example Org</TableCell>
-                <TableCell>
-                  <Badge variant="outline">Member</Badge>
-                </TableCell>
-                <TableCell>admin@example.com</TableCell>
-                <TableCell>6 days</TableCell>
-                <TableCell>
-                  <Badge>Pending</Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm">
-                      <Mail className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm">
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
+              {invitations.length > 0 ? (
+                invitations.map((invitation) => {
+                  const daysUntilExpiry = Math.ceil(
+                    (new Date(invitation.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+                  );
+                  return (
+                    <TableRow key={invitation.id}>
+                      <TableCell>{invitation.email}</TableCell>
+                      <TableCell>{invitation.organization?.name || "Unknown"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{invitation.role}</Badge>
+                      </TableCell>
+                      <TableCell>{invitation.inviter?.name || "Unknown"}</TableCell>
+                      <TableCell>{daysUntilExpiry > 0 ? `${daysUntilExpiry} days` : "Expired"}</TableCell>
+                      <TableCell>
+                        <Badge variant={daysUntilExpiry > 0 ? "default" : "destructive"}>
+                          {daysUntilExpiry > 0 ? "Pending" : "Expired"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleResendInvitation(invitation.id)}
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleDeleteInvitation(invitation.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    No pending invitations
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -200,20 +360,42 @@ export default function Teams() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow>
-                <TableCell className="font-medium">John Doe</TableCell>
-                <TableCell>john@example.com</TableCell>
-                <TableCell>Example Org</TableCell>
-                <TableCell>
-                  <Badge>Owner</Badge>
-                </TableCell>
-                <TableCell>2024-01-15</TableCell>
-                <TableCell>
-                  <Button variant="ghost" size="sm" disabled>
-                    Cannot remove owner
-                  </Button>
-                </TableCell>
-              </TableRow>
+              {teamMembers.length > 0 ? (
+                teamMembers.map((member) => (
+                  <TableRow key={member.id}>
+                    <TableCell className="font-medium">{member.profile?.name || "Unknown"}</TableCell>
+                    <TableCell>{member.profile?.email || "Unknown"}</TableCell>
+                    <TableCell>{member.organization?.name || "Unknown"}</TableCell>
+                    <TableCell>
+                      <Badge variant={member.role === "owner" ? "default" : "outline"}>
+                        {member.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(member.joined_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      {member.role === "owner" ? (
+                        <Button variant="ghost" size="sm" disabled>
+                          Cannot remove owner
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleRemoveMember(member.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    No team members yet
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

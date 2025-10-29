@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { UpgradeCTA } from "@/components/billing/UpgradeCTA";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useWebsites } from "@/hooks/useWebsites";
+import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConnectionWizard } from "@/components/websites/ConnectionWizard";
@@ -84,6 +86,7 @@ export default function Websites() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string>();
   const { websites, isLoading, addWebsiteAsync, deleteWebsite } = useWebsites(userId);
+  const { sitesAllowed, planName, isLoading: subscriptionLoading } = useSubscription(userId);
   
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -133,7 +136,6 @@ export default function Websites() {
   }, [websites]);
 
   const sitesUsed = websites.length;
-  const sitesAllowed = 10;
   const canAddSite = sitesUsed < sitesAllowed;
 
   const getStatusBadge = (is_verified: boolean) => {
@@ -156,6 +158,12 @@ export default function Websites() {
   const handleAddWebsite = async () => {
     if (!newSite.name || !newSite.domain || !newSite.businessType) {
       toast.error("Please fill in all fields");
+      return;
+    }
+
+    // Check limit before attempting to add
+    if (sitesUsed >= sitesAllowed) {
+      toast.error(`You've reached your ${planName} plan limit of ${sitesAllowed} website${sitesAllowed !== 1 ? 's' : ''}. Please upgrade to add more.`);
       return;
     }
 
@@ -186,7 +194,7 @@ export default function Websites() {
         <div>
           <h1 className="text-3xl font-bold">All Websites</h1>
           <p className="text-muted-foreground">
-            Manage your websites and campaigns
+            {sitesUsed} of {sitesAllowed} websites used on {planName} plan
           </p>
         </div>
         <Button
@@ -199,28 +207,15 @@ export default function Websites() {
         </Button>
       </div>
 
-      {/* Usage Meter */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Usage</CardTitle>
-          <CardDescription>
-            You're using {sitesUsed} of {sitesAllowed} sites on your plan
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
-            <div
-              className="h-full bg-primary transition-all"
-              style={{ width: `${(sitesUsed / sitesAllowed) * 100}%` }}
-            />
-          </div>
-          {!canAddSite && (
-            <p className="mt-2 text-sm text-destructive">
-              You've reached your site limit. Upgrade to add more sites.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* Show upgrade CTA when at or approaching limit */}
+      {sitesUsed >= sitesAllowed && (
+        <UpgradeCTA
+          currentPlan={planName}
+          limitType="websites"
+          currentUsage={sitesUsed}
+          maxAllowed={sitesAllowed}
+        />
+      )}
 
       {/* Websites Grid */}
       {/* Show connection wizard for new unverified sites */}
@@ -237,7 +232,7 @@ export default function Websites() {
         />
       )}
 
-      {isLoading ? (
+      {isLoading || subscriptionLoading ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <Card key={i}>

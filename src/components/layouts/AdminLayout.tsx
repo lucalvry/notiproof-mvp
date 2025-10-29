@@ -13,6 +13,8 @@ import {
   LogOut,
   User,
   Activity,
+  Shield,
+  UserCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,6 +49,7 @@ const navItems: NavItem[] = [
   { label: "Teams", icon: Users, path: "/admin/teams" },
   { label: "Billing & Plans", icon: CreditCard, path: "/admin/billing" },
   { label: "Integrations", icon: Plug, path: "/admin/integrations" },
+  { label: "Admin Management", icon: Shield, path: "/admin/admin-management", adminOnly: true },
   { label: "Logs", icon: FileText, path: "/admin/logs" },
   { label: "System Health", icon: Activity, path: "/admin/system" },
   { label: "Settings", icon: Settings, path: "/admin/settings", adminOnly: true },

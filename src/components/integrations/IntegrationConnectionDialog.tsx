@@ -103,6 +103,46 @@ export function IntegrationConnectionDialog({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Check if integration is enabled globally
+      const { data: integrationConfig } = await supabase
+        .from('integrations_config')
+        .select('*')
+        .eq('integration_type', integration.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!integrationConfig) {
+        toast.error('This integration is currently unavailable');
+        return;
+      }
+
+      // Get user's subscription plan to check quota
+      const { data: subscription } = await supabase
+        .from('user_subscriptions')
+        .select('plan:subscription_plans(*)')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      const userPlan = subscription?.plan?.name?.toLowerCase() || 'free';
+      const configData = integrationConfig.config as any;
+      const quota = configData?.quota_per_plan?.[userPlan] || 1;
+
+      // Check existing connectors for this integration type
+      const { data: existingConnectors } = await supabase
+        .from('integration_connectors')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('integration_type', integration.id);
+
+      // Only check quota when creating new connector (not updating)
+      if (!integration.connector && existingConnectors && existingConnectors.length >= quota) {
+        toast.error(
+          `Your ${userPlan} plan allows ${quota} ${integration.name} connector(s). Upgrade to add more.`
+        );
+        return;
+      }
+
       const connectorData = {
         user_id: user.id,
         website_id: websiteId,

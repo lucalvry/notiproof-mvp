@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createHmac } from "https://deno.land/std@0.168.0/node/crypto.ts";
+import { checkRateLimit } from '../_shared/rate-limit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -73,6 +74,30 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Invalid signature' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Apply rate limiting
+    const rateLimitKey = `webhook:${connector.id}`;
+    const rateLimit = await checkRateLimit(rateLimitKey, {
+      max_requests: connector.config.rate_limit || 1000,
+      window_seconds: 3600 // 1 hour
+    });
+
+    if (!rateLimit.allowed) {
+      console.log('Rate limit exceeded for connector', connector.id);
+      return new Response(JSON.stringify({
+        error: 'Rate limit exceeded',
+        retry_after: Math.ceil((rateLimit.reset - Date.now()) / 1000)
+      }), {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': (connector.config.rate_limit || 1000).toString(),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': rateLimit.reset.toString()
+        }
       });
     }
 
@@ -155,7 +180,11 @@ serve(async (req) => {
       success: true,
       event_id: event.id
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json',
+        'X-RateLimit-Remaining': rateLimit.remaining.toString()
+      }
     });
 
   } catch (error) {

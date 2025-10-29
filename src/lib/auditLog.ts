@@ -109,7 +109,7 @@ export async function logWebsiteAction(
  * Logs an integration management action
  */
 export async function logIntegrationAction(
-  action: "integration_configured" | "integration_tested" | "integration_disabled" | "integration_enabled",
+  action: "integration_configured" | "integration_tested" | "integration_disabled" | "integration_enabled" | "integration_health_check",
   integrationId: string,
   details?: Record<string, any>
 ) {

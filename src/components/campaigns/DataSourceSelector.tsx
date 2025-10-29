@@ -4,8 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { getDataSourcesForCampaignType } from "@/lib/campaignDataSources";
+import { getIntegrationMetadata } from "@/lib/integrationMetadata";
 
 interface DataSource {
   id: string;
@@ -14,23 +17,76 @@ interface DataSource {
   comingSoon?: boolean;
 }
 
-const DATA_SOURCES: DataSource[] = [
-  { id: "shopify", name: "Shopify", connected: false },
-  { id: "woocommerce", name: "WooCommerce", connected: false },
-  { id: "stripe", name: "Stripe", connected: false },
-  { id: "hubspot", name: "HubSpot", connected: false },
-  { id: "zapier", name: "Zapier", connected: false },
-  { id: "webhook", name: "Webhook", connected: true },
-  { id: "manual", name: "Manual Upload", connected: true },
-];
 
 interface DataSourceSelectorProps {
   selectedSource: string;
   onSelect: (source: string) => void;
+  campaignType?: string;
 }
 
-export function DataSourceSelector({ selectedSource, onSelect }: DataSourceSelectorProps) {
+export function DataSourceSelector({ selectedSource, onSelect, campaignType }: DataSourceSelectorProps) {
   const [webhookUrl, setWebhookUrl] = useState("");
+  const [dataSources, setDataSources] = useState<DataSource[]>([]);
+
+  useEffect(() => {
+    fetchAvailableDataSources();
+  }, [campaignType]);
+
+  const fetchAvailableDataSources = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get relevant sources for this campaign type
+      const relevantSources = campaignType 
+        ? getDataSourcesForCampaignType(campaignType)
+        : ['manual', 'webhook', 'zapier', 'shopify', 'stripe', 'woocommerce', 'typeform', 'calendly', 'google_reviews', 'ga4', 'rss', 'hubspot'];
+
+      const { data: hooks } = await supabase
+        .from("integration_hooks")
+        .select("type, url")
+        .eq("user_id", user.id);
+
+      const { data: connectors } = await supabase
+        .from("integration_connectors")
+        .select("integration_type, status")
+        .eq("user_id", user.id);
+
+      const allSources: Record<string, { name: string; comingSoon?: boolean }> = {
+        manual: { name: "Manual Entry" },
+        webhook: { name: "Webhook" },
+        zapier: { name: "Zapier" },
+        shopify: { name: "Shopify" },
+        stripe: { name: "Stripe" },
+        woocommerce: { name: "WooCommerce" },
+        typeform: { name: "Typeform" },
+        calendly: { name: "Calendly" },
+        google_reviews: { name: "Google Reviews", comingSoon: true },
+        ga4: { name: "Google Analytics 4" },
+        rss: { name: "RSS Feeds", comingSoon: true },
+        hubspot: { name: "HubSpot" },
+      };
+
+      const sources: DataSource[] = relevantSources
+        .filter(sourceId => allSources[sourceId])
+        .map(sourceId => {
+          const isHook = hooks?.some(h => h.type === sourceId);
+          const connector = connectors?.find(c => c.integration_type === sourceId);
+          const isConnected = sourceId === 'manual' || sourceId === 'webhook' || isHook || connector?.status === 'active';
+          
+          return {
+            id: sourceId,
+            name: allSources[sourceId].name,
+            connected: isConnected,
+            comingSoon: allSources[sourceId].comingSoon && !isConnected,
+          };
+        });
+
+      setDataSources(sources);
+    } catch (error) {
+      console.error("Error fetching data sources:", error);
+    }
+  };
 
   const handleTestWebhook = () => {
     if (!webhookUrl) {
@@ -50,7 +106,7 @@ export function DataSourceSelector({ selectedSource, onSelect }: DataSourceSelec
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {DATA_SOURCES.map((source) => (
+        {dataSources.map((source) => (
           <Card
             key={source.id}
             className={cn(

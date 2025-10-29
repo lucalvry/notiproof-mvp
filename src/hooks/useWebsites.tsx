@@ -77,6 +77,29 @@ export const useWebsites = (userId: string | undefined) => {
         throw new Error("You must be logged in to add a website");
       }
 
+      // Get user's subscription to check limits
+      const { data: subscription } = await supabase
+        .from('user_subscriptions')
+        .select(`
+          *,
+          plan:subscription_plans(max_websites)
+        `)
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single();
+
+      // Get current website count
+      const { count: currentCount } = await supabase
+        .from('websites')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      const maxWebsites = subscription?.plan?.max_websites ?? 1;
+      
+      if (currentCount !== null && currentCount >= maxWebsites) {
+        throw new Error(`You've reached your plan limit of ${maxWebsites} website${maxWebsites !== 1 ? 's' : ''}. Please upgrade to add more.`);
+      }
+
       const { data: newWebsite, error } = await supabase
         .from('websites')
         .insert([{

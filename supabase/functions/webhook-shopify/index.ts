@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
+import { checkRateLimit } from '../_shared/rate-limit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -66,6 +67,31 @@ Deno.serve(async (req) => {
 
     const body = JSON.parse(rawBody);
     
+    // Apply rate limiting (1000 requests per hour per shop)
+    const shopDomain = body.domain || body.shop_domain || 'unknown';
+    const rateLimitKey = `shopify:${shopDomain}`;
+    const rateLimit = await checkRateLimit(rateLimitKey, {
+      max_requests: 1000,
+      window_seconds: 3600 // 1 hour
+    });
+
+    if (!rateLimit.allowed) {
+      console.log('Rate limit exceeded for shop', shopDomain);
+      return new Response(JSON.stringify({
+        error: 'Rate limit exceeded',
+        retry_after: Math.ceil((rateLimit.reset - Date.now()) / 1000)
+      }), {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': '1000',
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': rateLimit.reset.toString()
+        }
+      });
+    }
+    
     // Check for duplicate webhook using idempotency key
     const idempotencyKey = `shopify:${topic}:${body.id}`;
 
@@ -113,7 +139,11 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json',
+        'X-RateLimit-Remaining': rateLimit.remaining.toString()
+      },
     });
 
   } catch (error) {

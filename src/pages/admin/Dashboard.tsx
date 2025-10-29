@@ -27,11 +27,62 @@ export default function AdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
 
+  const [trends, setTrends] = useState({
+    users: "Calculating...",
+    websites: "Calculating...",
+    campaigns: "Calculating...",
+    revenue: "No data",
+  });
+
   useEffect(() => {
     if (!authLoading) {
       fetchStats();
     }
   }, [authLoading]);
+
+  const calculateTrend = async (tableName: string, statusField?: string) => {
+    try {
+      const now = new Date();
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
+
+      // Count current month
+      let currentQuery: any = supabase
+        .from(tableName as any)
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", lastMonth.toISOString());
+      
+      if (statusField) {
+        currentQuery = currentQuery.eq(statusField, "active");
+      }
+      
+      const { count: currentCount } = await currentQuery;
+
+      // Count previous month
+      let previousQuery: any = supabase
+        .from(tableName as any)
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", twoMonthsAgo.toISOString())
+        .lt("created_at", lastMonth.toISOString());
+      
+      if (statusField) {
+        previousQuery = previousQuery.eq(statusField, "active");
+      }
+      
+      const { count: previousCount } = await previousQuery;
+
+      if (!previousCount || previousCount === 0) {
+        return currentCount && currentCount > 0 ? "+100% from last month" : "No change";
+      }
+      
+      const growth = ((currentCount! - previousCount) / previousCount) * 100;
+      const sign = growth >= 0 ? "+" : "";
+      return `${sign}${growth.toFixed(1)}% from last month`;
+    } catch (error) {
+      console.error("Error calculating trend:", error);
+      return "N/A";
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -70,11 +121,35 @@ export default function AdminDashboard() {
       const totalViews = eventsData?.reduce((sum, e) => sum + (e.views || 0), 0) || 0;
       const totalClicks = eventsData?.reduce((sum, e) => sum + (e.clicks || 0), 0) || 0;
 
+      // Calculate MRR from subscriptions
+      const { data: subscriptions } = await supabase
+        .from("user_subscriptions")
+        .select("subscription_plans(price_monthly)")
+        .eq("status", "active");
+
+      const monthlyRevenue = subscriptions?.reduce((sum, sub: any) => {
+        return sum + (sub.subscription_plans?.price_monthly || 0);
+      }, 0) || 0;
+
       setStats({
         totalUsers: usersCount || 0,
         activeWebsites: websitesCount || 0,
         activeCampaigns: campaignsCount || 0,
-        monthlyRevenue: 0, // TODO: Integrate with Stripe
+        monthlyRevenue,
+      });
+
+      // Calculate trends in parallel
+      const [userTrend, websiteTrend, campaignTrend] = await Promise.all([
+        calculateTrend("profiles"),
+        calculateTrend("websites", "status"),
+        calculateTrend("campaigns", "status"),
+      ]);
+
+      setTrends({
+        users: userTrend,
+        websites: websiteTrend,
+        campaigns: campaignTrend,
+        revenue: monthlyRevenue > 0 ? "Active subscriptions" : "No subscriptions",
       });
     } catch (error: any) {
       console.error("Error fetching stats:", error);
@@ -94,28 +169,28 @@ export default function AdminDashboard() {
       value: stats.totalUsers,
       icon: Users,
       description: "Registered users",
-      trend: "+12% from last month",
+      trend: trends.users,
     },
     {
       title: "Active Websites",
       value: stats.activeWebsites,
       icon: Globe,
       description: "Verified websites",
-      trend: "+8% from last month",
+      trend: trends.websites,
     },
     {
       title: "Active Campaigns",
       value: stats.activeCampaigns,
       icon: Megaphone,
       description: "Running campaigns",
-      trend: "+15% from last month",
+      trend: trends.campaigns,
     },
     {
       title: "Monthly Revenue",
       value: `$${stats.monthlyRevenue.toLocaleString()}`,
       icon: DollarSign,
       description: "Stripe revenue",
-      trend: "+23% from last month",
+      trend: trends.revenue,
     },
   ];
 

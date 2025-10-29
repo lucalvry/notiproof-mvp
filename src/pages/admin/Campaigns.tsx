@@ -225,7 +225,10 @@ export default function AdminCampaigns() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <CardTitle>All Campaigns</CardTitle>
-              <CardDescription>{filteredCampaigns.length} total campaigns</CardDescription>
+              <CardDescription>
+                {campaigns.length} total campaigns
+                {searchQuery || statusFilter !== "all" ? ` (${filteredCampaigns.length} filtered)` : ""}
+              </CardDescription>
             </div>
             <div className="flex gap-2">
               <div className="relative">

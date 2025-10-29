@@ -788,29 +788,38 @@ export type Database = {
       integrations_config: {
         Row: {
           config: Json
+          connector_type: string | null
           created_at: string
           created_by: string | null
           id: string
           integration_type: string
           is_active: boolean
+          polling_interval_minutes: number | null
+          requires_oauth: boolean | null
           updated_at: string
         }
         Insert: {
           config?: Json
+          connector_type?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
           integration_type: string
           is_active?: boolean
+          polling_interval_minutes?: number | null
+          requires_oauth?: boolean | null
           updated_at?: string
         }
         Update: {
           config?: Json
+          connector_type?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
           integration_type?: string
           is_active?: boolean
+          polling_interval_minutes?: number | null
+          requires_oauth?: boolean | null
           updated_at?: string
         }
         Relationships: []
@@ -1084,6 +1093,9 @@ export type Database = {
           name: string
           price_monthly: number | null
           price_yearly: number | null
+          stripe_price_id_monthly: string | null
+          stripe_price_id_yearly: string | null
+          stripe_product_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -1096,6 +1108,9 @@ export type Database = {
           name: string
           price_monthly?: number | null
           price_yearly?: number | null
+          stripe_price_id_monthly?: string | null
+          stripe_price_id_yearly?: string | null
+          stripe_product_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -1108,6 +1123,9 @@ export type Database = {
           name?: string
           price_monthly?: number | null
           price_yearly?: number | null
+          stripe_price_id_monthly?: string | null
+          stripe_price_id_yearly?: string | null
+          stripe_product_id?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -1862,7 +1880,7 @@ export type Database = {
         Row: {
           allow_fallback_content: boolean | null
           allowed_event_sources: string[] | null
-          campaign_id: string | null
+          campaign_id: string
           created_at: string | null
           display_rules: Json
           id: string
@@ -1880,7 +1898,7 @@ export type Database = {
         Insert: {
           allow_fallback_content?: boolean | null
           allowed_event_sources?: string[] | null
-          campaign_id?: string | null
+          campaign_id: string
           created_at?: string | null
           display_rules?: Json
           id?: string
@@ -1898,7 +1916,7 @@ export type Database = {
         Update: {
           allow_fallback_content?: boolean | null
           allowed_event_sources?: string[] | null
-          campaign_id?: string | null
+          campaign_id?: string
           created_at?: string | null
           display_rules?: Json
           id?: string
@@ -1957,13 +1975,14 @@ export type Database = {
         }
         Returns: undefined
       }
-      get_active_visitor_count: {
-        Args: { _widget_id: string }
-        Returns: number
-      }
-      get_active_visitor_count_for_site: {
-        Args: { _website_id: string }
-        Returns: number
+      get_db_stats: {
+        Args: never
+        Returns: {
+          active_widgets: number
+          connection_count: number
+          db_size_mb: number
+          pending_events: number
+        }[]
       }
       get_integration_count: {
         Args: { _types?: string[]; _user_id: string }
@@ -2058,7 +2077,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "user" | "support" | "superadmin"
+      app_role: "admin" | "user" | "support" | "superadmin" | "moderator"
       business_type:
         | "ecommerce"
         | "saas"
@@ -2110,6 +2129,8 @@ export type Database = {
         | "webhook"
         | "zapier"
         | "calendly"
+        | "ga4"
+        | "rss"
       moderation_status: "pending" | "approved" | "rejected" | "flagged"
       team_role: "owner" | "admin" | "member" | "viewer"
     }
@@ -2239,7 +2260,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user", "support", "superadmin"],
+      app_role: ["admin", "user", "support", "superadmin", "moderator"],
       business_type: [
         "ecommerce",
         "saas",
@@ -2293,6 +2314,8 @@ export const Constants = {
         "webhook",
         "zapier",
         "calendly",
+        "ga4",
+        "rss",
       ],
       moderation_status: ["pending", "approved", "rejected", "flagged"],
       team_role: ["owner", "admin", "member", "viewer"],

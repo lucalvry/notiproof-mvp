@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit } from '../_shared/rate-limit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -51,6 +52,66 @@ serve(async (req) => {
       connector_id: connector.id,
       website_id: connector.website_id,
       payload_keys: Object.keys(payload)
+    });
+
+    // Apply rate limiting
+    const rateLimitKey = `webhook:${connector.id}`;
+    const rateLimit = await checkRateLimit(rateLimitKey, {
+      max_requests: connector.config.rate_limit || 1000,
+      window_seconds: 3600 // 1 hour
+    });
+
+    if (!rateLimit.allowed) {
+      console.log('Rate limit exceeded for connector', connector.id);
+      return new Response(JSON.stringify({
+        error: 'Rate limit exceeded',
+        retry_after: Math.ceil((rateLimit.reset - Date.now()) / 1000)
+      }), {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': (connector.config.rate_limit || 1000).toString(),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': rateLimit.reset.toString()
+        }
+      });
+    }
+
+    // Check for duplicate webhook using idempotency key
+    const idempotencyKey = `webhook:${connector.id}:${payload.id || payload.event_id || Date.now()}`;
+    
+    const { data: existing } = await supabaseClient
+      .from('webhook_dedup')
+      .select('id, processed_at')
+      .eq('idempotency_key', idempotencyKey)
+      .single();
+
+    if (existing) {
+      console.log(`Duplicate webhook detected: ${idempotencyKey}, originally processed at ${existing.processed_at}`);
+      
+      await supabaseClient.from('integration_logs').insert({
+        integration_type: connector.integration_type,
+        action: 'webhook_duplicate',
+        status: 'skipped',
+        user_id: connector.websites.user_id,
+        details: { 
+          connector_id: connector.id,
+          webhook_id: payload.id,
+          original_processed_at: existing.processed_at 
+        },
+      });
+      
+      return new Response(JSON.stringify({ success: true, duplicate: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Store idempotency key BEFORE processing
+    await supabaseClient.from('webhook_dedup').insert({
+      idempotency_key: idempotencyKey,
+      webhook_type: 'webhook',
+      payload: payload
     });
 
     // Get field mapping from connector config
@@ -151,7 +212,11 @@ serve(async (req) => {
       event_id: event.id,
       message: 'Webhook processed successfully'
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json',
+        'X-RateLimit-Remaining': rateLimit.remaining.toString()
+      }
     });
 
   } catch (error) {

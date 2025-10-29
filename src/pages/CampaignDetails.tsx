@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCampaignMetrics } from "@/hooks/useCampaignMetrics";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
+import { CampaignEditor } from "@/components/campaigns/CampaignEditor";
 
 export default function CampaignDetails() {
   const { id } = useParams();
@@ -17,6 +18,7 @@ export default function CampaignDetails() {
   const [campaign, setCampaign] = useState<any>(null);
   const [widgets, setWidgets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editMode, setEditMode] = useState(false);
   const metrics = useCampaignMetrics(id);
 
   useEffect(() => {
@@ -112,7 +114,7 @@ export default function CampaignDetails() {
               </>
             )}
           </Button>
-          <Button variant="outline" onClick={() => navigate(`/campaigns`)}>
+          <Button variant="outline" onClick={() => setEditMode(true)}>
             <Edit className="h-4 w-4 mr-2" />
             Edit
           </Button>
@@ -295,6 +297,16 @@ export default function CampaignDetails() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <CampaignEditor
+        campaignId={id!}
+        open={editMode}
+        onClose={() => setEditMode(false)}
+        onSave={() => {
+          setEditMode(false);
+          fetchCampaign();
+        }}
+      />
     </div>
   );
 }

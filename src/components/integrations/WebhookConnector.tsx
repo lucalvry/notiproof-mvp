@@ -63,13 +63,6 @@ export function WebhookConnector({ websiteId, onSuccess, integrationType = 'webh
     }
   };
 
-  const generateWebhookToken = () => {
-    const prefix = integrationType === 'zapier' ? 'zap_' : 
-                   integrationType === 'typeform' ? 'tf_' : 
-                   integrationType === 'calendly' ? 'cal_' : 'whk_';
-    return prefix + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  };
-
   const handleCreate = async () => {
     if (!name.trim()) {
       toast.error("Please enter a name for this integration");
@@ -78,49 +71,47 @@ export function WebhookConnector({ websiteId, onSuccess, integrationType = 'webh
 
     setCreating(true);
     try {
-      const webhookToken = generateWebhookToken();
-      const projectId = "ewymvxhpkswhsirdrjub";
-      
-      const endpoint = integrationType === 'typeform' ? 'webhook-typeform' :
-                      integrationType === 'calendly' ? 'webhook-calendly' :
-                      'webhook-generic';
-      
-      const webhookUrl = `https://${projectId}.supabase.co/functions/v1/${endpoint}?token=${webhookToken}`;
-
-      const connectorData = {
-        website_id: websiteId,
-        user_id: (await supabase.auth.getUser()).data.user?.id,
-        integration_type: integrationType,
-        name: name,
-        config: {
-          webhook_token: webhookToken,
-          webhook_url: webhookUrl,
-          field_mapping: fieldMapping
-        },
-        status: 'active'
-      };
-
       if (existingConnector) {
+        // Update existing connector
         const { error } = await supabase
           .from('integration_connectors')
-          .update(connectorData)
+          .update({
+            name: name,
+            config: {
+              ...existingConnector.config,
+              field_mapping: fieldMapping
+            }
+          })
           .eq('id', existingConnector.id);
 
         if (error) throw error;
         toast.success("Integration updated successfully!");
       } else {
-        const { error } = await supabase
-          .from('integration_connectors')
-          .insert(connectorData);
+        // Call server-side function to create connector with secure token
+        const { data, error } = await supabase.functions.invoke('create-webhook-connector', {
+          body: {
+            website_id: websiteId,
+            name,
+            integration_type: integrationType,
+            field_mapping: fieldMapping
+          }
+        });
 
         if (error) throw error;
+
+        if (data?.error) {
+          toast.error(data.message || data.error);
+          return;
+        }
+
         toast.success("Integration created successfully!");
       }
 
+      await loadExistingConnector(); // Reload to get webhook URL
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving integration:', error);
-      toast.error("Failed to save integration");
+      toast.error(error.message || "Failed to save integration");
     } finally {
       setCreating(false);
     }

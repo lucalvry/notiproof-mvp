@@ -55,18 +55,39 @@ export default function AdminSystem() {
 
       if (error) throw error;
 
+      // Get real database stats
+      const { data: dbStats } = await supabase.rpc('get_db_stats');
+      const stats = dbStats?.[0];
+
+      // Get event processing rate (last hour)
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const { count: recentEvents } = await supabase
+        .from("events")
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", oneHourAgo.toISOString());
+
+      // Calculate success rate from recent logs
+      const { data: recentLogs } = await supabase
+        .from("integration_logs")
+        .select("status")
+        .gte("created_at", oneHourAgo.toISOString());
+
+      const totalLogs = recentLogs?.length || 0;
+      const successLogs = recentLogs?.filter(log => log.status === 'success').length || 0;
+      const successRate = totalLogs > 0 ? (successLogs / totalLogs) * 100 : 100;
+
       if (data) {
         setMetrics({
           apiLatency: data.performance?.dbLatency || 0,
-          uptime: 99.98,
-          eventThroughput: data.events?.last24h || 0,
-          dbConnections: 0,
-          dbSize: 0,
-          cpuUsage: 0,
-          memoryUsage: 0,
-          errorRate: data.integrations?.successRate ? (100 - parseFloat(data.integrations.successRate)) : 0,
-          activeWidgets: 0,
-          queueLength: 0,
+          uptime: 99.98, // Note: Requires infrastructure monitoring
+          eventThroughput: recentEvents || 0,
+          dbConnections: stats?.connection_count || 0,
+          dbSize: stats?.db_size_mb ? parseFloat(stats.db_size_mb.toFixed(2)) : 0,
+          cpuUsage: 0, // Note: Requires Supabase Management API
+          memoryUsage: 0, // Note: Requires Supabase Management API
+          errorRate: 100 - successRate,
+          activeWidgets: stats?.active_widgets || 0,
+          queueLength: stats?.pending_events || 0,
         });
       }
     } catch (error: any) {
@@ -206,17 +227,17 @@ export default function AdminSystem() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Request Rate</span>
-                <span className="font-medium">842 req/min</span>
+                <span className="text-muted-foreground">Events/Hour</span>
+                <span className="font-medium">{metrics.eventThroughput} events</span>
               </div>
-              <Progress value={65} className="h-2" />
+              <Progress value={Math.min((metrics.eventThroughput / 1000) * 100, 100)} className="h-2" />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Success Rate</span>
-                <span className="font-medium">99.98%</span>
+                <span className="font-medium">{(100 - metrics.errorRate).toFixed(2)}%</span>
               </div>
-              <Progress value={99.98} className="h-2" />
+              <Progress value={100 - metrics.errorRate} className="h-2" />
             </div>
           </CardContent>
         </Card>
@@ -231,24 +252,24 @@ export default function AdminSystem() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">CPU Usage</span>
-                <span className="font-medium">{metrics.cpuUsage}%</span>
-              </div>
-              <Progress value={metrics.cpuUsage} className="h-2" />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Memory Usage</span>
-                <span className="font-medium">{metrics.memoryUsage}%</span>
-              </div>
-              <Progress value={metrics.memoryUsage} className="h-2" />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Database Size</span>
-                <span className="font-medium">{metrics.dbSize} GB</span>
+                <span className="font-medium">{metrics.dbSize} MB</span>
               </div>
-              <Progress value={24} className="h-2" />
+              <Progress value={Math.min((metrics.dbSize / 1000) * 100, 100)} className="h-2" />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">DB Connections</span>
+                <span className="font-medium">{metrics.dbConnections}</span>
+              </div>
+              <Progress value={Math.min((metrics.dbConnections / 20) * 100, 100)} className="h-2" />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Infrastructure Metrics</span>
+                <span className="font-medium text-xs">Requires Management API</span>
+              </div>
+              <p className="text-xs text-muted-foreground">CPU/Memory: Contact Supabase support</p>
             </div>
           </CardContent>
         </Card>
@@ -268,14 +289,19 @@ export default function AdminSystem() {
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Events/Hour</p>
               <p className="text-2xl font-bold">{metrics.eventThroughput.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Processing rate</p>
             </div>
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Active Widgets</p>
               <p className="text-2xl font-bold">{metrics.activeWidgets}</p>
+              <p className="text-xs text-muted-foreground">Currently running</p>
             </div>
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Queue Length</p>
               <p className="text-2xl font-bold">{metrics.queueLength}</p>
+              <p className="text-xs text-muted-foreground">
+                {metrics.queueLength === 0 ? "All processed" : "Pending events"}
+              </p>
             </div>
           </div>
         </CardContent>

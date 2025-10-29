@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { RoleManagementDialog } from "@/components/admin/RoleManagementDialog";
 import {
   Table,
   TableBody,
@@ -27,7 +28,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Search, Eye, Ban, Trash2, CheckCircle } from "lucide-react";
+import { Search, Eye, Ban, Trash2, CheckCircle, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -38,6 +39,7 @@ interface UserProfile {
   created_at: string;
   avatar_url: string | null;
   role: string;
+  subscription?: any;
 }
 
 interface UserDetails extends UserProfile {
@@ -57,6 +59,7 @@ export default function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [selectedUser, setSelectedUser] = useState<UserDetails | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [roleDialogOpen, setRoleDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading) {
@@ -75,14 +78,31 @@ export default function AdminUsers() {
 
       if (error) throw error;
 
-      const combinedUsers = data.users.map((user: any) => ({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        created_at: user.created_at,
-        avatar_url: null,
-        role: "user",
-      }));
+      // Fetch subscription data for all users
+      const { data: subscriptions } = await supabase
+        .from('user_subscriptions')
+        .select(`
+          user_id,
+          status,
+          plan:subscription_plans(
+            name,
+            price_monthly
+          )
+        `)
+        .eq('status', 'active');
+
+      const combinedUsers = data.users.map((user: any) => {
+        const userSub = subscriptions?.find((sub: any) => sub.user_id === user.id);
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          created_at: user.created_at,
+          avatar_url: null,
+          role: "user",
+          subscription: userSub || null,
+        };
+      });
 
       setUsers(combinedUsers);
     } catch (error: any) {
@@ -229,6 +249,7 @@ export default function AdminUsers() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Plan</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Actions</TableHead>
@@ -239,6 +260,11 @@ export default function AdminUsers() {
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">
+                      {user.subscription?.plan?.name || 'Free'}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     <Badge variant="outline">{user.role}</Badge>
                   </TableCell>
@@ -301,6 +327,25 @@ export default function AdminUsers() {
                     </div>
                   </div>
                   <div>
+                    <h3 className="font-medium mb-2">Subscription</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Current Plan:</span>
+                        <span className="font-bold">
+                          {selectedUser.subscription?.plan?.name || 'Free'}
+                        </span>
+                      </div>
+                      {selectedUser.subscription?.plan?.price_monthly > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Monthly Price:</span>
+                          <span className="font-bold">
+                            ${selectedUser.subscription.plan.price_monthly}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
                     <h3 className="font-medium mb-2">Platform Metrics</h3>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
@@ -322,7 +367,17 @@ export default function AdminUsers() {
                     </div>
                   </div>
                   <div>
-                    <h3 className="font-medium mb-2">Roles</h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-medium">Roles</h3>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => setRoleDialogOpen(true)}
+                      >
+                        <Shield className="h-4 w-4 mr-2" />
+                        Manage Roles
+                      </Button>
+                    </div>
                     <div className="flex gap-2 flex-wrap">
                       {selectedUser.roles.length > 0 ? (
                         selectedUser.roles.map((role) => (
@@ -392,6 +447,19 @@ export default function AdminUsers() {
           )}
         </SheetContent>
       </Sheet>
+
+      {selectedUser && (
+        <RoleManagementDialog
+          open={roleDialogOpen}
+          onOpenChange={setRoleDialogOpen}
+          userId={selectedUser.id}
+          userName={selectedUser.name || "Unknown"}
+          onSuccess={() => {
+            viewUserDetails(selectedUser.id);
+            fetchUsers();
+          }}
+        />
+      )}
     </div>
   );
 }

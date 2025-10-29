@@ -274,17 +274,24 @@ export function AppLayout() {
           </DropdownMenu>
 
           {/* Usage Meter */}
-          <div className="hidden items-center gap-2 md:flex">
-            <span className="text-sm text-muted-foreground">
-              {sitesUsed} / {sitesAllowed} sites
-            </span>
-            <span className="text-xs text-muted-foreground">({planName})</span>
-            {!subscriptionLoading && (!isBusinessPlan || sitesUsed >= sitesAllowed * 0.8) && (
-              <Button size="sm" onClick={() => handleNavigation("/billing")}>
-                Upgrade
-              </Button>
-            )}
-          </div>
+          {subscriptionLoading ? (
+            <div className="hidden items-center gap-2 md:flex">
+              <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-12 animate-pulse rounded bg-muted" />
+            </div>
+          ) : (
+            <div className="hidden items-center gap-2 md:flex">
+              <span className="text-sm text-muted-foreground">
+                {sitesUsed} / {sitesAllowed} sites
+              </span>
+              <span className="text-xs text-muted-foreground">({planName})</span>
+              {(!isBusinessPlan || sitesUsed >= sitesAllowed * 0.8) && (
+                <Button size="sm" onClick={() => handleNavigation("/billing")}>
+                  Upgrade
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* User Menu */}
           <DropdownMenu>

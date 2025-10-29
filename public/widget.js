@@ -249,20 +249,24 @@
   
   async function fetchActiveVisitorCount() {
     try {
+      // Use GA4 realtime endpoint instead of legacy Supabase polling
+      const GA4_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/ga4-realtime';
       const endpoint = mode === 'site' 
-        ? `${API_BASE}/active-count?site_token=${siteToken}`
+        ? `${GA4_BASE}?site_token=${siteToken}`
         : `${API_BASE}/active-count?widget_id=${widgetId}`;
       
-      log('Fetching active visitor count');
+      log('Fetching active visitor count from GA4');
       const response = await fetch(endpoint);
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch active count: ${response.status}`);
+        // Gracefully fallback on error
+        log('GA4 fetch failed, skipping active count display');
+        return;
       }
       
       const data = await response.json();
       currentActiveCount = data.count || 0;
-      log('Active visitor count updated', currentActiveCount);
+      log('Active visitor count updated (GA4)', currentActiveCount, 'cached:', data.cached);
       
       // Show active visitor notification if count changed and is > 1
       if (currentActiveCount > 1 && showActiveVisitors) {

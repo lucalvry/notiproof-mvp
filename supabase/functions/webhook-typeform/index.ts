@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit } from '../_shared/rate-limit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,11 +46,54 @@ serve(async (req) => {
       });
     }
 
+    // Check if integration is globally enabled
+    const { data: integrationConfig } = await supabaseClient
+      .from('integrations_config')
+      .select('*')
+      .eq('integration_type', 'typeform')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (!integrationConfig) {
+      console.error('Typeform integration is disabled by administrators');
+      return new Response(JSON.stringify({ 
+        error: 'Integration disabled',
+        message: 'This integration has been temporarily disabled by administrators'
+      }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     const payload = await req.json();
     console.log('Typeform webhook received', { 
       connector_id: connector.id,
       event_type: payload.event_type
     });
+
+    // Apply rate limiting using admin-configured value
+    const rateLimitKey = `webhook:${connector.id}`;
+    const rateLimit = await checkRateLimit(rateLimitKey, {
+      max_requests: integrationConfig.config.rate_limit_per_user || 1000,
+      window_seconds: 3600 // 1 hour
+    });
+
+    if (!rateLimit.allowed) {
+      console.log('Rate limit exceeded for connector', connector.id);
+      return new Response(JSON.stringify({
+        error: 'Rate limit exceeded',
+        retry_after: Math.ceil((rateLimit.reset - Date.now()) / 1000)
+      }), {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': (integrationConfig.config.rate_limit_per_user || 1000).toString(),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': rateLimit.reset.toString()
+        }
+      });
+    }
 
     // Get widget for this website
     const { data: widget } = await supabaseClient
@@ -143,7 +187,11 @@ serve(async (req) => {
       success: true,
       event_id: event.id
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json',
+        'X-RateLimit-Remaining': rateLimit.remaining.toString()
+      }
     });
 
   } catch (error) {

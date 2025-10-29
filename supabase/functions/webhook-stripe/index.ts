@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
+import { checkRateLimit } from '../_shared/rate-limit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -89,6 +90,31 @@ Deno.serve(async (req) => {
     const body = JSON.parse(rawBody);
     const eventType = body.type;
 
+    // Apply rate limiting (1000 requests per hour per account)
+    const accountId = body.account || body.data?.object?.customer || 'default';
+    const rateLimitKey = `stripe:${accountId}`;
+    const rateLimit = await checkRateLimit(rateLimitKey, {
+      max_requests: 1000,
+      window_seconds: 3600 // 1 hour
+    });
+
+    if (!rateLimit.allowed) {
+      console.log('Rate limit exceeded for account', accountId);
+      return new Response(JSON.stringify({
+        error: 'Rate limit exceeded',
+        retry_after: Math.ceil((rateLimit.reset - Date.now()) / 1000)
+      }), {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': '1000',
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': rateLimit.reset.toString()
+        }
+      });
+    }
+
     // Check for duplicate webhook using Stripe event ID
     const idempotencyKey = `stripe:${body.id}`;
 
@@ -131,14 +157,25 @@ Deno.serve(async (req) => {
       details: { event_id: body.id, type: eventType },
     });
 
-    if (eventType === 'payment_intent.succeeded') {
-      await handlePaymentSuccess(supabase, body.data.object);
+    // Handle different webhook events
+    if (eventType === 'checkout.session.completed') {
+      await handleCheckoutCompleted(supabase, body.data.object);
     } else if (eventType === 'customer.subscription.created' || eventType === 'customer.subscription.updated') {
-      await handleSubscriptionEvent(supabase, body.data.object);
+      await handleSubscriptionUpdate(supabase, body.data.object);
+    } else if (eventType === 'customer.subscription.deleted') {
+      await handleSubscriptionDeleted(supabase, body.data.object);
+    } else if (eventType === 'invoice.payment_failed') {
+      await handlePaymentFailed(supabase, body.data.object);
+    } else if (eventType === 'payment_intent.succeeded') {
+      await handlePaymentSuccess(supabase, body.data.object);
     }
 
     return new Response(JSON.stringify({ received: true }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json',
+        'X-RateLimit-Remaining': rateLimit.remaining.toString()
+      },
     });
 
   } catch (error) {
@@ -179,6 +216,127 @@ async function handlePaymentSuccess(supabase: any, paymentIntent: any) {
   }
 }
 
-async function handleSubscriptionEvent(supabase: any, subscription: any) {
-  console.log('Subscription event:', subscription.id, subscription.status);
+async function handleCheckoutCompleted(supabase: any, session: any) {
+  console.log('Checkout completed:', session.id);
+  
+  const userId = session.metadata?.user_id;
+  const stripeCustomerId = session.customer;
+  const stripeSubscriptionId = session.subscription;
+  
+  if (!userId) {
+    console.error('No user_id in checkout session metadata');
+    return;
+  }
+
+  // Get subscription details from Stripe
+  const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
+  const subResponse = await fetch(`https://api.stripe.com/v1/subscriptions/${stripeSubscriptionId}`, {
+    headers: { 'Authorization': `Bearer ${stripeSecretKey}` },
+  });
+  
+  if (!subResponse.ok) {
+    console.error('Failed to fetch subscription from Stripe');
+    return;
+  }
+  
+  const subscription = await subResponse.json();
+  const priceId = subscription.items.data[0]?.price?.id;
+  
+  if (!priceId) {
+    console.error('No price ID found in subscription');
+    return;
+  }
+
+  // Find the plan by Stripe price ID
+  const { data: plans } = await supabase
+    .from('subscription_plans')
+    .select('id, name')
+    .or(`stripe_price_id_monthly.eq.${priceId},stripe_price_id_yearly.eq.${priceId}`)
+    .single();
+  
+  if (!plans) {
+    console.error('No matching plan found for price ID:', priceId);
+    return;
+  }
+
+  // Create or update user subscription
+  const { error } = await supabase
+    .from('user_subscriptions')
+    .upsert({
+      user_id: userId,
+      plan_id: plans.id,
+      stripe_customer_id: stripeCustomerId,
+      stripe_subscription_id: stripeSubscriptionId,
+      status: subscription.status,
+      current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      cancel_at_period_end: subscription.cancel_at_period_end,
+    }, {
+      onConflict: 'user_id',
+    });
+
+  if (error) {
+    console.error('Error upserting subscription:', error);
+    return;
+  }
+
+  await supabase.from('integration_logs').insert({
+    integration_type: 'stripe',
+    action: 'checkout_completed',
+    status: 'success',
+    details: { 
+      session_id: session.id,
+      subscription_id: stripeSubscriptionId,
+      plan_name: plans.name,
+      user_id: userId,
+    },
+  });
+
+  console.log('Subscription created/updated successfully for user:', userId);
+}
+
+async function handleSubscriptionUpdate(supabase: any, subscription: any) {
+  console.log('Subscription updated:', subscription.id, subscription.status);
+  
+  const { error } = await supabase
+    .from('user_subscriptions')
+    .update({
+      status: subscription.status,
+      current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      cancel_at_period_end: subscription.cancel_at_period_end,
+    })
+    .eq('stripe_subscription_id', subscription.id);
+
+  if (error) {
+    console.error('Error updating subscription:', error);
+  }
+}
+
+async function handleSubscriptionDeleted(supabase: any, subscription: any) {
+  console.log('Subscription deleted:', subscription.id);
+  
+  const { error } = await supabase
+    .from('user_subscriptions')
+    .update({ status: 'cancelled' })
+    .eq('stripe_subscription_id', subscription.id);
+
+  if (error) {
+    console.error('Error updating subscription to cancelled:', error);
+  }
+}
+
+async function handlePaymentFailed(supabase: any, invoice: any) {
+  console.log('Payment failed for subscription:', invoice.subscription);
+  
+  if (!invoice.subscription) return;
+  
+  const { error } = await supabase
+    .from('user_subscriptions')
+    .update({ status: 'past_due' })
+    .eq('stripe_subscription_id', invoice.subscription);
+
+  if (error) {
+    console.error('Error updating subscription to past_due:', error);
+  }
 }

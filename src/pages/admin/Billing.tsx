@@ -3,6 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PlanDialog } from "@/components/admin/PlanDialog";
+import { Search, Plus, Edit } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -39,36 +43,12 @@ export default function AdminBilling() {
     mrr: 0,
   });
 
-  const [plans] = useState<Plan[]>([
-    {
-      id: "free",
-      name: "Free",
-      price: 0,
-      features: ["1 website", "Basic analytics", "5,000 notifications/month"],
-      activeUsers: 0,
-    },
-    {
-      id: "starter",
-      name: "Starter",
-      price: 29,
-      features: ["3 websites", "Advanced analytics", "50,000 notifications/month"],
-      activeUsers: 0,
-    },
-    {
-      id: "pro",
-      name: "Pro",
-      price: 79,
-      features: ["10 websites", "Full analytics", "250,000 notifications/month"],
-      activeUsers: 0,
-    },
-    {
-      id: "enterprise",
-      name: "Enterprise",
-      price: 199,
-      features: ["Unlimited websites", "Custom analytics", "Unlimited notifications"],
-      activeUsers: 0,
-    },
-  ]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [planFilter, setPlanFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [planDialogOpen, setPlanDialogOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
 
   useEffect(() => {
     if (!authLoading) {
@@ -78,17 +58,75 @@ export default function AdminBilling() {
 
   const fetchBillingStats = async () => {
     try {
-      // TODO: Integrate with Stripe for real billing data
-      // For now, calculating from profiles count
-      const { count: totalUsers } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true });
+      // Load available plans from database
+      const { data: plansData } = await supabase
+        .from("subscription_plans")
+        .select("*")
+        .eq("is_active", true)
+        .order("price_monthly", { ascending: true });
 
+      // Get active subscriptions
+      const { data: subscriptions } = await supabase
+        .from("user_subscriptions")
+        .select("*, subscription_plans(*)")
+        .eq("status", "active");
+
+      // Calculate MRR
+      const mrr = subscriptions?.reduce((sum, sub: any) => {
+        return sum + (sub.subscription_plans?.price_monthly || 0);
+      }, 0) || 0;
+
+      // Calculate churn (cancelled in last 30 days)
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const { count: churnedCount } = await supabase
+        .from("user_subscriptions")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "cancelled")
+        .gte("updated_at", thirtyDaysAgo.toISOString());
+
+      const churnRate = subscriptions?.length 
+        ? ((churnedCount || 0) / subscriptions.length) * 100 
+        : 0;
+
+      // Calculate total revenue (sum of all paid subscriptions)
+      const { data: allPaidSubs } = await supabase
+        .from("user_subscriptions")
+        .select("subscription_plans(price_monthly), created_at, current_period_end")
+        .neq("status", "cancelled");
+
+      const totalRevenue = allPaidSubs?.reduce((sum, sub: any) => {
+        // Calculate months active and sum
+        const createdAt = new Date(sub.created_at);
+        const periodEnd = sub.current_period_end ? new Date(sub.current_period_end) : new Date();
+        const monthsActive = Math.max(1, Math.ceil((periodEnd.getTime() - createdAt.getTime()) / (30 * 24 * 60 * 60 * 1000)));
+        return sum + (sub.subscription_plans?.price_monthly || 0) * monthsActive;
+      }, 0) || 0;
+
+      // Count active users per plan
+      const plansWithUsers = await Promise.all(
+        (plansData || []).map(async (plan) => {
+          const { count } = await supabase
+            .from("user_subscriptions")
+            .select("*", { count: "exact", head: true })
+            .eq("plan_id", plan.id)
+            .eq("status", "active");
+          
+          return {
+            id: plan.id,
+            name: plan.name,
+            price: plan.price_monthly,
+            features: Array.isArray(plan.features) ? plan.features as string[] : [],
+            activeUsers: count || 0,
+          };
+        })
+      );
+
+      setPlans(plansWithUsers);
       setStats({
-        totalRevenue: 0,
-        activeSubscriptions: 0,
-        churnRate: 0,
-        mrr: 0,
+        totalRevenue,
+        activeSubscriptions: subscriptions?.length || 0,
+        churnRate,
+        mrr,
       });
     } catch (error) {
       console.error("Error fetching billing stats:", error);
@@ -107,28 +145,28 @@ export default function AdminBilling() {
       value: `$${stats.totalRevenue.toLocaleString()}`,
       icon: DollarSign,
       description: "All-time revenue",
-      trend: "Stripe integration pending",
+      trend: stats.totalRevenue > 0 ? "From active subscriptions" : "No revenue yet",
     },
     {
       title: "Monthly Recurring Revenue",
       value: `$${stats.mrr.toLocaleString()}`,
       icon: TrendingUp,
       description: "Current MRR",
-      trend: "Stripe integration pending",
+      trend: stats.mrr > 0 ? `$${stats.mrr}/month` : "No active MRR",
     },
     {
       title: "Active Subscriptions",
       value: stats.activeSubscriptions,
       icon: Users,
       description: "Paying customers",
-      trend: "Stripe integration pending",
+      trend: `${stats.activeSubscriptions} active`,
     },
     {
       title: "Churn Rate",
       value: `${stats.churnRate.toFixed(1)}%`,
       icon: CreditCard,
       description: "Monthly churn",
-      trend: "Stripe integration pending",
+      trend: stats.churnRate < 5 ? "Healthy" : "Above target",
     },
   ];
 
@@ -167,10 +205,37 @@ export default function AdminBilling() {
               <CardTitle>Subscription Plans</CardTitle>
               <CardDescription>Plan distribution across users</CardDescription>
             </div>
-            <Button disabled>Create New Plan</Button>
+            <Button onClick={() => {
+              setSelectedPlan(null);
+              setPlanDialogOpen(true);
+            }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create New Plan
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
+          <div className="flex gap-2 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search plans..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Plans</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -182,7 +247,15 @@ export default function AdminBilling() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {plans.map((plan) => (
+              {plans
+                .filter(plan => {
+                  const matchesSearch = plan.name.toLowerCase().includes(searchQuery.toLowerCase());
+                  const matchesStatus = statusFilter === "all" || 
+                    (statusFilter === "active" && plan.activeUsers > 0) ||
+                    (statusFilter === "inactive" && plan.activeUsers === 0);
+                  return matchesSearch && matchesStatus;
+                })
+                .map((plan) => (
                 <TableRow key={plan.id}>
                   <TableCell className="font-medium">{plan.name}</TableCell>
                   <TableCell>
@@ -209,8 +282,15 @@ export default function AdminBilling() {
                   <TableCell>{plan.activeUsers}</TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                      <Button size="sm" variant="ghost" disabled>
-                        Edit
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        onClick={() => {
+                          setSelectedPlan(plan);
+                          setPlanDialogOpen(true);
+                        }}
+                      >
+                        <Edit className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
@@ -224,15 +304,48 @@ export default function AdminBilling() {
       {/* Revenue Chart Placeholder */}
       <Card>
         <CardHeader>
-          <CardTitle>Revenue Over Time</CardTitle>
-          <CardDescription>Stripe integration required for revenue tracking</CardDescription>
+          <CardTitle>Revenue Overview</CardTitle>
+          <CardDescription>
+            {stats.totalRevenue > 0 
+              ? `Total: $${stats.totalRevenue.toLocaleString()} | MRR: $${stats.mrr.toLocaleString()}`
+              : "No revenue data yet"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-            Chart placeholder - Stripe integration required
-          </div>
+          {stats.activeSubscriptions > 0 ? (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="text-sm text-muted-foreground">Active Subscriptions</p>
+                  <p className="text-2xl font-bold">{stats.activeSubscriptions}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Average Revenue Per User</p>
+                  <p className="text-2xl font-bold">
+                    ${stats.activeSubscriptions > 0 
+                      ? (stats.mrr / stats.activeSubscriptions).toFixed(2) 
+                      : '0'}
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-4">
+                Note: Detailed revenue charts available with Stripe integration
+              </p>
+            </div>
+          ) : (
+            <div className="h-[150px] flex items-center justify-center text-muted-foreground">
+              <p>No active subscriptions yet</p>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <PlanDialog
+        open={planDialogOpen}
+        onOpenChange={setPlanDialogOpen}
+        plan={selectedPlan}
+        onSuccess={fetchBillingStats}
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ export interface WidgetStats {
   totalClicks: number;
   conversionRate: number;
   activeWidgets: number;
+  activeCampaigns: number;
   totalEvents: number;
 }
 
@@ -19,9 +20,19 @@ export const useWidgetStats = (userId: string | undefined) => {
           totalClicks: 0,
           conversionRate: 0,
           activeWidgets: 0,
+          activeCampaigns: 0,
           totalEvents: 0,
         };
       }
+
+      // Get active campaigns (not draft)
+      const { data: campaigns } = await supabase
+        .from("campaigns")
+        .select("id, status")
+        .eq("user_id", userId)
+        .eq("status", "active");
+
+      const activeCampaigns = campaigns?.length || 0;
 
       // Get user's websites
       const { data: websites } = await supabase
@@ -35,6 +46,7 @@ export const useWidgetStats = (userId: string | undefined) => {
           totalClicks: 0,
           conversionRate: 0,
           activeWidgets: 0,
+          activeCampaigns,
           totalEvents: 0,
         };
       }
@@ -56,6 +68,7 @@ export const useWidgetStats = (userId: string | undefined) => {
           totalClicks: 0,
           conversionRate: 0,
           activeWidgets,
+          activeCampaigns,
           totalEvents: 0,
         };
       }
@@ -75,6 +88,7 @@ export const useWidgetStats = (userId: string | undefined) => {
         totalClicks,
         conversionRate,
         activeWidgets,
+        activeCampaigns,
         totalEvents: events?.length || 0,
       };
     },
