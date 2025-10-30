@@ -59,3 +59,12 @@ verify_jwt = false
 
 [functions.webhook-jotform]
 verify_jwt = false
+
+[functions.send-confirmation-email]
+verify_jwt = false
+
+[functions.create-stripe-checkout]
+verify_jwt = false
+
+[functions.verify-stripe-session]
+verify_jwt = false

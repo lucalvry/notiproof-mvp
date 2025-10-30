@@ -15,6 +15,8 @@ interface UserSubscription {
   user_id: string;
   plan_id: string;
   status: string;
+  trial_start?: string | null;
+  trial_end?: string | null;
   plan: SubscriptionPlan;
 }
 
@@ -31,7 +33,7 @@ export const useSubscription = (userId: string | undefined) => {
           plan:subscription_plans(*)
         `)
         .eq('user_id', userId)
-        .eq('status', 'active')
+        .in('status', ['active', 'trialing', 'past_due'])
         .single();
 
       if (error) {
@@ -47,12 +49,20 @@ export const useSubscription = (userId: string | undefined) => {
     enabled: !!userId,
   });
 
-  // Default to free tier limits if no subscription
   const plan = subscription?.plan;
-  const sitesAllowed = plan?.max_websites ?? 1; // Free tier: 1 website
-  const eventsAllowed = plan?.max_events_per_month ?? 1000; // Free tier: 1K events
-  const planName = plan?.name ?? "Free";
+  
+  // No default access - users MUST have a subscription
+  const sitesAllowed = plan?.max_websites ?? 0;
+  const eventsAllowed = plan?.max_events_per_month ?? 0;
+  const planName = plan?.name ?? "No Plan";
   const isBusinessPlan = planName === "Business";
+  
+  // Trial information
+  const isTrialing = subscription?.status === 'trialing';
+  const trialEndsAt = subscription?.trial_end;
+  const trialDaysLeft = trialEndsAt 
+    ? Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
 
   return {
     subscription,
@@ -61,6 +71,9 @@ export const useSubscription = (userId: string | undefined) => {
     eventsAllowed,
     planName,
     isBusinessPlan,
+    isTrialing,
+    trialEndsAt,
+    trialDaysLeft,
     isLoading,
   };
 };

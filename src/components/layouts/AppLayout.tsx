@@ -274,7 +274,7 @@ export function AppLayout() {
           </DropdownMenu>
 
           {/* Usage Meter */}
-          {subscriptionLoading ? (
+          {websitesLoading || subscriptionLoading ? (
             <div className="hidden items-center gap-2 md:flex">
               <div className="h-4 w-20 animate-pulse rounded bg-muted" />
               <div className="h-4 w-12 animate-pulse rounded bg-muted" />

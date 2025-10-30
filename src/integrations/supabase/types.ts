@@ -214,6 +214,42 @@ export type Database = {
         }
         Relationships: []
       }
+      email_send_log: {
+        Row: {
+          email_type: string
+          error_message: string | null
+          id: string
+          ip_address: string | null
+          recipient_email: string
+          retry_after: string | null
+          sent_at: string | null
+          status: string
+          user_agent: string | null
+        }
+        Insert: {
+          email_type: string
+          error_message?: string | null
+          id?: string
+          ip_address?: string | null
+          recipient_email: string
+          retry_after?: string | null
+          sent_at?: string | null
+          status: string
+          user_agent?: string | null
+        }
+        Update: {
+          email_type?: string
+          error_message?: string | null
+          id?: string
+          ip_address?: string | null
+          recipient_email?: string
+          retry_after?: string | null
+          sent_at?: string | null
+          status?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       event_templates: {
         Row: {
           business_type: Database["public"]["Enums"]["business_type"]
@@ -1096,6 +1132,7 @@ export type Database = {
           stripe_price_id_monthly: string | null
           stripe_price_id_yearly: string | null
           stripe_product_id: string | null
+          trial_period_days: number | null
           updated_at: string | null
         }
         Insert: {
@@ -1111,6 +1148,7 @@ export type Database = {
           stripe_price_id_monthly?: string | null
           stripe_price_id_yearly?: string | null
           stripe_product_id?: string | null
+          trial_period_days?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -1126,6 +1164,7 @@ export type Database = {
           stripe_price_id_monthly?: string | null
           stripe_price_id_yearly?: string | null
           stripe_product_id?: string | null
+          trial_period_days?: number | null
           updated_at?: string | null
         }
         Relationships: []
@@ -1475,6 +1514,8 @@ export type Database = {
           status: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
+          trial_end: string | null
+          trial_start: string | null
           updated_at: string | null
           user_id: string
         }
@@ -1488,6 +1529,8 @@ export type Database = {
           status?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          trial_end?: string | null
+          trial_start?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -1501,6 +1544,8 @@ export type Database = {
           status?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          trial_end?: string | null
+          trial_start?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -1510,6 +1555,41 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_trial_history: {
+        Row: {
+          created_at: string | null
+          id: string
+          subscription_id: string | null
+          trial_ended_at: string | null
+          trial_started_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          subscription_id?: string | null
+          trial_ended_at?: string | null
+          trial_started_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          subscription_id?: string | null
+          trial_ended_at?: string | null
+          trial_started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_trial_history_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "user_subscriptions"
             referencedColumns: ["id"]
           },
         ]

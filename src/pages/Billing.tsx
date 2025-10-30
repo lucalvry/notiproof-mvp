@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, CreditCard } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Check, CreditCard, Sparkles, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface Plan {
   id: string;
@@ -15,6 +18,9 @@ interface Plan {
   features: string[];
   max_websites: number;
   max_events_per_month: number | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_yearly?: string | null;
+  stripe_product_id?: string | null;
 }
 
 interface Subscription {
@@ -22,11 +28,14 @@ interface Subscription {
   plan_id: string;
   status: string;
   current_period_end: string;
+  trial_start?: string | null;
+  trial_end?: string | null;
   subscription_plans: Plan;
 }
 
 export default function Billing() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
@@ -35,7 +44,52 @@ export default function Billing() {
 
   useEffect(() => {
     loadBillingData();
-  }, []);
+    
+    // Check for checkout success/cancel in URL
+    const params = new URLSearchParams(location.search);
+    const sessionId = params.get('session_id');
+    
+    if (params.get('success') === 'true' && sessionId) {
+      verifyStripeSession(sessionId);
+    } else if (params.get('canceled') === 'true') {
+      toast.info('Checkout canceled. You can try again anytime.');
+    }
+  }, [location]);
+
+  const verifyStripeSession = async (sessionId: string) => {
+    try {
+      toast.loading('Verifying your subscription...');
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const { data, error } = await supabase.functions.invoke('verify-stripe-session', {
+        body: { sessionId },
+        headers: session?.access_token ? {
+          Authorization: `Bearer ${session.access_token}`,
+        } : {},
+      });
+
+      toast.dismiss();
+
+      if (error || !data?.verified) {
+        console.error('Verification error:', error || data);
+        toast.error('Failed to verify subscription. Please contact support.');
+        return;
+      }
+
+      toast.success(`✅ ${data.planName} subscription activated!`);
+      
+      // Reload billing data to show updated subscription
+      await loadBillingData();
+      
+      // Clean up URL
+      window.history.replaceState({}, '', '/billing');
+    } catch (error) {
+      console.error('Error verifying session:', error);
+      toast.dismiss();
+      toast.error('Failed to verify subscription');
+    }
+  };
 
   const loadBillingData = async () => {
     try {
@@ -63,6 +117,9 @@ export default function Billing() {
         features: (Array.isArray(plan.features) ? plan.features : []) as string[],
         max_websites: plan.max_websites,
         max_events_per_month: plan.max_events_per_month,
+        stripe_price_id_monthly: plan.stripe_price_id_monthly,
+        stripe_price_id_yearly: plan.stripe_price_id_yearly,
+        stripe_product_id: plan.stripe_product_id,
       }));
       
       setPlans(transformedPlans);
@@ -75,7 +132,7 @@ export default function Billing() {
           subscription_plans (*)
         `)
         .eq("user_id", user.id)
-        .eq("status", "active")
+        .in("status", ["active", "trialing", "past_due"])
         .single();
 
       if (subError && subError.code !== 'PGRST116') {
@@ -89,6 +146,8 @@ export default function Billing() {
           plan_id: subData.plan_id,
           status: subData.status,
           current_period_end: subData.current_period_end,
+          trial_start: subData.trial_start,
+          trial_end: subData.trial_end,
           subscription_plans: {
             id: subData.subscription_plans.id,
             name: subData.subscription_plans.name,
@@ -102,21 +161,6 @@ export default function Billing() {
           }
         };
         setCurrentSubscription(transformedSub);
-      } else {
-        // If no subscription found, user should be on Free plan
-        const freePlan = transformedPlans.find(p => p.name === 'Free');
-        
-        if (freePlan) {
-          // Create a virtual subscription object for Free plan display
-          const freeSubscription: Subscription = {
-            id: 'free-plan-virtual',
-            plan_id: freePlan.id,
-            status: 'active',
-            current_period_end: '', // Free plan doesn't expire
-            subscription_plans: freePlan,
-          };
-          setCurrentSubscription(freeSubscription);
-        }
       }
     } catch (error: any) {
       console.error("Error loading billing data:", error);
@@ -137,8 +181,8 @@ export default function Billing() {
 
       // Get Stripe price ID based on billing period
       const priceId = billingPeriod === 'monthly' 
-        ? (plan as any).stripe_price_id_monthly 
-        : (plan as any).stripe_price_id_yearly;
+        ? plan.stripe_price_id_monthly 
+        : plan.stripe_price_id_yearly;
 
       if (!priceId) {
         toast.error("This plan is not available for purchase online. Please contact sales.");
@@ -153,10 +197,22 @@ export default function Billing() {
         return;
       }
 
+      // Get current user info
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) {
+        toast.error("User email not found");
+        return;
+      }
+
+      toast.loading("Preparing checkout...");
+
       const response = await supabase.functions.invoke('create-stripe-checkout', {
         body: { 
           priceId,
-          billingPeriod 
+          billingPeriod,
+          customerEmail: user.email,
+          customerName: user.user_metadata?.full_name || user.email.split('@')[0],
+          returnUrl: window.location.origin
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -165,14 +221,18 @@ export default function Billing() {
 
       if (response.error) {
         console.error("Checkout error:", response.error);
+        toast.dismiss();
         toast.error("Failed to start checkout process");
         return;
       }
 
       // Redirect to Stripe Checkout
       if (response.data?.url) {
-        window.location.href = response.data.url;
+        toast.dismiss();
+        toast.success("Redirecting to checkout...");
+        window.location.assign(response.data.url);
       } else {
+        toast.dismiss();
         toast.error("Failed to get checkout URL");
       }
     } catch (error: any) {
@@ -207,6 +267,53 @@ export default function Billing() {
           Manage your subscription and billing information
         </p>
       </div>
+
+      {/* Trial Status Banner */}
+      {currentSubscription && currentSubscription.status === 'trialing' && currentSubscription.trial_end && (
+        <Alert className="border-success">
+          <Sparkles className="h-4 w-4" />
+          <AlertTitle>🎉 Free Trial Active</AlertTitle>
+          <AlertDescription>
+            Your trial ends on{' '}
+            <strong>
+              {new Date(currentSubscription.trial_end).toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
+            </strong>
+            . After that, you'll be charged{' '}
+            <strong>{formatPrice(currentSubscription.subscription_plans.price_monthly)}/month</strong>.
+            <br />
+            <span className="text-xs text-muted-foreground mt-2 block">
+              Your payment method on file will be automatically charged. Cancel anytime before trial ends to avoid charges.
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Trial Expiring Soon Warning */}
+      {currentSubscription && currentSubscription.status === 'trialing' && currentSubscription.trial_end && (() => {
+        const daysLeft = Math.ceil(
+          (new Date(currentSubscription.trial_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        );
+        
+        if (daysLeft <= 7) {
+          return (
+            <Alert variant={daysLeft <= 3 ? "destructive" : "default"}>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Trial Ending Soon</AlertTitle>
+              <AlertDescription>
+                Your trial ends in <strong>{daysLeft} day{daysLeft !== 1 ? 's' : ''}</strong>.
+                You'll be charged {formatPrice(currentSubscription.subscription_plans.price_monthly)} on{' '}
+                {new Date(currentSubscription.trial_end).toLocaleDateString()}.
+              </AlertDescription>
+            </Alert>
+          );
+        }
+        return null;
+      })()}
 
       {/* Current Plan */}
       {currentSubscription ? (
@@ -289,7 +396,7 @@ export default function Billing() {
           </div>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
-          {plans.map((plan, index) => {
+          {plans.filter(plan => plan.name !== 'Free').map((plan, index) => {
             const isCurrentPlan = currentSubscription?.plan_id === plan.id;
             const isPopular = index === 1; // Middle plan is popular
             
@@ -335,15 +442,15 @@ export default function Billing() {
                   <Button
                     className="w-full"
                     variant={isCurrentPlan ? "outline" : "default"}
-                    disabled={isCurrentPlan || processingPlanId === plan.id || (plan.name === "Free" && currentSubscription?.subscription_plans.name === "Free")}
+                    disabled={isCurrentPlan || processingPlanId === plan.id}
                     onClick={() => handleUpgrade(plan.id, plan.name)}
                   >
                     {processingPlanId === plan.id 
                       ? "Processing..." 
                       : isCurrentPlan 
                         ? "Current Plan" 
-                        : (plan.name === "Free" && currentSubscription?.subscription_plans.name === "Free")
-                          ? "Current Plan"
+                        : currentSubscription?.status === 'trialing'
+                          ? "Switch Plan"
                           : "Upgrade"
                     }
                   </Button>

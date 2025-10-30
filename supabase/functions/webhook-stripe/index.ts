@@ -219,14 +219,19 @@ async function handlePaymentSuccess(supabase: any, paymentIntent: any) {
 async function handleCheckoutCompleted(supabase: any, session: any) {
   console.log('Checkout completed:', session.id);
   
-  const userId = session.metadata?.user_id;
   const stripeCustomerId = session.customer;
   const stripeSubscriptionId = session.subscription;
+  const customerEmail = session.metadata?.customer_email || session.customer_email;
   
-  if (!userId) {
-    console.error('No user_id in checkout session metadata');
-    return;
-  }
+  // Check if user account already exists
+  const { data: existingUser } = await supabase.auth.admin.getUserByEmail(customerEmail);
+  const userId = existingUser?.user?.id || null;
+  
+  console.log('Processing checkout:', {
+    email: customerEmail,
+    userExists: !!userId,
+    sessionId: session.id,
+  });
 
   // Get subscription details from Stripe
   const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
@@ -259,20 +264,32 @@ async function handleCheckoutCompleted(supabase: any, session: any) {
     return;
   }
 
-  // Create or update user subscription
+  // Extract trial information from Stripe
+  const trialStart = subscription.trial_start 
+    ? new Date(subscription.trial_start * 1000).toISOString() 
+    : null;
+  const trialEnd = subscription.trial_end 
+    ? new Date(subscription.trial_end * 1000).toISOString() 
+    : null;
+
+  // Create or update user subscription with trial info
+  // Use stripe_subscription_id as conflict key to prevent duplicates
   const { error } = await supabase
     .from('user_subscriptions')
     .upsert({
-      user_id: userId,
+      user_id: userId, // Will be null initially if user hasn't completed signup
       plan_id: plans.id,
       stripe_customer_id: stripeCustomerId,
       stripe_subscription_id: stripeSubscriptionId,
-      status: subscription.status,
+      status: subscription.status, // Will be 'trialing' during trial
       current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
       current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
       cancel_at_period_end: subscription.cancel_at_period_end,
+      trial_start: trialStart,
+      trial_end: trialEnd,
     }, {
-      onConflict: 'user_id',
+      onConflict: 'stripe_subscription_id',
+      ignoreDuplicates: false,
     });
 
   if (error) {
@@ -280,37 +297,67 @@ async function handleCheckoutCompleted(supabase: any, session: any) {
     return;
   }
 
+  // Record trial start in history (only if user exists)
+  if (trialStart && userId) {
+    await supabase
+      .from('user_trial_history')
+      .insert({
+        user_id: userId,
+        email: customerEmail,
+        trial_started_at: trialStart,
+        trial_ended_at: trialEnd,
+      });
+  }
+
   await supabase.from('integration_logs').insert({
     integration_type: 'stripe',
-    action: 'checkout_completed',
+    action: 'checkout_completed_with_trial',
     status: 'success',
     details: { 
       session_id: session.id,
       subscription_id: stripeSubscriptionId,
       plan_name: plans.name,
       user_id: userId,
+      user_pending: !userId,
+      trial_start: trialStart,
+      trial_end: trialEnd,
     },
   });
 
-  console.log('Subscription created/updated successfully for user:', userId);
+  if (userId) {
+    console.log(`Trial subscription created for user ${userId}, trial ends ${trialEnd}`);
+  } else {
+    console.log(`Trial subscription created (user pending), trial ends ${trialEnd}`);
+  }
 }
 
 async function handleSubscriptionUpdate(supabase: any, subscription: any) {
   console.log('Subscription updated:', subscription.id, subscription.status);
   
+  const trialStart = subscription.trial_start 
+    ? new Date(subscription.trial_start * 1000).toISOString() 
+    : null;
+  const trialEnd = subscription.trial_end 
+    ? new Date(subscription.trial_end * 1000).toISOString() 
+    : null;
+  
   const { error } = await supabase
     .from('user_subscriptions')
     .update({
-      status: subscription.status,
+      status: subscription.status, // trialing → active (when trial ends and payment succeeds)
       current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
       current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
       cancel_at_period_end: subscription.cancel_at_period_end,
+      trial_start: trialStart,
+      trial_end: trialEnd,
     })
     .eq('stripe_subscription_id', subscription.id);
 
   if (error) {
     console.error('Error updating subscription:', error);
   }
+
+  console.log(`Subscription ${subscription.id} transitioned to ${subscription.status}`);
 }
 
 async function handleSubscriptionDeleted(supabase: any, subscription: any) {

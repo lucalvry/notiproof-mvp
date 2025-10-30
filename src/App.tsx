@@ -7,7 +7,7 @@ import { WebsiteProvider } from "@/contexts/WebsiteContext";
 import { AppLayout } from "./components/layouts/AppLayout";
 import { AdminLayout } from "./components/layouts/AdminLayout";
 import Login from "./pages/Login";
-import Signup from "./pages/Signup";
+import GetStarted from "./pages/GetStarted";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Websites from "./pages/Websites";
@@ -38,6 +38,8 @@ import AdminManagement from "./pages/admin/AdminManagement";
 import AcceptInvite from "./pages/AcceptInvite";
 import WidgetAnalytics from "./pages/WidgetAnalytics";
 import Templates from "./pages/Templates";
+import SelectPlan from "./pages/SelectPlan";
+import CompleteSignup from "./pages/CompleteSignup";
 
 const queryClient = new QueryClient();
 
@@ -50,7 +52,10 @@ const App = () => (
         <WebsiteProvider>
         <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+        <Route path="/signup" element={<GetStarted />} />
+        <Route path="/get-started" element={<GetStarted />} />
+        <Route path="/select-plan" element={<SelectPlan />} />
+        <Route path="/complete-signup" element={<CompleteSignup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
