@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { supabase } from "@/integrations/supabase/client";
 import { OverviewCards } from "@/components/analytics/OverviewCards";
@@ -10,12 +10,16 @@ import { HourHeatmap } from "@/components/analytics/HourHeatmap";
 import { TopEvents } from "@/components/analytics/TopEvents";
 import { AIInsights } from "@/components/analytics/AIInsights";
 import { useSubscription } from "@/hooks/useSubscription";
+import { ExportButton } from "@/components/analytics/ExportButton";
 
 export default function Analytics() {
   const [userId, setUserId] = useState<string>();
   const [dateRange, setDateRange] = useState(30);
   const { data: analytics, isLoading } = useAnalytics(userId, dateRange);
   const { subscription } = useSubscription(userId);
+  const performanceChartRef = useRef<HTMLDivElement>(null);
+  const geoMapRef = useRef<HTMLDivElement>(null);
+  const deviceChartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -46,11 +50,17 @@ export default function Analytics() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Analytics</h1>
-        <p className="text-muted-foreground">
-          Detailed insights about your campaigns
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Analytics</h1>
+          <p className="text-muted-foreground">
+            Detailed insights about your campaigns
+          </p>
+        </div>
+        <ExportButton 
+          data={analytics?.dailyStats || []} 
+          filename={`analytics-${new Date().toISOString().split('T')[0]}`}
+        />
       </div>
 
       {/* Section 1: Overview Cards */}
@@ -67,12 +77,14 @@ export default function Analytics() {
       />
 
       {/* Section 2: Performance Graph */}
-      <PerformanceGraph
-        dailyStats={analytics?.dailyStats || []}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-        isLoading={isLoading}
-      />
+      <div ref={performanceChartRef}>
+        <PerformanceGraph
+          dailyStats={analytics?.dailyStats || []}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          isLoading={isLoading}
+        />
+      </div>
 
       {/* Section 3: Campaign Table */}
       <CampaignTable
@@ -82,14 +94,18 @@ export default function Analytics() {
 
       {/* Section 4 & 5: Geographic Map and Device Breakdown */}
       <div className="grid gap-6 md:grid-cols-2">
-        <GeographicMap
-          geoData={analytics?.geoData || []}
-          isLoading={isLoading}
-        />
-        <DeviceBreakdown
-          deviceData={analytics?.deviceData || []}
-          isLoading={isLoading}
-        />
+        <div ref={geoMapRef}>
+          <GeographicMap
+            geoData={analytics?.geoData || []}
+            isLoading={isLoading}
+          />
+        </div>
+        <div ref={deviceChartRef}>
+          <DeviceBreakdown
+            deviceData={analytics?.deviceData || []}
+            isLoading={isLoading}
+          />
+        </div>
       </div>
 
       {/* Section 6: Hour Heatmap */}

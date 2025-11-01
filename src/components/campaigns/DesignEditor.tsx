@@ -13,11 +13,28 @@ interface DesignEditorProps {
   onChange: (settings: any) => void;
 }
 
+const PRESET_THEMES = [
+  { name: "Modern Blue", primaryColor: "#2563EB", backgroundColor: "#ffffff", textColor: "#1a1a1a" },
+  { name: "Dark Mode", primaryColor: "#818cf8", backgroundColor: "#1f2937", textColor: "#f9fafb" },
+  { name: "Minimal Green", primaryColor: "#10b981", backgroundColor: "#f9fafb", textColor: "#111827" },
+  { name: "Bold Red", primaryColor: "#ef4444", backgroundColor: "#000000", textColor: "#ffffff" },
+  { name: "Elegant Purple", primaryColor: "#8b5cf6", backgroundColor: "#faf5ff", textColor: "#1f2937" },
+];
+
+const FONT_FAMILIES = [
+  { name: "System Default", value: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+  { name: "Inter", value: "'Inter', sans-serif" },
+  { name: "Roboto", value: "'Roboto', sans-serif" },
+  { name: "Open Sans", value: "'Open Sans', sans-serif" },
+  { name: "Poppins", value: "'Poppins', sans-serif" },
+];
+
 export function DesignEditor({ settings, onChange }: DesignEditorProps) {
   const [design, setDesign] = useState({
     // Position & Animation
     position: "bottom-left",
     animation: "slide",
+    animationSpeed: "normal",
     
     // Content
     headline: "{{name}} from {{city}} just {{action}}",
@@ -39,6 +56,7 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
     borderRadius: "12",
     shadow: "md",
     fontSize: "14",
+    fontFamily: FONT_FAMILIES[0].value,
     
     // Timing
     initialDelay: "0",
@@ -56,10 +74,40 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
     onChange(newDesign);
   };
 
+  const applyPresetTheme = (theme: typeof PRESET_THEMES[0]) => {
+    updateDesign({
+      primaryColor: theme.primaryColor,
+      backgroundColor: theme.backgroundColor,
+      textColor: theme.textColor,
+    });
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Editor Panel */}
       <div className="space-y-6">
+        {/* Preset Themes Quick Access */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Quick Themes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2 flex-wrap">
+              {PRESET_THEMES.map((theme) => (
+                <Button
+                  key={theme.name}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => applyPresetTheme(theme)}
+                  className="text-xs"
+                >
+                  {theme.name}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         <Tabs defaultValue="content" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="content">Content</TabsTrigger>
@@ -184,6 +232,36 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
                       <SelectItem value="fade">Fade In</SelectItem>
                       <SelectItem value="bounce">Bounce</SelectItem>
                       <SelectItem value="none">None</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Animation Speed</Label>
+                  <Select value={design.animationSpeed} onValueChange={(value) => updateDesign({ animationSpeed: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="slow">Slow (800ms)</SelectItem>
+                      <SelectItem value="normal">Normal (500ms)</SelectItem>
+                      <SelectItem value="fast">Fast (300ms)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Font Family</Label>
+                  <Select value={design.fontFamily} onValueChange={(value) => updateDesign({ fontFamily: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FONT_FAMILIES.map((font) => (
+                        <SelectItem key={font.value} value={font.value}>
+                          {font.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -371,8 +449,27 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>Live Preview</CardTitle>
-            <CardDescription>See how your notification will appear on different devices</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Live Preview</CardTitle>
+                <CardDescription>Real-time preview of your notification</CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const preview = document.getElementById('notification-preview');
+                    if (preview) {
+                      preview.classList.remove('animate-in');
+                      setTimeout(() => preview.classList.add('animate-in'), 10);
+                    }
+                  }}
+                >
+                  Replay
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="relative bg-gradient-to-br from-muted/30 to-muted/50 rounded-lg h-[500px] overflow-hidden border">
@@ -386,6 +483,7 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
 
               {/* Notification Preview */}
               <div
+                id="notification-preview"
                 className={`absolute ${
                   design.position === "bottom-left"
                     ? "bottom-4 left-4"
@@ -408,6 +506,12 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
                     : design.animation === "bounce"
                     ? "slide-in-from-bottom-5 duration-500"
                     : ""
+                } ${
+                  design.animationSpeed === "slow"
+                    ? "duration-800"
+                    : design.animationSpeed === "fast"
+                    ? "duration-300"
+                    : "duration-500"
                 }`}
                 style={{
                   backgroundColor: design.backgroundColor,
@@ -420,7 +524,8 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
                     lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
                     xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
                   }[design.shadow],
-                  fontSize: `${design.fontSize}px`
+                  fontSize: `${design.fontSize}px`,
+                  fontFamily: design.fontFamily
                 }}
               >
                 <div className="p-4">
