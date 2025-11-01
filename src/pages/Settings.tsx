@@ -5,15 +5,23 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useSubscription } from "@/hooks/useSubscription";
+import WhiteLabelSettings from "@/components/settings/WhiteLabelSettings";
+import { Globe, Bell, Palette, User } from "lucide-react";
 
 export default function Settings() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [websiteId, setWebsiteId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  const { planName } = useSubscription(userId || undefined);
+  const isPro = planName === "Business" || planName === "Pro" || planName === "Enterprise";
   
   // Website info
   const [siteName, setSiteName] = useState("");
@@ -39,6 +47,8 @@ export default function Settings() {
         navigate("/login");
         return;
       }
+      
+      setUserId(user.id);
 
       // Get user's primary website
       const { data: websites, error: websitesError } = await supabase
@@ -182,15 +192,37 @@ export default function Settings() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Settings</h1>
         <p className="text-muted-foreground">
-          Manage your website settings and preferences
+          Manage your account, website, and preferences
         </p>
       </div>
 
-      <Card>
+      <Tabs defaultValue="website" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="website">
+            <Globe className="mr-2 h-4 w-4" />
+            Website
+          </TabsTrigger>
+          <TabsTrigger value="notifications">
+            <Bell className="mr-2 h-4 w-4" />
+            Notifications
+          </TabsTrigger>
+          <TabsTrigger value="branding">
+            <Palette className="mr-2 h-4 w-4" />
+            Branding
+          </TabsTrigger>
+          <TabsTrigger value="white-label">
+            <User className="mr-2 h-4 w-4" />
+            White-Label
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Website Tab */}
+        <TabsContent value="website" className="space-y-4">
+          <Card>
         <CardHeader>
           <CardTitle>Website Information</CardTitle>
           <CardDescription>
@@ -218,8 +250,11 @@ export default function Settings() {
           </Button>
         </CardContent>
       </Card>
+        </TabsContent>
 
-      <Card>
+        {/* Notifications Tab */}
+        <TabsContent value="notifications" className="space-y-4">
+          <Card>
         <CardHeader>
           <CardTitle>Notification Settings</CardTitle>
           <CardDescription>
@@ -270,8 +305,11 @@ export default function Settings() {
           </Button>
         </CardContent>
       </Card>
+        </TabsContent>
 
-      <Card>
+        {/* Branding Tab */}
+        <TabsContent value="branding" className="space-y-4">
+          <Card>
         <CardHeader>
           <CardTitle>Branding</CardTitle>
           <CardDescription>
@@ -311,6 +349,13 @@ export default function Settings() {
           </Button>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        {/* White-Label Tab */}
+        <TabsContent value="white-label" className="space-y-4">
+          {userId && <WhiteLabelSettings userId={userId} isPro={isPro} />}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

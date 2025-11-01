@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { DashboardSkeleton } from "@/components/ui/loading-skeletons";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { CheckoutMetricsWidget } from "@/components/admin/CheckoutMetricsWidget";
 
 interface Stats {
   totalUsers: number;
@@ -227,6 +228,9 @@ export default function AdminDashboard() {
           );
         })}
       </div>
+
+      {/* Phase 4: Checkout Metrics Widget */}
+      <CheckoutMetricsWidget />
 
       {/* Alerts Section */}
       <Card>

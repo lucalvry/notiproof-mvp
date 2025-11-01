@@ -14,6 +14,122 @@ export type Database = {
   }
   public: {
     Tables: {
+      ab_test_variants: {
+        Row: {
+          animation: string | null
+          clicks: number | null
+          conversion_rate: number | null
+          created_at: string
+          id: string
+          is_control: boolean
+          message_template: string | null
+          name: string
+          position: string | null
+          style_config: Json | null
+          test_id: string
+          timing_config: Json | null
+          updated_at: string
+          views: number | null
+        }
+        Insert: {
+          animation?: string | null
+          clicks?: number | null
+          conversion_rate?: number | null
+          created_at?: string
+          id?: string
+          is_control?: boolean
+          message_template?: string | null
+          name: string
+          position?: string | null
+          style_config?: Json | null
+          test_id: string
+          timing_config?: Json | null
+          updated_at?: string
+          views?: number | null
+        }
+        Update: {
+          animation?: string | null
+          clicks?: number | null
+          conversion_rate?: number | null
+          created_at?: string
+          id?: string
+          is_control?: boolean
+          message_template?: string | null
+          name?: string
+          position?: string | null
+          style_config?: Json | null
+          test_id?: string
+          timing_config?: Json | null
+          updated_at?: string
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ab_test_variants_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "ab_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ab_tests: {
+        Row: {
+          campaign_id: string
+          confidence_level: number | null
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          name: string
+          start_date: string | null
+          status: string
+          total_clicks: number | null
+          total_views: number | null
+          traffic_split: Json
+          updated_at: string
+          user_id: string
+          winner_declared_at: string | null
+          winner_variant_id: string | null
+        }
+        Insert: {
+          campaign_id: string
+          confidence_level?: number | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          start_date?: string | null
+          status?: string
+          total_clicks?: number | null
+          total_views?: number | null
+          traffic_split?: Json
+          updated_at?: string
+          user_id: string
+          winner_declared_at?: string | null
+          winner_variant_id?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          confidence_level?: number | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          start_date?: string | null
+          status?: string
+          total_clicks?: number | null
+          total_views?: number | null
+          traffic_split?: Json
+          updated_at?: string
+          user_id?: string
+          winner_declared_at?: string | null
+          winner_variant_id?: string | null
+        }
+        Relationships: []
+      }
       alerts: {
         Row: {
           context: Json | null
@@ -960,8 +1076,10 @@ export type Database = {
           demo_mode_enabled: boolean
           id: string
           name: string
+          onboarding_progress: Json | null
           role: Database["public"]["Enums"]["app_role"]
           status: string
+          white_label_settings: Json | null
         }
         Insert: {
           business_type?: Database["public"]["Enums"]["business_type"] | null
@@ -969,8 +1087,10 @@ export type Database = {
           demo_mode_enabled?: boolean
           id: string
           name: string
+          onboarding_progress?: Json | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
+          white_label_settings?: Json | null
         }
         Update: {
           business_type?: Database["public"]["Enums"]["business_type"] | null
@@ -978,8 +1098,10 @@ export type Database = {
           demo_mode_enabled?: boolean
           id?: string
           name?: string
+          onboarding_progress?: Json | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
+          white_label_settings?: Json | null
         }
         Relationships: []
       }
@@ -1246,8 +1368,10 @@ export type Database = {
           invited_by: string | null
           joined_at: string | null
           organization_id: string
+          permissions: Json | null
           role: Database["public"]["Enums"]["team_role"]
           user_id: string
+          website_access: Json | null
         }
         Insert: {
           created_at?: string
@@ -1256,8 +1380,10 @@ export type Database = {
           invited_by?: string | null
           joined_at?: string | null
           organization_id: string
+          permissions?: Json | null
           role?: Database["public"]["Enums"]["team_role"]
           user_id: string
+          website_access?: Json | null
         }
         Update: {
           created_at?: string
@@ -1266,8 +1392,10 @@ export type Database = {
           invited_by?: string | null
           joined_at?: string | null
           organization_id?: string
+          permissions?: Json | null
           role?: Database["public"]["Enums"]["team_role"]
           user_id?: string
+          website_access?: Json | null
         }
         Relationships: []
       }
@@ -2037,9 +2165,34 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      onboarding_analytics: {
+        Row: {
+          average_completion: number | null
+          stuck_at_campaign: number | null
+          stuck_at_conversion: number | null
+          stuck_at_installation: number | null
+          stuck_at_website: number | null
+          users_completed: number | null
+          users_in_progress: number | null
+          users_not_started: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      auto_declare_ab_test_winner: {
+        Args: { test_uuid: string }
+        Returns: boolean
+      }
+      calculate_ab_test_confidence: {
+        Args: { test_uuid: string }
+        Returns: number
+      }
+      calculate_onboarding_progress: {
+        Args: { _user_id: string }
+        Returns: number
+      }
+      check_email_exists: { Args: { email_to_check: string }; Returns: boolean }
       cleanup_all_template_events: {
         Args: { _user_id: string }
         Returns: undefined
@@ -2064,6 +2217,10 @@ export type Database = {
           pending_events: number
         }[]
       }
+      get_default_permissions_for_role: {
+        Args: { _role: Database["public"]["Enums"]["team_role"] }
+        Returns: Json
+      }
       get_integration_count: {
         Args: { _types?: string[]; _user_id: string }
         Returns: number
@@ -2086,13 +2243,15 @@ export type Database = {
           user_id: string
         }[]
       }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
+      has_role:
+        | { Args: { _role: string; _user_id: string }; Returns: boolean }
+        | {
+            Args: {
+              _role: Database["public"]["Enums"]["app_role"]
+              _user_id: string
+            }
+            Returns: boolean
+          }
       increment_article_view_count: {
         Args: { article_uuid: string }
         Returns: undefined
@@ -2130,6 +2289,10 @@ export type Database = {
         Args: { article_uuid: string }
         Returns: undefined
       }
+      update_onboarding_milestone: {
+        Args: { _completed?: boolean; _milestone: string; _user_id: string }
+        Returns: undefined
+      }
       update_user_role: {
         Args: {
           _new_role: Database["public"]["Enums"]["app_role"]
@@ -2143,6 +2306,19 @@ export type Database = {
           _roles: Database["public"]["Enums"]["team_role"][]
           _user_id: string
         }
+        Returns: boolean
+      }
+      user_has_team_permission: {
+        Args: {
+          _action: string
+          _org_id: string
+          _resource: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      user_has_website_access: {
+        Args: { _user_id: string; _website_id: string }
         Returns: boolean
       }
       verify_website: {
@@ -2212,7 +2388,7 @@ export type Database = {
         | "ga4"
         | "rss"
       moderation_status: "pending" | "approved" | "rejected" | "flagged"
-      team_role: "owner" | "admin" | "member" | "viewer"
+      team_role: "owner" | "admin" | "member" | "viewer" | "editor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2398,7 +2574,7 @@ export const Constants = {
         "rss",
       ],
       moderation_status: ["pending", "approved", "rejected", "flagged"],
-      team_role: ["owner", "admin", "member", "viewer"],
+      team_role: ["owner", "admin", "member", "viewer", "editor"],
     },
   },
 } as const

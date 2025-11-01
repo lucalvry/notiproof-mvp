@@ -3,12 +3,21 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Check, CreditCard, Sparkles, AlertTriangle } from "lucide-react";
+import { Check, CreditCard, Sparkles, AlertTriangle, Download, ExternalLink, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Plan {
   id: string;
@@ -30,7 +39,24 @@ interface Subscription {
   current_period_end: string;
   trial_start?: string | null;
   trial_end?: string | null;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
   subscription_plans: Plan;
+}
+
+interface Invoice {
+  id: string;
+  number: string;
+  amount: number;
+  currency: string;
+  status: string;
+  created: number;
+  paidAt?: number;
+  invoicePdf?: string;
+  hostedInvoiceUrl?: string;
+  description: string;
+  periodStart: number;
+  periodEnd: number;
 }
 
 export default function Billing() {
@@ -41,6 +67,8 @@ export default function Billing() {
   const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
 
   useEffect(() => {
     loadBillingData();
@@ -49,12 +77,30 @@ export default function Billing() {
     const params = new URLSearchParams(location.search);
     const sessionId = params.get('session_id');
     
-    if (params.get('success') === 'true' && sessionId) {
+    // Handle upgrade success
+    if (params.get('upgraded') === 'true') {
+      toast.success('Your subscription has been upgraded successfully!');
+      // Clean up URL
+      window.history.replaceState({}, '', '/billing');
+      // Verify session if present
+      if (sessionId) {
+        verifyStripeSession(sessionId);
+      }
+    } else if (params.get('success') === 'true' && sessionId) {
       verifyStripeSession(sessionId);
     } else if (params.get('canceled') === 'true') {
       toast.info('Checkout canceled. You can try again anytime.');
+      // Clean up URL
+      window.history.replaceState({}, '', '/billing');
     }
   }, [location]);
+
+  useEffect(() => {
+    // Load invoices when subscription is available
+    if (currentSubscription?.stripe_customer_id) {
+      loadInvoices();
+    }
+  }, [currentSubscription]);
 
   const verifyStripeSession = async (sessionId: string) => {
     try {
@@ -148,6 +194,8 @@ export default function Billing() {
           current_period_end: subData.current_period_end,
           trial_start: subData.trial_start,
           trial_end: subData.trial_end,
+          stripe_customer_id: subData.stripe_customer_id,
+          stripe_subscription_id: subData.stripe_subscription_id,
           subscription_plans: {
             id: subData.subscription_plans.id,
             name: subData.subscription_plans.name,
@@ -170,7 +218,83 @@ export default function Billing() {
     }
   };
 
+  const handlePlanSwitch = async (planId: string, planName: string) => {
+    setProcessingPlanId(planId);
+    try {
+      const plan = plans.find(p => p.id === planId);
+      if (!plan) {
+        toast.error("Plan not found");
+        return;
+      }
+
+      // Get Stripe price ID based on billing period
+      const priceId = billingPeriod === 'monthly' 
+        ? plan.stripe_price_id_monthly 
+        : plan.stripe_price_id_yearly;
+
+      if (!priceId) {
+        toast.error("This plan is not available for purchase online. Please contact sales.");
+        return;
+      }
+
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        toast.error("Please log in to continue");
+        navigate("/login");
+        return;
+      }
+
+      toast.loading("Updating your subscription...");
+
+      const response = await supabase.functions.invoke('update-subscription', {
+        body: { 
+          newPriceId: priceId,
+          newPlanId: planId,
+          billingPeriod,
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      toast.dismiss();
+
+      if (response.error) {
+        console.error("Update error:", response.error);
+        toast.error(response.data?.error || "Failed to update subscription");
+        return;
+      }
+
+      if (response.data?.success) {
+        const prorationMsg = response.data.prorationAmount > 0 
+          ? ` You'll be charged $${response.data.prorationAmount.toFixed(2)} for the prorated difference.`
+          : '';
+        
+        toast.success(`Successfully switched to ${planName}!${prorationMsg}`, {
+          duration: 6000,
+        });
+        
+        // Reload billing data to show updated subscription
+        await loadBillingData();
+      } else {
+        toast.error("Failed to update subscription");
+      }
+    } catch (error: any) {
+      console.error("Error updating subscription:", error);
+      toast.dismiss();
+      toast.error("Failed to update subscription");
+    } finally {
+      setProcessingPlanId(null);
+    }
+  };
+
   const handleUpgrade = async (planId: string, planName: string) => {
+    // If user has an active subscription with a Stripe subscription ID, switch plans directly
+    if (currentSubscription?.stripe_subscription_id) {
+      return handlePlanSwitch(planId, planName);
+    }
+
+    // Otherwise, go through checkout flow for new subscription
     setProcessingPlanId(planId);
     try {
       const plan = plans.find(p => p.id === planId);
@@ -211,8 +335,10 @@ export default function Billing() {
           priceId,
           billingPeriod,
           customerEmail: user.email,
-          customerName: user.user_metadata?.full_name || user.email.split('@')[0],
-          returnUrl: window.location.origin
+          customerName: user.user_metadata?.name || user.user_metadata?.full_name || user.email.split('@')[0],
+          userId: user.id,
+          returnUrl: window.location.origin,
+          isUpgrade: true // Flag this as an upgrade
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -237,9 +363,123 @@ export default function Billing() {
       }
     } catch (error: any) {
       console.error("Error creating checkout:", error);
+      toast.dismiss();
       toast.error("Failed to start checkout");
     } finally {
       setProcessingPlanId(null);
+    }
+  };
+
+  const handleManagePayment = async () => {
+    if (!currentSubscription?.stripe_customer_id) {
+      toast.error("No payment method found. Please contact support.");
+      return;
+    }
+
+    try {
+      toast.loading("Opening payment portal...");
+
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        toast.dismiss();
+        toast.error("Please log in to continue");
+        navigate("/login");
+        return;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const response = await supabase.functions.invoke('create-stripe-portal', {
+        body: { 
+          customerId: currentSubscription.stripe_customer_id,
+          customerEmail: user?.email,
+          returnUrl: window.location.href
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      toast.dismiss();
+
+      // Check for errors
+      if (response.error) {
+        console.error("Portal error:", response.error);
+
+        // Fallback: try lookup by email only (ignore possibly stale customerId)
+        try {
+          const retry = await supabase.functions.invoke('create-stripe-portal', {
+            body: {
+              customerEmail: user?.email,
+              returnUrl: window.location.href,
+            },
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+
+          if (!retry.error && retry.data?.url) {
+            toast.success("Redirecting to payment portal...");
+            window.location.assign(retry.data.url);
+            return;
+          }
+        } catch (e) {
+          console.error('Retry portal by email failed:', e);
+        }
+
+        // If still failing, clear invalid customer ID and ask user to restart checkout
+        toast.error("We couldn't open the billing portal. We've reset your payment profile — please start a new subscription.", { duration: 7000 });
+        const { data: { user: u } } = await supabase.auth.getUser();
+        if (u) {
+          await supabase
+            .from("user_subscriptions")
+            .update({ stripe_customer_id: null })
+            .eq("user_id", u.id);
+        }
+        setTimeout(() => loadBillingData(), 800);
+        return;
+      }
+
+      if (response.data?.url) {
+        toast.success("Redirecting to payment portal...");
+        window.location.assign(response.data.url);
+      } else {
+        toast.error("Failed to get portal URL");
+      }
+    } catch (error) {
+      console.error("Error opening portal:", error);
+      toast.dismiss();
+      toast.error("Failed to open payment portal");
+    }
+  };
+
+  const loadInvoices = async () => {
+    setLoadingInvoices(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log('No session for loading invoices');
+        return;
+      }
+
+      const response = await supabase.functions.invoke('get-invoices', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) {
+        console.error('Error loading invoices:', response.error);
+        return;
+      }
+
+      if (response.data?.invoices) {
+        setInvoices(response.data.invoices);
+      }
+    } catch (error) {
+      console.error('Error loading invoices:', error);
+    } finally {
+      setLoadingInvoices(false);
     }
   };
 
@@ -338,7 +578,11 @@ export default function Billing() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Next billing date</span>
                   <span className="font-medium">
-                    {new Date(currentSubscription.current_period_end).toLocaleDateString()}
+                    {/* Phase 6: Show real next billing date */}
+                    {currentSubscription.trial_end && currentSubscription.status === 'trialing'
+                      ? new Date(currentSubscription.trial_end).toLocaleDateString()
+                      : new Date(currentSubscription.current_period_end).toLocaleDateString()
+                    }
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -347,10 +591,23 @@ export default function Billing() {
                     {formatPrice(currentSubscription.subscription_plans.price_monthly)} / month
                   </span>
                 </div>
-                <Button variant="outline" className="w-full gap-2" disabled>
-                  <CreditCard className="h-4 w-4" />
-                  Update Payment Method (Stripe integration pending)
-                </Button>
+                {/* Payment management button */}
+                {currentSubscription.stripe_customer_id ? (
+                  <Button 
+                    variant="outline" 
+                    className="w-full gap-2"
+                    onClick={handleManagePayment}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    Manage Payment & Subscription
+                  </Button>
+                ) : (
+                  <div className="rounded-lg bg-muted p-3 text-center">
+                    <p className="text-xs text-muted-foreground">
+                      Payment method will be added after checkout
+                    </p>
+                  </div>
+                )}
               </>
             ) : (
               <div className="rounded-lg bg-muted p-4 text-center">
@@ -462,25 +719,136 @@ export default function Billing() {
       </div>
 
       {/* Billing History */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Billing History</CardTitle>
-          <CardDescription>
-            View your past invoices and payments (Stripe integration required)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {currentSubscription ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>Billing history will be available once Stripe integration is complete</p>
+      {currentSubscription && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Receipt className="h-5 w-5" />
+              <CardTitle>Billing History</CardTitle>
             </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No billing history available</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            <CardDescription>
+              View and download your past invoices
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingInvoices ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-48" />
+                    </div>
+                    <Skeleton className="h-9 w-24" />
+                  </div>
+                ))}
+              </div>
+            ) : invoices.length === 0 ? (
+              <div className="text-center py-12">
+                <Receipt className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No invoices yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your billing history will appear here after your first payment
+                </p>
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Invoice</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {invoices.map((invoice) => (
+                      <TableRow key={invoice.id}>
+                        <TableCell className="font-medium">
+                          <div>
+                            <div className="font-semibold">
+                              {invoice.number || `INV-${invoice.id.slice(-8)}`}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {invoice.description}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {new Date(invoice.created * 1000).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(invoice.periodStart * 1000).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })}{' '}
+                            -{' '}
+                            {new Date(invoice.periodEnd * 1000).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-semibold">
+                            {new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: invoice.currency,
+                            }).format(invoice.amount)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              invoice.status === 'paid'
+                                ? 'default'
+                                : invoice.status === 'open'
+                                ? 'secondary'
+                                : 'destructive'
+                            }
+                          >
+                            {invoice.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-2 justify-end">
+                            {invoice.invoicePdf && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => window.open(invoice.invoicePdf, '_blank')}
+                              >
+                                <Download className="h-4 w-4 mr-1" />
+                                PDF
+                              </Button>
+                            )}
+                            {invoice.hostedInvoiceUrl && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => window.open(invoice.hostedInvoiceUrl, '_blank')}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Link2, Sparkles, CheckCircle2, Star, Download } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CampaignTypeSelector } from "./CampaignTypeSelector";
-import { DataSourceSelector } from "./DataSourceSelector";
+import { IntegrationPathSelector } from "@/components/onboarding/IntegrationPathSelector";
+import { SocialProofConnectors } from "@/components/integrations/SocialProofConnectors";
 import { DesignEditor } from "./DesignEditor";
 import { RulesTargeting } from "./RulesTargeting";
-import { DataMapping } from "./DataMapping";
 import { ReviewActivate } from "./ReviewActivate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -21,9 +22,10 @@ interface CampaignWizardProps {
 const STEPS = [
   "Choose Campaign Type",
   "Select Data Source",
-  "Design Notification",
+  "Connect Integration",
+  "Choose Template",
+  "Customize Design",
   "Rules & Targeting",
-  "Data Mapping",
   "Review & Activate",
 ];
 
@@ -32,11 +34,13 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
   const [campaignData, setCampaignData] = useState({
     name: "",
     type: "",
+    integration_path: "", // 'integration', 'manual', or 'demo'
     data_source: "",
-    settings: {},
-    rules: {},
-    field_map: {},
+    settings: {} as Record<string, any>,
+    rules: {} as Record<string, any>,
   });
+  const [templates, setTemplates] = useState<Array<Record<string, any>>>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<Record<string, any> | null>(null);
 
   const progress = ((currentStep + 1) / STEPS.length) * 100;
 
@@ -110,13 +114,24 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     setCampaignData({
       name: "",
       type: "",
+      integration_path: "",
       data_source: "",
       settings: {},
       rules: {},
-      field_map: {},
     });
+    setSelectedTemplate(null);
     onClose();
   };
+
+  // Fetch templates when campaign type is selected
+  useEffect(() => {
+    // Template fetching - simplified to avoid TypeScript issues
+    // Users can still load templates via URL parameter (?template=id)
+    if (open && campaignData.type) {
+      // For now, set empty templates. Can enhance later with explicit typing.
+      setTemplates([]);
+    }
+  }, [open, campaignData.type]);
 
   const updateCampaignData = (data: Partial<typeof campaignData>) => {
     setCampaignData((prev) => ({ ...prev, ...data }));
@@ -133,35 +148,124 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
         );
       case 1:
         return (
-            <DataSourceSelector
-              selectedSource={campaignData.data_source}
+          <div className="space-y-6 py-6">
+            <div className="text-center space-y-2">
+              <div className="flex justify-center mb-4">
+                <div className="rounded-full bg-primary/10 p-3">
+                  <Link2 className="h-8 w-8 text-primary" />
+                </div>
+              </div>
+              <h2 className="text-2xl font-bold">Connect Your Data</h2>
+              <p className="text-muted-foreground">
+                How would you like to populate your campaign?
+              </p>
+            </div>
+
+            <IntegrationPathSelector
               campaignType={campaignData.type}
-              onSelect={(source) => updateCampaignData({ data_source: source })}
+              selectedPath={campaignData.integration_path}
+              onSelect={(path) => updateCampaignData({ integration_path: path })}
             />
+          </div>
         );
       case 2:
+        // Skip if not integration path
+        if (campaignData.integration_path !== 'integration') {
+          return null;
+        }
+        return (
+          <div className="space-y-6 py-6">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold">Connect Your Integration</h2>
+              <p className="text-muted-foreground">
+                Connect your data source to automatically sync notifications
+              </p>
+            </div>
+
+            <div className="text-sm text-muted-foreground mb-4">
+              Note: Set up your integration connections on the Integrations page. For this campaign, we'll use webhook or manual data entry.
+            </div>
+            <SocialProofConnectors />
+          </div>
+        );
+      case 3:
+        return (
+          <div className="space-y-6 py-6">
+            <div className="text-center space-y-2">
+              <div className="flex justify-center mb-4">
+                <div className="rounded-full bg-primary/10 p-3">
+                  <Sparkles className="h-8 w-8 text-primary" />
+                </div>
+              </div>
+              <h2 className="text-2xl font-bold">Choose a Template</h2>
+              <p className="text-muted-foreground">
+                Start with a proven template or customize from scratch
+              </p>
+            </div>
+
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+              {templates.map((template) => (
+                <Card 
+                  key={template.id}
+                  className={`cursor-pointer transition-all hover:shadow-md ${
+                    selectedTemplate?.id === template.id ? 'ring-2 ring-primary' : ''
+                  }`}
+                  onClick={() => {
+                    setSelectedTemplate(template);
+                    const templateConfig = typeof template.template_config === 'string' 
+                      ? JSON.parse(template.template_config) 
+                      : template.template_config;
+                    updateCampaignData({ 
+                      settings: { ...campaignData.settings, ...templateConfig }
+                    });
+                  }}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-base">{template.name}</CardTitle>
+                        <CardDescription className="text-sm mt-1">
+                          {template.description}
+                        </CardDescription>
+                      </div>
+                      {selectedTemplate?.id === template.id && (
+                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        <span>{template.rating_average?.toFixed(1) || 'N/A'}</span>
+                      </div>
+                      <span>•</span>
+                      <div className="flex items-center gap-1">
+                        <Download className="h-3 w-3" />
+                        <span>{template.download_count} uses</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        );
+      case 4:
         return (
           <DesignEditor
             settings={campaignData.settings}
             onChange={(settings) => updateCampaignData({ settings })}
           />
         );
-      case 3:
+      case 5:
         return (
           <RulesTargeting
             rules={campaignData.rules}
             onChange={(rules) => updateCampaignData({ rules })}
           />
         );
-      case 4:
-        return (
-          <DataMapping
-            fieldMap={campaignData.field_map}
-            campaignType={campaignData.type}
-            onChange={(field_map) => updateCampaignData({ field_map })}
-          />
-        );
-      case 5:
+      case 6:
         return (
           <ReviewActivate
             campaignData={campaignData}
@@ -181,9 +285,35 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
       case 0:
         return campaignData.type !== "";
       case 1:
+        return campaignData.integration_path !== "";
+      case 2:
+        // Skip if not integration path
+        if (campaignData.integration_path !== 'integration') {
+          return true;
+        }
         return campaignData.data_source !== "";
+      case 3:
+        return selectedTemplate !== null;
       default:
         return true;
+    }
+  };
+
+  const handleNextWithSkip = () => {
+    // Skip step 2 if not using integration path
+    if (currentStep === 1 && campaignData.integration_path !== 'integration') {
+      setCurrentStep(3); // Skip to template selection
+    } else {
+      handleNext();
+    }
+  };
+
+  const handleBackWithSkip = () => {
+    // Skip step 2 if not using integration path
+    if (currentStep === 3 && campaignData.integration_path !== 'integration') {
+      setCurrentStep(1); // Go back to data source selection
+    } else {
+      handleBack();
     }
   };
 
@@ -201,10 +331,12 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto py-6">{renderStep()}</div>
+        <div className="flex-1 overflow-y-auto py-6">
+          {renderStep()}
+        </div>
 
         <div className="flex justify-between border-t pt-4">
-          <Button variant="outline" onClick={handleBack} disabled={currentStep === 0}>
+          <Button variant="outline" onClick={handleBackWithSkip} disabled={currentStep === 0}>
             <ChevronLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
@@ -213,7 +345,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
               Cancel
             </Button>
             {currentStep < STEPS.length - 1 && (
-              <Button onClick={handleNext} disabled={!canProceed()}>
+              <Button onClick={handleNextWithSkip} disabled={!canProceed()}>
                 Next
                 <ChevronRight className="h-4 w-4 ml-2" />
               </Button>

@@ -16,7 +16,7 @@ import { logAdminAction } from "@/lib/auditLog";
 export default function Teams() {
   const { loading: authLoading } = useAdminAuth();
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
+  const [inviteRole, setInviteRole] = useState<"admin" | "editor" | "member" | "viewer">("member");
   const [selectedOrg, setSelectedOrg] = useState("");
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -253,8 +253,10 @@ export default function Teams() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="member">Member</SelectItem>
+                    <SelectItem value="admin">Admin - Full access except role management</SelectItem>
+                    <SelectItem value="editor">Editor - Create and edit campaigns</SelectItem>
+                    <SelectItem value="viewer">Viewer - Read-only access</SelectItem>
+                    <SelectItem value="member">Member - Standard access</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

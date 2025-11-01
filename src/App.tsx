@@ -7,7 +7,7 @@ import { WebsiteProvider } from "@/contexts/WebsiteContext";
 import { AppLayout } from "./components/layouts/AppLayout";
 import { AdminLayout } from "./components/layouts/AdminLayout";
 import Login from "./pages/Login";
-import GetStarted from "./pages/GetStarted";
+import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Websites from "./pages/Websites";
@@ -35,11 +35,13 @@ import AdminSettings from "./pages/admin/Settings";
 import AdminHelpArticles from "./pages/admin/HelpArticles";
 import AdminTeams from "./pages/admin/Teams";
 import AdminManagement from "./pages/admin/AdminManagement";
+import AdminOnboarding from "./pages/admin/Onboarding";
 import AcceptInvite from "./pages/AcceptInvite";
 import WidgetAnalytics from "./pages/WidgetAnalytics";
 import Templates from "./pages/Templates";
 import SelectPlan from "./pages/SelectPlan";
-import CompleteSignup from "./pages/CompleteSignup";
+import Team from "./pages/Team";
+import ABTesting from "./pages/ABTesting";
 
 const queryClient = new QueryClient();
 
@@ -52,10 +54,10 @@ const App = () => (
         <WebsiteProvider>
         <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<GetStarted />} />
-        <Route path="/get-started" element={<GetStarted />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/signup" element={<Navigate to="/register" replace />} />
+        <Route path="/get-started" element={<Navigate to="/register" replace />} />
         <Route path="/select-plan" element={<SelectPlan />} />
-        <Route path="/complete-signup" element={<CompleteSignup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
@@ -73,6 +75,7 @@ const App = () => (
             <Route path="integrations" element={<AdminIntegrations />} />
             <Route path="billing" element={<AdminBilling />} />
             <Route path="admin-management" element={<AdminManagement />} />
+            <Route path="onboarding" element={<AdminOnboarding />} />
             <Route path="logs" element={<AdminLogs />} />
             <Route path="system" element={<AdminSystem />} />
             <Route path="settings" element={<AdminSettings />} />
@@ -92,6 +95,8 @@ const App = () => (
             <Route path="/settings" element={<Settings />} />
             <Route path="/billing" element={<Billing />} />
             <Route path="/account" element={<Account />} />
+            <Route path="/team" element={<Team />} />
+            <Route path="/ab-testing" element={<ABTesting />} />
             <Route path="/help" element={<Help />} />
             <Route path="/help/article/:slug" element={<HelpArticle />} />
           </Route>

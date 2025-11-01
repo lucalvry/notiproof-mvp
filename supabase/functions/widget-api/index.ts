@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
+import { checkRateLimit } from './rate-limit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,6 +12,35 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // FIX: Apply rate limiting - 1000 requests per hour per IP
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0] || 
+                     req.headers.get('x-real-ip') || 
+                     'unknown';
+    const rateLimitKey = `widget-api:${clientIp}`;
+    
+    const rateLimit = await checkRateLimit(rateLimitKey, {
+      max_requests: 1000,
+      window_seconds: 3600,
+    });
+    
+    if (!rateLimit.allowed) {
+      console.log('Rate limit exceeded for IP:', clientIp);
+      return new Response(JSON.stringify({
+        error: 'Rate limit exceeded',
+        retry_after: Math.ceil((rateLimit.reset - Date.now()) / 1000)
+      }), {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': '1000',
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': rateLimit.reset.toString(),
+          'Retry-After': Math.ceil((rateLimit.reset - Date.now()) / 1000).toString(),
+        }
+      });
+    }
+    
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -31,7 +61,7 @@ Deno.serve(async (req) => {
       // Find website by verification token (siteToken)
       const { data: website, error: websiteError } = await supabase
         .from('websites')
-        .select('id, domain, is_verified')
+        .select('id, domain, is_verified, user_id')
         .eq('verification_token', siteToken)
         .single();
 
@@ -54,6 +84,22 @@ Deno.serve(async (req) => {
         
         console.log('Website auto-verified:', website.domain);
       }
+      
+      // Fetch white-label settings for the website owner
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('white_label_settings')
+        .eq('id', website.user_id)
+        .single();
+      
+      const whiteLabelSettings = profile?.white_label_settings || {
+        enabled: false,
+        hide_branding: false,
+        custom_logo_url: "",
+        custom_colors: { primary: "#667eea", secondary: "#764ba2" },
+        custom_domain: "",
+        custom_brand_name: ""
+      };
 
       // Get all active widgets for this website
       const { data: widgets, error: widgetsError } = await supabase
@@ -68,19 +114,23 @@ Deno.serve(async (req) => {
       const widgetIds = (widgets || []).map(w => w.id);
       
       if (widgetIds.length === 0) {
-        return new Response(JSON.stringify({ widgets: [], events: [] }), {
+        return new Response(JSON.stringify({ 
+          widgets: [], 
+          events: [],
+          white_label: whiteLabelSettings
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      // Fetch events for all widgets
-      const allowedSources = ['natural', 'integration', 'quick-win'];
+      // Fetch events for all widgets - use valid DB enum values
+      const allowedSourcesDefault = ['manual', 'connector', 'tracking', 'demo', 'woocommerce', 'quick_win'];
       const { data: events, error: eventsError } = await supabase
         .from('events')
         .select('id, event_type, message_template, user_name, user_location, created_at, event_data, widget_id')
         .in('widget_id', widgetIds)
         .eq('moderation_status', 'approved')
-        .in('source', allowedSources)
+        .in('source', allowedSourcesDefault)
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -88,9 +138,14 @@ Deno.serve(async (req) => {
 
       return new Response(JSON.stringify({ 
         widgets: widgets || [],
-        events: events || []
+        events: events || [],
+        white_label: whiteLabelSettings
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+        },
       });
     }
 
@@ -143,14 +198,37 @@ Deno.serve(async (req) => {
         }
       }
 
-      const allowedSources = widget.allowed_event_sources || ['natural', 'integration', 'quick-win'];
+      // Map legacy allowed_event_sources to valid DB enum values
+      const legacySourceMapping: Record<string, string> = {
+        'natural': 'tracking',
+        'integration': 'connector',
+        'quick-win': 'quick_win'
+      };
+      
+      let allowedSources = widget.allowed_event_sources || [];
+      
+      // Map legacy names to valid enum values
+      const mappedSources = allowedSources.map((source: string) => 
+        legacySourceMapping[source] || source
+      );
+      
+      // Deduplicate and validate
+      const validSources = [...new Set(mappedSources)].filter((source: string) => 
+        ['manual', 'connector', 'tracking', 'demo', 'woocommerce', 'quick_win'].includes(source)
+      );
 
-      const { data: events, error } = await supabase
+      let query = supabase
         .from('events')
         .select('id, event_type, message_template, user_name, user_location, created_at, event_data')
         .eq('widget_id', identifier)
-        .eq('moderation_status', 'approved')
-        .in('source', allowedSources)
+        .eq('moderation_status', 'approved');
+      
+      // Only filter by source if we have valid sources
+      if (validSources.length > 0) {
+        query = query.in('source', validSources);
+      }
+      
+      const { data: events, error } = await query
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -263,21 +341,72 @@ Deno.serve(async (req) => {
     // POST /sessions - Track visitor session
     if (req.method === 'POST' && resource === 'sessions') {
       const body = await req.json();
-      const { widget_id, session_id, page_url, user_agent, ip_address } = body;
+      const { widget_id, site_token, session_id, page_url, user_agent } = body;
+      
+      let resolvedWidgetId = widget_id;
+      
+      // If widget_id is missing but site_token is present, resolve widget from website
+      if (!resolvedWidgetId && site_token) {
+        const { data: website } = await supabase
+          .from('websites')
+          .select('id')
+          .eq('verification_token', site_token)
+          .single();
+        
+        if (!website) {
+          return new Response(JSON.stringify({ error: 'Invalid site token' }), {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        // Find any active widget for this website
+        const { data: widget } = await supabase
+          .from('widgets')
+          .select('id')
+          .eq('website_id', website.id)
+          .eq('status', 'active')
+          .limit(1)
+          .single();
+        
+        if (!widget) {
+          return new Response(JSON.stringify({ error: 'No active widget found for site' }), {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        resolvedWidgetId = widget.id;
+      }
+      
+      if (!resolvedWidgetId) {
+        return new Response(JSON.stringify({ error: 'Missing widget_id or site_token' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Get IP from headers
+      const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0] || 
+                       req.headers.get('x-real-ip') || 
+                       null;
 
       const { error } = await supabase.from('visitor_sessions').upsert({
-        widget_id,
+        widget_id: resolvedWidgetId,
         session_id,
         page_url,
         user_agent,
-        ip_address,
+        ip_address: clientIp,
         last_seen_at: new Date().toISOString(),
         is_active: true,
       }, {
         onConflict: 'session_id'
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Session tracking error:', error);
+        throw error;
+      }
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CampaignTypeSelector } from "./CampaignTypeSelector";
-import { DataSourceSelector } from "./DataSourceSelector";
 import { DesignEditor } from "./DesignEditor";
 import { RulesTargeting } from "./RulesTargeting";
-import { DataMapping } from "./DataMapping";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,7 +27,6 @@ export function CampaignEditor({ campaignId, open, onClose, onSave }: CampaignEd
     data_source: "",
     settings: {},
     rules: {},
-    field_map: {},
   });
 
   useEffect(() => {
@@ -62,7 +59,6 @@ export function CampaignEditor({ campaignId, open, onClose, onSave }: CampaignEd
           startDate: data.start_date,
           endDate: data.end_date,
         },
-        field_map: {},
       });
     } catch (error) {
       console.error("Error loading campaign:", error);
@@ -116,10 +112,8 @@ export function CampaignEditor({ campaignId, open, onClose, onSave }: CampaignEd
 
   const steps = [
     { number: 1, title: "Campaign Type", component: CampaignTypeSelector },
-    { number: 2, title: "Data Source", component: DataSourceSelector },
-    { number: 3, title: "Design", component: DesignEditor },
-    { number: 4, title: "Rules & Targeting", component: RulesTargeting },
-    { number: 5, title: "Data Mapping", component: DataMapping },
+    { number: 2, title: "Design", component: DesignEditor },
+    { number: 3, title: "Rules & Targeting", component: RulesTargeting },
   ];
 
   if (loading) {
@@ -165,32 +159,16 @@ export function CampaignEditor({ campaignId, open, onClose, onSave }: CampaignEd
           )}
 
           {step === 2 && (
-            <DataSourceSelector
-              selectedSource={campaignData.data_source}
-              campaignType={campaignData.type}
-              onSelect={(source: string) => updateCampaignData({ data_source: source })}
-            />
-          )}
-
-          {step === 3 && (
             <DesignEditor
               settings={campaignData.settings}
               onChange={(settings: any) => updateCampaignData({ settings })}
             />
           )}
 
-          {step === 4 && (
+          {step === 3 && (
             <RulesTargeting
               rules={campaignData.rules}
               onChange={(rules: any) => updateCampaignData({ rules })}
-            />
-          )}
-
-          {step === 5 && (
-            <DataMapping
-              campaignType={campaignData.type}
-              fieldMap={campaignData.field_map}
-              onChange={(field_map: any) => updateCampaignData({ field_map })}
             />
           )}
 

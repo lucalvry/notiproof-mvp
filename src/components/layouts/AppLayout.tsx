@@ -1,11 +1,14 @@
-import { ReactNode, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare, Plug, Layout } from "lucide-react";
+import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare, Plug, Layout, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { SetupGuideButton } from "@/components/onboarding/SetupGuideButton";
+import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,6 +39,7 @@ const navItems: NavItem[] = [
   { label: "Integrations", icon: Plug, path: "/integrations", section: "website" },
   { label: "Settings", icon: Settings, path: "/settings", section: "website" },
   { label: "All Websites", icon: Globe, path: "/websites", section: "global" },
+  { label: "Team", icon: Users, path: "/team", section: "global" },
   { label: "Billing", icon: CreditCard, path: "/billing", section: "global" },
   { label: "Account", icon: User, path: "/account", section: "global" },
 ];
@@ -47,6 +51,7 @@ export function AppLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
 
   // Real data from contexts and hooks
   const { currentWebsite, setCurrentWebsite, websites, isLoading: websitesLoading } = useWebsiteContext();
@@ -54,14 +59,52 @@ export function AppLayout() {
   const sitesUsed = websites.length;
 
   useEffect(() => {
-    // Check initial auth state
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const checkAuthAndSubscription = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
+      
       if (!session) {
         navigate("/login");
+        setLoading(false);
+        return;
       }
+
+      // FIX: Enforce email verification
+      const emailVerified = session.user.email_confirmed_at || session.user.user_metadata?.email_verified;
+      if (!emailVerified && location.pathname !== '/account') {
+        toast.error("Please verify your email address to continue", {
+          description: "Check your inbox for the verification link",
+          duration: 10000,
+        });
+        navigate('/account');
+        setLoading(false);
+        return;
+      }
+
+      // Check if user has active subscription
+      const { data: subscription } = await supabase
+        .from('user_subscriptions')
+        .select('status')
+        .eq('user_id', session.user.id)
+        .in('status', ['active', 'trialing'])
+        .single();
+
+      // Allow dashboard access if coming from Stripe checkout (payment verification in progress)
+      const urlParams = new URLSearchParams(window.location.search);
+      const isPaymentVerification = urlParams.get('payment_success') === 'true' && urlParams.get('session_id');
+
+      // If no active subscription, redirect to plan selection (unless verifying payment)
+      if (!subscription && location.pathname !== '/select-plan' && !isPaymentVerification) {
+        toast.info("Please choose a plan to continue");
+        navigate('/select-plan');
+        setLoading(false);
+        return;
+      }
+
       setLoading(false);
-    });
+    };
+
+    checkAuthAndSubscription();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -245,6 +288,14 @@ export function AppLayout() {
 
           <div className="flex-1" />
 
+          {/* Setup Guide Button */}
+          {user?.id && (
+            <SetupGuideButton 
+              userId={user.id} 
+              onOpenWizard={() => setShowOnboardingWizard(true)} 
+            />
+          )}
+
           {/* Website Selector */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -317,6 +368,16 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Reopenable Onboarding Wizard */}
+      {user?.id && (
+        <OnboardingWizard
+          open={showOnboardingWizard}
+          onComplete={() => setShowOnboardingWizard(false)}
+          planName={planName}
+          userId={user.id}
+        />
+      )}
     </div>
   );
 }

@@ -3,11 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings } from "lucide-react";
+import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, Upload } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { IntegrationConnectionDialog } from "@/components/integrations/IntegrationConnectionDialog";
+import { CSVUploadDialog } from "@/components/integrations/CSVUploadDialog";
 import { SocialProofConnectors } from "@/components/integrations/SocialProofConnectors";
 import { getIntegrationMetadata } from "@/lib/integrationMetadata";
 
@@ -29,6 +30,7 @@ export default function Integrations() {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [csvDialogOpen, setCSVDialogOpen] = useState(false);
   const [currentWebsiteId, setCurrentWebsiteId] = useState<string | null>(null);
   const [integrationQuotas, setIntegrationQuotas] = useState<Record<string, { quota: number; used: number }>>({});
 
@@ -189,11 +191,17 @@ export default function Integrations() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Integrations</h1>
-        <p className="text-muted-foreground">
-          Connect your favorite tools to automatically create social proof notifications
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Integrations</h1>
+          <p className="text-muted-foreground">
+            Connect your favorite tools to automatically create social proof notifications
+          </p>
+        </div>
+        <Button onClick={() => setCSVDialogOpen(true)} variant="outline">
+          <Upload className="h-4 w-4 mr-2" />
+          Import CSV
+        </Button>
       </div>
 
       <Tabs defaultValue="all" className="space-y-6">
@@ -807,6 +815,13 @@ export default function Integrations() {
           onSuccess={fetchIntegrations}
         />
       )}
+
+      <CSVUploadDialog
+        open={csvDialogOpen}
+        onOpenChange={setCSVDialogOpen}
+        websiteId={currentWebsiteId || ''}
+        onSuccess={fetchIntegrations}
+      />
     </div>
   );
 }

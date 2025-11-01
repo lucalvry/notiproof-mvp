@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { isValidBusinessType, BusinessType } from "@/lib/businessTypes";
 
 export interface Website {
   id: string;
@@ -70,6 +71,11 @@ export const useWebsites = (userId: string | undefined) => {
 
   const addWebsite = useMutation({
     mutationFn: async (data: { name: string; domain: string; business_type: string }) => {
+      // Validate business type
+      if (!isValidBusinessType(data.business_type)) {
+        throw new Error(`Invalid business type: ${data.business_type}. Please select a valid business type.`);
+      }
+
       // Get the current user ID from auth
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
@@ -77,27 +83,30 @@ export const useWebsites = (userId: string | undefined) => {
         throw new Error("You must be logged in to add a website");
       }
 
-      // Get user's subscription to check limits
-      const { data: subscription } = await supabase
-        .from('user_subscriptions')
-        .select(`
-          *,
-          plan:subscription_plans(max_websites)
-        `)
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
-
       // Get current website count
       const { count: currentCount } = await supabase
         .from('websites')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id);
 
-      const maxWebsites = subscription?.plan?.max_websites ?? 1;
-      
-      if (currentCount !== null && currentCount >= maxWebsites) {
-        throw new Error(`You've reached your plan limit of ${maxWebsites} website${maxWebsites !== 1 ? 's' : ''}. Please upgrade to add more.`);
+      // Allow first website without subscription check (for onboarding)
+      if (currentCount !== null && currentCount > 0) {
+        // Get user's subscription to check limits for additional websites
+        const { data: subscription } = await supabase
+          .from('user_subscriptions')
+          .select(`
+            *,
+            plan:subscription_plans(max_websites)
+          `)
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .single();
+
+        const maxWebsites = subscription?.plan?.max_websites ?? 1;
+        
+        if (currentCount >= maxWebsites) {
+          throw new Error(`You've reached your plan limit of ${maxWebsites} website${maxWebsites !== 1 ? 's' : ''}. Please upgrade to add more.`);
+        }
       }
 
       const { data: newWebsite, error } = await supabase
@@ -106,7 +115,7 @@ export const useWebsites = (userId: string | undefined) => {
           user_id: user.id,
           name: data.name,
           domain: data.domain,
-          business_type: data.business_type as any,
+          business_type: data.business_type as BusinessType,
         }])
         .select()
         .single();

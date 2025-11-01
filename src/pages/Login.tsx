@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { Chrome } from "lucide-react";
 import logo from "@/assets/NotiProof_Logo.png";
 
 export default function Login() {
@@ -28,8 +29,38 @@ export default function Login() {
 
       if (!data.user) throw new Error("Login failed");
 
+      // Check subscription status intelligently
+      const { data: subscriptions } = await supabase
+        .from('user_subscriptions')
+        .select('id, status, plan_id')
+        .eq('user_id', data.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const subscription = subscriptions?.[0];
+      
       toast.success("Logged in successfully!");
-      navigate("/websites");
+      
+      if (!subscription) {
+        // No subscription at all - first time user
+        toast.info("Please select a plan to continue");
+        navigate('/select-plan');
+      } else if (['active', 'trialing', 'past_due'].includes(subscription.status)) {
+        // Active subscription - proceed to dashboard
+        navigate("/websites");
+      } else if (['incomplete', 'incomplete_expired'].includes(subscription.status)) {
+        // Payment failed but can be retried
+        toast.error("Your payment didn't complete. Please try again.");
+        navigate(`/select-plan?retry=true&subscription_id=${subscription.id}`);
+      } else if (subscription.status === 'canceled' || subscription.status === 'cancelled') {
+        // Cancelled subscription - offer reactivation
+        toast.info("Your subscription was cancelled. Select a plan to reactivate.");
+        navigate(`/select-plan?reactivate=true`);
+      } else {
+        // Unknown status - redirect to select plan
+        toast.info("Please complete your subscription setup");
+        navigate('/select-plan');
+      }
     } catch (error: any) {
       console.error("Login error:", error);
       if (error.message?.includes("Invalid login credentials")) {
@@ -39,6 +70,25 @@ export default function Login() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/websites`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast.error(error.message || "Failed to login with Google");
     }
   };
 
@@ -54,8 +104,29 @@ export default function Login() {
             <CardDescription>Sign in to your NotiProof account</CardDescription>
           </div>
         </CardHeader>
-        <form onSubmit={handleLogin}>
-          <CardContent className="space-y-4">
+        <CardContent className="space-y-4">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={handleGoogleLogin}
+          >
+            <Chrome className="mr-2 h-4 w-4" />
+            Continue with Google
+          </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or continue with email
+              </span>
+            </div>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -85,8 +156,6 @@ export default function Login() {
                 required
               />
             </div>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in..." : "Sign in"}
             </Button>
@@ -96,8 +165,8 @@ export default function Login() {
                 Sign up
               </Link>
             </p>
-          </CardFooter>
-        </form>
+          </form>
+        </CardContent>
       </Card>
     </div>
   );

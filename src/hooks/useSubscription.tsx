@@ -51,10 +51,10 @@ export const useSubscription = (userId: string | undefined) => {
 
   const plan = subscription?.plan;
   
-  // No default access - users MUST have a subscription
+  // Users need active subscription for access
   const sitesAllowed = plan?.max_websites ?? 0;
   const eventsAllowed = plan?.max_events_per_month ?? 0;
-  const planName = plan?.name ?? "No Plan";
+  const planName = plan?.name ?? "No Subscription";
   const isBusinessPlan = planName === "Business";
   
   // Trial information

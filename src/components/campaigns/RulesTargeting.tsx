@@ -1,16 +1,15 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
-import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Settings2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { TargetingRules, DEFAULT_TARGETING_RULES } from "@/types/targeting";
+import { URLRulesCard } from "./targeting/URLRulesCard";
+import { GeoTargetingCard } from "./targeting/GeoTargetingCard";
+import { DeviceTargetingCard } from "./targeting/DeviceTargetingCard";
+import { BehaviorTargetingCard } from "./targeting/BehaviorTargetingCard";
+import { ScheduleTargetingCard } from "./targeting/ScheduleTargetingCard";
 
 interface RulesTargetingProps {
   rules: any;
@@ -18,230 +17,215 @@ interface RulesTargetingProps {
 }
 
 export function RulesTargeting({ rules, onChange }: RulesTargetingProps) {
-  const [config, setConfig] = useState({
-    frequency: "10",
-    sessionLimit: "5",
-    pageTargeting: "all",
-    customUrls: "",
-    scheduling: false,
-    startDate: "",
-    endDate: "",
-    deviceTargeting: "both",
-    geoEnabled: false,
-    countries: "",
-    timeBasedEnabled: false,
-    timeWindow: "",
-    ...rules,
+  const [targetingRules, setTargetingRules] = useState<TargetingRules>(() => {
+    // Merge provided rules with defaults
+    return {
+      ...DEFAULT_TARGETING_RULES,
+      ...rules,
+      url_rules: {
+        ...DEFAULT_TARGETING_RULES.url_rules,
+        ...rules.url_rules,
+      },
+      countries: {
+        ...DEFAULT_TARGETING_RULES.countries,
+        ...rules.countries,
+      },
+      traffic_sources: {
+        ...DEFAULT_TARGETING_RULES.traffic_sources,
+        ...rules.traffic_sources,
+      },
+      behavior: {
+        ...DEFAULT_TARGETING_RULES.behavior,
+        ...rules.behavior,
+      },
+      schedule: {
+        ...DEFAULT_TARGETING_RULES.schedule,
+        ...rules.schedule,
+      },
+      display: {
+        ...DEFAULT_TARGETING_RULES.display,
+        ...rules.display,
+      },
+    };
   });
 
-  const updateConfig = (updates: Partial<typeof config>) => {
-    const newConfig = { ...config, ...updates };
-    setConfig(newConfig);
-    onChange(newConfig);
-  };
+  useEffect(() => {
+    onChange(targetingRules);
+  }, [targetingRules]);
 
-  const startDate = rules.startDate ? new Date(rules.startDate) : undefined;
-  const endDate = rules.endDate ? new Date(rules.endDate) : undefined;
+  const updateRules = (updates: Partial<TargetingRules>) => {
+    setTargetingRules((prev) => ({ ...prev, ...updates }));
+  };
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Campaign Schedule</CardTitle>
-          <CardDescription>Set when your campaign should run</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Start Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? format(startDate, "PPP") : "Select start date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={(date) => updateConfig({ startDate: date?.toISOString() })}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-2">
-              <Label>End Date (Optional)</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? format(endDate, "PPP") : "No end date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    onSelect={(date) => updateConfig({ endDate: date?.toISOString() })}
-                    disabled={(date) => startDate ? date < startDate : false}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Display Frequency</CardTitle>
-          <CardDescription>Control how often notifications appear</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Show notification every (seconds)</Label>
-            <Input
-              type="number"
-              value={config.frequency}
-              onChange={(e) => updateConfig({ frequency: e.target.value })}
-              min="1"
-              max="60"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Maximum per session</Label>
-            <Input
-              type="number"
-              value={config.sessionLimit}
-              onChange={(e) => updateConfig({ sessionLimit: e.target.value })}
-              min="1"
-              max="20"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Page Targeting</CardTitle>
-          <CardDescription>Choose where notifications appear</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Select
-            value={config.pageTargeting}
-            onValueChange={(value) => updateConfig({ pageTargeting: value })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Pages</SelectItem>
-              <SelectItem value="home">Homepage Only</SelectItem>
-              <SelectItem value="product">Product Pages</SelectItem>
-              <SelectItem value="checkout">Checkout Pages</SelectItem>
-              <SelectItem value="custom">Custom URLs</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {config.pageTargeting === "custom" && (
-            <div className="space-y-2">
-              <Label>Custom URLs (one per line)</Label>
-              <Textarea
-                value={config.customUrls}
-                onChange={(e) => updateConfig({ customUrls: e.target.value })}
-                placeholder="/products/item-1&#10;/landing-page&#10;/special-offer"
-                rows={4}
-              />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Scheduling</CardTitle>
-          <CardDescription>Set campaign start and end dates</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label>Enable scheduling</Label>
-            <Switch
-              checked={config.scheduling}
-              onCheckedChange={(checked) => updateConfig({ scheduling: checked })}
-            />
-          </div>
-          {config.scheduling && (
-            <>
-              <div className="space-y-2">
-                <Label>Start Date & Time</Label>
-                <Input
-                  type="datetime-local"
-                  value={config.startDate}
-                  onChange={(e) => updateConfig({ startDate: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>End Date & Time</Label>
-                <Input
-                  type="datetime-local"
-                  value={config.endDate}
-                  onChange={(e) => updateConfig({ endDate: e.target.value })}
-                />
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Device Targeting</CardTitle>
-          <CardDescription>Choose which devices to show notifications on</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Select
-            value={config.deviceTargeting}
-            onValueChange={(value) => updateConfig({ deviceTargeting: value })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="both">Desktop & Mobile</SelectItem>
-              <SelectItem value="desktop">Desktop Only</SelectItem>
-              <SelectItem value="mobile">Mobile Only</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Advanced Options</CardTitle>
-              <CardDescription>Pro features for enhanced targeting</CardDescription>
-            </div>
-            <Badge variant="secondary">Pro</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between opacity-50">
-            <Label>Geo Targeting</Label>
-            <Switch disabled />
-          </div>
-          <div className="flex items-center justify-between opacity-50">
-            <Label>Time-based Targeting</Label>
-            <Switch disabled />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Upgrade to Pro to unlock geo-targeting and time-based rules
+      <div className="flex items-center gap-2 mb-4">
+        <Settings2 className="h-6 w-6 text-primary" />
+        <div>
+          <h3 className="text-lg font-semibold">Campaign Targeting & Rules</h3>
+          <p className="text-sm text-muted-foreground">
+            Configure when, where, and to whom your campaign will be displayed
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      <Tabs defaultValue="display" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="display">Display Settings</TabsTrigger>
+          <TabsTrigger value="audience">Audience</TabsTrigger>
+          <TabsTrigger value="behavior">Behavior & Schedule</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="display" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Display Frequency</CardTitle>
+              <CardDescription>Control how often notifications appear</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Initial Delay (milliseconds)</Label>
+                <Input
+                  type="number"
+                  value={targetingRules.display.initial_delay_ms || 0}
+                  onChange={(e) =>
+                    updateRules({
+                      display: {
+                        ...targetingRules.display,
+                        initial_delay_ms: parseInt(e.target.value) || 0,
+                      },
+                    })
+                  }
+                  min="0"
+                  max="60000"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Wait before showing first notification (0 = show immediately)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Display Duration (milliseconds)</Label>
+                <Input
+                  type="number"
+                  value={targetingRules.display.display_duration_ms || 5000}
+                  onChange={(e) =>
+                    updateRules({
+                      display: {
+                        ...targetingRules.display,
+                        display_duration_ms: parseInt(e.target.value) || 5000,
+                      },
+                    })
+                  }
+                  min="1000"
+                  max="30000"
+                />
+                <p className="text-xs text-muted-foreground">
+                  How long each notification stays visible
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Interval Between Notifications (milliseconds)</Label>
+                <Input
+                  type="number"
+                  value={targetingRules.display.interval_ms || 8000}
+                  onChange={(e) =>
+                    updateRules({
+                      display: {
+                        ...targetingRules.display,
+                        interval_ms: parseInt(e.target.value) || 8000,
+                      },
+                    })
+                  }
+                  min="1000"
+                  max="120000"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Time between notifications
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Max Per Page</Label>
+                  <Input
+                    type="number"
+                    value={targetingRules.display.max_per_page || 5}
+                    onChange={(e) =>
+                      updateRules({
+                        display: {
+                          ...targetingRules.display,
+                          max_per_page: parseInt(e.target.value) || 5,
+                        },
+                      })
+                    }
+                    min="1"
+                    max="20"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Max Per Session</Label>
+                  <Input
+                    type="number"
+                    value={targetingRules.display.max_per_session || 20}
+                    onChange={(e) =>
+                      updateRules({
+                        display: {
+                          ...targetingRules.display,
+                          max_per_session: parseInt(e.target.value) || 20,
+                        },
+                      })
+                    }
+                    min="1"
+                    max="100"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="audience" className="space-y-4 mt-4">
+          <URLRulesCard
+            includeUrls={targetingRules.url_rules.include_urls}
+            excludeUrls={targetingRules.url_rules.exclude_urls}
+            onChange={(include_urls, exclude_urls) =>
+              updateRules({
+                url_rules: { include_urls, exclude_urls },
+              })
+            }
+          />
+
+          <GeoTargetingCard
+            includeCountries={targetingRules.countries.include}
+            excludeCountries={targetingRules.countries.exclude}
+            onChange={(include, exclude) =>
+              updateRules({
+                countries: { include, exclude },
+              })
+            }
+          />
+
+          <DeviceTargetingCard
+            devices={targetingRules.devices}
+            onChange={(devices) => updateRules({ devices })}
+          />
+        </TabsContent>
+
+        <TabsContent value="behavior" className="space-y-4 mt-4">
+          <BehaviorTargetingCard
+            behavior={targetingRules.behavior}
+            onChange={(behavior) => updateRules({ behavior })}
+          />
+
+          <ScheduleTargetingCard
+            schedule={targetingRules.schedule}
+            onChange={(schedule) => updateRules({ schedule })}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

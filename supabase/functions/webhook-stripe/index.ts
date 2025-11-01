@@ -227,6 +227,24 @@ async function handleCheckoutCompleted(supabase: any, session: any) {
   const { data: existingUser } = await supabase.auth.admin.getUserByEmail(customerEmail);
   const userId = existingUser?.user?.id || null;
   
+  // FIX: Check for orphaned subscriptions and link them
+  if (userId) {
+    const { data: orphanedSubs } = await supabase
+      .from('user_subscriptions')
+      .select('id')
+      .eq('stripe_customer_id', stripeCustomerId)
+      .is('user_id', null);
+    
+    if (orphanedSubs && orphanedSubs.length > 0) {
+      console.log('Linking orphaned subscriptions to user:', userId);
+      await supabase
+        .from('user_subscriptions')
+        .update({ user_id: userId })
+        .eq('stripe_customer_id', stripeCustomerId)
+        .is('user_id', null);
+    }
+  }
+  
   console.log('Processing checkout:', {
     email: customerEmail,
     userExists: !!userId,
@@ -341,16 +359,28 @@ async function handleSubscriptionUpdate(supabase: any, subscription: any) {
     ? new Date(subscription.trial_end * 1000).toISOString() 
     : null;
   
+  // Handle potentially null period dates
+  const currentPeriodStart = subscription.current_period_start 
+    ? new Date(subscription.current_period_start * 1000).toISOString()
+    : null;
+  const currentPeriodEnd = subscription.current_period_end 
+    ? new Date(subscription.current_period_end * 1000).toISOString()
+    : null;
+  
+  const updateData: any = {
+    status: subscription.status,
+    cancel_at_period_end: subscription.cancel_at_period_end,
+    trial_start: trialStart,
+    trial_end: trialEnd,
+  };
+  
+  // Only include period dates if they're valid
+  if (currentPeriodStart) updateData.current_period_start = currentPeriodStart;
+  if (currentPeriodEnd) updateData.current_period_end = currentPeriodEnd;
+  
   const { error } = await supabase
     .from('user_subscriptions')
-    .update({
-      status: subscription.status, // trialing → active (when trial ends and payment succeeds)
-      current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-      cancel_at_period_end: subscription.cancel_at_period_end,
-      trial_start: trialStart,
-      trial_end: trialEnd,
-    })
+    .update(updateData)
     .eq('stripe_subscription_id', subscription.id);
 
   if (error) {

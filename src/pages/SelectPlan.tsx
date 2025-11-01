@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Check, Sparkles } from "lucide-react";
+import { Check, Sparkles, AlertCircle, RefreshCw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import logoImage from "@/assets/NotiProof_Logo.png";
 
 interface UserData {
@@ -17,28 +18,38 @@ interface UserData {
 export default function SelectPlan() {
   const navigate = useNavigate();
   const location = useLocation();
-  const userData = (location.state as { userData?: UserData })?.userData;
-  
+  const [user, setUser] = useState<any>(null);
   const [plans, setPlans] = useState<any[]>([]);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [loading, setLoading] = useState(false);
   const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<{ message: string; planId: string } | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  
+  // Check for retry/reactivate params
+  const searchParams = new URLSearchParams(location.search);
+  const isRetry = searchParams.get('retry') === 'true';
+  const subscriptionId = searchParams.get('subscription_id');
+  const isReactivate = searchParams.get('reactivate') === 'true';
 
   useEffect(() => {
     const loadPlans = async () => {
-      // Check if user data was provided
-      if (!userData) {
-        toast.error("Please start from the signup page");
-        navigate('/signup');
+      // Use getSession for more reliable auth check
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        toast.error("Please create an account first");
+        navigate('/register');
         return;
       }
 
-      // Load plans
+      setUser(session.user);
+
+      // Load plans (excluding Free plan which is now deleted)
       const { data, error } = await supabase
         .from('subscription_plans')
         .select('*')
         .eq('is_active', true)
-        .neq('name', 'Free')
         .order('price_monthly');
 
       if (error) {
@@ -50,15 +61,15 @@ export default function SelectPlan() {
     };
 
     loadPlans();
-  }, [navigate, userData]);
+  }, [navigate]);
 
-  const handleStartTrial = async (plan: any) => {
-    if (!userData) {
-      toast.error("Please start from the signup page");
-      navigate('/get-started');
-      return;
+  const handleStartTrial = async (plan: any, isRetry = false) => {
+    // Clear previous error when starting new attempt
+    if (!isRetry) {
+      setErrorDetails(null);
+      setRetryCount(0);
     }
-
+    
     setProcessingPlanId(plan.id);
     setLoading(true);
 
@@ -68,31 +79,28 @@ export default function SelectPlan() {
         : plan.stripe_price_id_yearly;
 
       if (!priceId) {
-        toast.error("This plan is not available. Please contact support.");
-        return;
+        throw new Error("This plan is not available. Please contact support.");
       }
 
-      // Store user data and plan selection for post-payment account creation
-      localStorage.setItem('pendingSignup', JSON.stringify({
-        fullName: userData.fullName,
-        email: userData.email,
-        planId: plan.id,
-        priceId,
-        billingPeriod,
-      }));
+      const loadingToast = toast.loading(
+        isRetry ? "Retrying checkout..." : "Preparing secure checkout..."
+      );
 
-      toast.loading("Redirecting to secure checkout...");
-
-      // Create Stripe checkout session WITHOUT account creation
+      // Create Stripe checkout session with user already logged in
       const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
         body: {
           priceId,
           billingPeriod,
-          customerEmail: userData.email,
-          customerName: userData.fullName,
+          customerEmail: user.email,
+          customerName: user.user_metadata?.full_name || user.email,
+          userId: user.id,
           returnUrl: window.location.origin,
+          isRetry: isRetry || isReactivate,
+          existingSubscriptionId: subscriptionId || null,
         },
       });
+
+      toast.dismiss(loadingToast);
 
       if (error) {
         console.error('Edge function error:', error);
@@ -100,42 +108,131 @@ export default function SelectPlan() {
       }
 
       if (data?.error) {
-        toast.error(data.reason || data.error);
-        return;
+        throw new Error(data.reason || data.error);
       }
 
       if (data?.url) {
-        toast.dismiss();
-        // Redirect to Stripe Checkout
-        window.location.assign(data.url);
+        toast.success("Redirecting to checkout...", { duration: 2000 });
+        // Small delay to show success message
+        setTimeout(() => {
+          window.location.assign(data.url);
+        }, 500);
       } else {
-        throw new Error('No checkout URL returned');
+        throw new Error('No checkout URL returned. Please try again.');
       }
 
     } catch (error: any) {
       console.error('Error starting trial:', error);
-      toast.dismiss();
-      toast.error(error.message || "Failed to start trial. Please try again.");
-      localStorage.removeItem('pendingSignup');
+      
+      // Determine if error is retryable
+      const isRetryable = 
+        error.message?.includes('timeout') ||
+        error.message?.includes('network') ||
+        error.message?.includes('500') ||
+        error.message?.includes('503') ||
+        retryCount < 2; // Allow up to 2 automatic retries
+      
+      // User-friendly error messages
+      let userMessage = "We couldn't complete your request.";
+      
+      if (error.message?.includes('Stripe')) {
+        userMessage = "There was an issue with the payment system.";
+      } else if (error.message?.includes('network') || error.message?.includes('timeout')) {
+        userMessage = "Connection issue detected.";
+      } else if (error.message?.includes('not available')) {
+        userMessage = error.message;
+      }
+      
+      setErrorDetails({
+        message: userMessage,
+        planId: plan.id
+      });
+      
+      toast.error(userMessage + (isRetryable ? " Please try again." : ""));
+      
+      // Auto-retry for certain errors
+      if (isRetryable && retryCount < 2 && !error.message?.includes('not available')) {
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 4000); // 1s, 2s, 4s max
+        
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          handleStartTrial(plan, true);
+        }, delay);
+        
+        toast.info(`Retrying automatically in ${delay / 1000}s...`, { duration: delay });
+      }
     } finally {
       setLoading(false);
       setProcessingPlanId(null);
     }
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
       {/* Header with Logo */}
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center px-4">
+        <div className="container flex h-16 items-center justify-between px-4">
           <Link to="/" className="flex items-center gap-2">
             <img src={logoImage} alt="NotiProof" className="h-8" />
           </Link>
+          {user && (
+            <Button variant="outline" size="sm" onClick={handleLogout}>
+              Logout
+            </Button>
+          )}
         </div>
       </header>
 
       {/* Main Content */}
       <div className="container max-w-6xl mx-auto p-8">
+        {/* Retry/Reactivate Alert */}
+        {(isRetry || isReactivate) && (
+          <Alert className="mb-6 border-warning bg-warning/10">
+            <AlertCircle className="h-4 w-4 text-warning" />
+            <AlertDescription>
+              {isRetry ? (
+                <span>
+                  <strong>Payment Incomplete:</strong> Your previous payment didn't complete. 
+                  Please try again to activate your subscription.
+                </span>
+              ) : (
+                <span>
+                  <strong>Welcome Back:</strong> Select a plan to reactivate your subscription.
+                </span>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Error Alert with Retry */}
+        {errorDetails && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>{errorDetails.message}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const plan = plans.find(p => p.id === errorDetails.planId);
+                  if (plan) {
+                    handleStartTrial(plan);
+                  }
+                }}
+                disabled={loading}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Try Again
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Loading State */}
         {plans.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
@@ -228,7 +325,14 @@ export default function SelectPlan() {
                   onClick={() => handleStartTrial(plan)}
                   disabled={loading}
                 >
-                  {processingPlanId === plan.id ? 'Processing...' : 'Start Free Trial'}
+                  {processingPlanId === plan.id ? (
+                    <span className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                      Processing...
+                    </span>
+                  ) : (
+                    'Start Free Trial'
+                  )}
                 </Button>
               </Card>
             );

@@ -96,68 +96,24 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Try to get authenticated user
-    let userId: string | null = null;
-    const authHeader = req.headers.get('Authorization');
+    // Get userId from session metadata (user already exists from Register page)
+    const userId = session.metadata?.user_id || session.client_reference_id;
     
-    if (authHeader) {
-      const token = authHeader.replace('Bearer ', '');
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-      
-      if (!authError && user) {
-        userId = user.id;
-        console.log('👤 Authenticated user:', userId);
-      }
-    }
-
-    // If no authenticated user but signup email exists, create the account
-    if (!userId && signupEmail) {
-      console.log('📧 Creating new user for:', signupEmail);
-      
-      // Create user with email confirmation already done
-      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-        email: signupEmail,
-        email_confirm: true,
-        user_metadata: {
-          full_name: signupFullName || '',
-        },
-      });
-
-      if (createError || !newUser.user) {
-        console.error('❌ Failed to create user:', createError);
-        return new Response(JSON.stringify({ 
-          error: 'Failed to create user account',
-          verified: false 
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      userId = newUser.user.id;
-      console.log('✅ User created:', userId);
-
-      // Create profile
-      await supabase.from('profiles').insert({
-        id: userId,
-        email: signupEmail,
-        full_name: signupFullName || '',
-      });
-    }
-
     if (!userId) {
-      console.error('❌ No user ID available');
+      console.error('❌ No user ID in session metadata');
       return new Response(JSON.stringify({ 
-        error: 'User authentication required',
+        error: 'User ID missing from checkout session',
         verified: false 
       }), {
-        status: 401,
+        status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    
+    console.log('👤 User from session metadata:', userId);
 
     // Get subscription details from Stripe if available
-    let subscriptionStatus = 'active';
+    let subscriptionStatus = 'trialing'; // Default to trialing for new signups
     let trialStart = null;
     let trialEnd = null;
     let currentPeriodStart = null;
@@ -179,24 +135,52 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Upsert user subscription
-    console.log('💾 Upserting subscription for user:', userId);
-    const { error: upsertError } = await supabase
+    // Check if this is an upgrade (user already has a subscription)
+    const { data: existingSubscription } = await supabase
       .from('user_subscriptions')
-      .upsert({
-        user_id: userId,
-        plan_id: plans.id,
-        stripe_customer_id: customerId,
-        stripe_subscription_id: subscriptionId,
-        status: subscriptionStatus,
-        trial_start: trialStart,
-        trial_end: trialEnd,
-        current_period_start: currentPeriodStart,
-        current_period_end: currentPeriodEnd,
-        updated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'user_id',
-      });
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    // Upsert user subscription
+    console.log('💾 Upserting subscription for user:', userId, {
+      isUpgrade: !!existingSubscription
+    });
+    
+    // If subscription exists, update it. Otherwise insert new one
+    let upsertError = null;
+    if (existingSubscription) {
+      const { error } = await supabase
+        .from('user_subscriptions')
+        .update({
+          plan_id: plans.id,
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          status: subscriptionStatus,
+          trial_start: trialStart,
+          trial_end: trialEnd,
+          current_period_start: currentPeriodStart,
+          current_period_end: currentPeriodEnd,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
+      upsertError = error;
+    } else {
+      const { error } = await supabase
+        .from('user_subscriptions')
+        .insert({
+          user_id: userId,
+          plan_id: plans.id,
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          status: subscriptionStatus,
+          trial_start: trialStart,
+          trial_end: trialEnd,
+          current_period_start: currentPeriodStart,
+          current_period_end: currentPeriodEnd,
+        });
+      upsertError = error;
+    }
 
     if (upsertError) {
       console.error('❌ Failed to upsert subscription:', upsertError);
@@ -238,14 +222,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log('✅ Subscription verified and saved successfully');
+    console.log('✅ Subscription verified and saved successfully', {
+      userId,
+      planName: plans.name,
+      status: subscriptionStatus,
+      isUpgrade: !!existingSubscription
+    });
 
     return new Response(JSON.stringify({
       verified: true,
       status: subscriptionStatus,
       planName: plans.name,
       stripeCustomerId: customerId,
-      subscriptionId,
+      subscriptionId: subscriptionId, // Return this for CompleteSignup
       trial_end: trialEnd,
       userId,
     }), {

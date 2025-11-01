@@ -1,4 +1,31 @@
-import { ShoppingCart, Users, Trophy, MessageSquare, Zap, Upload, Camera, Calendar, Headphones, Newspaper, TrendingUp, Heart, Award, CreditCard, DollarSign, Shield, GraduationCap } from "lucide-react";
+import { 
+  ShoppingCart, 
+  Users, 
+  Trophy, 
+  MessageSquare, 
+  Zap, 
+  Upload, 
+  Camera, 
+  Calendar, 
+  Headphones, 
+  Newspaper, 
+  TrendingUp, 
+  Heart, 
+  Award, 
+  CreditCard, 
+  DollarSign, 
+  Shield, 
+  GraduationCap,
+  Package,
+  Star,
+  Eye,
+  Clock,
+  UserPlus,
+  Rocket,
+  FileText,
+  Download,
+  Share2
+} from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -12,20 +39,36 @@ interface CampaignType {
 }
 
 const CAMPAIGN_TYPES: CampaignType[] = [
-  // E-commerce
+  // E-commerce (8 types)
   {
     id: "recent-purchase",
     title: "Recent Purchase",
     description: "Show real-time purchase notifications",
-    example: "Sarah from London just bought Cozy Hoodie",
+    example: "Sarah from London just bought Wireless Headphones",
     icon: <ShoppingCart className="h-6 w-6" />,
+    category: "E-commerce",
+  },
+  {
+    id: "cart-additions",
+    title: "Cart Additions",
+    description: "Display when items are added to cart",
+    example: "3 people added this to cart in the last hour",
+    icon: <Package className="h-6 w-6" />,
+    category: "E-commerce",
+  },
+  {
+    id: "product-reviews",
+    title: "Product Reviews",
+    description: "Showcase customer testimonials",
+    example: "★★★★★ 'Amazing quality!' - Michael R.",
+    icon: <Star className="h-6 w-6" />,
     category: "E-commerce",
   },
   {
     id: "low-stock",
     title: "Low Stock Alert",
     description: "Create urgency with inventory levels",
-    example: "Only 3 left in stock! Hurry before it's gone",
+    example: "Only 5 left in stock! Hurry before it's gone",
     icon: <Zap className="h-6 w-6" />,
     category: "E-commerce",
   },
@@ -34,24 +77,72 @@ const CAMPAIGN_TYPES: CampaignType[] = [
     title: "Visitor Counter",
     description: "Display current viewer count",
     example: "12 people are viewing this product right now",
-    icon: <Users className="h-6 w-6" />,
+    icon: <Eye className="h-6 w-6" />,
     category: "E-commerce",
   },
-  // SaaS/Agency
+  {
+    id: "recently-viewed",
+    title: "Recently Viewed",
+    description: "Show recent product views",
+    example: "Emma from NYC viewed this 5 minutes ago",
+    icon: <Clock className="h-6 w-6" />,
+    category: "E-commerce",
+  },
+  {
+    id: "wishlist-additions",
+    title: "Wishlist Additions",
+    description: "Display wishlist activity",
+    example: "Added to 47 wishlists today",
+    icon: <Heart className="h-6 w-6" />,
+    category: "E-commerce",
+  },
+  {
+    id: "flash-sale",
+    title: "Flash Sale Timer",
+    description: "Countdown timer for limited offers",
+    example: "Sale ends in 2 hours 34 minutes!",
+    icon: <TrendingUp className="h-6 w-6" />,
+    category: "E-commerce",
+  },
+  // SaaS/Software (5 types)
   {
     id: "new-signup",
     title: "New Signup",
     description: "Showcase recent user registrations",
-    example: "John from NYC just signed up • 2 minutes ago",
-    icon: <Users className="h-6 w-6" />,
+    example: "John from Austin just signed up",
+    icon: <UserPlus className="h-6 w-6" />,
     category: "SaaS/Agency",
   },
   {
-    id: "milestone",
-    title: "Milestone Proof",
-    description: "Highlight achievements and milestones",
-    example: "🎉 We just reached 10,000 happy customers!",
+    id: "trial-starts",
+    title: "Trial Starts",
+    description: "Display new trial activations",
+    example: "Alex started a free trial 3 minutes ago",
+    icon: <Rocket className="h-6 w-6" />,
+    category: "SaaS/Agency",
+  },
+  {
+    id: "upgrade-events",
+    title: "Upgrade Events",
+    description: "Show plan upgrades",
+    example: "Sarah upgraded to Pro Plan",
+    icon: <TrendingUp className="h-6 w-6" />,
+    category: "SaaS/Agency",
+  },
+  {
+    id: "feature-releases",
+    title: "Feature Releases",
+    description: "Announce new features",
+    example: "🚀 New feature: Advanced Analytics is now live!",
     icon: <Trophy className="h-6 w-6" />,
+    category: "SaaS/Agency",
+  },
+  {
+    id: "user-milestones",
+    title: "User Milestones",
+    description: "Celebrate user achievements",
+    example: "Mike completed his first project",
+    icon: <Award className="h-6 w-6" />,
     category: "SaaS/Agency",
   },
   {
@@ -61,6 +152,39 @@ const CAMPAIGN_TYPES: CampaignType[] = [
     example: "\"This product changed my business!\" - Mike S.",
     icon: <MessageSquare className="h-6 w-6" />,
     category: "SaaS/Agency",
+  },
+  // Services/Booking (4 types)
+  {
+    id: "new-bookings",
+    title: "New Bookings",
+    description: "Display appointment bookings",
+    example: "Jennifer booked a consultation for tomorrow",
+    icon: <Calendar className="h-6 w-6" />,
+    category: "Services",
+  },
+  {
+    id: "service-requests",
+    title: "Service Requests",
+    description: "Show incoming service requests",
+    example: "Someone from Chicago requested a quote",
+    icon: <MessageSquare className="h-6 w-6" />,
+    category: "Services",
+  },
+  {
+    id: "appointments",
+    title: "Appointments",
+    description: "Display scheduled meetings",
+    example: "David scheduled a meeting for next week",
+    icon: <Calendar className="h-6 w-6" />,
+    category: "Services",
+  },
+  {
+    id: "contact-form",
+    title: "Contact Form Submissions",
+    description: "Show form submissions",
+    example: "New inquiry from London received",
+    icon: <FileText className="h-6 w-6" />,
+    category: "Services",
   },
   // Music & Photography
   {
@@ -87,6 +211,31 @@ const CAMPAIGN_TYPES: CampaignType[] = [
     icon: <Headphones className="h-6 w-6" />,
     category: "Music & Photography",
   },
+  // Content/Media (3 types)
+  {
+    id: "newsletter-signups",
+    title: "Newsletter Signups",
+    description: "Display new subscribers",
+    example: "Emma subscribed to our newsletter",
+    icon: <Users className="h-6 w-6" />,
+    category: "Content & Media",
+  },
+  {
+    id: "content-downloads",
+    title: "Content Downloads",
+    description: "Show resource downloads",
+    example: "Michael downloaded the free guide",
+    icon: <Download className="h-6 w-6" />,
+    category: "Content & Media",
+  },
+  {
+    id: "blog-comments",
+    title: "Blog Comments",
+    description: "Display comment activity",
+    example: "5 new comments on latest article",
+    icon: <MessageSquare className="h-6 w-6" />,
+    category: "Content & Media",
+  },
   // News & Media
   {
     id: "breaking-news",
@@ -111,6 +260,23 @@ const CAMPAIGN_TYPES: CampaignType[] = [
     example: "345 readers online now",
     icon: <Users className="h-6 w-6" />,
     category: "News & Media",
+  },
+  // Social/Community (3 types)
+  {
+    id: "social-shares",
+    title: "Social Shares",
+    description: "Show social media activity",
+    example: "Article shared on Twitter 24 times today",
+    icon: <Share2 className="h-6 w-6" />,
+    category: "Social & Community",
+  },
+  {
+    id: "community-joins",
+    title: "Community Joins",
+    description: "Display new members",
+    example: "Alex joined the community",
+    icon: <Users className="h-6 w-6" />,
+    category: "Social & Community",
   },
   // NGO & Non-Profit
   {

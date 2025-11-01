@@ -58,7 +58,7 @@ serve(async (req) => {
       type: 'signup',
       email: email,
       options: {
-        emailRedirectTo: `${req.headers.get('origin')}/websites`,
+        emailRedirectTo: `${req.headers.get('origin')}/select-plan`,
       }
     });
 

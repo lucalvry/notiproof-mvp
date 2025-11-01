@@ -34,6 +34,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConnectionWizard } from "@/components/websites/ConnectionWizard";
+import { getAllBusinessTypes, getBusinessTypeLabel } from "@/lib/businessTypes";
 
 const mockWebsites = [
   {
@@ -56,33 +57,8 @@ const mockWebsites = [
   },
 ];
 
-const businessTypes = [
-  { value: "ecommerce", label: "E-Commerce" },
-  { value: "saas", label: "SaaS" },
-  { value: "services", label: "Services" },
-  { value: "blog", label: "Blog/Content" },
-  { value: "education", label: "Education" },
-  { value: "healthcare", label: "Healthcare" },
-  { value: "real_estate", label: "Real Estate" },
-  { value: "hospitality", label: "Hospitality" },
-  { value: "retail", label: "Retail" },
-  { value: "fitness", label: "Fitness" },
-  { value: "beauty", label: "Beauty" },
-  { value: "food_beverage", label: "Food & Beverage" },
-  { value: "travel", label: "Travel" },
-  { value: "finance", label: "Finance" },
-  { value: "technology", label: "Technology" },
-  { value: "consulting", label: "Consulting" },
-  { value: "marketing_agency", label: "Marketing Agency" },
-  { value: "events", label: "Events" },
-  { value: "ngo", label: "Non-Profit/NGO" },
-  { value: "automotive", label: "Automotive" },
-  { value: "manufacturing", label: "Manufacturing" },
-  { value: "media", label: "Media" },
-  { value: "legal", label: "Legal" },
-];
-
 export default function Websites() {
+  const allBusinessTypes = getAllBusinessTypes();
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string>();
   const { websites, isLoading, addWebsiteAsync, deleteWebsite } = useWebsites(userId);
@@ -296,7 +272,7 @@ export default function Websites() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Business Type</span>
-                  <span className="text-sm font-medium capitalize">{site.business_type.replace(/_/g, ' ')}</span>
+                  <span className="text-sm font-medium">{getBusinessTypeLabel(site.business_type as any)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Widgets</span>
@@ -416,8 +392,8 @@ export default function Websites() {
                 <SelectTrigger id="businessType">
                   <SelectValue placeholder="Select business type" />
                 </SelectTrigger>
-                <SelectContent>
-                  {businessTypes.map((type) => (
+                <SelectContent className="max-h-[300px]">
+                  {allBusinessTypes.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
                       {type.label}
                     </SelectItem>
@@ -523,8 +499,8 @@ export default function Websites() {
                 <SelectTrigger id="edit-businessType">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  {businessTypes.map((type) => (
+                <SelectContent className="max-h-[300px]">
+                  {allBusinessTypes.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
                       {type.label}
                     </SelectItem>

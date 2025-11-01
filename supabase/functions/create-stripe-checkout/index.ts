@@ -11,6 +11,8 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const startTime = Date.now();
+    
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -41,9 +43,33 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { priceId, billingPeriod, returnUrl, customerEmail, customerName } = await req.json();
+    const { priceId, billingPeriod, returnUrl, customerEmail, customerName, userId, isUpgrade } = await req.json();
+
+    // Phase 4: Log checkout initiation
+    await supabase.from('integration_logs').insert({
+      integration_type: 'stripe_checkout',
+      action: 'checkout_initiated',
+      status: 'started',
+      user_id: userId || null,
+      details: {
+        price_id: priceId,
+        billing_period: billingPeriod,
+        customer_email: customerEmail,
+        is_upgrade: isUpgrade || false,
+        timestamp: new Date().toISOString()
+      }
+    });
 
     if (!priceId || !billingPeriod || !returnUrl) {
+      // Log validation error
+      await supabase.from('integration_logs').insert({
+        integration_type: 'stripe_checkout',
+        action: 'checkout_validation_failed',
+        status: 'error',
+        user_id: userId || null,
+        details: { error: 'Missing required fields' }
+      });
+      
       return new Response(JSON.stringify({ error: 'Missing required fields: priceId, billingPeriod, returnUrl' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -67,76 +93,152 @@ Deno.serve(async (req) => {
 
     console.log('Getting/Creating Stripe customer for:', normalizedEmail);
 
-    if (!stripeCustomerId) {
-      // Check if customer already exists in Stripe by email (prevent duplicates)
+    // Helper function to search for existing customer with retry
+    const searchStripeCustomer = async (retries = 3): Promise<string | null> => {
       const searchQuery = `email:"${normalizedEmail}"`;
       const encodedQuery = encodeURIComponent(searchQuery);
       
-      console.log('🔍 Searching Stripe for customer:', normalizedEmail);
-      const searchResponse = await fetch(
-        `https://api.stripe.com/v1/customers/search?query=${encodedQuery}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${stripeSecretKey}`,
-          },
-        }
-      );
-
-      if (searchResponse.ok) {
-        const searchResult = await searchResponse.json();
-        console.log('📊 Search result:', { 
-          count: searchResult.data?.length || 0,
-          requestId: searchResponse.headers.get('request-id'),
-        });
-        
-        if (searchResult.data && searchResult.data.length > 0) {
-          stripeCustomerId = searchResult.data[0].id;
-          console.log('✅ Found existing Stripe customer:', stripeCustomerId);
+      for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+          console.log(`🔍 Searching Stripe for customer (attempt ${attempt + 1}/${retries}):`, normalizedEmail);
           
-          // Update our database with the found customer ID if user exists
-          if (user?.id) {
-            await supabase
-              .from('user_subscriptions')
-              .update({ stripe_customer_id: stripeCustomerId })
-              .eq('user_id', user.id);
+          const searchResponse = await fetch(
+            `https://api.stripe.com/v1/customers/search?query=${encodedQuery}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${stripeSecretKey}`,
+              },
+            }
+          );
+
+          if (searchResponse.ok) {
+            const searchResult = await searchResponse.json();
+            console.log('📊 Search result:', { 
+              count: searchResult.data?.length || 0,
+              requestId: searchResponse.headers.get('request-id'),
+            });
+            
+            if (searchResult.data && searchResult.data.length > 0) {
+              const customerId = searchResult.data[0].id;
+              console.log('✅ Found existing Stripe customer:', customerId);
+              
+              // Update our database with the found customer ID if user exists
+              if (user?.id) {
+                await supabase
+                  .from('user_subscriptions')
+                  .update({ stripe_customer_id: customerId })
+                  .eq('user_id', user.id);
+              }
+              
+              return customerId;
+            }
+            return null;
+          } else {
+            const errorText = await searchResponse.text();
+            console.error(`⚠️ Stripe customer search failed (attempt ${attempt + 1}):`, errorText);
+            
+            // Retry on 5xx errors
+            if (searchResponse.status >= 500 && attempt < retries - 1) {
+              const delay = Math.min(1000 * Math.pow(2, attempt), 4000);
+              console.log(`Retrying search in ${delay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              continue;
+            }
+          }
+        } catch (err) {
+          console.error(`⚠️ Error searching customer (attempt ${attempt + 1}):`, err);
+          if (attempt < retries - 1) {
+            const delay = Math.min(1000 * Math.pow(2, attempt), 4000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
           }
         }
-      } else {
-        const errorText = await searchResponse.text();
-        console.error('⚠️ Stripe customer search failed:', errorText);
       }
-    }
+      return null;
+    };
+
+    stripeCustomerId = await searchStripeCustomer();
 
     if (!stripeCustomerId) {
       // Create new Stripe customer with idempotency
-      const idempotencyKey = `create_customer:${normalizedEmail}`;
+      // FIX: Remove timestamp from idempotency key to prevent duplicates
+      const planIdentifier = priceId.substring(0, 20);
+      const idempotencyKey = `create_customer:${normalizedEmail}:v2`;
       console.log('🆕 Creating new Stripe customer for:', normalizedEmail);
+      
+      // Get plan name for metadata
+      let planName = 'Unknown';
+      try {
+        const { data: planData } = await supabase
+          .from('subscription_plans')
+          .select('name')
+          .or(`stripe_price_id_monthly.eq.${priceId},stripe_price_id_yearly.eq.${priceId}`)
+          .single();
+        if (planData) planName = planData.name;
+      } catch (err) {
+        console.error('Failed to fetch plan name:', err);
+      }
       
       const customerParams = new URLSearchParams({
         email: normalizedEmail,
         name: customerName || '',
-        'metadata[pending_signup]': 'true',
+        'metadata[signup_status]': 'completed',
+        'metadata[plan_name]': planName,
+        'metadata[billing_period]': billingPeriod,
       });
       
-      const customerResponse = await fetch('https://api.stripe.com/v1/customers', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${stripeSecretKey}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Idempotency-Key': idempotencyKey,
-        },
-        body: customerParams,
-      });
+      // Create customer with retry logic
+      let customerResponse: Response | null = null;
+      let lastError: string | null = null;
+      const maxRetries = 3;
+      
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          customerResponse = await fetch('https://api.stripe.com/v1/customers', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${stripeSecretKey}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Idempotency-Key': idempotencyKey,
+            },
+            body: customerParams,
+          });
 
-      if (!customerResponse.ok) {
-        const errorText = await customerResponse.text();
-        const requestId = customerResponse.headers.get('request-id');
-        console.error('❌ Stripe customer creation failed:', {
-          error: errorText,
-          requestId,
-          idempotencyKey,
-        });
-        throw new Error('Failed to create Stripe customer');
+          if (customerResponse.ok) {
+            break; // Success, exit retry loop
+          }
+
+          lastError = await customerResponse.text();
+          const requestId = customerResponse.headers.get('request-id');
+          
+          console.error(`❌ Stripe customer creation failed (attempt ${attempt + 1}/${maxRetries}):`, {
+            error: lastError,
+            requestId,
+            idempotencyKey,
+            status: customerResponse.status
+          });
+
+          // Retry on 5xx errors or rate limits
+          if ((customerResponse.status >= 500 || customerResponse.status === 429) && attempt < maxRetries - 1) {
+            const delay = Math.min(1000 * Math.pow(2, attempt), 4000);
+            console.log(`Retrying customer creation in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          } else {
+            break; // Don't retry on 4xx errors (except 429)
+          }
+        } catch (err) {
+          console.error(`⚠️ Network error creating customer (attempt ${attempt + 1}):`, err);
+          lastError = err instanceof Error ? err.message : 'Network error';
+          
+          if (attempt < maxRetries - 1) {
+            const delay = Math.min(1000 * Math.pow(2, attempt), 4000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        }
+      }
+
+      if (!customerResponse || !customerResponse.ok) {
+        throw new Error('Failed to create Stripe customer after retries');
       }
 
       const customer = await customerResponse.json();
@@ -179,20 +281,28 @@ Deno.serve(async (req) => {
     }
 
     // Create Stripe Checkout Session with 14-day trial
-    const timestamp = Date.now();
-    const idempotencyKey = `create_checkout:${normalizedEmail}:${priceId}:${billingPeriod}:${timestamp}`;
+    // FIX: Use deterministic idempotency key for 5 minutes to prevent duplicate sessions
+    const fiveMinuteWindow = Math.floor(Date.now() / (5 * 60 * 1000));
+    const idempotencyKey = `create_checkout:${normalizedEmail}:${priceId}:${billingPeriod}:${fiveMinuteWindow}`;
     console.log('🛒 Creating checkout session:', {
       customer: stripeCustomerId,
       priceId,
       billingPeriod,
       returnUrl,
       timestamp,
+      isUpgrade: isUpgrade || false,
     });
     
+    // Dynamic success URL based on context (upgrade vs initial signup)
+    const successUrl = isUpgrade 
+      ? `${returnUrl}/billing?upgraded=true&session_id={CHECKOUT_SESSION_ID}`
+      : `${returnUrl}/dashboard?payment_success=true&session_id={CHECKOUT_SESSION_ID}`;
+    
     const checkoutParams = new URLSearchParams({
-      'success_url': `${returnUrl}/complete-signup?session_id={CHECKOUT_SESSION_ID}`,
+      'success_url': successUrl,
       'cancel_url': `${returnUrl}/select-plan?canceled=true`,
       'customer': stripeCustomerId,
+      'client_reference_id': userId || '',
       'mode': 'subscription',
       
       // Payment method collection - REQUIRED
@@ -201,18 +311,18 @@ Deno.serve(async (req) => {
       'line_items[0][price]': priceId,
       'line_items[0][quantity]': '1',
       
-      // Metadata for payment-first flow
+      // Store userId in metadata for verify-stripe-session
+      'metadata[user_id]': userId || '',
       'metadata[customer_email]': normalizedEmail,
       'metadata[customer_name]': customerName || '',
       'metadata[billing_period]': billingPeriod,
-      'metadata[is_trial]': 'true',
-      'metadata[payment_first]': 'true',
       
       // Subscription configuration
+      'subscription_data[metadata][user_id]': userId || '',
       'subscription_data[metadata][customer_email]': normalizedEmail,
       'subscription_data[metadata][billing_period]': billingPeriod,
       
-      // TRIAL CONFIGURATION - 14 days, auto-cancel if no payment method
+      // TRIAL CONFIGURATION - 14 days
       'subscription_data[trial_period_days]': '14',
       'subscription_data[trial_settings][end_behavior][missing_payment_method]': 'cancel',
     });
@@ -242,6 +352,8 @@ Deno.serve(async (req) => {
 
     const session = await sessionResponse.json();
 
+    const duration = Date.now() - startTime;
+    
     console.log('✅ Checkout session created successfully:', {
       sessionId: session.id,
       customer: stripeCustomerId,
@@ -250,6 +362,24 @@ Deno.serve(async (req) => {
       requestId: sessionResponse.headers.get('request-id'),
       idempotencyKey,
       mode: stripeMode,
+      durationMs: duration,
+    });
+
+    // Phase 4: Log successful checkout creation
+    await supabase.from('integration_logs').insert({
+      integration_type: 'stripe_checkout',
+      action: 'checkout_created',
+      status: 'success',
+      user_id: userId || null,
+      duration_ms: duration,
+      details: {
+        session_id: session.id,
+        customer_id: stripeCustomerId,
+        price_id: priceId,
+        billing_period: billingPeriod,
+        is_upgrade: isUpgrade || false,
+        mode: stripeMode
+      }
     });
 
     return new Response(JSON.stringify({ 
@@ -268,6 +398,27 @@ Deno.serve(async (req) => {
       stack: error instanceof Error ? error.stack : undefined,
       mode: stripeMode,
     });
+    
+    // Phase 4: Log checkout error
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+      
+      await supabase.from('integration_logs').insert({
+        integration_type: 'stripe_checkout',
+        action: 'checkout_created',
+        status: 'error',
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+        details: {
+          error_stack: error instanceof Error ? error.stack : undefined,
+          mode: stripeMode
+        }
+      });
+    } catch (logError) {
+      console.error('Failed to log error:', logError);
+    }
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(JSON.stringify({ 
