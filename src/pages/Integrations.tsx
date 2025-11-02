@@ -3,13 +3,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, Upload } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, Upload, Search, TrendingUp, Star, Zap as ZapIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { IntegrationConnectionDialog } from "@/components/integrations/IntegrationConnectionDialog";
 import { CSVUploadDialog } from "@/components/integrations/CSVUploadDialog";
 import { SocialProofConnectors } from "@/components/integrations/SocialProofConnectors";
+import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { getIntegrationMetadata } from "@/lib/integrationMetadata";
 
 interface Integration {
@@ -33,6 +36,10 @@ export default function Integrations() {
   const [csvDialogOpen, setCSVDialogOpen] = useState(false);
   const [currentWebsiteId, setCurrentWebsiteId] = useState<string | null>(null);
   const [integrationQuotas, setIntegrationQuotas] = useState<Record<string, { quota: number; used: number }>>({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "connected" | "available">("all");
+  const [authTypeFilter, setAuthTypeFilter] = useState<"all" | "oauth" | "webhook">("all");
+  const [sortBy, setSortBy] = useState<"name" | "popularity">("popularity");
 
   useEffect(() => {
     fetchIntegrations();
@@ -108,7 +115,10 @@ export default function Integrations() {
           status: connector ? (connector.status === "active" ? "connected" : "error") : "disconnected",
           lastSync: connector?.last_sync || undefined,
           connector: connector || undefined,
-        } as Integration;
+          popularityScore: metadata.popularityScore || 50,
+          isTrending: metadata.isTrending || false,
+          connectorType: metadata.connectorType,
+        } as Integration & { popularityScore: number; isTrending: boolean; connectorType?: string };
       });
 
       // Calculate quotas for each integration
@@ -176,6 +186,59 @@ export default function Integrations() {
     }
   };
 
+  // Filter and sort integrations
+  const getFilteredIntegrations = (categoryType?: string) => {
+    let filtered = integrations;
+
+    // Category filter
+    if (categoryType && categoryType !== 'all') {
+      filtered = filtered.filter(int => int.type === categoryType || int.type === categoryType.replace(/_/g, ''));
+    }
+
+    // Search filter
+    if (searchQuery) {
+      filtered = filtered.filter(int => 
+        int.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        int.description.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'connected') {
+        filtered = filtered.filter(int => int.status === 'connected');
+      } else if (statusFilter === 'available') {
+        filtered = filtered.filter(int => int.status === 'disconnected');
+      }
+    }
+
+    // Auth type filter
+    if (authTypeFilter !== 'all') {
+      filtered = filtered.filter(int => {
+        const metadata = getIntegrationMetadata(int.id);
+        if (authTypeFilter === 'oauth') {
+          return metadata.requiresOauth === true;
+        } else if (authTypeFilter === 'webhook') {
+          return metadata.connectorType === 'webhook';
+        }
+        return true;
+      });
+    }
+
+    // Sort
+    if (sortBy === 'popularity') {
+      filtered = [...filtered].sort((a, b) => {
+        const aScore = (a as any).popularityScore || 0;
+        const bScore = (b as any).popularityScore || 0;
+        return bScore - aScore;
+      });
+    } else {
+      filtered = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return filtered;
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-full">Loading...</div>;
   }
@@ -193,15 +256,73 @@ export default function Integrations() {
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Integrations</h1>
+          <h1 className="text-3xl font-bold">Integrations Marketplace</h1>
           <p className="text-muted-foreground">
-            Connect your favorite tools to automatically create social proof notifications
+            Connect 35+ tools to automatically create social proof notifications
           </p>
+          <div className="flex gap-3 mt-2">
+            <Badge variant="outline" className="gap-1">
+              <Plug className="h-3 w-3" />
+              {integrations.length} Total
+            </Badge>
+            <Badge variant="outline" className="gap-1">
+              <CheckCircle className="h-3 w-3" />
+              {integrations.filter(i => i.status === 'connected').length} Connected
+            </Badge>
+            <Badge variant="outline" className="gap-1">
+              <TrendingUp className="h-3 w-3" />
+              {integrations.filter((i: any) => i.isTrending).length} Trending
+            </Badge>
+          </div>
         </div>
         <Button onClick={() => setCSVDialogOpen(true)} variant="outline">
           <Upload className="h-4 w-4 mr-2" />
           Import CSV
         </Button>
+      </div>
+
+      {/* Search and Filters */}
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search integrations..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="connected">Connected</SelectItem>
+              <SelectItem value="available">Available</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={authTypeFilter} onValueChange={(v: any) => setAuthTypeFilter(v)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Auth Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="oauth">OAuth</SelectItem>
+              <SelectItem value="webhook">Webhook</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="popularity">Popularity</SelectItem>
+              <SelectItem value="name">Name (A-Z)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <Tabs defaultValue="all" className="space-y-6">
@@ -216,594 +337,159 @@ export default function Integrations() {
         </TabsList>
 
         <TabsContent value="all" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {integrations.map((integration) => {
-              const Icon = integration.icon;
-              const isConnected = integration.status === "connected";
-              const hasError = integration.status === "error";
-              const quota = integrationQuotas[integration.id];
-              const canConnect = !quota || quota.used < quota.quota;
-              
-              return (
-                <Card key={integration.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                          <Icon className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{integration.name}</CardTitle>
-                          <div className="flex gap-2 mt-1">
-                            <Badge
-                              variant={isConnected ? "default" : hasError ? "destructive" : "secondary"}
-                            >
-                              {isConnected && <CheckCircle className="h-3 w-3 mr-1" />}
-                              {hasError && <AlertCircle className="h-3 w-3 mr-1" />}
-                              {!isConnected && !hasError && <XCircle className="h-3 w-3 mr-1" />}
-                              {integration.status}
-                            </Badge>
-                            {quota && (
-                              <Badge variant="outline">
-                                {quota.used}/{quota.quota} used
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      {integration.description}
-                    </p>
-                    
-                    {isConnected && (
-                      <div className="space-y-2 text-sm">
-                        {integration.lastSync && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Last sync:</span>
-                            <span>{new Date(integration.lastSync).toLocaleString()}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      {!isConnected ? (
-                        <Button 
-                          className="flex-1"
-                          onClick={() => handleConnect(integration)}
-                          disabled={!canConnect}
-                        >
-                          <Plug className="h-4 w-4 mr-2" />
-                          {canConnect ? 'Connect' : 'Quota Reached'}
-                        </Button>
-                      ) : (
-                        <>
-                          <Button 
-                            variant="outline"
-                            className="flex-1"
-                            onClick={() => handleSync(integration)}
-                          >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Sync
-                          </Button>
-                          <Button 
-                            variant="outline"
-                            onClick={() => handleConnect(integration)}
-                          >
-                            <Settings className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="destructive"
-                            onClick={() => handleDisconnect(integration)}
-                          >
-                            Disconnect
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          {getFilteredIntegrations().length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No integrations found matching your filters.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {getFilteredIntegrations().map((integration) => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  onConnect={() => handleConnect(integration)}
+                  onSync={() => handleSync(integration)}
+                  onSettings={() => handleConnect(integration)}
+                  onDisconnect={() => handleDisconnect(integration)}
+                  quota={integrationQuotas[integration.id]}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="webhook" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {integrations
-              .filter(int => int.type === "webhook" || int.type === "automation")
-              .map((integration) => {
-              const Icon = integration.icon;
-              const isConnected = integration.status === "connected";
-              const hasError = integration.status === "error";
-              const quota = integrationQuotas[integration.id];
-              const canConnect = !quota || quota.used < quota.quota;
-              
-              return (
-                <Card key={integration.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                          <Icon className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{integration.name}</CardTitle>
-                          <div className="flex gap-2 mt-1">
-                            <Badge
-                              variant={isConnected ? "default" : hasError ? "destructive" : "secondary"}
-                            >
-                              {isConnected && <CheckCircle className="h-3 w-3 mr-1" />}
-                              {hasError && <AlertCircle className="h-3 w-3 mr-1" />}
-                              {!isConnected && !hasError && <XCircle className="h-3 w-3 mr-1" />}
-                              {integration.status}
-                            </Badge>
-                            {quota && (
-                              <Badge variant="outline">
-                                {quota.used}/{quota.quota} used
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      {integration.description}
-                    </p>
-                    
-                    {isConnected && (
-                      <div className="space-y-2 text-sm">
-                        {integration.lastSync && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Last sync:</span>
-                            <span>{new Date(integration.lastSync).toLocaleString()}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      {!isConnected ? (
-                        <Button 
-                          className="flex-1"
-                          onClick={() => handleConnect(integration)}
-                          disabled={!canConnect}
-                        >
-                          <Plug className="h-4 w-4 mr-2" />
-                          {canConnect ? 'Connect' : 'Quota Reached'}
-                        </Button>
-                      ) : (
-                        <>
-                          <Button 
-                            variant="outline"
-                            className="flex-1"
-                            onClick={() => handleSync(integration)}
-                          >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Sync
-                          </Button>
-                          <Button 
-                            variant="outline"
-                            onClick={() => handleConnect(integration)}
-                          >
-                            <Settings className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="destructive"
-                            onClick={() => handleDisconnect(integration)}
-                          >
-                            Disconnect
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          {getFilteredIntegrations("webhook").length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No webhook integrations found.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {getFilteredIntegrations("webhook").map((integration) => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  onConnect={() => handleConnect(integration)}
+                  onSync={() => handleSync(integration)}
+                  onSettings={() => handleConnect(integration)}
+                  onDisconnect={() => handleDisconnect(integration)}
+                  quota={integrationQuotas[integration.id]}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="forms" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {integrations
-              .filter(int => int.type === "forms" || int.type === "scheduling")
-              .map((integration) => {
-              const Icon = integration.icon;
-              const isConnected = integration.status === "connected";
-              const hasError = integration.status === "error";
-              const quota = integrationQuotas[integration.id];
-              const canConnect = !quota || quota.used < quota.quota;
-              
-              return (
-                <Card key={integration.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                          <Icon className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{integration.name}</CardTitle>
-                          <div className="flex gap-2 mt-1">
-                            <Badge
-                              variant={isConnected ? "default" : hasError ? "destructive" : "secondary"}
-                            >
-                              {isConnected && <CheckCircle className="h-3 w-3 mr-1" />}
-                              {hasError && <AlertCircle className="h-3 w-3 mr-1" />}
-                              {!isConnected && !hasError && <XCircle className="h-3 w-3 mr-1" />}
-                              {integration.status}
-                            </Badge>
-                            {quota && (
-                              <Badge variant="outline">
-                                {quota.used}/{quota.quota} used
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      {integration.description}
-                    </p>
-                    
-                    {isConnected && (
-                      <div className="space-y-2 text-sm">
-                        {integration.lastSync && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Last sync:</span>
-                            <span>{new Date(integration.lastSync).toLocaleString()}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      {!isConnected ? (
-                        <Button 
-                          className="flex-1"
-                          onClick={() => handleConnect(integration)}
-                          disabled={!canConnect}
-                        >
-                          <Plug className="h-4 w-4 mr-2" />
-                          {canConnect ? 'Connect' : 'Quota Reached'}
-                        </Button>
-                      ) : (
-                        <>
-                          <Button 
-                            variant="outline"
-                            className="flex-1"
-                            onClick={() => handleSync(integration)}
-                          >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Sync
-                          </Button>
-                          <Button 
-                            variant="outline"
-                            onClick={() => handleConnect(integration)}
-                          >
-                            <Settings className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="destructive"
-                            onClick={() => handleDisconnect(integration)}
-                          >
-                            Disconnect
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          {getFilteredIntegrations("forms").length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No form integrations found.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {getFilteredIntegrations("forms").map((integration) => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  onConnect={() => handleConnect(integration)}
+                  onSync={() => handleSync(integration)}
+                  onSettings={() => handleConnect(integration)}
+                  onDisconnect={() => handleDisconnect(integration)}
+                  quota={integrationQuotas[integration.id]}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="ecommerce" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {integrations
-              .filter(int => int.type === "ecommerce" || int.type === "payment")
-              .map((integration) => {
-              const Icon = integration.icon;
-              const isConnected = integration.status === "connected";
-              const hasError = integration.status === "error";
-              const quota = integrationQuotas[integration.id];
-              const canConnect = !quota || quota.used < quota.quota;
-              
-              return (
-                <Card key={integration.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                          <Icon className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{integration.name}</CardTitle>
-                          <div className="flex gap-2 mt-1">
-                            <Badge
-                              variant={isConnected ? "default" : hasError ? "destructive" : "secondary"}
-                            >
-                              {isConnected && <CheckCircle className="h-3 w-3 mr-1" />}
-                              {hasError && <AlertCircle className="h-3 w-3 mr-1" />}
-                              {!isConnected && !hasError && <XCircle className="h-3 w-3 mr-1" />}
-                              {integration.status}
-                            </Badge>
-                            {quota && (
-                              <Badge variant="outline">
-                                {quota.used}/{quota.quota} used
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      {integration.description}
-                    </p>
-                    
-                    {isConnected && (
-                      <div className="space-y-2 text-sm">
-                        {integration.lastSync && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Last sync:</span>
-                            <span>{new Date(integration.lastSync).toLocaleString()}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      {!isConnected ? (
-                        <Button 
-                          className="flex-1"
-                          onClick={() => handleConnect(integration)}
-                          disabled={!canConnect}
-                        >
-                          <Plug className="h-4 w-4 mr-2" />
-                          {canConnect ? 'Connect' : 'Quota Reached'}
-                        </Button>
-                      ) : (
-                        <>
-                          <Button 
-                            variant="outline"
-                            className="flex-1"
-                            onClick={() => handleSync(integration)}
-                          >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Sync
-                          </Button>
-                          <Button 
-                            variant="outline"
-                            onClick={() => handleConnect(integration)}
-                          >
-                            <Settings className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="destructive"
-                            onClick={() => handleDisconnect(integration)}
-                          >
-                            Disconnect
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          {getFilteredIntegrations("ecommerce").length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No e-commerce integrations found.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {getFilteredIntegrations("ecommerce").map((integration) => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  onConnect={() => handleConnect(integration)}
+                  onSync={() => handleSync(integration)}
+                  onSettings={() => handleConnect(integration)}
+                  onDisconnect={() => handleDisconnect(integration)}
+                  quota={integrationQuotas[integration.id]}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="social">
-          <SocialProofConnectors />
+        <TabsContent value="social" className="space-y-4">
+          {getFilteredIntegrations("social").length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No social media integrations found.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {getFilteredIntegrations("social").map((integration) => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  onConnect={() => handleConnect(integration)}
+                  onSync={() => handleSync(integration)}
+                  onSettings={() => handleConnect(integration)}
+                  onDisconnect={() => handleDisconnect(integration)}
+                  quota={integrationQuotas[integration.id]}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="cms" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {integrations
-              .filter(int => int.type === "cms" || int.type === "content")
-              .map((integration) => {
-              const Icon = integration.icon;
-              const isConnected = integration.status === "connected";
-              const hasError = integration.status === "error";
-              const quota = integrationQuotas[integration.id];
-              const canConnect = !quota || quota.used < quota.quota;
-              
-              return (
-                <Card key={integration.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                          <Icon className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{integration.name}</CardTitle>
-                          <div className="flex gap-2 mt-1">
-                            <Badge
-                              variant={isConnected ? "default" : hasError ? "destructive" : "secondary"}
-                            >
-                              {isConnected && <CheckCircle className="h-3 w-3 mr-1" />}
-                              {hasError && <AlertCircle className="h-3 w-3 mr-1" />}
-                              {!isConnected && !hasError && <XCircle className="h-3 w-3 mr-1" />}
-                              {integration.status}
-                            </Badge>
-                            {quota && (
-                              <Badge variant="outline">
-                                {quota.used}/{quota.quota} used
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      {integration.description}
-                    </p>
-                    
-                    {isConnected && (
-                      <div className="space-y-2 text-sm">
-                        {integration.lastSync && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Last sync:</span>
-                            <span>{new Date(integration.lastSync).toLocaleString()}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      {!isConnected ? (
-                        <Button 
-                          className="flex-1"
-                          onClick={() => handleConnect(integration)}
-                          disabled={!canConnect}
-                        >
-                          <Plug className="h-4 w-4 mr-2" />
-                          {canConnect ? 'Connect' : 'Quota Reached'}
-                        </Button>
-                      ) : (
-                        <>
-                          <Button 
-                            variant="outline"
-                            className="flex-1"
-                            onClick={() => handleSync(integration)}
-                          >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Sync
-                          </Button>
-                          <Button 
-                            variant="outline"
-                            onClick={() => handleConnect(integration)}
-                          >
-                            <Settings className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="destructive"
-                            onClick={() => handleDisconnect(integration)}
-                          >
-                            Disconnect
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          {getFilteredIntegrations("cms").length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No CMS integrations found.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {getFilteredIntegrations("cms").map((integration) => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  onConnect={() => handleConnect(integration)}
+                  onSync={() => handleSync(integration)}
+                  onSettings={() => handleConnect(integration)}
+                  onDisconnect={() => handleDisconnect(integration)}
+                  quota={integrationQuotas[integration.id]}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="education" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {integrations
-              .filter(int => int.type === "education")
-              .map((integration) => {
-              const Icon = integration.icon;
-              const isConnected = integration.status === "connected";
-              const hasError = integration.status === "error";
-              const quota = integrationQuotas[integration.id];
-              const canConnect = !quota || quota.used < quota.quota;
-              
-              return (
-                <Card key={integration.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                          <Icon className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{integration.name}</CardTitle>
-                          <div className="flex gap-2 mt-1">
-                            <Badge
-                              variant={isConnected ? "default" : hasError ? "destructive" : "secondary"}
-                            >
-                              {isConnected && <CheckCircle className="h-3 w-3 mr-1" />}
-                              {hasError && <AlertCircle className="h-3 w-3 mr-1" />}
-                              {!isConnected && !hasError && <XCircle className="h-3 w-3 mr-1" />}
-                              {integration.status}
-                            </Badge>
-                            {quota && (
-                              <Badge variant="outline">
-                                {quota.used}/{quota.quota} used
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      {integration.description}
-                    </p>
-                    
-                    {isConnected && (
-                      <div className="space-y-2 text-sm">
-                        {integration.lastSync && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Last sync:</span>
-                            <span>{new Date(integration.lastSync).toLocaleString()}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      {!isConnected ? (
-                        <Button 
-                          className="flex-1"
-                          onClick={() => handleConnect(integration)}
-                          disabled={!canConnect}
-                        >
-                          <Plug className="h-4 w-4 mr-2" />
-                          {canConnect ? 'Connect' : 'Quota Reached'}
-                        </Button>
-                      ) : (
-                        <>
-                          <Button 
-                            variant="outline"
-                            className="flex-1"
-                            onClick={() => handleSync(integration)}
-                          >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Sync
-                          </Button>
-                          <Button 
-                            variant="outline"
-                            onClick={() => handleConnect(integration)}
-                          >
-                            <Settings className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="destructive"
-                            onClick={() => handleDisconnect(integration)}
-                          >
-                            Disconnect
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          {getFilteredIntegrations("education").length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No education integrations found.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {getFilteredIntegrations("education").map((integration) => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  onConnect={() => handleConnect(integration)}
+                  onSync={() => handleSync(integration)}
+                  onSettings={() => handleConnect(integration)}
+                  onDisconnect={() => handleDisconnect(integration)}
+                  quota={integrationQuotas[integration.id]}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
+
       </Tabs>
 
       {selectedIntegration && (

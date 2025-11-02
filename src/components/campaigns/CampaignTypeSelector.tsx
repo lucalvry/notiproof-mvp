@@ -381,8 +381,11 @@ export function CampaignTypeSelector({ selectedType, onSelect }: CampaignTypeSel
   const categories = [
     "E-commerce",
     "SaaS/Agency",
+    "Services",
+    "Content & Media",
     "Music & Photography",
     "News & Media",
+    "Social & Community",
     "NGO & Non-Profit",
     "Finance & Fintech",
     "Education & E-Learning",

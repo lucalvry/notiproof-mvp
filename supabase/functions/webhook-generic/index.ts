@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkRateLimit } from '../_shared/rate-limit.ts';
+import { markConnectorVerified, updateConnectorSync } from '../_shared/webhook-verification.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -188,6 +189,13 @@ serve(async (req) => {
     if (eventError) {
       console.error('Failed to create event', eventError);
       throw eventError;
+    }
+
+    // Mark connector as verified on first successful event
+    if (connector.status === 'pending') {
+      await markConnectorVerified(supabaseClient, connector.id);
+    } else {
+      await updateConnectorSync(supabaseClient, connector.id);
     }
 
     // Log integration activity

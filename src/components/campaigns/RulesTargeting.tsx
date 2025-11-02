@@ -1,8 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings2 } from "lucide-react";
+import { Sparkles, Settings2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { TargetingRules, DEFAULT_TARGETING_RULES } from "@/types/targeting";
 import { URLRulesCard } from "./targeting/URLRulesCard";
@@ -14,9 +15,18 @@ import { ScheduleTargetingCard } from "./targeting/ScheduleTargetingCard";
 interface RulesTargetingProps {
   rules: any;
   onChange: (rules: any) => void;
+  campaignType?: string;
+  dataSource?: string;
+  templateName?: string;
 }
 
-export function RulesTargeting({ rules, onChange }: RulesTargetingProps) {
+export function RulesTargeting({ 
+  rules, 
+  onChange,
+  campaignType,
+  dataSource,
+  templateName 
+}: RulesTargetingProps) {
   const [targetingRules, setTargetingRules] = useState<TargetingRules>(() => {
     // Merge provided rules with defaults
     return {
@@ -69,6 +79,33 @@ export function RulesTargeting({ rules, onChange }: RulesTargetingProps) {
         </div>
       </div>
 
+      {/* Campaign Context Display */}
+      {(campaignType || templateName) && (
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="pt-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-4 text-sm flex-wrap">
+                {campaignType && (
+                  <Badge variant="secondary">
+                    {campaignType.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} Campaign
+                  </Badge>
+                )}
+                {templateName && (
+                  <span className="text-muted-foreground">
+                    Template: <span className="font-medium">{templateName}</span>
+                  </span>
+                )}
+              </div>
+              {dataSource && dataSource !== 'manual' && dataSource !== 'demo' && (
+                <div className="text-sm text-muted-foreground">
+                  <strong>Integration:</strong> Events will automatically sync from {dataSource}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue="display" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="display">Display Settings</TabsTrigger>
@@ -105,7 +142,15 @@ export function RulesTargeting({ rules, onChange }: RulesTargetingProps) {
               </div>
 
               <div className="space-y-2">
-                <Label>Display Duration (milliseconds)</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Display Duration (milliseconds)</Label>
+                  {templateName && targetingRules.display.display_duration_ms && targetingRules.display.display_duration_ms !== DEFAULT_TARGETING_RULES.display.display_duration_ms && (
+                    <Badge variant="secondary" className="text-[10px] gap-1 h-4 px-1.5">
+                      <Sparkles className="h-2.5 w-2.5" />
+                      Template
+                    </Badge>
+                  )}
+                </div>
                 <Input
                   type="number"
                   value={targetingRules.display.display_duration_ms || 5000}
@@ -126,7 +171,15 @@ export function RulesTargeting({ rules, onChange }: RulesTargetingProps) {
               </div>
 
               <div className="space-y-2">
-                <Label>Interval Between Notifications (milliseconds)</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Interval Between Notifications (milliseconds)</Label>
+                  {templateName && targetingRules.display.interval_ms && targetingRules.display.interval_ms !== DEFAULT_TARGETING_RULES.display.interval_ms && (
+                    <Badge variant="secondary" className="text-[10px] gap-1 h-4 px-1.5">
+                      <Sparkles className="h-2.5 w-2.5" />
+                      Template
+                    </Badge>
+                  )}
+                </div>
                 <Input
                   type="number"
                   value={targetingRules.display.interval_ms || 8000}

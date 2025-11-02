@@ -7,10 +7,17 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Sparkles, Link2, ShoppingCart, FileText } from "lucide-react";
 
 interface DesignEditorProps {
   settings: any;
   onChange: (settings: any) => void;
+  // PHASE 2: New context props
+  campaignType?: string;
+  dataSource?: string;
+  integrationPath?: string;
+  templateName?: string;
 }
 
 const PRESET_THEMES = [
@@ -29,16 +36,103 @@ const FONT_FAMILIES = [
   { name: "Poppins", value: "'Poppins', sans-serif" },
 ];
 
-export function DesignEditor({ settings, onChange }: DesignEditorProps) {
-  const [design, setDesign] = useState({
+export function DesignEditor({ 
+  settings, 
+  onChange, 
+  campaignType, 
+  dataSource, 
+  integrationPath, 
+  templateName 
+}: DesignEditorProps) {
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
+  const [previewBackground, setPreviewBackground] = useState<'light' | 'dark' | 'image'>('light');
+  
+  // PHASE 2: Get campaign-type-specific placeholder
+  const getCampaignPlaceholder = () => {
+    if (!campaignType) return "{{name}} from {{city}} just {{action}}";
+    
+    const placeholders: Record<string, string> = {
+      'recent-purchase': '{{user_name}} from {{location}} just bought {{product_name}}',
+      'trial-start': '{{user_name}} just started a free trial',
+      'signup': '{{user_name}} from {{location}} just signed up',
+      'live-visitor': '{{visitor_count}} people viewing {{page_name}} right now',
+      'review': '{{user_name}} gave {{rating}} stars - "{{review_text}}"',
+      'download': '{{user_name}} just downloaded {{resource_name}}',
+      'booking': '{{user_name}} from {{location}} just booked {{service_name}}',
+    };
+    
+    return placeholders[campaignType] || "{{name}} from {{city}} just {{action}}";
+  };
+  
+  // PHASE 1: Get campaign-type-specific subtext
+  const getCampaignSubtext = () => {
+    if (!campaignType) return "Join {{name}} and thousands of others";
+    
+    const subtexts: Record<string, string> = {
+      // E-commerce
+      'recent-purchase': 'Join {{count}} happy customers today!',
+      'cart-additions': 'Limited stock - order yours now!',
+      'product-reviews': 'Verified customer review',
+      'low-stock': 'Only {{stock_count}} left in stock!',
+      'visitor-counter': "Don't miss out - shop now!",
+      'recently-viewed': 'Still available - grab yours today!',
+      'wishlist-additions': 'Popular item - {{count}} people want this',
+      'flash-sale': '⚡ Limited time offer - act fast!',
+      
+      // SaaS
+      'new-signup': 'Join {{count}}+ professionals using our platform',
+      'trial-start': 'Start your free trial today',
+      'trial-starts': 'Start your free trial today',
+      'upgrade-events': 'Unlock premium features today',
+      'feature-releases': 'Try it now - available to all users',
+      'user-milestones': 'You can achieve this too!',
+      'signup': 'Join thousands of satisfied users',
+      
+      // Services & Booking
+      'new-bookings': 'Book your appointment today!',
+      'service-requests': 'Get your free quote now',
+      'appointments': 'Limited slots available',
+      'contact-form': 'We typically respond within 24 hours',
+      'booking': 'Reserve your spot today',
+      
+      // Content & Media
+      'newsletter-signups': 'Get exclusive updates delivered to your inbox',
+      'content-downloads': 'Free download - no signup required',
+      'blog-comments': 'Join the conversation',
+      'download': 'Free instant access - download now',
+      
+      // Social & Reviews
+      'social-shares': 'Join the conversation on social media',
+      'community-joins': 'Be part of our growing community',
+      'review': 'Read more verified reviews',
+      'live-visitor': 'See what others are viewing',
+      
+      // Specialized
+      'donation-notification': 'Every contribution makes a difference',
+      'impact-milestone': 'Be part of the movement',
+      'volunteer-signup': 'Make an impact - volunteer today',
+      'course-enrollment': 'Start learning today - limited seats available',
+      'completion-milestone': 'Complete your course today',
+    };
+    
+    return subtexts[campaignType] || "Join {{name}} and thousands of others";
+  };
+  
+  // PHASE 2: Merge strategy - baseDefaults < templateSettings < userEdits
+  const baseDefaults = {
     // Position & Animation
     position: "bottom-left",
     animation: "slide",
     animationSpeed: "normal",
+    exitAnimation: "fade",
+    
+    // Hover Effects
+    hoverScale: "1.02",
+    hoverBrightness: "1.05",
     
     // Content
-    headline: "{{name}} from {{city}} just {{action}}",
-    subtext: "Join {{name}} and thousands of others",
+    headline: getCampaignPlaceholder(),
+    subtext: getCampaignSubtext(),
     showAvatar: true,
     showTimestamp: true,
     showLocation: true,
@@ -64,8 +158,11 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
     interval: "8",
     maxPerPage: "5",
     maxPerSession: "20",
-    
-    ...settings,
+  };
+  
+  const [design, setDesign] = useState({
+    ...baseDefaults,
+    ...settings, // Template settings override defaults, user edits override all
   });
 
   const updateDesign = (updates: Partial<typeof design>) => {
@@ -82,10 +179,79 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
     });
   };
 
+  // PHASE 2: Get campaign type icon
+  const getCampaignIcon = () => {
+    if (!campaignType) return Sparkles;
+    
+    const icons: Record<string, any> = {
+      'recent-purchase': ShoppingCart,
+      'signup': Link2,
+      'trial-start': Sparkles,
+      'review': FileText,
+    };
+    
+    return icons[campaignType] || Sparkles;
+  };
+  
+  const CampaignIcon = getCampaignIcon();
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Editor Panel */}
       <div className="space-y-6">
+        {/* PHASE 2: Context Display Card */}
+        {(campaignType || templateName || dataSource) && (
+          <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+            <CardContent className="pt-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <CampaignIcon className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Campaign Context</span>
+                </div>
+                
+                <div className="flex flex-wrap gap-2">
+                  {campaignType && (
+                    <Badge variant="secondary" className="gap-1.5">
+                      <span className="text-xs">Type:</span>
+                      <span className="font-medium">
+                        {campaignType.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                      </span>
+                    </Badge>
+                  )}
+                  
+                  {templateName && (
+                    <Badge variant="outline" className="gap-1.5">
+                      <Sparkles className="h-3 w-3" />
+                      <span className="text-xs">{templateName}</span>
+                    </Badge>
+                  )}
+                  
+                  {dataSource && integrationPath === 'integration' && (
+                    <Badge variant="outline" className="gap-1.5">
+                      <Link2 className="h-3 w-3" />
+                      <span className="text-xs">{dataSource}</span>
+                    </Badge>
+                  )}
+                  
+                  {integrationPath === 'demo' && (
+                    <Badge variant="outline" className="gap-1.5 text-purple-600 border-purple-300">
+                      <Sparkles className="h-3 w-3" />
+                      <span className="text-xs">Demo Mode</span>
+                    </Badge>
+                  )}
+                  
+                  {integrationPath === 'manual' && (
+                    <Badge variant="outline" className="gap-1.5 text-orange-600 border-orange-300">
+                      <FileText className="h-3 w-3" />
+                      <span className="text-xs">Manual Upload</span>
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
         {/* Preset Themes Quick Access */}
         <Card>
           <CardHeader className="pb-3">
@@ -123,21 +289,48 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Headline</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Headline</Label>
+                    {templateName && design.headline && design.headline !== baseDefaults.headline && (
+                      <Badge variant="secondary" className="text-xs gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        From template
+                      </Badge>
+                    )}
+                  </div>
                   <Input
                     value={design.headline}
                     onChange={(e) => updateDesign({ headline: e.target.value })}
-                    placeholder="{{name}} from {{city}} just {{action}}"
+                    placeholder={getCampaignPlaceholder()}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    💡 Use placeholders like {`{{name}}`}, {`{{location}}`}, {`{{product_name}}`}
+                  </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Subtext (optional)</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Subtext (optional)</Label>
+                    {templateName && design.subtext && design.subtext !== baseDefaults.subtext && (
+                      <Badge variant="secondary" className="text-xs gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        From template
+                      </Badge>
+                    )}
+                  </div>
                   <Textarea
                     value={design.subtext}
                     onChange={(e) => updateDesign({ subtext: e.target.value })}
-                    placeholder="Additional context or call to action"
+                    placeholder={getCampaignSubtext()}
                     rows={3}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    💡 Try: {
+                      campaignType === 'recent-purchase' ? '"Limited stock!" or "{{count}} sold today"' :
+                      campaignType === 'trial-start' ? '"No credit card required" or "Cancel anytime"' :
+                      campaignType === 'booking' ? '"Book within {{time}} to save {{discount}}"' :
+                      '"Add urgency or social proof to increase conversions"'
+                    }
+                  </p>
                 </div>
                 
                 <div className="space-y-3 pt-2 border-t">
@@ -251,6 +444,21 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
                 </div>
 
                 <div className="space-y-2">
+                  <Label>Exit Animation</Label>
+                  <Select value={design.exitAnimation} onValueChange={(value) => updateDesign({ exitAnimation: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fade">Fade Out</SelectItem>
+                      <SelectItem value="slide">Slide Out</SelectItem>
+                      <SelectItem value="shrink">Shrink</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label>Font Family</Label>
                   <Select value={design.fontFamily} onValueChange={(value) => updateDesign({ fontFamily: value })}>
                     <SelectTrigger>
@@ -268,7 +476,15 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
                 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Primary Color</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Primary Color</Label>
+                      {templateName && design.primaryColor !== baseDefaults.primaryColor && (
+                        <Badge variant="secondary" className="text-[10px] gap-1 h-4 px-1.5">
+                          <Sparkles className="h-2.5 w-2.5" />
+                          Template
+                        </Badge>
+                      )}
+                    </div>
                     <div className="flex gap-2">
                       <Input
                         type="color"
@@ -286,7 +502,15 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label>Background</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Background</Label>
+                      {templateName && design.backgroundColor !== baseDefaults.backgroundColor && (
+                        <Badge variant="secondary" className="text-[10px] gap-1 h-4 px-1.5">
+                          <Sparkles className="h-2.5 w-2.5" />
+                          Template
+                        </Badge>
+                      )}
+                    </div>
                     <div className="flex gap-2">
                       <Input
                         type="color"
@@ -455,6 +679,12 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
                 <CardDescription>Real-time preview of your notification</CardDescription>
               </div>
               <div className="flex gap-2">
+                <Tabs value={previewDevice} onValueChange={(v: any) => setPreviewDevice(v)} className="w-auto">
+                  <TabsList className="grid w-[200px] grid-cols-2">
+                    <TabsTrigger value="desktop">Desktop</TabsTrigger>
+                    <TabsTrigger value="mobile">Mobile</TabsTrigger>
+                  </TabsList>
+                </Tabs>
                 <Button
                   variant="outline"
                   size="sm"
@@ -472,25 +702,58 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="relative bg-gradient-to-br from-muted/30 to-muted/50 rounded-lg h-[500px] overflow-hidden border">
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <Button
+                  variant={previewBackground === 'light' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPreviewBackground('light')}
+                >
+                  Light
+                </Button>
+                <Button
+                  variant={previewBackground === 'dark' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPreviewBackground('dark')}
+                >
+                  Dark
+                </Button>
+                <Button
+                  variant={previewBackground === 'image' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPreviewBackground('image')}
+                >
+                  Image
+                </Button>
+              </div>
+            </div>
+            <div 
+              className={`relative rounded-lg overflow-hidden border mt-3 ${
+                previewDevice === 'mobile' ? 'max-w-[375px] mx-auto h-[667px]' : 'h-[500px]'
+              } ${
+                previewBackground === 'dark' ? 'bg-slate-900' :
+                previewBackground === 'image' ? 'bg-gradient-to-br from-purple-500 via-pink-500 to-red-500' :
+                'bg-gradient-to-br from-muted/30 to-muted/50'
+              }`}
+            >
               {/* Simulated website background */}
-              <div className="absolute inset-0 p-8 opacity-20">
-                <div className="h-6 w-48 bg-foreground rounded mb-6" />
-                <div className="h-3 w-full bg-foreground rounded mb-2" />
-                <div className="h-3 w-3/4 bg-foreground rounded mb-2" />
-                <div className="h-3 w-5/6 bg-foreground rounded" />
+              <div className={`absolute inset-0 p-8 ${previewBackground === 'dark' ? 'opacity-30' : 'opacity-20'}`}>
+                <div className={`h-6 w-48 rounded mb-6 ${previewBackground === 'dark' ? 'bg-white' : 'bg-foreground'}`} />
+                <div className={`h-3 w-full rounded mb-2 ${previewBackground === 'dark' ? 'bg-white' : 'bg-foreground'}`} />
+                <div className={`h-3 w-3/4 rounded mb-2 ${previewBackground === 'dark' ? 'bg-white' : 'bg-foreground'}`} />
+                <div className={`h-3 w-5/6 rounded ${previewBackground === 'dark' ? 'bg-white' : 'bg-foreground'}`} />
               </div>
 
               {/* Notification Preview */}
               <div
                 id="notification-preview"
                 className={`absolute ${
-                  design.position === "bottom-left"
+                  previewDevice === 'mobile' || design.position === "bottom-center"
+                    ? "bottom-4 left-1/2 -translate-x-1/2"
+                    : design.position === "bottom-left"
                     ? "bottom-4 left-4"
                     : design.position === "bottom-right"
                     ? "bottom-4 right-4"
-                    : design.position === "bottom-center"
-                    ? "bottom-4 left-1/2 -translate-x-1/2"
                     : design.position === "top-left"
                     ? "top-4 left-4"
                     : design.position === "top-right"
@@ -498,7 +761,7 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
                     : design.position === "top-center"
                     ? "top-4 left-1/2 -translate-x-1/2"
                     : "bottom-4 left-4"
-                } max-w-sm animate-in ${
+                } ${previewDevice === 'mobile' ? 'max-w-[calc(100%-2rem)]' : 'max-w-sm'} animate-in ${
                   design.animation === "slide"
                     ? "slide-in-from-bottom-5"
                     : design.animation === "fade"
@@ -512,7 +775,7 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
                     : design.animationSpeed === "fast"
                     ? "duration-300"
                     : "duration-500"
-                }`}
+                } cursor-pointer transition-transform hover:scale-[${design.hoverScale}]`}
                 style={{
                   backgroundColor: design.backgroundColor,
                   color: design.textColor,
@@ -524,7 +787,7 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
                     lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
                     xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
                   }[design.shadow],
-                  fontSize: `${design.fontSize}px`,
+                  fontSize: previewDevice === 'mobile' ? `${Math.max(12, parseInt(design.fontSize) - 2)}px` : `${design.fontSize}px`,
                   fontFamily: design.fontFamily
                 }}
               >
@@ -573,8 +836,10 @@ export function DesignEditor({ settings, onChange }: DesignEditorProps) {
             
             <div className="mt-4 p-3 bg-muted/50 rounded-lg">
               <p className="text-xs text-muted-foreground">
-                💡 <strong>Tip:</strong> This preview updates in real-time as you adjust settings. 
-                On mobile devices, notifications automatically center at the bottom for better UX.
+                💡 <strong>Tip:</strong> {previewDevice === 'mobile' 
+                  ? 'Mobile view automatically centers notifications for optimal UX. Font size is reduced by 2px on mobile.'
+                  : 'Toggle to mobile view to see how your notification adapts to smaller screens. Hover to see hover effects.'
+                }
               </p>
             </div>
           </CardContent>

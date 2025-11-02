@@ -12,14 +12,15 @@ export const CAMPAIGN_DATA_SOURCE_MAP: Record<string, string[]> = {
   'visitor-counter': ['ga4', 'mixpanel', 'webhook', 'manual'],
   'recently-viewed': ['ga4', 'shopify', 'woocommerce', 'webhook', 'manual'],
   'wishlist-additions': ['shopify', 'woocommerce', 'webhook', 'manual'],
-  'flash-sale': ['manual', 'webhook'],
+  'flash-sale': ['shopify', 'woocommerce', 'stripe', 'webhook', 'manual'],
 
   // ========== SAAS/SOFTWARE (5 types) ==========
   'new-signup': ['webhook', 'zapier', 'stripe', 'auth0', 'manual'],
   'trial-starts': ['webhook', 'stripe', 'manual'],
   'upgrade-events': ['stripe', 'webhook', 'manual'],
-  'feature-releases': ['manual'],
-  'user-milestones': ['webhook', 'manual'],
+  'feature-releases': ['webhook', 'zapier', 'manual'],
+  'user-milestones': ['webhook', 'zapier', 'segment', 'mixpanel', 'manual'],
+  'testimonial': ['typeform', 'jotform', 'trustpilot', 'webhook', 'manual'],
 
   // ========== SERVICES/BOOKING (4 types) ==========
   'new-bookings': ['calendly', 'acuity', 'webhook', 'typeform', 'jotform', 'manual'],
@@ -29,36 +30,36 @@ export const CAMPAIGN_DATA_SOURCE_MAP: Record<string, string[]> = {
 
   // ========== CONTENT/MEDIA (3 types) ==========
   'newsletter-signups': ['mailchimp', 'convertkit', 'beehiiv', 'substack', 'webhook', 'manual'],
-  'content-downloads': ['webhook', 'manual'],
+  'content-downloads': ['wordpress', 'webflow', 'webhook', 'manual'],
   'blog-comments': ['wordpress', 'ghost', 'webhook', 'manual'],
-
+  
   // ========== SOCIAL/COMMUNITY (3 types) ==========
-  'social-shares': ['webhook', 'manual'],
-  'community-joins': ['webhook', 'manual'],
+  'social-shares': ['instagram', 'twitter', 'zapier', 'webhook', 'manual'],
+  'community-joins': ['circle', 'webhook', 'zapier', 'manual'],
   'custom-event': ['webhook', 'zapier', 'api', 'manual'],
 
   // ========== NGO & NON-PROFIT (3 types) ==========
   'donation-notification': ['stripe', 'paypal', 'paystack', 'flutterwave', 'webhook', 'manual'],
-  'impact-milestone': ['manual', 'webhook'],
+  'impact-milestone': ['webhook', 'zapier', 'manual'],
   'volunteer-signup': ['typeform', 'jotform', 'webhook', 'manual'],
 
   // ========== FINANCE & FINTECH (3 types) ==========
-  'account-signup': ['webhook', 'manual'],
-  'transaction-volume': ['stripe', 'paypal', 'webhook', 'manual'],
-  'security-trust': ['manual'],
+  'account-signup': ['webhook', 'zapier', 'plaid', 'manual'],
+  'transaction-volume': ['stripe', 'paypal', 'plaid', 'webhook', 'manual'],
+  'security-trust': ['manual', 'webhook'],
 
   // ========== EDUCATION (3 types) ==========
   'course-enrollment': ['stripe', 'teachable', 'thinkific', 'webhook', 'manual'],
-  'completion-milestone': ['webhook', 'manual'],
+  'completion-milestone': ['teachable', 'thinkific', 'webhook', 'zapier', 'manual'],
   'live-students': ['ga4', 'webhook', 'manual'],
 
   // ========== ADDITIONAL TYPES ==========
-  'breaking-news': ['rss', 'webhook', 'manual'],
-  'trending-article': ['ga4', 'webhook', 'manual'],
-  'live-readers': ['ga4', 'webhook', 'manual'],
-  'portfolio-showcase': ['manual'],
+  'breaking-news': ['rss', 'wordpress', 'ghost', 'webhook', 'manual'],
+  'trending-article': ['ga4', 'wordpress', 'ghost', 'webhook', 'manual'],
+  'live-readers': ['ga4', 'mixpanel', 'webhook', 'manual'],
+  'portfolio-showcase': ['instagram', 'webhook', 'manual'],
   'event-booking': ['calendly', 'eventbrite', 'webhook', 'manual'],
-  'stream-listener': ['spotify', 'webhook', 'manual'],
+  'stream-listener': ['spotify', 'soundcloud', 'webhook', 'manual'],
 
   // Fallback for unknown types
   'manual-upload': ['manual', 'csv'],

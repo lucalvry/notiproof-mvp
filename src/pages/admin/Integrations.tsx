@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { getIntegrationMetadata } from "@/lib/integrationMetadata";
 import { Settings, CheckCircle2, XCircle, Clock, Loader2 } from "lucide-react";
+import { IntegrationConfigDialog } from "@/components/admin/IntegrationConfigDialog";
 
 interface IntegrationConfig {
   id: string;
@@ -35,7 +36,6 @@ export default function AdminIntegrations() {
   const queryClient = useQueryClient();
   const [selectedIntegration, setSelectedIntegration] = useState<IntegrationConfig | null>(null);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
-  const [configForm, setConfigForm] = useState<any>({});
 
   const { data: integrations, isLoading } = useQuery({
     queryKey: ["admin-integrations"],
@@ -117,38 +117,32 @@ export default function AdminIntegrations() {
 
   const handleConfigure = (integration: IntegrationConfig) => {
     setSelectedIntegration(integration);
-    setConfigForm({
-      webhook_secret: integration.webhook_secret || "",
-      api_credentials: JSON.stringify(integration.api_credentials || {}, null, 2),
-      rate_limit_per_user: integration.rate_limit_per_user,
-      config: JSON.stringify(integration.config || {}, null, 2),
-    });
     setConfigDialogOpen(true);
   };
 
-  const handleSaveConfig = () => {
-    try {
-      const updates: Partial<IntegrationConfig> = {
-        webhook_secret: configForm.webhook_secret || null,
-        rate_limit_per_user: configForm.rate_limit_per_user ? parseInt(configForm.rate_limit_per_user) : 1000,
-      };
-
-      if (configForm.api_credentials) {
-        updates.api_credentials = JSON.parse(configForm.api_credentials);
-      }
-
-      if (configForm.config) {
-        updates.config = JSON.parse(configForm.config);
-      }
-
-      updateConfigMutation.mutate(updates);
-    } catch (error) {
+  const handleSaveConfig = async (updates: Partial<IntegrationConfig>) => {
+    if (!selectedIntegration) return;
+    
+    const { error } = await supabase
+      .from("integrations_config")
+      .update(updates)
+      .eq("id", selectedIntegration.id);
+    
+    if (error) {
       toast({
-        title: "Invalid JSON",
-        description: "Please check your JSON configuration",
+        title: "Error",
+        description: error.message,
         variant: "destructive",
       });
+      return;
     }
+
+    queryClient.invalidateQueries({ queryKey: ["admin-integrations"] });
+    setConfigDialogOpen(false);
+    toast({
+      title: "Configuration saved",
+      description: "Integration configuration has been updated successfully",
+    });
   };
 
   const groupedIntegrations = integrations?.reduce((acc, integration) => {
@@ -296,86 +290,13 @@ export default function AdminIntegrations() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              Configure {selectedIntegration && getIntegrationMetadata(selectedIntegration.integration_type).displayName}
-            </DialogTitle>
-            <DialogDescription>
-              Set up credentials and configuration for this integration
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {selectedIntegration?.requires_oauth ? (
-              <div className="space-y-2">
-                <Label>OAuth Configuration</Label>
-                <Textarea
-                  placeholder='{"client_id": "...", "client_secret": "..."}'
-                  value={configForm.api_credentials || ""}
-                  onChange={(e) =>
-                    setConfigForm({ ...configForm, api_credentials: e.target.value })
-                  }
-                  rows={6}
-                />
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label>Webhook Secret (Optional)</Label>
-                <Input
-                  placeholder="Leave empty to skip signature verification"
-                  value={configForm.webhook_secret || ""}
-                  onChange={(e) =>
-                    setConfigForm({ ...configForm, webhook_secret: e.target.value })
-                  }
-                />
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label>Rate Limit (requests per user per hour)</Label>
-              <Input
-                type="number"
-                value={configForm.rate_limit_per_user ?? 1000}
-                onChange={(e) =>
-                  setConfigForm({
-                    ...configForm,
-                    rate_limit_per_user: e.target.value,
-                  })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Additional Configuration (JSON)</Label>
-              <Textarea
-                placeholder='{"quota_per_plan": {"free": 1, "pro": 5, "business": 20}}'
-                value={configForm.config || ""}
-                onChange={(e) =>
-                  setConfigForm({ ...configForm, config: e.target.value })
-                }
-                rows={8}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfigDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveConfig}
-              disabled={updateConfigMutation.isPending}
-            >
-              {updateConfigMutation.isPending && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
-              Save Configuration
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <IntegrationConfigDialog
+        integration={selectedIntegration}
+        open={configDialogOpen}
+        onOpenChange={setConfigDialogOpen}
+        onSave={handleSaveConfig}
+        isSaving={false}
+      />
     </div>
   );
 }

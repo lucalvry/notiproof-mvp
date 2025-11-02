@@ -488,3 +488,187 @@ export function getDefaultVariables(template: CampaignTemplate): Record<string, 
   
   return defaults;
 }
+
+/**
+ * Category-based style defaults for fallback templates
+ */
+const CATEGORY_STYLE_DEFAULTS: Record<string, any> = {
+  ecommerce: {
+    backgroundColor: 'hsl(142, 71%, 45%)', // Green - urgency
+    textColor: 'hsl(0, 0%, 100%)',
+    borderColor: 'hsl(142, 71%, 35%)',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    borderRadius: '8px',
+    animation: 'slide-in',
+    position: 'bottom-left',
+    icon: '🛍️',
+  },
+  saas: {
+    backgroundColor: 'hsl(221, 83%, 53%)', // Blue - professional
+    textColor: 'hsl(0, 0%, 100%)',
+    borderColor: 'hsl(221, 83%, 43%)',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    borderRadius: '8px',
+    animation: 'fade-in',
+    position: 'bottom-right',
+    icon: '🚀',
+  },
+  services: {
+    backgroundColor: 'hsl(262, 83%, 58%)', // Purple - professional services
+    textColor: 'hsl(0, 0%, 100%)',
+    borderColor: 'hsl(262, 83%, 48%)',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    borderRadius: '8px',
+    animation: 'slide-in',
+    position: 'bottom-left',
+    icon: '📅',
+  },
+  content: {
+    backgroundColor: 'hsl(24, 95%, 53%)', // Orange - engaging
+    textColor: 'hsl(0, 0%, 100%)',
+    borderColor: 'hsl(24, 95%, 43%)',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    borderRadius: '8px',
+    animation: 'fade-in',
+    position: 'top-right',
+    icon: '📰',
+  },
+  social: {
+    backgroundColor: 'hsl(280, 70%, 50%)', // Purple - community
+    textColor: 'hsl(0, 0%, 100%)',
+    borderColor: 'hsl(280, 70%, 40%)',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    borderRadius: '8px',
+    animation: 'slide-in',
+    position: 'bottom-right',
+    icon: '💬',
+  },
+};
+
+/**
+ * Business type to category mapping for special cases
+ */
+const BUSINESS_TYPE_CATEGORY_MAP: Record<string, string> = {
+  ngo: 'social',
+  education: 'content',
+  healthcare: 'services',
+  fintech: 'saas',
+  finance: 'saas',
+  real_estate: 'services',
+  marketing_agency: 'services',
+};
+
+/**
+ * PHASE 3: Auto-Generate Fallback Templates
+ * 
+ * Generates a default marketplace template when no pre-made templates exist for a campaign type.
+ * This ensures users can ALWAYS create campaigns, even for types without curated templates.
+ * 
+ * @param campaignTypeId - The campaign type ID (e.g., 'recent-purchase', 'course-enrollment')
+ * @returns A marketplace-template-like object with auto-generated config, or null if campaign type not found
+ * 
+ * @example
+ * // User selects "donation-notification" but no templates exist
+ * const template = generateDefaultTemplateForCampaignType('donation-notification');
+ * // Returns auto-generated template with:
+ * // - Message template from CAMPAIGN_TEMPLATES
+ * // - Category-appropriate colors (NGO = orange/warm)
+ * // - Sensible default settings
+ * // - is_auto_generated: true flag
+ * 
+ * Implementation Details:
+ * 1. Looks up campaign template definition from CAMPAIGN_TEMPLATES constant
+ * 2. Determines appropriate category (with business type overrides)
+ * 3. Applies category-specific style defaults (colors, animations, positioning)
+ * 4. Generates template_config from campaign template structure
+ * 5. Creates display_rules with sensible defaults
+ * 6. Returns object matching marketplace_templates table schema
+ * 
+ * Category Style Mapping:
+ * - E-commerce: Green (#10B981) - urgency, action-oriented
+ * - SaaS: Blue (#3B82F6) - professional, trustworthy
+ * - Services: Purple (#8B5CF6) - professional services
+ * - Content: Orange (#F97316) - engaging, warm
+ * - Social: Purple (#8B5CF6) - community-driven
+ * 
+ * Special Business Type Mappings:
+ * - NGO → social category (orange/warm colors)
+ * - Education → content category (purple/academic)
+ * - Healthcare → services category (teal/trust)
+ * - Finance/Fintech → saas category (blue/secure)
+ * 
+ * Note: Auto-generated templates are NOT saved to the database.
+ * They exist only in-memory during the wizard session.
+ */
+export function generateDefaultTemplateForCampaignType(campaignTypeId: string): any {
+  // Look up the campaign template definition
+  const campaignTemplate = getTemplateById(campaignTypeId);
+  
+  if (!campaignTemplate) {
+    console.warn(`No campaign template found for ID: ${campaignTypeId}`);
+    return null;
+  }
+
+  // Determine category (check business types for special mappings)
+  let category = campaignTemplate.category;
+  for (const businessType of campaignTemplate.businessTypes) {
+    if (BUSINESS_TYPE_CATEGORY_MAP[businessType]) {
+      category = BUSINESS_TYPE_CATEGORY_MAP[businessType] as any;
+      break;
+    }
+  }
+
+  // Get style defaults for this category
+  const styleDefaults = CATEGORY_STYLE_DEFAULTS[category] || CATEGORY_STYLE_DEFAULTS.ecommerce;
+
+  // Generate template config from campaign template
+  const templateConfig = {
+    messageTemplate: campaignTemplate.messageTemplate,
+    variables: campaignTemplate.variables.reduce((acc, v) => {
+      acc[v.name] = v.defaultValue || '';
+      return acc;
+    }, {} as Record<string, string>),
+    exampleMessage: campaignTemplate.example,
+  };
+
+  // Generate style config
+  const styleConfig = {
+    ...styleDefaults,
+    displayDuration: 5000,
+    showCloseButton: true,
+    enableSound: false,
+  };
+
+  // Generate display rules
+  const displayRules = {
+    triggerEvent: 'page_load',
+    displayDelay: 2000,
+    displayFrequency: 'once_per_session',
+    urlRules: {
+      enabled: false,
+      matchType: 'contains',
+      urls: [],
+    },
+  };
+
+  // Return a marketplace-template-like object
+  return {
+    id: `auto-${campaignTypeId}`,
+    name: `${campaignTemplate.name} (Auto-Generated)`,
+    description: `Automatically generated template for ${campaignTemplate.name}. Customize to match your brand.`,
+    category: campaignTemplate.category,
+    template_config: templateConfig,
+    style_config: styleConfig,
+    display_rules: displayRules,
+    supported_campaign_types: [campaignTypeId],
+    business_types: campaignTemplate.businessTypes,
+    is_public: false,
+    priority: 0,
+    rating_average: null,
+    rating_count: 0,
+    download_count: 0,
+    is_auto_generated: true, // Flag to identify auto-generated templates
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}

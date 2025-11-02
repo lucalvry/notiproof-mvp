@@ -77,3 +77,13 @@ verify_jwt = true
 
 [functions.get-invoices]
 verify_jwt = true
+
+[functions.test-webhook]
+verify_jwt = true
+
+[functions.oauth-shopify]
+verify_jwt = false
+
+[functions.oauth-hubspot]
+verify_jwt = false
+

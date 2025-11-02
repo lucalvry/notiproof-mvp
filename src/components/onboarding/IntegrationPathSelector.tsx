@@ -11,6 +11,7 @@ import {
   Zap
 } from "lucide-react";
 import { getIntegrationMetadata } from "@/lib/integrationMetadata";
+import { getDataSourcesForCampaignType } from "@/lib/campaignDataSources";
 import { cn } from "@/lib/utils";
 
 interface IntegrationPathSelectorProps {
@@ -19,20 +20,6 @@ interface IntegrationPathSelectorProps {
   onSelect: (path: string) => void;
 }
 
-// Map campaign types to relevant integrations
-const CAMPAIGN_TO_INTEGRATIONS: Record<string, string[]> = {
-  "recent-purchase": ["shopify", "woocommerce", "stripe", "paypal"],
-  "cart-additions": ["shopify", "woocommerce"],
-  "product-reviews": ["shopify", "woocommerce", "google_reviews"],
-  "new-signup": ["webhook", "zapier"],
-  "new-bookings": ["calendly"],
-  "newsletter-signups": ["mailchimp", "convertkit", "beehiiv"],
-  "contact-form": ["typeform", "jotform", "webhook"],
-  "donation-notification": ["stripe", "paypal"],
-  "course-enrollment": ["teachable", "thinkific"],
-  // Add more mappings as needed
-};
-
 export function IntegrationPathSelector({ 
   campaignType, 
   selectedPath, 
@@ -40,9 +27,29 @@ export function IntegrationPathSelector({
 }: IntegrationPathSelectorProps) {
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   
-  // Get suggested integrations for this campaign type
-  const suggestedIntegrations = CAMPAIGN_TO_INTEGRATIONS[campaignType] || ["webhook", "zapier"];
-  const integrationMetadata = suggestedIntegrations.slice(0, 4).map(getIntegrationMetadata);
+  // Get suggested integrations for this campaign type from the unified data source
+  const allSources = getDataSourcesForCampaignType(campaignType);
+  
+  // Filter out 'manual' and 'csv' and map to metadata
+  const integrationOptions = allSources
+    .filter(source => source !== 'manual' && source !== 'csv')
+    .map(getIntegrationMetadata);
+  
+  // Sort: Platform-specific integrations first, then Generic Webhook/Zapier
+  const sortedIntegrations = integrationOptions.sort((a, b) => {
+    const aIsGeneric = a.displayName === 'Generic Webhook' || a.displayName === 'Zapier';
+    const bIsGeneric = b.displayName === 'Generic Webhook' || b.displayName === 'Zapier';
+    
+    if (aIsGeneric && !bIsGeneric) return 1;  // Push generic to end
+    if (!aIsGeneric && bIsGeneric) return -1; // Keep platform first
+    return (a.phase || 99) - (b.phase || 99); // Sort by phase otherwise
+  });
+  
+  // Take top 6 for recommended display
+  const integrationMetadata = sortedIntegrations.slice(0, 6);
+  
+  console.info('IntegrationPathSelector - Campaign type:', campaignType);
+  console.info('IntegrationPathSelector - Recommended integrations:', integrationMetadata.map(i => i.displayName));
 
   const paths = [
     {

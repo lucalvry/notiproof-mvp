@@ -978,6 +978,7 @@ export type Database = {
       }
       marketplace_templates: {
         Row: {
+          business_types: string[] | null
           category: string
           created_at: string
           created_by: string
@@ -990,14 +991,17 @@ export type Database = {
           name: string
           preview_image: string | null
           price_cents: number | null
+          priority: number | null
           rating_average: number | null
           rating_count: number
           style_config: Json
+          supported_campaign_types: string[] | null
           tags: string[] | null
           template_config: Json
           updated_at: string
         }
         Insert: {
+          business_types?: string[] | null
           category?: string
           created_at?: string
           created_by: string
@@ -1010,14 +1014,17 @@ export type Database = {
           name: string
           preview_image?: string | null
           price_cents?: number | null
+          priority?: number | null
           rating_average?: number | null
           rating_count?: number
           style_config?: Json
+          supported_campaign_types?: string[] | null
           tags?: string[] | null
           template_config?: Json
           updated_at?: string
         }
         Update: {
+          business_types?: string[] | null
           category?: string
           created_at?: string
           created_by?: string
@@ -1030,9 +1037,11 @@ export type Database = {
           name?: string
           preview_image?: string | null
           price_cents?: number | null
+          priority?: number | null
           rating_average?: number | null
           rating_count?: number
           style_config?: Json
+          supported_campaign_types?: string[] | null
           tags?: string[] | null
           template_config?: Json
           updated_at?: string

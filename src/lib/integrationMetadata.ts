@@ -9,6 +9,9 @@ export interface IntegrationMetadata {
   connectorType?: 'webhook' | 'api_poll' | 'oauth' | 'embed' | 'zapier_proxy';
   requiresOauth?: boolean;
   phase?: 1 | 2 | 3;
+  popularityScore?: number; // 1-100, higher = more popular
+  category?: 'ecommerce' | 'forms' | 'social' | 'cms' | 'payment' | 'analytics' | 'crm' | 'email' | 'education' | 'automation' | 'other';
+  isTrending?: boolean;
 }
 
 const integrationMetadataMap: Record<string, IntegrationMetadata> = {
@@ -19,6 +22,8 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: Webhook,
     connectorType: 'webhook',
     phase: 1,
+    popularityScore: 95,
+    category: 'automation',
   },
   zapier: {
     displayName: "Zapier",
@@ -27,6 +32,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: Zap,
     connectorType: 'zapier_proxy',
     phase: 1,
+    popularityScore: 98,
+    category: 'automation',
+    isTrending: true,
   },
   typeform: {
     displayName: "Typeform",
@@ -35,6 +43,8 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: FileText,
     connectorType: 'webhook',
     phase: 1,
+    popularityScore: 88,
+    category: 'forms',
   },
   calendly: {
     displayName: "Calendly",
@@ -43,6 +53,8 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: Calendar,
     connectorType: 'webhook',
     phase: 1,
+    popularityScore: 85,
+    category: 'forms',
   },
   shopify: {
     displayName: "Shopify",
@@ -51,6 +63,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: ShoppingBag,
     connectorType: 'webhook',
     phase: 1,
+    popularityScore: 96,
+    category: 'ecommerce',
+    isTrending: true,
   },
   woocommerce: {
     displayName: "WooCommerce",
@@ -59,6 +74,8 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: ShoppingBag,
     connectorType: 'webhook',
     phase: 1,
+    popularityScore: 90,
+    category: 'ecommerce',
   },
   stripe: {
     displayName: "Stripe",
@@ -67,6 +84,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: CreditCard,
     connectorType: 'webhook',
     phase: 1,
+    popularityScore: 92,
+    category: 'payment',
+    isTrending: true,
   },
   google_reviews: {
     displayName: "Google Reviews",
@@ -76,6 +96,8 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     connectorType: 'api_poll',
     requiresOauth: true,
     phase: 1,
+    popularityScore: 82,
+    category: 'social',
   },
   instagram: {
     displayName: "Instagram",
@@ -85,6 +107,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     connectorType: 'api_poll',
     requiresOauth: true,
     phase: 1,
+    popularityScore: 87,
+    category: 'social',
+    isTrending: true,
   },
   twitter: {
     displayName: "Twitter/X",
@@ -94,6 +119,8 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     connectorType: 'api_poll',
     requiresOauth: true,
     phase: 1,
+    popularityScore: 80,
+    category: 'social',
   },
   ga4: {
     displayName: "Google Analytics 4",
@@ -103,6 +130,8 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     connectorType: 'oauth',
     requiresOauth: true,
     phase: 1,
+    popularityScore: 90,
+    category: 'analytics',
   },
   rss: {
     displayName: "RSS Feeds",
@@ -120,8 +149,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     connectorType: 'oauth',
     requiresOauth: true,
     phase: 2,
+    popularityScore: 84,
+    category: 'crm',
   },
-  // Phase 1: Pre-MVP (Launch Blockers)
   wordpress: {
     displayName: "WordPress",
     type: "cms",
@@ -129,6 +159,8 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: Globe,
     connectorType: 'webhook',
     phase: 1,
+    popularityScore: 88,
+    category: 'cms',
   },
   webflow: {
     displayName: "Webflow",
@@ -354,4 +386,26 @@ export function getIntegrationDescription(integrationType: string): string {
 
 export function getIntegrationIcon(integrationType: string): LucideIcon {
   return getIntegrationMetadata(integrationType).icon;
+}
+
+export function normalizeIntegrationKey(displayName: string): string {
+  // Convert display names to database keys
+  const keyMap: Record<string, string> = {
+    'generic_webhook': 'webhook',
+    'twitter_x': 'twitter',
+    'google_analytics_4': 'ga4',
+    'google_reviews': 'google_reviews',
+    'twitter/x': 'twitter',
+  };
+  
+  const transformed = displayName.toLowerCase().replace(/\s+/g, '_').replace(/\//g, '_');
+  return keyMap[transformed] || transformed;
+}
+
+export function getIntegrationKeyFromDisplay(displayName: string): string {
+  return normalizeIntegrationKey(displayName);
+}
+
+export function getAllIntegrations(): IntegrationMetadata[] {
+  return Object.keys(integrationMetadataMap).map(key => integrationMetadataMap[key]);
 }

@@ -4,6 +4,22 @@
 
 **URL**: https://lovable.dev/projects/de58a950-16c7-4103-b0a4-bf74be535956
 
+## Campaign Template System
+
+This project includes an intelligent campaign template matching system that automatically recommends the best notification templates based on your campaign type.
+
+### Key Features
+- **Smart Filtering**: Templates are automatically filtered by campaign type
+- **Auto-Generation**: Fallback templates are generated for unmapped campaign types
+- **Best Match Indicators**: Top-ranked templates are highlighted for easy selection
+- **Show All Toggle**: Option to browse all templates regardless of campaign type
+- **Comprehensive Documentation**: See `CAMPAIGN_TEMPLATES.md` for user guide
+
+### For Administrators
+- Template management guide: `ADMIN_TEMPLATES_GUIDE.md`
+- Implementation details: `TEMPLATE_SYSTEM_IMPLEMENTATION.md`
+- Rollback procedures: `ROLLBACK_PLAN.md`
+
 ## How can I edit this code?
 
 There are several ways of editing your application.

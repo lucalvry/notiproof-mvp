@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Send } from "lucide-react";
+import { CheckCircle2, Send, Sparkles, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { WidgetInstallationSuccess } from "./WidgetInstallationSuccess";
@@ -13,9 +13,10 @@ import { WidgetInstallationSuccess } from "./WidgetInstallationSuccess";
 interface ReviewActivateProps {
   campaignData: any;
   onComplete: () => void;
+  selectedTemplate?: any;
 }
 
-export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps) {
+export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: ReviewActivateProps) {
   const [searchParams] = useSearchParams();
   const [campaignName, setCampaignName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -256,32 +257,92 @@ export function ReviewActivate({ campaignData, onComplete }: ReviewActivateProps
 
       <Card>
         <CardHeader>
-          <CardTitle>Campaign Summary</CardTitle>
-          <CardDescription>Review your configuration</CardDescription>
+          <CardTitle>Campaign Configuration</CardTitle>
+          <CardDescription>Complete setup overview</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-muted-foreground">Campaign Type</p>
-              <p className="font-medium capitalize">{campaignData.type?.replace("-", " ")}</p>
+              <p className="font-medium capitalize flex items-center gap-2">
+                {campaignData.type?.replace("-", " ")}
+                <Badge variant="outline" className="text-xs">
+                  {campaignData.integration_path === 'integration' ? 'Live Data' : 
+                   campaignData.integration_path === 'demo' ? 'Demo Mode' : 'Manual Upload'}
+                </Badge>
+              </p>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Data Source</p>
-              <p className="font-medium capitalize">{campaignData.data_source}</p>
-            </div>
+            
+            {campaignData.data_source && campaignData.data_source !== 'manual' && campaignData.data_source !== 'demo' && (
+              <div>
+                <p className="text-sm text-muted-foreground">Connected Integration</p>
+                <p className="font-medium capitalize flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  {campaignData.data_source}
+                </p>
+              </div>
+            )}
+            
             <div>
               <p className="text-sm text-muted-foreground">Layout</p>
               <p className="font-medium capitalize">
-                {campaignData.settings?.layout?.replace("-", " ")}
+                {campaignData.settings?.layout?.replace("-", " ") || "Notification"}
               </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Frequency</p>
               <p className="font-medium">Every {campaignData.rules?.frequency || "10"}s</p>
             </div>
+            
+            {campaignData.settings?.headline && (
+              <div className="col-span-2">
+                <p className="text-sm text-muted-foreground">Message Template</p>
+                <p className="font-medium text-sm bg-muted p-2 rounded">
+                  {campaignData.settings.headline}
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {selectedTemplate && (
+        <Card className="border-primary/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Applied Template
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div>
+                <p className="font-medium">{selectedTemplate.name}</p>
+                <p className="text-sm text-muted-foreground mt-1">{selectedTemplate.description}</p>
+              </div>
+              {selectedTemplate.supported_campaign_types && selectedTemplate.supported_campaign_types.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {selectedTemplate.supported_campaign_types.map((type: string) => (
+                    <Badge key={type} variant="outline" className="text-xs">
+                      {type.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
+                <div className="flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  <span>Design pre-filled</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  <span>Rules configured</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
