@@ -87,3 +87,41 @@ verify_jwt = false
 [functions.oauth-hubspot]
 verify_jwt = false
 
+[functions.webhook-ghost]
+verify_jwt = false
+
+[functions.webhook-gumroad]
+verify_jwt = false
+
+[functions.webhook-thinkific]
+verify_jwt = false
+
+[functions.webhook-plaid]
+verify_jwt = false
+
+[functions.webhook-segment]
+verify_jwt = false
+
+[functions.webhook-razorpay]
+verify_jwt = false
+
+[functions.webhook-flutterwave]
+verify_jwt = false
+
+[functions.webhook-mixpanel]
+verify_jwt = false
+
+[functions.webhook-circle]
+verify_jwt = false
+
+[functions.webhook-learndash]
+verify_jwt = false
+
+[functions.webhook-beehiiv]
+verify_jwt = false
+
+[functions.webhook-convertkit]
+verify_jwt = false
+
+[functions.webhook-framer]
+verify_jwt = false
