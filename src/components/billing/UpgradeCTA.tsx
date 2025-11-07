@@ -60,7 +60,7 @@ export function UpgradeCTA({
         </div>
         <Button
           className="w-full gap-2"
-          onClick={() => navigate("/billing")}
+          onClick={() => navigate("/pricing")}
         >
           <TrendingUp className="h-4 w-4" />
           View Upgrade Options

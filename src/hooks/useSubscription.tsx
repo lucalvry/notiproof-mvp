@@ -51,11 +51,20 @@ export const useSubscription = (userId: string | undefined) => {
 
   const plan = subscription?.plan;
   
-  // Users need active subscription for access
-  const sitesAllowed = plan?.max_websites ?? 0;
-  const eventsAllowed = plan?.max_events_per_month ?? 0;
-  const planName = plan?.name ?? "No Subscription";
+  // Free tier defaults (no subscription in database)
+  const isFree = !subscription;
+  const sitesAllowed = plan?.max_websites ?? (isFree ? 1 : 0);
+  const eventsAllowed = plan?.max_events_per_month ?? (isFree ? 1000 : 0);
+  const planName = plan?.name ?? (isFree ? "Free" : "No Subscription");
   const isBusinessPlan = planName === "Business";
+  const isProPlan = planName === "Pro";
+  const isStarter = planName === "Starter";
+  
+  // Free tier has limited integrations (2: GA4 + 1 more)
+  const maxIntegrations = isFree ? 2 : (isStarter ? 5 : (plan?.name === "Standard" ? 15 : 999));
+  
+  // Free tier has limited campaign templates (3)
+  const maxCampaignTemplates = isFree ? 3 : (isStarter ? 10 : (plan?.name === "Standard" ? 20 : 999));
   
   // Trial information
   const isTrialing = subscription?.status === 'trialing';
@@ -71,6 +80,10 @@ export const useSubscription = (userId: string | undefined) => {
     eventsAllowed,
     planName,
     isBusinessPlan,
+    isProPlan,
+    isFree,
+    maxIntegrations,
+    maxCampaignTemplates,
     isTrialing,
     trialEndsAt,
     trialDaysLeft,

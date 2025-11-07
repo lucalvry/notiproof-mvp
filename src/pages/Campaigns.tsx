@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CampaignWizard } from "@/components/campaigns/CampaignWizard";
 import { useNavigate } from "react-router-dom";
+import { useSubscription } from "@/hooks/useSubscription";
+import { FreeTrialLimitBanner } from "@/components/billing/FreeTrialLimitBanner";
 
 // Using database schema types
 interface Campaign {
@@ -33,7 +35,16 @@ export default function Campaigns() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [userId, setUserId] = useState<string>();
   const navigate = useNavigate();
+  
+  const { maxCampaignTemplates, planName } = useSubscription(userId);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserId(user?.id);
+    });
+  }, []);
 
   const fetchCampaigns = async () => {
     try {
@@ -139,6 +150,14 @@ export default function Campaigns() {
           Create Campaign
         </Button>
       </div>
+
+      {/* Show upgrade banner when approaching campaign template limit */}
+      <FreeTrialLimitBanner
+        type="templates"
+        current={campaigns.length}
+        limit={maxCampaignTemplates}
+        planName={planName}
+      />
 
       {campaigns.length === 0 ? (
         <Card>

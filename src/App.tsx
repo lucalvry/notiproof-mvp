@@ -44,6 +44,7 @@ import Team from "./pages/Team";
 import ABTesting from "./pages/ABTesting";
 import GA4PropertySelection from "./pages/GA4PropertySelection";
 import EventModeration from "./pages/EventModeration";
+import Pricing from "./pages/Pricing";
 import { OAuthCallback } from "./components/integrations/OAuthCallback";
 
 const queryClient = new QueryClient();
@@ -60,6 +61,7 @@ const App = () => (
         <Route path="/register" element={<Register />} />
         <Route path="/signup" element={<Navigate to="/register" replace />} />
         <Route path="/get-started" element={<Navigate to="/register" replace />} />
+        <Route path="/pricing" element={<Pricing />} />
         <Route path="/select-plan" element={<SelectPlan />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

@@ -35,6 +35,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConnectionWizard } from "@/components/websites/ConnectionWizard";
 import { getAllBusinessTypes, getBusinessTypeLabel } from "@/lib/businessTypes";
+import { FreeTrialLimitBanner } from "@/components/billing/FreeTrialLimitBanner";
 
 const mockWebsites = [
   {
@@ -183,15 +184,13 @@ export default function Websites() {
         </Button>
       </div>
 
-      {/* Show upgrade CTA when at or approaching limit */}
-      {sitesUsed >= sitesAllowed && (
-        <UpgradeCTA
-          currentPlan={planName}
-          limitType="websites"
-          currentUsage={sitesUsed}
-          maxAllowed={sitesAllowed}
-        />
-      )}
+      {/* Show upgrade banner when at or approaching limit */}
+      <FreeTrialLimitBanner
+        type="websites"
+        current={sitesUsed}
+        limit={sitesAllowed}
+        planName={planName}
+      />
 
       {/* Websites Grid */}
       {/* Show connection wizard for new unverified sites */}
