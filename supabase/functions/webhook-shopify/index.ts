@@ -157,15 +157,24 @@ Deno.serve(async (req) => {
 });
 
 async function handleOrderEvent(supabase: any, order: any) {
+  const shopDomain = order.domain || order.shop_domain || '';
+  const firstLineItem = order.line_items?.[0];
+  const productId = firstLineItem?.product_id;
+  
   const eventData = {
     event_type: 'purchase',
-    message_template: `${order.customer?.first_name || 'Someone'} from ${order.shipping_address?.city || 'Unknown'} just purchased ${order.line_items?.[0]?.title || 'a product'}`,
+    message_template: `${order.customer?.first_name || 'Someone'} from ${order.shipping_address?.city || 'Unknown'} just purchased ${firstLineItem?.title || 'a product'}`,
     user_name: order.customer?.first_name,
     user_location: order.shipping_address?.city,
     event_data: {
       order_id: order.id,
       total: order.total_price,
       currency: order.currency,
+      product_name: firstLineItem?.title,
+      product_url: productId && shopDomain ? `https://${shopDomain}/products/${productId}` : null,
+      product_image: firstLineItem?.image_url,
+      quantity: firstLineItem?.quantity,
+      price: firstLineItem?.price,
     },
     source: 'integration',
     integration_type: 'shopify',

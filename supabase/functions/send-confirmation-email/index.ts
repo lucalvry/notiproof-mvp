@@ -60,10 +60,11 @@ Deno.serve(async (req) => {
 
     console.log(`Generating confirmation link for: ${email}`);
 
-    // Generate email confirmation link
+    // Generate email confirmation link with temporary password
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
       type: 'signup',
       email: email,
+      password: crypto.randomUUID(), // Temporary password (user already has one)
       options: {
         redirectTo: `${req.headers.get('origin')}/websites`,
       }

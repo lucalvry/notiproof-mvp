@@ -125,3 +125,34 @@ verify_jwt = false
 
 [functions.webhook-framer]
 verify_jwt = false
+
+[functions.oauth-twitter]
+verify_jwt = false
+
+[functions.oauth-google-reviews]
+verify_jwt = false
+
+[functions.oauth-intercom]
+verify_jwt = false
+
+[functions.oauth-mailchimp]
+verify_jwt = false
+
+[functions.oauth-spotify]
+verify_jwt = false
+
+[functions.oauth-salesforce]
+verify_jwt = false
+
+[functions.oauth-soundcloud]
+verify_jwt = false
+
+[functions.oauth-instagram]
+verify_jwt = false
+
+[functions.sync-ga4]
+verify_jwt = true
+
+[functions.migrate-campaigns]
+verify_jwt = true
+

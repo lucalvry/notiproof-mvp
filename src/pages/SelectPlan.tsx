@@ -124,13 +124,13 @@ export default function SelectPlan() {
     } catch (error: any) {
       console.error('Error starting trial:', error);
       
-      // Determine if error is retryable
+      // Determine if error is retryable based on error type
       const isRetryable = 
         error.message?.includes('timeout') ||
         error.message?.includes('network') ||
-        error.message?.includes('500') ||
+        error.message?.includes('ECONNRESET') ||
         error.message?.includes('503') ||
-        retryCount < 2; // Allow up to 2 automatic retries
+        retryCount < 2;
       
       // User-friendly error messages
       let userMessage = "We couldn't complete your request.";
@@ -150,9 +150,9 @@ export default function SelectPlan() {
       
       toast.error(userMessage + (isRetryable ? " Please try again." : ""));
       
-      // Auto-retry for certain errors
-      if (isRetryable && retryCount < 2 && !error.message?.includes('not available')) {
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 4000); // 1s, 2s, 4s max
+      // Only auto-retry for transient errors (max 2 retries)
+      if (isRetryable && retryCount < 2) {
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 4000);
         
         setTimeout(() => {
           setRetryCount(prev => prev + 1);

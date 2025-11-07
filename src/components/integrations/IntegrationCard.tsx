@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, TrendingUp, Star, Zap } from "lucide-react";
+import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, TrendingUp, Star, Zap, List } from "lucide-react";
 
 interface IntegrationCardProps {
   integration: any;
@@ -9,7 +9,9 @@ interface IntegrationCardProps {
   onSync: () => void;
   onSettings: () => void;
   onDisconnect: () => void;
+  onModerate?: () => void;
   quota?: { quota: number; used: number };
+  pendingCount?: number;
 }
 
 export function IntegrationCard({
@@ -18,7 +20,9 @@ export function IntegrationCard({
   onSync,
   onSettings,
   onDisconnect,
+  onModerate,
   quota,
+  pendingCount = 0,
 }: IntegrationCardProps) {
   const Icon = integration.icon;
   const isConnected = integration.status === "connected";
@@ -61,6 +65,18 @@ export function IntegrationCard({
                   {!isConnected && !hasError && <XCircle className="h-3 w-3 mr-1" />}
                   {integration.status}
                 </Badge>
+                {!isConnected && integration.connectorType === 'oauth' && integration.configured && (
+                  <Badge variant="outline" className="bg-success/10 text-success border-success/20">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Ready
+                  </Badge>
+                )}
+                {!isConnected && integration.connectorType === 'oauth' && !integration.configured && (
+                  <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                    Setup Required
+                  </Badge>
+                )}
                 {quota && (
                   <Badge variant="outline">
                     {quota.used}/{quota.quota} used
@@ -102,7 +118,7 @@ export function IntegrationCard({
           </div>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {!isConnected ? (
             <Button
               className="flex-1"
@@ -118,6 +134,17 @@ export function IntegrationCard({
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Sync
               </Button>
+              {onModerate && (
+                <Button variant="outline" onClick={onModerate}>
+                  <List className="h-4 w-4 mr-2" />
+                  Moderate
+                  {pendingCount > 0 && (
+                    <Badge variant="destructive" className="ml-2 h-5 w-5 rounded-full p-0 text-xs">
+                      {pendingCount}
+                    </Badge>
+                  )}
+                </Button>
+              )}
               <Button variant="outline" onClick={onSettings}>
                 <Settings className="h-4 w-4" />
               </Button>

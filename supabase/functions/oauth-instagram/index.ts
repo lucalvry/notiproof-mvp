@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getOAuthConfig, logOAuthAction, storeOAuthConnector } from '../_shared/oauth-helpers.ts';
+import { generateSuccessCallbackHTML, generateErrorCallbackHTML } from '../_shared/oauth-callback-html.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,16 +20,10 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
 
-    // Get Instagram OAuth config
-    const { data: config, error: configError } = await supabase
-      .from('integrations_config')
-      .select('*')
-      .eq('integration_type', 'instagram')
-      .eq('is_active', true)
-      .single();
+    // Get Instagram OAuth config using helper
+    const config = await getOAuthConfig(supabase, 'instagram');
 
-    if (configError || !config) {
-      console.error('Instagram OAuth not configured:', configError);
+    if (!config) {
       return new Response(
         JSON.stringify({ error: 'Instagram OAuth not configured by administrators' }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -47,19 +43,13 @@ Deno.serve(async (req) => {
 
       const state = crypto.randomUUID();
 
-      await supabase.from('integration_logs').insert({
-        integration_type: 'instagram',
-        action: 'oauth_start',
-        status: 'pending',
-        user_id,
-        details: { state, website_id }
-      });
+      await logOAuthAction(supabase, 'instagram', 'oauth_start', 'pending', user_id, { state, website_id });
 
-      const authUrl = new URL('https://api.instagram.com/oauth/authorize');
-      authUrl.searchParams.set('client_id', config.config.clientId);
-      authUrl.searchParams.set('redirect_uri', config.config.redirect_uri);
-      authUrl.searchParams.set('scope', config.config.scopes.join(','));
-      authUrl.searchParams.set('response_type', 'code');
+      const authUrl = new URL(config.authorization_url);
+      authUrl.searchParams.set('client_id', config.clientId);
+      authUrl.searchParams.set('redirect_uri', config.redirect_uri);
+      authUrl.searchParams.set('scope', config.scopes.join(config.scope_separator));
+      authUrl.searchParams.set('response_type', config.extra_params.response_type);
       authUrl.searchParams.set('state', `${state}|${user_id}|${website_id}`);
 
       return new Response(
@@ -82,14 +72,14 @@ Deno.serve(async (req) => {
       const [stateId, user_id, website_id] = state.split('|');
 
       // Exchange code for short-lived token
-      const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
+      const tokenResponse = await fetch(config.token_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
-          client_id: config.config.clientId,
-          client_secret: config.config.clientSecret,
+          client_id: config.clientId,
+          client_secret: config.clientSecret,
           grant_type: 'authorization_code',
-          redirect_uri: config.config.redirect_uri,
+          redirect_uri: config.redirect_uri,
           code: code
         })
       });
@@ -98,62 +88,54 @@ Deno.serve(async (req) => {
         const errorText = await tokenResponse.text();
         console.error('Token exchange failed:', errorText);
         return new Response(
-          JSON.stringify({ error: 'Failed to exchange authorization code' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          generateErrorCallbackHTML(
+            'Failed to exchange authorization code. Please try connecting again.',
+            'TOKEN_EXCHANGE_FAILED'
+          ),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'text/html' } }
         );
       }
 
       const shortLivedToken = await tokenResponse.json();
 
-      // Exchange for long-lived token (60 days)
-      const longLivedResponse = await fetch(
-        `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${config.config.clientSecret}&access_token=${shortLivedToken.access_token}`
+      // Exchange for long-lived token (60 days) if configured
+      let finalToken = shortLivedToken;
+      
+      if (config.extra_params.exchange_long_lived_token) {
+        const longLivedResponse = await fetch(
+          `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${config.clientSecret}&access_token=${shortLivedToken.access_token}`
+        );
+
+        if (longLivedResponse.ok) {
+          finalToken = await longLivedResponse.json();
+        } else {
+          console.warn('Failed to exchange for long-lived token, using short-lived token');
+        }
+      }
+
+      const longLivedToken = finalToken;
+
+      // Store connector using helper
+      await storeOAuthConnector(
+        supabase,
+        user_id,
+        website_id,
+        'instagram',
+        'Instagram Account',
+        {
+          access_token: longLivedToken.access_token,
+          token_type: longLivedToken.token_type,
+          expires_in: longLivedToken.expires_in,
+          user_id: shortLivedToken.user_id,
+          token_expires_at: new Date(Date.now() + (longLivedToken.expires_in || 5184000) * 1000).toISOString()
+        }
       );
 
-      if (!longLivedResponse.ok) {
-        console.error('Long-lived token exchange failed');
-        return new Response(
-          JSON.stringify({ error: 'Failed to get long-lived token' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      const longLivedToken = await longLivedResponse.json();
-
-      // Store connector
-      const { error: insertError } = await supabase
-        .from('integration_connectors')
-        .insert({
-          user_id,
-          website_id,
-          integration_type: 'instagram',
-          name: 'Instagram Account',
-          config: {
-            access_token: longLivedToken.access_token,
-            token_type: longLivedToken.token_type,
-            expires_in: longLivedToken.expires_in,
-            user_id: shortLivedToken.user_id,
-            token_expires_at: new Date(Date.now() + longLivedToken.expires_in * 1000).toISOString()
-          },
-          status: 'active'
-        });
-
-      if (insertError) {
-        console.error('Failed to store connector:', insertError);
-        throw insertError;
-      }
-
-      await supabase.from('integration_logs').insert({
-        integration_type: 'instagram',
-        action: 'oauth_complete',
-        status: 'success',
-        user_id,
-        details: { user_id: shortLivedToken.user_id }
-      });
+      await logOAuthAction(supabase, 'instagram', 'oauth_complete', 'success', user_id, { user_id: shortLivedToken.user_id });
 
       return new Response(
-        JSON.stringify({ success: true }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        generateSuccessCallbackHTML(),
+        { headers: { ...corsHeaders, 'Content-Type': 'text/html' } }
       );
     }
 

@@ -65,15 +65,15 @@ export function APIKeyFlow({ integration, websiteId, onSuccess }: APIKeyFlowProp
   const Icon = integration.icon;
 
   return (
-    <Card>
+    <Card className="border-0 shadow-none">
       <CardHeader>
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
             <Icon className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <CardTitle>Enter {integration.name} API Key</CardTitle>
-            <CardDescription>Connect using your API credentials</CardDescription>
+            <CardTitle>Connect {integration.name}</CardTitle>
+            <CardDescription>Enter your API credentials to get started</CardDescription>
           </div>
         </div>
       </CardHeader>

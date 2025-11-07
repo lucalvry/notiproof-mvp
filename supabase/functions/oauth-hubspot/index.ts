@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getOAuthConfig, logOAuthAction, storeOAuthConnector } from '../_shared/oauth-helpers.ts';
+import { generateSuccessCallbackHTML, generateErrorCallbackHTML } from '../_shared/oauth-callback-html.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,16 +20,8 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
 
-    // Get HubSpot OAuth config
-    const { data: config, error: configError } = await supabase
-      .from('integrations_config')
-      .select('*')
-      .eq('integration_type', 'hubspot')
-      .eq('is_active', true)
-      .single();
-
-    if (configError || !config) {
-      console.error('HubSpot OAuth not configured:', configError);
+    const config = await getOAuthConfig(supabase, 'hubspot');
+    if (!config) {
       return new Response(
         JSON.stringify({ error: 'HubSpot OAuth not configured by administrators' }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -35,8 +29,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'start') {
-      const user_id = url.searchParams.get('user_id');
-      const website_id = url.searchParams.get('website_id');
+      const { user_id, website_id } = await req.json();
 
       if (!user_id || !website_id) {
         return new Response(
@@ -47,18 +40,12 @@ Deno.serve(async (req) => {
 
       const state = crypto.randomUUID();
 
-      await supabase.from('integration_logs').insert({
-        integration_type: 'hubspot',
-        action: 'oauth_start',
-        status: 'pending',
-        user_id,
-        details: { state, website_id }
-      });
+      await logOAuthAction(supabase, 'hubspot', 'oauth_start', 'pending', user_id, { state, website_id });
 
-      const authUrl = new URL('https://app.hubspot.com/oauth/authorize');
-      authUrl.searchParams.set('client_id', config.config.clientId);
-      authUrl.searchParams.set('redirect_uri', config.config.redirect_uri);
-      authUrl.searchParams.set('scope', config.config.scopes.join(' '));
+      const authUrl = new URL(config.authorization_url);
+      authUrl.searchParams.set('client_id', config.clientId);
+      authUrl.searchParams.set('redirect_uri', config.redirect_uri);
+      authUrl.searchParams.set('scope', config.scopes.join(config.scope_separator));
       authUrl.searchParams.set('state', `${state}|${user_id}|${website_id}`);
 
       return new Response(
@@ -80,15 +67,14 @@ Deno.serve(async (req) => {
 
       const [stateId, user_id, website_id] = state.split('|');
 
-      // Exchange code for access token
-      const tokenResponse = await fetch('https://api.hubapi.com/oauth/v1/token', {
+      const tokenResponse = await fetch(config.token_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
           grant_type: 'authorization_code',
-          client_id: config.config.clientId,
-          client_secret: config.config.clientSecret,
-          redirect_uri: config.config.redirect_uri,
+          client_id: config.clientId,
+          client_secret: config.clientSecret,
+          redirect_uri: config.redirect_uri,
           code: code
         })
       });
@@ -97,46 +83,35 @@ Deno.serve(async (req) => {
         const errorText = await tokenResponse.text();
         console.error('Token exchange failed:', errorText);
         return new Response(
-          JSON.stringify({ error: 'Failed to exchange authorization code' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          generateErrorCallbackHTML(
+            'Failed to exchange authorization code. Please try connecting again.',
+            'TOKEN_EXCHANGE_FAILED'
+          ),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'text/html' } }
         );
       }
 
       const tokens = await tokenResponse.json();
 
-      // Store connector
-      const { error: insertError } = await supabase
-        .from('integration_connectors')
-        .insert({
-          user_id,
-          website_id,
-          integration_type: 'hubspot',
-          name: 'HubSpot CRM',
-          config: {
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-            hub_id: tokens.hub_id
-          },
-          status: 'active'
-        });
-
-      if (insertError) {
-        console.error('Failed to store connector:', insertError);
-        throw insertError;
-      }
-
-      await supabase.from('integration_logs').insert({
-        integration_type: 'hubspot',
-        action: 'oauth_complete',
-        status: 'success',
+      await storeOAuthConnector(
+        supabase,
         user_id,
-        details: { hub_id: tokens.hub_id }
-      });
+        website_id,
+        'hubspot',
+        'HubSpot CRM',
+        {
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+          hub_id: tokens.hub_id
+        }
+      );
+
+      await logOAuthAction(supabase, 'hubspot', 'oauth_complete', 'success', user_id, { hub_id: tokens.hub_id });
 
       return new Response(
-        JSON.stringify({ success: true, hub_id: tokens.hub_id }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        generateSuccessCallbackHTML(),
+        { headers: { ...corsHeaders, 'Content-Type': 'text/html' } }
       );
     }
 

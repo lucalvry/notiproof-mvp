@@ -9,7 +9,9 @@ import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, Upload, S
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { IntegrationConnectionDialog } from "@/components/integrations/IntegrationConnectionDialog";
+import { IntegrationModerationDialog } from "@/components/integrations/IntegrationModerationDialog";
 import { CSVUploadDialog } from "@/components/integrations/CSVUploadDialog";
 import { SocialProofConnectors } from "@/components/integrations/SocialProofConnectors";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
@@ -35,11 +37,45 @@ export default function Integrations() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [csvDialogOpen, setCSVDialogOpen] = useState(false);
   const [currentWebsiteId, setCurrentWebsiteId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [integrationQuotas, setIntegrationQuotas] = useState<Record<string, { quota: number; used: number }>>({});
+  const [moderationDialog, setModerationDialog] = useState<{ open: boolean; type: string; name: string }>({ 
+    open: false, 
+    type: "", 
+    name: "" 
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "connected" | "available">("all");
   const [authTypeFilter, setAuthTypeFilter] = useState<"all" | "oauth" | "webhook">("all");
   const [sortBy, setSortBy] = useState<"name" | "popularity">("popularity");
+
+  // Fetch pending event counts per integration
+  const { data: pendingCounts = {} } = useQuery({
+    queryKey: ["integration-pending-count", currentUserId],
+    queryFn: async () => {
+      if (!currentUserId) return {};
+
+      const { data, error } = await supabase
+        .from("events")
+        .select(`
+          integration_type,
+          widgets!inner(user_id)
+        `)
+        .eq("widgets.user_id", currentUserId)
+        .eq("moderation_status", "pending");
+
+      if (error) throw error;
+
+      const counts: Record<string, number> = {};
+      data?.forEach((event: any) => {
+        const type = event.integration_type || "manual";
+        counts[type] = (counts[type] || 0) + 1;
+      });
+
+      return counts;
+    },
+    enabled: !!currentUserId,
+  });
 
   useEffect(() => {
     fetchIntegrations();
@@ -48,9 +84,14 @@ export default function Integrations() {
   const fetchIntegrations = async () => {
     try {
       setLoading(true);
-
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        navigate("/login");
+        return;
+      }
+
+      setCurrentUserId(user.id);
+
 
       // Get user's primary website
       const { data: websites } = await supabase
@@ -351,7 +392,17 @@ export default function Integrations() {
                   onSync={() => handleSync(integration)}
                   onSettings={() => handleConnect(integration)}
                   onDisconnect={() => handleDisconnect(integration)}
+                  onModerate={
+                    integration.status === "connected"
+                      ? () => setModerationDialog({ 
+                          open: true, 
+                          type: integration.id, 
+                          name: integration.name 
+                        })
+                      : undefined
+                  }
                   quota={integrationQuotas[integration.id]}
+                  pendingCount={pendingCounts[integration.id] || 0}
                 />
               ))}
             </div>
@@ -373,7 +424,17 @@ export default function Integrations() {
                   onSync={() => handleSync(integration)}
                   onSettings={() => handleConnect(integration)}
                   onDisconnect={() => handleDisconnect(integration)}
+                  onModerate={
+                    integration.status === "connected"
+                      ? () => setModerationDialog({ 
+                          open: true, 
+                          type: integration.id, 
+                          name: integration.name 
+                        })
+                      : undefined
+                  }
                   quota={integrationQuotas[integration.id]}
+                  pendingCount={pendingCounts[integration.id] || 0}
                 />
               ))}
             </div>
@@ -507,6 +568,13 @@ export default function Integrations() {
         onOpenChange={setCSVDialogOpen}
         websiteId={currentWebsiteId || ''}
         onSuccess={fetchIntegrations}
+      />
+
+      <IntegrationModerationDialog
+        integrationType={moderationDialog.type}
+        integrationName={moderationDialog.name}
+        open={moderationDialog.open}
+        onClose={() => setModerationDialog({ open: false, type: "", name: "" })}
       />
     </div>
   );

@@ -10,8 +10,10 @@ export interface IntegrationMetadata {
   requiresOauth?: boolean;
   phase?: 1 | 2 | 3;
   popularityScore?: number; // 1-100, higher = more popular
-  category?: 'ecommerce' | 'forms' | 'social' | 'cms' | 'payment' | 'analytics' | 'crm' | 'email' | 'education' | 'automation' | 'other';
+  category: 'ecommerce' | 'forms' | 'social' | 'cms' | 'payment' | 'analytics' | 'crm' | 'email' | 'education' | 'automation' | 'content' | 'community' | 'fintech' | 'music' | 'other';
   isTrending?: boolean;
+  setupComplexity?: 'easy' | 'medium' | 'hard';
+  setupTime?: string; // e.g., "10 min", "30 min"
 }
 
 const integrationMetadataMap: Record<string, IntegrationMetadata> = {
@@ -140,6 +142,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: FileText,
     connectorType: 'api_poll',
     phase: 1,
+    category: 'content',
+    setupComplexity: 'easy',
+    setupTime: '5 min',
   },
   hubspot: {
     displayName: "HubSpot",
@@ -169,6 +174,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: Globe,
     connectorType: 'webhook',
     phase: 1,
+    category: 'cms',
+    setupComplexity: 'easy',
+    setupTime: '10 min',
   },
   paypal: {
     displayName: "PayPal",
@@ -177,6 +185,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: DollarSign,
     connectorType: 'webhook',
     phase: 1,
+    category: 'payment',
+    setupComplexity: 'easy',
+    setupTime: '10 min',
   },
   teachable: {
     displayName: "Teachable",
@@ -185,6 +196,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: BookOpen,
     connectorType: 'webhook',
     phase: 1,
+    category: 'education',
+    setupComplexity: 'easy',
+    setupTime: '10 min',
   },
   jotform: {
     displayName: "JotForm",
@@ -193,6 +207,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: FileText,
     connectorType: 'webhook',
     phase: 1,
+    category: 'forms',
+    setupComplexity: 'easy',
+    setupTime: '5 min',
   },
   squarespace: {
     displayName: "Squarespace",
@@ -201,6 +218,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: ShoppingBag,
     connectorType: 'webhook',
     phase: 1,
+    category: 'ecommerce',
+    setupComplexity: 'easy',
+    setupTime: '10 min',
   },
   // Phase 2: Post-MVP (Feature Complete)
   segment: {
@@ -210,6 +230,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: BarChart,
     connectorType: 'webhook',
     phase: 2,
+    category: 'analytics',
+    setupComplexity: 'medium',
+    setupTime: '15 min',
   },
   intercom: {
     displayName: "Intercom",
@@ -219,6 +242,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     connectorType: 'oauth',
     requiresOauth: true,
     phase: 2,
+    category: 'crm',
+    setupComplexity: 'hard',
+    setupTime: '40 min',
   },
   ghost: {
     displayName: "Ghost",
@@ -227,6 +253,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: Newspaper,
     connectorType: 'webhook',
     phase: 2,
+    category: 'content',
+    setupComplexity: 'easy',
+    setupTime: '10 min',
   },
   gumroad: {
     displayName: "Gumroad",
@@ -235,6 +264,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: ShoppingBag,
     connectorType: 'webhook',
     phase: 2,
+    category: 'ecommerce',
+    setupComplexity: 'easy',
+    setupTime: '10 min',
   },
   mailchimp: {
     displayName: "Mailchimp",
@@ -244,6 +276,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     connectorType: 'oauth',
     requiresOauth: true,
     phase: 2,
+    category: 'email',
+    setupComplexity: 'hard',
+    setupTime: '35 min',
   },
   spotify: {
     displayName: "Spotify for Artists",
@@ -253,6 +288,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     connectorType: 'oauth',
     requiresOauth: true,
     phase: 2,
+    category: 'music',
+    setupComplexity: 'hard',
+    setupTime: '40 min',
   },
   thinkific: {
     displayName: "Thinkific",
@@ -261,6 +299,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: BookOpen,
     connectorType: 'webhook',
     phase: 2,
+    category: 'education',
+    setupComplexity: 'easy',
+    setupTime: '10 min',
   },
   plaid: {
     displayName: "Plaid",
@@ -269,6 +310,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: DollarSign,
     connectorType: 'webhook',
     phase: 2,
+    category: 'fintech',
+    setupComplexity: 'hard',
+    setupTime: '45 min',
   },
   // Phase 3: Market Expansion
   razorpay: {
@@ -278,6 +322,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: DollarSign,
     connectorType: 'webhook',
     phase: 3,
+    category: 'payment',
+    setupComplexity: 'easy',
+    setupTime: '10 min',
   },
   flutterwave: {
     displayName: "Flutterwave",
@@ -286,6 +333,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: DollarSign,
     connectorType: 'webhook',
     phase: 3,
+    category: 'payment',
+    setupComplexity: 'easy',
+    setupTime: '10 min',
   },
   salesforce: {
     displayName: "Salesforce NPSP",
@@ -295,6 +345,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     connectorType: 'oauth',
     requiresOauth: true,
     phase: 3,
+    category: 'crm',
+    setupComplexity: 'hard',
+    setupTime: '60 min',
   },
   mixpanel: {
     displayName: "Mixpanel",
@@ -303,6 +356,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: BarChart,
     connectorType: 'webhook',
     phase: 3,
+    category: 'analytics',
+    setupComplexity: 'medium',
+    setupTime: '15 min',
   },
   circle: {
     displayName: "Circle",
@@ -311,6 +367,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: Users,
     connectorType: 'webhook',
     phase: 3,
+    category: 'community',
+    setupComplexity: 'medium',
+    setupTime: '20 min',
   },
   learndash: {
     displayName: "LearnDash",
@@ -319,6 +378,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: BookOpen,
     connectorType: 'webhook',
     phase: 3,
+    category: 'education',
+    setupComplexity: 'medium',
+    setupTime: '15 min',
   },
   soundcloud: {
     displayName: "SoundCloud",
@@ -328,6 +390,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     connectorType: 'api_poll',
     requiresOauth: true,
     phase: 3,
+    category: 'music',
+    setupComplexity: 'medium',
+    setupTime: '30 min',
   },
   substack: {
     displayName: "Substack",
@@ -336,6 +401,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: Newspaper,
     connectorType: 'api_poll',
     phase: 3,
+    category: 'content',
+    setupComplexity: 'medium',
+    setupTime: '25 min',
   },
   beehiiv: {
     displayName: "Beehiiv",
@@ -344,6 +412,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: Mail,
     connectorType: 'webhook',
     phase: 3,
+    category: 'email',
+    setupComplexity: 'easy',
+    setupTime: '10 min',
   },
   convertkit: {
     displayName: "ConvertKit",
@@ -352,6 +423,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: Mail,
     connectorType: 'webhook',
     phase: 3,
+    category: 'email',
+    setupComplexity: 'easy',
+    setupTime: '10 min',
   },
   framer: {
     displayName: "Framer",
@@ -360,6 +434,9 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     icon: Code,
     connectorType: 'webhook',
     phase: 3,
+    category: 'cms',
+    setupComplexity: 'medium',
+    setupTime: '15 min',
   },
 };
 
@@ -369,6 +446,7 @@ export function getIntegrationMetadata(integrationType: string): IntegrationMeta
     type: "other",
     description: `Integration for ${integrationType}`,
     icon: Settings,
+    category: 'other',
   };
 }
 

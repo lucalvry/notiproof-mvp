@@ -1,6 +1,7 @@
 (function() {
   'use strict';
   
+  const WIDGET_VERSION = 2; // Current widget version
   const API_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
   const DEBUG = window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
   
@@ -54,8 +55,12 @@
   const sessionId = generateSessionId();
   const maxPerPage = 5;
   const maxPerSession = 20;
-  // Widget Configuration from data attributes
+  
+  // Widget Configuration from data attributes with versioning support
+  const widgetVersion = parseInt(script.getAttribute('data-version') || '2', 10);
+  
   const config = {
+    version: widgetVersion,
     initialDelay: parseInt(script.getAttribute('data-initial-delay') || '0', 10) * 1000,
     displayDuration: parseInt(script.getAttribute('data-display-duration') || '5', 10) * 1000,
     interval: parseInt(script.getAttribute('data-interval') || '8', 10) * 1000,
@@ -75,8 +80,29 @@
     showCTA: script.getAttribute('data-show-cta') === 'true',
     ctaText: script.getAttribute('data-cta-text') || 'Learn More',
     ctaUrl: script.getAttribute('data-cta-url') || '',
-    showActiveVisitors: script.getAttribute('data-show-active-visitors') !== 'false'
+    showActiveVisitors: script.getAttribute('data-show-active-visitors') !== 'false',
+    
+    // PHASE 4: Product image display settings with version check
+    showProductImages: (() => {
+      if (widgetVersion >= 2) {
+        return script.getAttribute('data-show-product-images') !== 'false';
+      }
+      return false; // Disabled for v1 widgets
+    })(),
+    
+    linkifyProducts: (() => {
+      if (widgetVersion >= 2) {
+        return script.getAttribute('data-linkify-products') !== 'false';
+      }
+      return false; // Disabled for v1 widgets
+    })(),
+    
+    fallbackIcon: script.getAttribute('data-fallback-icon') || 'default'
   };
+  
+  log('Widget version:', config.version);
+  log('Product images enabled:', config.showProductImages);
+  log('Product linkification enabled:', config.linkifyProducts);
   
   // Active Visitors Configuration
   let activeVisitorInterval = null;
@@ -159,6 +185,157 @@
     return container;
   }
   
+  // URL validation helper
+  function isValidUrl(urlString) {
+    try {
+      const url = new URL(urlString);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+  
+  // Linkify product names in message templates with XSS protection
+  function linkifyMessage(message, eventData) {
+    if (!eventData || !eventData.product_name || !eventData.product_url) {
+      return message; // No linkification needed
+    }
+
+    // Validate URL to prevent XSS
+    if (!isValidUrl(eventData.product_url)) {
+      log('Invalid product URL, skipping linkification:', eventData.product_url);
+      return message;
+    }
+
+    // Escape HTML in product name to prevent XSS
+    const safeProductName = String(eventData.product_name)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+    // Escape URL
+    const safeUrl = String(eventData.product_url)
+      .replace(/"/g, '%22')
+      .replace(/'/g, '%27');
+
+    // Escape special regex characters in product name
+    const escapedName = safeProductName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Replace product name with clickable link
+    const linkedMessage = message.replace(
+      new RegExp(escapedName, 'gi'),
+      `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="notiproof-product-link">${safeProductName}</a>`
+    );
+
+    return linkedMessage;
+  }
+  
+  // PHASE 4: Preset emoji library for product image fallbacks - EXPANDED for all event types
+  const NOTIPROOF_PRESETS = {
+    // Products
+    fashion: '👗', clothing: '👕', electronics: '💻', jewelry: '💍', books: '📚',
+    food: '🍕', sports: '⚽', beauty: '💄', cosmetics: '💄', home: '🏠',
+    furniture: '🛋️', toys: '🧸', automotive: '🚗', health: '💊', pets: '🐕',
+    music: '🎵', art: '🎨', shoes: '👟', watches: '⌚', bags: '👜',
+    
+    // SaaS/Events
+    signup: '🎉', 'new-signup': '🎉', 'user-signup': '🎉',
+    trial: '🚀', 'trial-start': '🚀', 'trial-starts': '🚀',
+    upgrade: '⭐', 'plan-upgrade': '⭐', 'upgrade-events': '⭐',
+    subscription: '💳', demo: '📅',
+    
+    // Reviews & Social
+    review: '⭐', 'product-review': '⭐', 'product-reviews': '⭐',
+    rating: '⭐', testimonial: '💬',
+    
+    // Activity
+    purchase: '🛍️', 'recent-purchase': '🛍️',
+    order: '📦', booking: '📅', 'new-bookings': '📅',
+    consultation: '💼', download: '⬇️', 'content-downloads': '⬇️',
+    
+    // Engagement
+    view: '👁️', 'recently-viewed': '👁️',
+    visitor: '👥', 'visitor-counter': '👥', 'active-user': '👥',
+    like: '❤️', follow: '➕', comment: '💬', 'blog-comments': '💬',
+    
+    // E-commerce specific
+    cart: '🛒', 'cart-additions': '🛒',
+    wishlist: '💝', 'wishlist-additions': '💝',
+    sale: '🔥', 'flash-sale': '🔥',
+    
+    // Services
+    appointment: '📅', 'appointments': '📅',
+    contact: '✉️', 'contact-form': '✉️',
+    'service-requests': '💼',
+    
+    // Content/Community
+    newsletter: '📧', 'newsletter-signups': '📧',
+    share: '🔗', 'social-shares': '🔗',
+    join: '🎉', 'community-joins': '🎉',
+    
+    // Special
+    gift: '🎁', trophy: '🏆', heart: '❤️', fire: '🔥', star: '⭐',
+    default: '🎯'
+  };
+  
+  function getPresetImage(category) {
+    if (!category) return NOTIPROOF_PRESETS.default;
+    const normalized = String(category).toLowerCase().trim();
+    if (NOTIPROOF_PRESETS[normalized]) return NOTIPROOF_PRESETS[normalized];
+    for (const key in NOTIPROOF_PRESETS) {
+      if (normalized.includes(key) || key.includes(normalized)) {
+        return NOTIPROOF_PRESETS[key];
+      }
+    }
+    return NOTIPROOF_PRESETS.default;
+  }
+  
+  // PHASE 4: Create product image element with fallback to preset icons - ENHANCED with event_type support
+  function createNotificationImage(eventData, eventType, fallbackIcon = 'default') {
+    const imgContainer = document.createElement('div');
+    imgContainer.style.cssText = `
+      flex-shrink: 0;
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+    
+    if (eventData?.product_image && isValidUrl(eventData.product_image)) {
+      // Try to load actual product image
+      const img = document.createElement('img');
+      img.style.cssText = `
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      `;
+      img.alt = eventData.product_name || 'Product';
+      
+      // Fallback to preset based on category OR event_type
+      img.onerror = () => {
+        const presetIcon = getPresetImage(eventData.category || eventType || fallbackIcon);
+        imgContainer.innerHTML = `<div style="font-size: 28px; line-height: 1;">${presetIcon}</div>`;
+      };
+      
+      img.src = eventData.product_image;
+      imgContainer.appendChild(img);
+    } else {
+      // Show preset icon directly - prioritize category, then event_type
+      const category = eventData?.category || eventType || fallbackIcon;
+      const presetIcon = getPresetImage(category);
+      imgContainer.innerHTML = `<div style="font-size: 28px; line-height: 1;">${presetIcon}</div>`;
+    }
+    
+    return imgContainer;
+  }
+  
+  
   function showNotification(event) {
     if (displayedCount >= config.maxPerPage || sessionCount >= config.maxPerSession) {
       log('Display limit reached', { displayedCount, sessionCount, maxPerPage: config.maxPerPage, maxPerSession: config.maxPerSession });
@@ -192,8 +369,15 @@
     // Build notification content
     let contentHTML = '<div style="display: flex; align-items: start; gap: 12px;">';
     
-    // Avatar
-    if (config.showAvatar && event.user_name) {
+    // PHASE 4: Product/Preset Image - FIXED to work independently of showAvatar
+    const showProductImages = config.showProductImages !== false; // Default to true
+    const hasProductImage = event.event_data?.product_image || event.event_data?.category || event.event_type;
+    
+    if (showProductImages && hasProductImage) {
+      // Use product/preset image (works with or without showAvatar)
+      contentHTML += '<div data-image-placeholder></div>';
+    } else if (config.showAvatar && event.user_name) {
+      // Traditional avatar fallback (only if no preset image)
       const avatarBg = event.event_data?.avatar_url ? 
         `url(${event.event_data.avatar_url})` : 
         `linear-gradient(135deg, ${config.primaryColor} 0%, ${adjustColor(config.primaryColor, -20)} 100%)`;
@@ -220,9 +404,10 @@
     // Content
     contentHTML += '<div style="flex: 1; min-width: 0;">';
     
-    // Message
+    // Message with product linkification
+    const linkedMessage = linkifyMessage(event.message_template || 'New activity', event.event_data);
     contentHTML += `<div style="font-weight: 600; margin-bottom: 4px; line-height: 1.4;">
-      ${event.message_template || 'New activity'}
+      ${linkedMessage}
     </div>`;
     
     // Metadata (time + location)
@@ -259,6 +444,17 @@
     
     contentHTML += '</div></div>';
     notification.innerHTML = contentHTML;
+    
+    // PHASE 4: Inject product image element if placeholder exists - ENHANCED with event_type
+    const imagePlaceholder = notification.querySelector('[data-image-placeholder]');
+    if (imagePlaceholder) {
+      const imageElement = createNotificationImage(
+        event.event_data, 
+        event.event_type, // NEW: Pass event type for better preset selection
+        config.fallbackIcon || 'default'
+      );
+      imagePlaceholder.replaceWith(imageElement);
+    }
     
     container.appendChild(notification);
     
@@ -496,16 +692,28 @@
       </div>
     `;
     
-    // Add pulse animation
+    // Add pulse animation and product link styles
     const style = document.createElement('style');
     style.textContent = `
       @keyframes pulse {
         0%, 100% { opacity: 1; transform: scale(1); }
         50% { opacity: 0.5; transform: scale(1.2); }
       }
+      
+      .notiproof-product-link {
+        color: ${config.primaryColor};
+        text-decoration: underline;
+        font-weight: 500;
+        cursor: pointer;
+        transition: opacity 0.2s ease;
+      }
+      
+      .notiproof-product-link:hover {
+        opacity: 0.8;
+      }
     `;
-    if (!document.head.querySelector('[data-notiproof-pulse]')) {
-      style.setAttribute('data-notiproof-pulse', 'true');
+    if (!document.head.querySelector('[data-notiproof-styles]')) {
+      style.setAttribute('data-notiproof-styles', 'true');
       document.head.appendChild(style);
     }
     

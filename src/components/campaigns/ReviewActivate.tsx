@@ -34,11 +34,35 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { error } = await supabase.from("campaigns").insert({
+      // Get website_id
+      const websiteIdFromParams = searchParams.get('website');
+      const websiteIdFromCampaign = campaignData.website_id;
+      
+      let websiteId = websiteIdFromParams || websiteIdFromCampaign;
+      
+      if (!websiteId) {
+        const { data: websites } = await supabase
+          .from("websites")
+          .select("id")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true })
+          .limit(1);
+
+        if (!websites || websites.length === 0) {
+          toast.error("Please create a website first");
+          setSaving(false);
+          return;
+        }
+        websiteId = websites[0].id;
+      }
+
+      const { error } = await supabase.from("campaigns").insert([{
         user_id: user.id,
         name: campaignName,
         description: `${campaignData.type} campaign - ${campaignData.data_source}`,
         status: "draft",
+        website_id: websiteId,
+        data_source: campaignData.data_source || 'manual',
         display_rules: {
           ...campaignData.settings,
           frequency: campaignData.rules?.frequency,
@@ -46,7 +70,13 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
           pageTargeting: campaignData.rules?.pageTargeting,
           deviceTargeting: campaignData.rules?.deviceTargeting,
         },
-      });
+        polling_config: campaignData.polling_config || {
+          enabled: false,
+          interval_minutes: 5,
+          max_events_per_fetch: 10,
+          last_poll_at: null
+        },
+      }]);
 
       if (error) throw error;
       toast.success("Campaign saved as draft");
@@ -104,11 +134,13 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
       // Create campaign with start/end dates
       const { data: campaign, error: campaignError } = await supabase
         .from("campaigns")
-        .insert({
+        .insert([{
           user_id: user.id,
           name: campaignName,
           description: `${campaignData.type} campaign - ${campaignData.data_source}`,
           status: "active",
+          website_id: websiteId,
+          data_source: campaignData.data_source || 'manual',
           start_date: campaignData.rules?.startDate || new Date().toISOString(),
           end_date: campaignData.rules?.endDate || null,
           display_rules: {
@@ -118,7 +150,13 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
             pageTargeting: campaignData.rules?.pageTargeting,
             deviceTargeting: campaignData.rules?.deviceTargeting,
           },
-        })
+          polling_config: campaignData.polling_config || {
+            enabled: false,
+            interval_minutes: 5,
+            max_events_per_fetch: 10,
+            last_poll_at: null
+          },
+        }])
         .select()
         .single();
 

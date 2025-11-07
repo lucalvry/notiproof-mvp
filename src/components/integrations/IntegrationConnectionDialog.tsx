@@ -37,7 +37,8 @@ export function IntegrationConnectionDialog({
     if (!websiteId) {
       return (
         <div className="p-8 text-center text-muted-foreground">
-          Please select a website first
+          <p className="text-lg font-medium mb-2">Website Required</p>
+          <p className="text-sm">Please create a website first to connect integrations.</p>
         </div>
       );
     }
@@ -73,8 +74,13 @@ export function IntegrationConnectionDialog({
       
       default:
         return (
-          <div className="p-8 text-center text-muted-foreground">
-            This integration type is not yet supported
+          <div className="p-8 text-center space-y-4">
+            <div className="text-muted-foreground">
+              <p className="text-lg font-medium mb-2">Coming Soon</p>
+              <p className="text-sm">
+                This integration is being prepared. Check back soon!
+              </p>
+            </div>
           </div>
         );
     }
@@ -84,7 +90,9 @@ export function IntegrationConnectionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="sr-only">Connect {integration.name}</DialogTitle>
+          <DialogTitle className="sr-only">
+            Connect {integration?.name || 'Integration'}
+          </DialogTitle>
         </DialogHeader>
         {renderAuthFlow()}
       </DialogContent>

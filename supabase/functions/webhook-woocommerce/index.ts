@@ -123,9 +123,15 @@ serve(async (req) => {
     // Extract order details
     const customerName = `${data.billing?.first_name || ''} ${data.billing?.last_name || ''}`.trim() || 'Someone';
     const location = [data.billing?.city, data.billing?.country].filter(Boolean).join(', ') || null;
+    const firstProduct = data.line_items?.[0];
     const productNames = data.line_items?.map((item: any) => item.name).join(', ') || 'products';
     
     const message = `${customerName} from ${location || 'your store'} just purchased ${productNames}`;
+    
+    // Build product URL from WooCommerce site URL
+    const siteBaseUrl = connector.config.site_url?.replace(/\/$/, '');
+    const productUrl = firstProduct?.permalink || 
+      (firstProduct?.id && siteBaseUrl ? `${siteBaseUrl}/product/${firstProduct.slug || firstProduct.id}` : null);
 
     // Create event
     const { data: event, error: eventError } = await supabaseClient
@@ -141,10 +147,14 @@ serve(async (req) => {
           order_id: data.id,
           total: data.total,
           currency: data.currency,
+          product_name: firstProduct?.name,
+          product_url: productUrl,
+          product_image: firstProduct?.image?.src,
           products: data.line_items?.map((item: any) => ({
             name: item.name,
             quantity: item.quantity,
-            price: item.price
+            price: item.price,
+            url: item.permalink
           }))
         },
         source: 'integration',

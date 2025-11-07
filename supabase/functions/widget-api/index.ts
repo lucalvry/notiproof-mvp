@@ -213,8 +213,8 @@ Deno.serve(async (req) => {
       );
       
       // Deduplicate and validate
-      const validSources = [...new Set(mappedSources)].filter((source: string) => 
-        ['manual', 'connector', 'tracking', 'demo', 'woocommerce', 'quick_win'].includes(source)
+      const validSources = [...new Set(mappedSources)].filter((source: unknown): source is string => 
+        typeof source === 'string' && ['manual', 'connector', 'tracking', 'demo', 'woocommerce', 'quick_win'].includes(source)
       );
 
       let query = supabase

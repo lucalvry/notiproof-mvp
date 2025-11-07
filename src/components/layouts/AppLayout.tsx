@@ -35,6 +35,7 @@ const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard", section: "website" },
   { label: "Campaigns", icon: Megaphone, path: "/campaigns", section: "website" },
   { label: "Templates", icon: Layout, path: "/templates", section: "website" },
+  { label: "Moderation", icon: MessageSquare, path: "/moderation", section: "website" },
   { label: "Analytics", icon: BarChart, path: "/analytics", section: "website" },
   { label: "Integrations", icon: Plug, path: "/integrations", section: "website" },
   { label: "Settings", icon: Settings, path: "/settings", section: "website" },

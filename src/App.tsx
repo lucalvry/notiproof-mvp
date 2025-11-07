@@ -42,6 +42,9 @@ import Templates from "./pages/Templates";
 import SelectPlan from "./pages/SelectPlan";
 import Team from "./pages/Team";
 import ABTesting from "./pages/ABTesting";
+import GA4PropertySelection from "./pages/GA4PropertySelection";
+import EventModeration from "./pages/EventModeration";
+import { OAuthCallback } from "./components/integrations/OAuthCallback";
 
 const queryClient = new QueryClient();
 
@@ -61,6 +64,8 @@ const App = () => (
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
+        <Route path="/oauth-callback" element={<OAuthCallback />} />
+        <Route path="/ga4-property-selection" element={<GA4PropertySelection />} />
           <Route path="/" element={<Navigate to="/websites" replace />} />
           
           {/* Admin Routes */}
@@ -97,6 +102,7 @@ const App = () => (
             <Route path="/account" element={<Account />} />
             <Route path="/team" element={<Team />} />
             <Route path="/ab-testing" element={<ABTesting />} />
+            <Route path="/moderation" element={<EventModeration />} />
             <Route path="/help" element={<Help />} />
             <Route path="/help/article/:slug" element={<HelpArticle />} />
           </Route>

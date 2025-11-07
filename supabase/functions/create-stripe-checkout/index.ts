@@ -289,7 +289,6 @@ Deno.serve(async (req) => {
       priceId,
       billingPeriod,
       returnUrl,
-      timestamp,
       isUpgrade: isUpgrade || false,
     });
     
@@ -393,13 +392,25 @@ Deno.serve(async (req) => {
     const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
     const stripeMode = stripeSecretKey?.startsWith('sk_live') ? 'LIVE' : 'TEST';
     
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    // Determine if error is retryable
+    const isRetryable = 
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('network') ||
+      errorMessage.includes('ECONNRESET') ||
+      errorMessage.includes('503') ||
+      errorMessage.includes('500');
+    
     console.error('❌ Error creating checkout session:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
+      error: errorMessage,
+      stack: errorStack,
       mode: stripeMode,
+      retryable: isRetryable,
     });
     
-    // Phase 4: Log checkout error
+    // Phase 4: Log checkout error with context
     try {
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
@@ -410,22 +421,30 @@ Deno.serve(async (req) => {
         integration_type: 'stripe_checkout',
         action: 'checkout_created',
         status: 'error',
-        error_message: error instanceof Error ? error.message : 'Unknown error',
+        error_message: errorMessage,
         details: {
-          error_stack: error instanceof Error ? error.stack : undefined,
-          mode: stripeMode
+          error_stack: errorStack,
+          mode: stripeMode,
+          retryable: isRetryable,
+          timestamp: new Date().toISOString()
         }
       });
     } catch (logError) {
       console.error('Failed to log error:', logError);
     }
     
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Return structured error response
     return new Response(JSON.stringify({ 
       error: errorMessage,
-      details: error instanceof Error ? error.stack : undefined,
+      reason: errorMessage.includes('customer') 
+        ? 'Customer verification failed. Please try again.'
+        : errorMessage.includes('price')
+        ? 'Invalid plan selected. Please refresh and try again.'
+        : 'Unable to process checkout. Please try again.',
+      retryable: isRetryable,
+      code: isRetryable ? 'TRANSIENT_ERROR' : 'PERMANENT_ERROR',
     }), {
-      status: 500,
+      status: isRetryable ? 503 : 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

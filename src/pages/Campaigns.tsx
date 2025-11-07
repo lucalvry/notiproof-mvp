@@ -13,25 +13,20 @@ import { useNavigate } from "react-router-dom";
 // Using database schema types
 interface Campaign {
   id: string;
-  user_id: string;
   name: string;
   description: string | null;
   status: string;
   organization_id: string | null;
+  website_id: string;
+  data_source: string;
   display_rules: any;
+  polling_config: any;
   start_date: string | null;
   end_date: string | null;
   auto_repeat: boolean;
   repeat_config: any;
   created_at: string;
   updated_at: string;
-  // For backward compatibility with existing usage
-  type?: string;
-  data_source?: string;
-  settings?: any;
-  rules?: any;
-  field_map?: any;
-  website_id?: string;
 }
 
 export default function Campaigns() {
@@ -84,18 +79,21 @@ export default function Campaigns() {
 
       const { error } = await supabase
         .from("campaigns")
-        .insert({
+        .insert([{
           user_id: user.id,
           name: `${campaign.name} (Copy)`,
           description: campaign.description,
           status: "draft",
+          website_id: campaign.website_id,
+          data_source: campaign.data_source || 'manual',
           display_rules: campaign.display_rules,
           start_date: campaign.start_date,
           end_date: campaign.end_date,
           auto_repeat: campaign.auto_repeat,
           repeat_config: campaign.repeat_config,
           organization_id: campaign.organization_id,
-        });
+          polling_config: campaign.polling_config,
+        }]);
 
       if (error) throw error;
       toast.success("Campaign duplicated");

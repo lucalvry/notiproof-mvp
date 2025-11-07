@@ -98,13 +98,18 @@ export function NotificationPreview({ template }: NotificationPreviewProps) {
                   )}
                 </div>
                 <p className="text-sm" style={{ color: `${textColor}dd` }}>
-                  {previewData.action && `${previewData.action} `}
-                  {previewData.product && <strong>{previewData.product}</strong>}
-                  {previewData.course && <strong>{previewData.course}</strong>}
-                  {previewData.service && <strong>{previewData.service}</strong>}
-                  {previewData.article && <strong>{previewData.article}</strong>}
-                  {previewData.message && previewData.message}
-                  {previewData.review && `"${previewData.review}"`}
+                  {previewData.message ? (
+                    previewData.message
+                  ) : (
+                    <>
+                      {previewData.action && `${previewData.action} `}
+                      {previewData.product && <strong>{previewData.product}</strong>}
+                      {previewData.course && <strong>{previewData.course}</strong>}
+                      {previewData.service && <strong>{previewData.service}</strong>}
+                      {previewData.article && <strong>{previewData.article}</strong>}
+                      {previewData.review && `"${previewData.review}"`}
+                    </>
+                  )}
                 </p>
                 {(previewData.time || previewData.cta || previewData.icon || previewData.emoji) && (
                   <div className="flex items-center gap-2 mt-2 text-xs" style={{ color: `${textColor}99` }}>

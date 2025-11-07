@@ -11,6 +11,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "sonner";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { OnboardingPrompts } from "@/components/dashboard/OnboardingPrompts";
+import { UsageDashboard } from "@/components/billing/UsageDashboard";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -117,6 +118,9 @@ export default function Dashboard() {
     <div className="mx-auto max-w-7xl space-y-6">
       {/* Onboarding Prompts */}
       {userId && <OnboardingPrompts userId={userId} />}
+      
+      {/* Usage Dashboard */}
+      {userId && <UsageDashboard userId={userId} showUpgradePrompts={true} />}
       
       <div className="flex items-start justify-between">
         <div>

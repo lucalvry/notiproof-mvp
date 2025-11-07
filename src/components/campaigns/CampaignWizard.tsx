@@ -12,6 +12,8 @@ import { IntegrationConnectionStep } from "./IntegrationConnectionStep";
 import { DesignEditor } from "./DesignEditor";
 import { RulesTargeting } from "./RulesTargeting";
 import { ReviewActivate } from "./ReviewActivate";
+import { PollingConfigCard } from "./PollingConfigCard";
+import { MessageTemplateSelector, MessageTemplateVariant } from "./MessageTemplateSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getIntegrationMetadata } from "@/lib/integrationMetadata";
@@ -28,6 +30,7 @@ const STEPS = [
   "Select Data Source",
   "Choose Integration",
   "Connect Integration",
+  "Choose Message Style",
   "Choose Template",
   "Customize Design",
   "Rules & Targeting",
@@ -43,13 +46,22 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     data_source: "",
     settings: {} as Record<string, any>,
     rules: {} as Record<string, any>,
+    polling_config: {
+      enabled: false,
+      interval_minutes: 5,
+      max_events_per_fetch: 10,
+      last_poll_at: null
+    },
   });
   const [templates, setTemplates] = useState<Array<Record<string, any>>>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Record<string, any> | null>(null);
+  const [selectedMessageVariant, setSelectedMessageVariant] = useState<MessageTemplateVariant | null>(null);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [templateFetchError, setTemplateFetchError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  // PHASE 5: Track if Step 3 should show confirmation screen
+  // Removed showStep3Confirmation - IntegrationConnectionStep handles this internally
 
   const progress = ((currentStep + 1) / STEPS.length) * 100;
 
@@ -127,6 +139,12 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
       data_source: "",
       settings: {},
       rules: {},
+      polling_config: {
+        enabled: false,
+        interval_minutes: 5,
+        max_events_per_fetch: 10,
+        last_poll_at: null
+      },
     });
     setSelectedTemplate(null);
     setShowAllTemplates(false);
@@ -407,16 +425,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     return () => window.removeEventListener('notiproof:wizard-advance', handleAutoAdvance);
   }, [currentStep]);
 
-  // Auto-skip step 3 if it would render null
-  useEffect(() => {
-    const checkAndSkip = async () => {
-      if (currentStep === 3 && await shouldSkipConnectionStep()) {
-        console.info('Auto-skipping Step 3 (connection) - already connected');
-        setCurrentStep(4);
-      }
-    };
-    checkAndSkip();
-  }, [currentStep, campaignData.integration_path, campaignData.data_source]);
+  // Removed auto-skip useEffect - IntegrationConnectionStep handles connection checking internally
 
   const renderStep = () => {
     switch (currentStep) {
@@ -470,8 +479,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
           />
         );
       case 3:
-        // Step 3: Connection flow (only for integrations that need setup)
-        // Note: Skip check is handled by useEffect above for async operation
+        // Always show the connection step - it handles existing connections internally
         return (
           <IntegrationConnectionStep
             dataSource={campaignData.data_source}
@@ -481,6 +489,36 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
           />
         );
       case 4:
+        // NEW: Message Template Selector with Privacy Controls
+        return (
+          <MessageTemplateSelector
+            campaignType={campaignData.type}
+            selectedVariant={selectedMessageVariant}
+            onSelect={(variant) => {
+              setSelectedMessageVariant(variant);
+              // Apply message template to campaign settings
+              updateCampaignData({
+                settings: {
+                  ...campaignData.settings,
+                  headline: variant.template,
+                  showNames: variant.showNames,
+                  showLocations: variant.showLocations,
+                  messageVariant: variant.id,
+                },
+              });
+            }}
+            onPrivacyChange={(privacySettings) => {
+              updateCampaignData({
+                settings: {
+                  ...campaignData.settings,
+                  showNames: privacySettings.showNames,
+                  showLocations: privacySettings.showLocations,
+                },
+              });
+            }}
+          />
+        );
+      case 5:
         return (
           <div className="space-y-6 py-6">
             <div className="text-center space-y-2">
@@ -734,16 +772,28 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
           />
         );
       case 6:
+        const supportsPolling = ["visitor-counter", "recently-viewed", "live-students", "trending-article", "live-readers", "user-milestones"].includes(campaignData.type);
         return (
-          <RulesTargeting
-            rules={campaignData.rules}
-            onChange={(rules) => updateCampaignData({ rules })}
-            campaignType={campaignData.type}
-            dataSource={campaignData.data_source}
-            templateName={selectedTemplate?.name}
-          />
+          <div className="space-y-6">
+            <RulesTargeting
+              rules={campaignData.rules}
+              onChange={(rules) => updateCampaignData({ rules })}
+              campaignType={campaignData.type}
+              dataSource={campaignData.data_source}
+              templateName={selectedTemplate?.name}
+            />
+            {supportsPolling && campaignData.integration_path === 'integration' && (
+              <PollingConfigCard
+                value={campaignData.polling_config}
+                onChange={(config) => updateCampaignData({ polling_config: config })}
+              />
+            )}
+          </div>
         );
       case 7:
+        // Placeholder for potential future step
+        return null;
+      case 8:
         return (
           <ReviewActivate
             campaignData={campaignData}
@@ -779,13 +829,16 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
         // Connection step - always allow to proceed (skip is optional)
         return true;
       case 4:
-        // Phase 6.2: Allow proceeding even if fetch failed or no template selected
+        // Message Template Selector - allow to proceed if variant is selected
+        return selectedMessageVariant !== null;
+      case 5:
+        // Template chooser - allow proceeding even if no template selected
         // User can customize from scratch in the next step
         return !isLoadingTemplates; // Only block if still loading
-      case 5:
+      case 6:
         // Design editor - always allow to proceed
         return true;
-      case 6:
+      case 7:
         // Rules & targeting - always allow to proceed
         return true;
       default:
@@ -793,11 +846,11 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     }
   };
 
-  const handleNextWithSkip = () => {
+  const handleNextWithSkip = async () => {
     console.info('handleNextWithSkip - Current step:', currentStep, 'Type:', campaignData.type);
     
     // PHASE 5: Show feedback when template settings are loaded
-    if (currentStep === 4 && selectedTemplate) {
+    if (currentStep === 5 && selectedTemplate) {
       toast.success(`Template "${selectedTemplate.name}" settings loaded!`, {
         description: "Customize the design and rules in the next steps"
       });
@@ -805,28 +858,36 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     
     // Smart skip logic based on integration path
     if (currentStep === 1 && campaignData.integration_path !== 'integration') {
-      // Skip integration steps (2 & 3) and go to template
-      console.info('Skipping to Step 4 - Manual/Demo path selected');
-      setCurrentStep(4);
+      // Skip integration steps (2 & 3) and message template (4) - go to template chooser (5)
+      console.info('Skipping to Step 5 - Manual/Demo path selected');
+      setCurrentStep(5);
     } else if (currentStep === 2 && campaignData.integration_path === 'integration') {
-      // Check if integration needs connection setup using helper
-      if (shouldSkipConnectionStep()) {
-        console.info('Skipping Step 3 - Webhook integration, no OAuth needed');
-        setCurrentStep(4);
+      // CRITICAL FIX: Properly await the async check
+      const shouldSkip = await shouldSkipConnectionStep();
+      
+      if (shouldSkip) {
+        console.info('Skipping Step 3 - Integration already connected');
+        handleNext(); // Go to step 4 (Message Template Selector)
       } else {
-        console.info('Going to Step 3 - OAuth connection required');
+        console.info('Going to Step 3 - Connection needed');
         handleNext();
       }
-    } else if (currentStep === 3 && shouldSkipConnectionStep()) {
-      // If somehow on step 3 and it should be skipped, jump to 4
-      console.info('On Step 3 but should skip - jumping to Step 4');
-      setCurrentStep(4);
+    } else if (currentStep === 3) {
+      // CRITICAL FIX: Also await when checking from step 3
+      const shouldSkip = await shouldSkipConnectionStep();
+      
+      if (shouldSkip) {
+        console.info('On Step 3 but should skip - jumping to Step 4');
+        handleNext(); // Go to Message Template Selector
+      } else {
+        handleNext();
+      }
     } else {
       handleNext();
     }
   };
 
-  const handleBackWithSkip = () => {
+  const handleBackWithSkip = async () => {
     console.info('handleBackWithSkip - Current step:', currentStep);
     
     // Smart back navigation with skip logic
@@ -835,8 +896,10 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
       console.info('Skipping back to Step 1 - Manual/Demo path');
       setCurrentStep(1);
     } else if (currentStep === 4 && campaignData.integration_path === 'integration') {
-      // Check if we skipped connection step using helper
-      if (shouldSkipConnectionStep()) {
+      // CRITICAL FIX: Properly await the async check
+      const shouldSkip = await shouldSkipConnectionStep();
+      
+      if (shouldSkip) {
         console.info('Skipping back to Step 2 - Connection not needed');
         setCurrentStep(2);
       } else {

@@ -40,7 +40,12 @@ export function WebhookFlow({ integration, websiteId, onSuccess }: WebhookFlowPr
         setExistingConnector(connector);
         setName(connector.name);
         const config = connector.config as any;
-        setWebhookUrl(config?.webhook_url || '');
+        const generatedUrl = `https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/webhook-${integration.id}?website_id=${websiteId}`;
+        setWebhookUrl(config?.webhook_url || generatedUrl);
+      } else {
+        // Generate URL even if no connector exists yet
+        const generatedUrl = `https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/webhook-${integration.id}?website_id=${websiteId}`;
+        setWebhookUrl(generatedUrl);
       }
     } catch (error) {
       console.error('Error loading connector:', error);
@@ -104,20 +109,20 @@ export function WebhookFlow({ integration, websiteId, onSuccess }: WebhookFlowPr
   const Icon = integration.icon;
 
   return (
-    <Card>
+    <Card className="border-0 shadow-none">
       <CardHeader>
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
             <Icon className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <CardTitle>Setup {integration.name} Webhook</CardTitle>
-            <CardDescription>Connect in 3 simple steps</CardDescription>
+            <CardTitle>Connect {integration.name}</CardTitle>
+            <CardDescription>Setup takes less than 60 seconds</CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {!existingConnector ? (
+        {!existingConnector && !webhookUrl ? (
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="connection-name">Connection Name</Label>
@@ -148,12 +153,14 @@ export function WebhookFlow({ integration, websiteId, onSuccess }: WebhookFlowPr
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="bg-success/10 border border-success/20 rounded-lg p-4">
-              <div className="flex items-center gap-2 text-success">
-                <CheckCircle2 className="h-5 w-5" />
-                <p className="font-medium">Connection Created Successfully!</p>
+            {existingConnector && (
+              <div className="bg-success/10 border border-success/20 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-success">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <p className="font-medium">Connection Ready!</p>
+                </div>
               </div>
-            </div>
+            )}
 
             <ol className="space-y-4">
               <li className="space-y-2">
@@ -163,6 +170,9 @@ export function WebhookFlow({ integration, websiteId, onSuccess }: WebhookFlowPr
                   </div>
                   <Label className="text-base font-semibold">Copy your webhook URL</Label>
                 </div>
+                <p className="ml-8 text-xs text-muted-foreground mb-2">
+                  This unique URL will receive events from {integration.name}
+                </p>
                 <div className="ml-8 flex gap-2">
                   <Input 
                     value={webhookUrl} 
@@ -218,7 +228,8 @@ export function WebhookFlow({ integration, websiteId, onSuccess }: WebhookFlowPr
             <div className="bg-muted p-4 rounded-lg">
               <p className="text-xs text-muted-foreground">
                 💡 <strong>Pro Tip:</strong> After adding the webhook URL to {integration.name}, 
-                send a test event to ensure everything is working correctly.
+                trigger a test event to confirm everything is working correctly. 
+                Your first notification should appear within seconds!
               </p>
             </div>
           </div>

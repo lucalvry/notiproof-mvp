@@ -7,20 +7,53 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, X, CheckCircle, XCircle } from "lucide-react";
 import { getIntegrationMetadata } from "@/lib/integrationMetadata";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { GA4Config } from "./oauth-configs/GA4Config";
+import { InstagramConfig } from "./oauth-configs/InstagramConfig";
+import { GoogleReviewsConfig } from "./oauth-configs/GoogleReviewsConfig";
+import { GenericOAuthConfig } from "./oauth-configs/GenericOAuthConfig";
 
 interface IntegrationConfig {
   id: string;
   integration_type: string;
   is_active: boolean;
-  config: any;
+  config: {
+    oauth_config?: {
+      client_id: string;
+      client_secret: string;
+      redirect_uri?: string;
+      authorization_url?: string;
+      token_url?: string;
+      scopes?: string[];
+    };
+    webhook_config?: {
+      signing_secret?: string;
+      supported_events?: string[];
+    };
+    api_config?: {
+      api_endpoint?: string;
+      required_headers?: Record<string, string>;
+    };
+    rate_limits?: {
+      requests_per_hour_per_user: number;
+      requests_per_hour_global: number;
+    };
+    quota_per_plan?: {
+      free: number;
+      pro: number;
+      business: number;
+    };
+    feature_flags?: {
+      is_beta: boolean;
+      requires_approval: boolean;
+    };
+  };
   requires_oauth: boolean;
-  webhook_secret?: string;
-  api_credentials?: any;
   connector_type?: string;
   polling_interval_minutes?: number;
-  rate_limit_per_user?: number;
   created_at: string;
   updated_at: string;
 }
@@ -43,19 +76,20 @@ export function IntegrationConfigDialog({
   const [oauthConfig, setOauthConfig] = useState({
     client_id: "",
     client_secret: "",
-    authorization_url: "",
-    token_url: "",
-    scopes: [] as string[],
+    redirect_uri: "" as string | undefined,
+    authorization_url: "" as string | undefined,
+    token_url: "" as string | undefined,
+    scopes: [] as string[] | undefined,
   });
 
   const [webhookConfig, setWebhookConfig] = useState({
-    signing_secret: "",
-    supported_events: [] as string[],
+    signing_secret: "" as string | undefined,
+    supported_events: [] as string[] | undefined,
   });
 
   const [apiConfig, setApiConfig] = useState({
-    api_endpoint: "",
-    required_headers: {} as Record<string, string>,
+    api_endpoint: "" as string | undefined,
+    required_headers: {} as Record<string, string> | undefined,
   });
 
   const [rateLimits, setRateLimits] = useState({
@@ -78,6 +112,8 @@ export function IntegrationConfigDialog({
   const [newEvent, setNewEvent] = useState("");
   const [newHeaderKey, setNewHeaderKey] = useState("");
   const [newHeaderValue, setNewHeaderValue] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ valid: boolean; message: string } | null>(null);
 
   // Initialize form when integration changes
   useState(() => {
@@ -86,40 +122,35 @@ export function IntegrationConfigDialog({
       
       // OAuth Config
       if (config.oauth_config) {
-        setOauthConfig(config.oauth_config);
-      } else if (integration.api_credentials) {
         setOauthConfig({
-          client_id: integration.api_credentials.client_id || "",
-          client_secret: integration.api_credentials.client_secret || "",
-          authorization_url: "",
-          token_url: "",
-          scopes: [],
+          client_id: config.oauth_config.client_id || "",
+          client_secret: config.oauth_config.client_secret || "",
+          redirect_uri: config.oauth_config.redirect_uri || "",
+          authorization_url: config.oauth_config.authorization_url || "",
+          token_url: config.oauth_config.token_url || "",
+          scopes: config.oauth_config.scopes || [],
         });
       }
 
       // Webhook Config
       if (config.webhook_config) {
-        setWebhookConfig(config.webhook_config);
-      } else if (integration.webhook_secret) {
         setWebhookConfig({
-          signing_secret: integration.webhook_secret,
-          supported_events: [],
+          signing_secret: config.webhook_config.signing_secret || "",
+          supported_events: config.webhook_config.supported_events || [],
         });
       }
 
       // API Config
       if (config.api_config) {
-        setApiConfig(config.api_config);
+        setApiConfig({
+          api_endpoint: config.api_config.api_endpoint || "",
+          required_headers: config.api_config.required_headers || {},
+        });
       }
 
       // Rate Limits
       if (config.rate_limits) {
         setRateLimits(config.rate_limits);
-      } else if (integration.rate_limit_per_user) {
-        setRateLimits({
-          requests_per_hour_per_user: integration.rate_limit_per_user,
-          requests_per_hour_global: 10000,
-        });
       }
 
       // Quotas
@@ -134,26 +165,94 @@ export function IntegrationConfigDialog({
     }
   });
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const updates: Partial<IntegrationConfig> = {
       config: {
-        oauth_config: oauthConfig,
+        oauth_config: {
+          client_id: oauthConfig.client_id,
+          client_secret: oauthConfig.client_secret,
+        },
         webhook_config: webhookConfig,
         api_config: apiConfig,
         rate_limits: rateLimits,
         quota_per_plan: quotaPerPlan,
         feature_flags: featureFlags,
       },
-      // Keep backward compatibility
-      webhook_secret: webhookConfig.signing_secret || null,
-      api_credentials: integration?.requires_oauth ? {
-        client_id: oauthConfig.client_id,
-        client_secret: oauthConfig.client_secret,
-      } : null,
-      rate_limit_per_user: rateLimits.requests_per_hour_per_user,
     };
 
     onSave(updates);
+    
+    // Auto-test after save if OAuth integration
+    if (integration?.requires_oauth) {
+      setTimeout(() => handleTestConnection(), 1000);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!integration) return;
+    
+    setTesting(true);
+    setTestResult(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('validate-oauth-config', {
+        body: { integration_type: integration.integration_type }
+      });
+
+      if (error) throw error;
+
+      if (data.valid) {
+        setTestResult({ valid: true, message: 'Configuration is valid! Users can now connect this integration.' });
+        toast.success('OAuth configuration validated successfully!');
+      } else {
+        setTestResult({ valid: false, message: data.error || 'Configuration validation failed' });
+        toast.error(`Validation failed: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Test connection error:', error);
+      setTestResult({ valid: false, message: 'Failed to test connection. Please try again.' });
+      toast.error('Failed to validate configuration');
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const getRedirectUri = () => {
+    const functionName = integration?.integration_type === 'ga4' 
+      ? 'ga4-auth' 
+      : `oauth-${integration?.integration_type}`;
+    return `${window.location.origin.replace('5173', '54321')}/functions/v1/${functionName}?action=callback`;
+  };
+
+  const renderOAuthConfig = () => {
+    if (!integration) return null;
+
+    const redirectUri = getRedirectUri();
+    const config = { client_id: oauthConfig.client_id, client_secret: oauthConfig.client_secret };
+    
+    const onChange = (newConfig: any) => {
+      setOauthConfig({
+        ...oauthConfig,
+        client_id: newConfig.client_id || '',
+        client_secret: newConfig.client_secret || '',
+      });
+    };
+
+    switch (integration.integration_type) {
+      case 'ga4':
+        return <GA4Config config={config} onChange={onChange} redirectUri={redirectUri} />;
+      case 'instagram':
+        return <InstagramConfig config={config} onChange={onChange} redirectUri={redirectUri} />;
+      case 'google_reviews':
+        return <GoogleReviewsConfig config={config} onChange={onChange} redirectUri={redirectUri} />;
+      case 'hubspot':
+      case 'intercom':
+      case 'salesforce':
+      case 'mailchimp':
+        return <GenericOAuthConfig config={config} onChange={onChange} redirectUri={redirectUri} />;
+      default:
+        return <GenericOAuthConfig config={config} onChange={onChange} redirectUri={redirectUri} />;
+    }
   };
 
   const addScope = () => {
@@ -218,142 +317,57 @@ export function IntegrationConfigDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Configure {metadata.displayName}</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl lg:max-w-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+        <DialogHeader className="space-y-1 sm:space-y-2">
+          <DialogTitle className="text-lg sm:text-xl">Configure {metadata.displayName}</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             Set up credentials, rate limits, and advanced configuration for this integration
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="oauth" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="oauth">OAuth & API</TabsTrigger>
-            <TabsTrigger value="webhook">Webhook</TabsTrigger>
-            <TabsTrigger value="limits">Limits & Features</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 gap-1">
+            <TabsTrigger value="oauth" className="text-xs sm:text-sm">
+              <span className="hidden sm:inline">OAuth & API</span>
+              <span className="sm:hidden">OAuth</span>
+            </TabsTrigger>
+            <TabsTrigger value="webhook" className="text-xs sm:text-sm">
+              Webhook
+            </TabsTrigger>
+            <TabsTrigger value="limits" className="text-xs sm:text-sm">
+              <span className="hidden sm:inline">Limits & Features</span>
+              <span className="sm:hidden">Limits</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="oauth" className="space-y-4 mt-4">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="client_id">Client ID</Label>
-                <Input
-                  id="client_id"
-                  placeholder="Enter OAuth client ID"
-                  value={oauthConfig.client_id}
-                  onChange={(e) => setOauthConfig({ ...oauthConfig, client_id: e.target.value })}
-                />
-              </div>
+            {renderOAuthConfig()}
 
-              <div className="space-y-2">
-                <Label htmlFor="client_secret">Client Secret</Label>
-                <Input
-                  id="client_secret"
-                  type="password"
-                  placeholder="Enter OAuth client secret"
-                  value={oauthConfig.client_secret}
-                  onChange={(e) => setOauthConfig({ ...oauthConfig, client_secret: e.target.value })}
-                />
+            {testResult && (
+              <div className={`flex items-start gap-2 p-3 rounded-lg ${testResult.valid ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                {testResult.valid ? (
+                  <CheckCircle className="h-4 w-4 mt-0.5" />
+                ) : (
+                  <XCircle className="h-4 w-4 mt-0.5" />
+                )}
+                <p className="text-sm">{testResult.message}</p>
               </div>
+            )}
 
-              <div className="space-y-2">
-                <Label htmlFor="auth_url">Authorization URL</Label>
-                <Input
-                  id="auth_url"
-                  placeholder="https://provider.com/oauth/authorize"
-                  value={oauthConfig.authorization_url}
-                  onChange={(e) => setOauthConfig({ ...oauthConfig, authorization_url: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="token_url">Token URL</Label>
-                <Input
-                  id="token_url"
-                  placeholder="https://provider.com/oauth/token"
-                  value={oauthConfig.token_url}
-                  onChange={(e) => setOauthConfig({ ...oauthConfig, token_url: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>OAuth Scopes</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="e.g., read:data write:data"
-                    value={newScope}
-                    onChange={(e) => setNewScope(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addScope())}
-                  />
-                  <Button type="button" size="sm" onClick={addScope}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {oauthConfig.scopes.map((scope, index) => (
-                    <Badge key={index} variant="secondary">
-                      {scope}
-                      <button
-                        type="button"
-                        className="ml-2"
-                        onClick={() => removeScope(index)}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t pt-4 space-y-4">
-                <h4 className="font-medium">API Configuration</h4>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="api_endpoint">API Endpoint</Label>
-                  <Input
-                    id="api_endpoint"
-                    placeholder="https://api.provider.com/v1"
-                    value={apiConfig.api_endpoint}
-                    onChange={(e) => setApiConfig({ ...apiConfig, api_endpoint: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Required Headers</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Header name"
-                      value={newHeaderKey}
-                      onChange={(e) => setNewHeaderKey(e.target.value)}
-                    />
-                    <Input
-                      placeholder="Header value"
-                      value={newHeaderValue}
-                      onChange={(e) => setNewHeaderValue(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addHeader())}
-                    />
-                    <Button type="button" size="sm" onClick={addHeader}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="space-y-2 mt-2">
-                    {Object.entries(apiConfig.required_headers).map(([key, value]) => (
-                      <div key={key} className="flex items-center justify-between bg-muted p-2 rounded">
-                        <code className="text-sm">{key}: {value}</code>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeHeader(key)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <Button 
+              variant="outline" 
+              onClick={handleTestConnection}
+              disabled={testing || !oauthConfig.client_id || !oauthConfig.client_secret}
+            >
+              {testing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                'Test Connection'
+              )}
+            </Button>
           </TabsContent>
 
           <TabsContent value="webhook" className="space-y-4 mt-4">
@@ -438,7 +452,7 @@ export function IntegrationConfigDialog({
               <div className="border-t pt-4 space-y-4">
                 <h4 className="font-medium">Quota per Plan</h4>
                 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="quota_free">Free Plan</Label>
                     <Input

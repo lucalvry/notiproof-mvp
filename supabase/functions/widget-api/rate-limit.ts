@@ -8,6 +8,8 @@ interface RateLimitResult {
   allowed: boolean;
   remaining: number;
   reset: number;
+  limit_type?: 'rate' | 'quota';
+  reason?: string;
 }
 
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
@@ -42,6 +44,7 @@ export async function checkRateLimit(
       allowed: true,
       remaining: config.max_requests - 1,
       reset: now + windowMs,
+      limit_type: 'rate',
     };
   }
   
@@ -53,6 +56,8 @@ export async function checkRateLimit(
       allowed: false,
       remaining: 0,
       reset: existing.resetAt,
+      limit_type: 'rate',
+      reason: 'Rate limit exceeded',
     };
   }
   
@@ -60,5 +65,20 @@ export async function checkRateLimit(
     allowed: true,
     remaining: config.max_requests - existing.count,
     reset: existing.resetAt,
+    limit_type: 'rate',
   };
+}
+
+// Display frequency limit - prevents showing too many notifications per session
+export async function checkDisplayFrequency(
+  widgetId: string,
+  sessionId: string,
+  maxDisplays: number = 20,
+  windowMinutes: number = 60
+): Promise<RateLimitResult> {
+  const key = `display_${widgetId}_${sessionId}`;
+  return checkRateLimit(key, {
+    max_requests: maxDisplays,
+    window_seconds: windowMinutes * 60,
+  });
 }

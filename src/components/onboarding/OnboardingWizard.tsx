@@ -242,10 +242,12 @@ export function OnboardingWizard({ open, onComplete, planName, userId }: Onboard
       
       // Step 1: Create Campaign with default values
       const campaignData = {
-        user_id: userId,
+        user_id: userId!,
         name: `${selectedTemplate.name} Campaign`,
-        description: `Auto-created from onboarding for ${websiteData.name}`,
+        description: `Auto-created from onboarding for ${createdWebsite.name}`,
         status: 'active' as const,
+        website_id: createdWebsite.id,
+        data_source: 'manual' as const,
         display_rules: selectedTemplate.display_rules || { devices: ['desktop', 'mobile'], pages: ['all'] },
         auto_repeat: false,
         repeat_config: {},
@@ -255,7 +257,7 @@ export function OnboardingWizard({ open, onComplete, planName, userId }: Onboard
       
       const { data: campaign, error: campaignError } = await supabase
         .from('campaigns')
-        .insert(campaignData)
+        .insert([campaignData])
         .select()
         .single();
 

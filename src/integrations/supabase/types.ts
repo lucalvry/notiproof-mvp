@@ -256,49 +256,66 @@ export type Database = {
         Row: {
           auto_repeat: boolean
           created_at: string
+          data_source: string | null
           description: string | null
           display_rules: Json
           end_date: string | null
           id: string
           name: string
           organization_id: string | null
+          polling_config: Json | null
           repeat_config: Json | null
           start_date: string | null
           status: string
           updated_at: string
           user_id: string
+          website_id: string
         }
         Insert: {
           auto_repeat?: boolean
           created_at?: string
+          data_source?: string | null
           description?: string | null
           display_rules?: Json
           end_date?: string | null
           id?: string
           name: string
           organization_id?: string | null
+          polling_config?: Json | null
           repeat_config?: Json | null
           start_date?: string | null
           status?: string
           updated_at?: string
           user_id: string
+          website_id: string
         }
         Update: {
           auto_repeat?: boolean
           created_at?: string
+          data_source?: string | null
           description?: string | null
           display_rules?: Json
           end_date?: string | null
           id?: string
           name?: string
           organization_id?: string | null
+          polling_config?: Json | null
           repeat_config?: Json | null
           start_date?: string | null
           status?: string
           updated_at?: string
           user_id?: string
+          website_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       email_preferences: {
         Row: {
@@ -399,6 +416,39 @@ export type Database = {
           placeholders?: Json
           priority?: number | null
           template?: string
+        }
+        Relationships: []
+      }
+      event_usage_tracking: {
+        Row: {
+          created_at: string
+          events_quota: number
+          events_used: number
+          id: string
+          last_reset_at: string
+          month_year: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          events_quota: number
+          events_used?: number
+          id?: string
+          last_reset_at?: string
+          month_year: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          events_quota?: number
+          events_used?: number
+          id?: string
+          last_reset_at?: string
+          month_year?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -946,8 +996,11 @@ export type Database = {
           id: string
           integration_type: string
           is_active: boolean
+          oauth_spec: Json | null
           polling_interval_minutes: number | null
+          requires_admin_credentials: boolean | null
           requires_oauth: boolean | null
+          setup_instructions: string | null
           updated_at: string
         }
         Insert: {
@@ -958,8 +1011,11 @@ export type Database = {
           id?: string
           integration_type: string
           is_active?: boolean
+          oauth_spec?: Json | null
           polling_interval_minutes?: number | null
+          requires_admin_credentials?: boolean | null
           requires_oauth?: boolean | null
+          setup_instructions?: string | null
           updated_at?: string
         }
         Update: {
@@ -970,8 +1026,11 @@ export type Database = {
           id?: string
           integration_type?: string
           is_active?: boolean
+          oauth_spec?: Json | null
           polling_interval_minutes?: number | null
+          requires_admin_credentials?: boolean | null
           requires_oauth?: boolean | null
+          setup_instructions?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1258,6 +1317,7 @@ export type Database = {
           max_events_per_month: number | null
           max_websites: number | null
           name: string
+          polling_limits: Json | null
           price_monthly: number | null
           price_yearly: number | null
           stripe_price_id_monthly: string | null
@@ -1274,6 +1334,7 @@ export type Database = {
           max_events_per_month?: number | null
           max_websites?: number | null
           name: string
+          polling_limits?: Json | null
           price_monthly?: number | null
           price_yearly?: number | null
           stripe_price_id_monthly?: string | null
@@ -1290,6 +1351,7 @@ export type Database = {
           max_events_per_month?: number | null
           max_websites?: number | null
           name?: string
+          polling_limits?: Json | null
           price_monthly?: number | null
           price_yearly?: number | null
           stripe_price_id_monthly?: string | null
@@ -1414,18 +1476,24 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          slug: string | null
+          sort_order: number | null
         }
         Insert: {
           created_at?: string
           description?: string | null
           id?: string
           name: string
+          slug?: string | null
+          sort_order?: number | null
         }
         Update: {
           created_at?: string
           description?: string | null
           id?: string
           name?: string
+          slug?: string | null
+          sort_order?: number | null
         }
         Relationships: []
       }
@@ -2100,6 +2168,7 @@ export type Database = {
           campaign_id: string
           created_at: string | null
           display_rules: Json
+          feature_flags: Json | null
           id: string
           integration: string
           name: string
@@ -2118,6 +2187,7 @@ export type Database = {
           campaign_id: string
           created_at?: string | null
           display_rules?: Json
+          feature_flags?: Json | null
           id?: string
           integration?: string
           name: string
@@ -2136,6 +2206,7 @@ export type Database = {
           campaign_id?: string
           created_at?: string | null
           display_rules?: Json
+          feature_flags?: Json | null
           id?: string
           integration?: string
           name?: string
@@ -2202,6 +2273,10 @@ export type Database = {
         Returns: number
       }
       check_email_exists: { Args: { email_to_check: string }; Returns: boolean }
+      check_event_quota: {
+        Args: { _events_to_add?: number; _user_id: string }
+        Returns: Json
+      }
       cleanup_all_template_events: {
         Args: { _user_id: string }
         Returns: undefined
@@ -2216,6 +2291,15 @@ export type Database = {
           _user_id: string
         }
         Returns: undefined
+      }
+      get_campaigns_due_for_polling: {
+        Args: never
+        Returns: {
+          campaign_id: string
+          interval_minutes: number
+          user_id: string
+          website_id: string
+        }[]
       }
       get_db_stats: {
         Args: never
@@ -2234,6 +2318,7 @@ export type Database = {
         Args: { _types?: string[]; _user_id: string }
         Returns: number
       }
+      get_user_event_usage: { Args: { _user_id: string }; Returns: Json }
       get_user_primary_website: { Args: { _user_id: string }; Returns: string }
       get_user_team_memberships: {
         Args: { _user_id: string }
@@ -2269,6 +2354,10 @@ export type Database = {
         Args: { counter_type: string; event_id: string }
         Returns: undefined
       }
+      increment_event_usage: {
+        Args: { _events_count?: number; _user_id: string }
+        Returns: Json
+      }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
       log_admin_action: {
@@ -2294,6 +2383,7 @@ export type Database = {
         }
         Returns: string
       }
+      poll_active_campaigns: { Args: never; Returns: undefined }
       update_article_helpful_count: {
         Args: { article_uuid: string }
         Returns: undefined

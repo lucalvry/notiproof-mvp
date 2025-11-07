@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { generateSuccessCallbackHTML, generateErrorCallbackHTML } from '../_shared/oauth-callback-html.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -107,8 +108,11 @@ Deno.serve(async (req) => {
         const errorText = await tokenResponse.text();
         console.error('Token exchange failed:', errorText);
         return new Response(
-          JSON.stringify({ error: 'Failed to exchange authorization code' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          generateErrorCallbackHTML(
+            'Failed to exchange authorization code. Please try connecting again.',
+            'TOKEN_EXCHANGE_FAILED'
+          ),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'text/html' } }
         );
       }
 
@@ -145,8 +149,8 @@ Deno.serve(async (req) => {
       });
 
       return new Response(
-        JSON.stringify({ success: true, shop }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        generateSuccessCallbackHTML(),
+        { headers: { ...corsHeaders, 'Content-Type': 'text/html' } }
       );
     }
 
