@@ -48,6 +48,10 @@ import Pricing from "./pages/Pricing";
 import Rules from "./pages/Rules";
 import { OAuthCallback } from "./components/integrations/OAuthCallback";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { inject } from "@vercel/analytics";
+
+
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,6 +62,8 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+inject();
 
 const App = () => (
   <ErrorBoundary>
