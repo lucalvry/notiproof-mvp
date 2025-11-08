@@ -484,6 +484,32 @@ export function getIntegrationKeyFromDisplay(displayName: string): string {
   return normalizeIntegrationKey(displayName);
 }
 
-export function getAllIntegrations(): IntegrationMetadata[] {
-  return Object.keys(integrationMetadataMap).map(key => integrationMetadataMap[key]);
+export function getAllIntegrations(): Array<IntegrationMetadata & { key: string }> {
+  return Object.entries(integrationMetadataMap).map(([key, metadata]) => ({
+    ...metadata,
+    key,
+  }));
+}
+
+export function inferCampaignType(dataSource: string): string {
+  const metadata = getIntegrationMetadata(dataSource);
+  
+  const categoryToCampaignType: Record<string, string> = {
+    'ecommerce': 'recent-purchase',
+    'forms': 'contact-form',
+    'payment': 'recent-purchase',
+    'social': 'social-shares',
+    'email': 'newsletter-signups',
+    'analytics': 'visitor-counter',
+    'crm': 'new-signup',
+    'education': 'course-enrollment',
+    'content': 'content-downloads',
+    'automation': 'custom-event',
+    'cms': 'content-downloads',
+    'community': 'community-joins',
+    'fintech': 'account-signup',
+    'music': 'social-shares',
+  };
+  
+  return categoryToCampaignType[metadata.category] || 'custom-event';
 }

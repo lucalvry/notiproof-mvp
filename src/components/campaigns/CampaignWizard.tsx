@@ -9,14 +9,17 @@ import { CampaignTypeSelector } from "./CampaignTypeSelector";
 import { IntegrationPathSelector } from "@/components/onboarding/IntegrationPathSelector";
 import { IntegrationSelector } from "./IntegrationSelector";
 import { IntegrationConnectionStep } from "./IntegrationConnectionStep";
+import { IntegrationConfigurationStep } from "./IntegrationConfigurationStep";
 import { DesignEditor } from "./DesignEditor";
 import { RulesTargeting } from "./RulesTargeting";
 import { ReviewActivate } from "./ReviewActivate";
 import { PollingConfigCard } from "./PollingConfigCard";
 import { MessageTemplateSelector, MessageTemplateVariant } from "./MessageTemplateSelector";
+import { QuickStartSelector } from "./QuickStartSelector";
+import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { getIntegrationMetadata } from "@/lib/integrationMetadata";
+import { getIntegrationMetadata, inferCampaignType } from "@/lib/integrationMetadata";
 import { generateDefaultTemplateForCampaignType } from "@/lib/campaignTemplates";
 
 interface CampaignWizardProps {
@@ -26,24 +29,40 @@ interface CampaignWizardProps {
 }
 
 const STEPS = [
-  "Choose Campaign Type",
-  "Select Data Source",
-  "Choose Integration",
-  "Connect Integration",
-  "Choose Message Style",
-  "Choose Template",
+  "Choose Data Source",
+  "Configure Integration",
   "Customize Design",
-  "Rules & Targeting",
   "Review & Activate",
 ];
 
 export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
+  const [useQuickStart, setUseQuickStart] = useState(false);
   const [campaignData, setCampaignData] = useState({
     name: "",
     type: "",
     integration_path: "", // 'integration', 'manual', or 'demo'
     data_source: "",
+    
+    // PHASE 1: Message configuration from Step 2
+    message_config: {
+      template: "",
+      placeholders: [] as string[],
+      connectorId: null as string | null,
+    },
+    
+    // PHASE 1: Integration-specific settings
+    integration_settings: {
+      message_template: "",
+      image_fallback_url: "",
+      locale: "en",
+      actions: [] as Array<{
+        type: 'replace_variable' | 'change_url' | 'change_image' | 'hide_event';
+        condition: string;
+        value: string;
+      }>,
+    },
+    
     settings: {} as Record<string, any>,
     rules: {} as Record<string, any>,
     polling_config: {
@@ -60,8 +79,6 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [templateFetchError, setTemplateFetchError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  // PHASE 5: Track if Step 3 should show confirmation screen
-  // Removed showStep3Confirmation - IntegrationConnectionStep handles this internally
 
   const progress = ((currentStep + 1) / STEPS.length) * 100;
 
@@ -137,6 +154,17 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
       type: "",
       integration_path: "",
       data_source: "",
+      message_config: {
+        template: "",
+        placeholders: [],
+        connectorId: null,
+      },
+      integration_settings: {
+        message_template: "",
+        image_fallback_url: "",
+        locale: "en",
+        actions: [],
+      },
       settings: {},
       rules: {},
       polling_config: {
@@ -431,336 +459,76 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     switch (currentStep) {
       case 0:
         return (
-          <CampaignTypeSelector
-            selectedType={campaignData.type}
-            onSelect={(type) => updateCampaignData({ type })}
+          <QuickStartSelector
+            onSelect={(template) => {
+              if (template.id === "custom-setup") {
+                // Show data source selector
+                setUseQuickStart(false);
+              } else {
+                // Apply quick start template with auto-campaign creation
+                setUseQuickStart(true);
+                updateCampaignData({
+                  name: template.name,
+                  type: template.config.campaignType,
+                  integration_path: template.config.integrationPath,
+                  data_source: template.config.dataSource,
+                  settings: template.config.settings,
+                });
+                toast.success(`${template.name} template selected!`, {
+                  description: "Your notification is ready! Customize if needed.",
+                });
+                setCurrentStep(1); // Jump to customization
+              }
+            }}
+            showDataSourceSelector={!useQuickStart}
+            onDataSourceSelect={(dataSource) => {
+              const inferredType = inferCampaignType(dataSource);
+              
+              updateCampaignData({
+                integration_path: 'integration',
+                data_source: dataSource,
+                type: inferredType,
+              });
+              
+              toast.success("Data source selected!", {
+                description: `Creating ${inferredType.replace('-', ' ')} notification`,
+              });
+              handleNext();
+            }}
           />
         );
       case 1:
         return (
-          <div className="space-y-6 py-6">
-            <div className="text-center space-y-2">
-              <div className="flex justify-center mb-4">
-                <div className="rounded-full bg-primary/10 p-3">
-                  <Link2 className="h-8 w-8 text-primary" />
-                </div>
-              </div>
-              <h2 className="text-2xl font-bold">Connect Your Data</h2>
-              <p className="text-muted-foreground">
-                How would you like to populate your campaign?
-              </p>
-            </div>
-
-            <IntegrationPathSelector
-              campaignType={campaignData.type}
-              selectedPath={campaignData.integration_path}
-              onSelect={(path) => updateCampaignData({ integration_path: path })}
-            />
-          </div>
+          <IntegrationConfigurationStep
+            dataSource={campaignData.data_source}
+            campaignType={campaignData.type}
+            existingConfig={{
+              messageTemplate: campaignData.message_config.template,
+              placeholders: campaignData.message_config.placeholders,
+              connectorId: campaignData.message_config.connectorId || undefined,
+              integrationSettings: campaignData.integration_settings,
+            }}
+            onConfigComplete={(config) => {
+              // PHASE 1 & 3: Apply message template + integration settings
+              updateCampaignData({
+                message_config: {
+                  template: config.messageTemplate,
+                  placeholders: config.placeholders,
+                  connectorId: config.connectorId || null,
+                },
+                integration_settings: config.integrationSettings || campaignData.integration_settings,
+                settings: {
+                  ...campaignData.settings,
+                  headline: config.messageTemplate, // Apply to design editor
+                  messageTemplate: config.messageTemplate,
+                  placeholders: config.placeholders,
+                },
+              });
+              handleNext();
+            }}
+          />
         );
       case 2:
-        // Skip if not integration path
-        if (campaignData.integration_path !== 'integration') {
-          return (
-            <div className="text-center py-12 space-y-4">
-              <div className="text-muted-foreground">
-                {campaignData.integration_path === 'manual' 
-                  ? '📤 Manual CSV upload selected - you can upload your data in the next steps'
-                  : '✨ Demo data selected - we\'ll populate your campaign with sample data'}
-              </div>
-            </div>
-          );
-        }
-        return (
-          <IntegrationSelector
-            campaignType={campaignData.type}
-            selectedIntegration={campaignData.data_source}
-            onSelect={(integration) => updateCampaignData({ data_source: integration })}
-          />
-        );
-      case 3:
-        // Always show the connection step - it handles existing connections internally
-        return (
-          <IntegrationConnectionStep
-            dataSource={campaignData.data_source}
-            onConnectionComplete={(config) => {
-              updateCampaignData({ settings: { ...campaignData.settings, integrationConfig: config } });
-            }}
-          />
-        );
-      case 4:
-        // NEW: Message Template Selector with Privacy Controls
-        return (
-          <MessageTemplateSelector
-            campaignType={campaignData.type}
-            selectedVariant={selectedMessageVariant}
-            onSelect={(variant) => {
-              setSelectedMessageVariant(variant);
-              // Apply message template to campaign settings
-              updateCampaignData({
-                settings: {
-                  ...campaignData.settings,
-                  headline: variant.template,
-                  showNames: variant.showNames,
-                  showLocations: variant.showLocations,
-                  messageVariant: variant.id,
-                },
-              });
-            }}
-            onPrivacyChange={(privacySettings) => {
-              updateCampaignData({
-                settings: {
-                  ...campaignData.settings,
-                  showNames: privacySettings.showNames,
-                  showLocations: privacySettings.showLocations,
-                },
-              });
-            }}
-          />
-        );
-      case 5:
-        return (
-          <div className="space-y-6 py-6">
-            <div className="text-center space-y-2">
-              <div className="flex justify-center mb-4">
-                <div className="rounded-full bg-primary/10 p-3">
-                  <Sparkles className="h-8 w-8 text-primary" />
-                </div>
-              </div>
-              <h2 className="text-2xl font-bold">Choose a Template</h2>
-              <p className="text-muted-foreground">
-                Start with a proven template or customize from scratch
-              </p>
-            </div>
-
-            {/* Step 5.1: Enhanced Campaign Type Context Display */}
-            {campaignData.type && (
-              <div className="bg-gradient-to-r from-primary/5 to-primary/10 rounded-lg p-4 border border-primary/20">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Selected Campaign Type:</span>
-                    <Badge variant="secondary" className="font-medium">
-                      {campaignData.type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                    </Badge>
-                  </div>
-                  
-                  {/* Step 5.2: Template Count Indicator */}
-                  {!isLoadingTemplates && (
-                    <div className="text-sm font-medium text-primary">
-                      {templates.length === 0 && !showAllTemplates ? (
-                        "Using auto-generated template"
-                      ) : templates.length === 1 && !showAllTemplates ? (
-                        "1 template available for this campaign type"
-                      ) : (
-                        `Showing ${templates.length} template${templates.length !== 1 ? 's' : ''}${showAllTemplates ? ' (all)' : ' optimized for ' + campaignData.type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}`
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Step 5.3: Show All Templates Toggle */}
-            {campaignData.type && !isLoadingTemplates && (
-              <div className="flex justify-end">
-                <Button
-                  variant={showAllTemplates ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setShowAllTemplates(!showAllTemplates)}
-                  className="gap-2"
-                >
-                  <Filter className="h-4 w-4" />
-                  {showAllTemplates ? "Show Recommended Only" : "Show All Templates"}
-                </Button>
-              </div>
-            )}
-
-            {showAllTemplates && templates.length > 0 && (
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                  ⚠️ Showing all templates. Some may not match your campaign type perfectly.
-                </p>
-              </div>
-            )}
-
-            {/* Phase 6.2: Error State with Retry */}
-            {templateFetchError ? (
-              <div className="text-center py-12 space-y-4 border-2 border-dashed border-destructive/50 rounded-lg bg-destructive/5">
-                <div className="space-y-2">
-                  <p className="text-destructive font-medium">
-                    Failed to load templates
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {templateFetchError}
-                  </p>
-                </div>
-                <div className="flex gap-3 justify-center">
-                  <Button variant="outline" onClick={retryFetchTemplates}>
-                    Retry
-                  </Button>
-                  <Button variant="default" onClick={() => setCurrentStep(5)}>
-                    Skip to Design Editor
-                  </Button>
-                </div>
-              </div>
-            ) : isLoadingTemplates ? (
-              /* Phase 6.3: Enhanced Loading State */
-              <div className="text-center py-12 space-y-3">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-                <p className="text-muted-foreground">
-                  {campaignData.type 
-                    ? `Loading templates for ${campaignData.type.split('-').join(' ')}...`
-                    : 'Loading templates...'}
-                </p>
-              </div>
-            ) : templates.length === 0 ? (
-              /* Step 2.3: Enhanced Empty State - This should rarely happen now with fallback generator */
-              <div className="text-center py-12 space-y-4 border-2 border-dashed rounded-lg bg-muted/20">
-                <div className="space-y-2">
-                  <p className="text-muted-foreground font-medium">
-                    {campaignData.type 
-                      ? `No pre-made templates found for "${campaignData.type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}"`
-                      : 'No templates available'}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Don't worry! You can create a custom design from scratch in the next step.
-                  </p>
-                </div>
-                <div className="flex gap-3 justify-center">
-                  <Button variant="outline" onClick={() => setCurrentStep(5)}>
-                    Continue to Design Editor
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
-                {templates.map((template, index) => {
-                  // Step 5.4: Determine if this is the best match
-                  const isBestMatch = !showAllTemplates && index === 0 && templates.length > 1;
-                  const supportedTypes = template.supported_campaign_types || [];
-                  const matchesCurrentType = supportedTypes.includes(campaignData.type);
-
-                  return (
-                    <Card 
-                      key={template.id}
-                      className={`cursor-pointer transition-all hover:shadow-md ${
-                        selectedTemplate?.id === template.id ? 'ring-2 ring-primary shadow-lg' : ''
-                      }`}
-                      onClick={() => {
-                        setSelectedTemplate(template);
-                        
-                        // PHASE 1: Parse all template configurations
-                        const templateConfig = typeof template.template_config === 'string' 
-                          ? JSON.parse(template.template_config) 
-                          : template.template_config || {};
-                          
-                        const styleConfig = typeof template.style_config === 'string'
-                          ? JSON.parse(template.style_config)
-                          : template.style_config || {};
-                          
-                        const displayRules = typeof template.display_rules === 'string'
-                          ? JSON.parse(template.display_rules)
-                          : template.display_rules || {};
-                        
-                        // Apply all template data to campaignData
-                        updateCampaignData({ 
-                          settings: { 
-                            ...campaignData.settings, 
-                            ...templateConfig,
-                            ...styleConfig
-                          },
-                          rules: {
-                            ...campaignData.rules,
-                            ...displayRules
-                          }
-                        });
-                        
-                        console.info('✅ Template fully applied:', {
-                          template: template.name,
-                          appliedSettings: { ...templateConfig, ...styleConfig },
-                          appliedRules: displayRules
-                        });
-                      }}
-                    >
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <CardTitle className="text-base">{template.name}</CardTitle>
-                              
-                              {/* Step 5.4: Best Match Indicator */}
-                              {isBestMatch && (
-                                <Badge variant="default" className="gap-1 bg-gradient-to-r from-primary to-primary/80">
-                                  <Award className="h-3 w-3" />
-                                  Best Match
-                                </Badge>
-                              )}
-                              
-                              {template.is_auto_generated && (
-                                <Badge variant="outline" className="text-xs">
-                                  Auto-Generated
-                                </Badge>
-                              )}
-                            </div>
-                            
-                            <CardDescription className="text-sm mt-1.5">
-                              {template.description}
-                            </CardDescription>
-
-                            {/* Step 5.4: Display Supported Campaign Types as Badges */}
-                            {supportedTypes.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mt-2">
-                                {supportedTypes.slice(0, 3).map((type: string) => (
-                                  <Badge 
-                                    key={type} 
-                                    variant={type === campaignData.type ? "secondary" : "outline"}
-                                    className="text-xs"
-                                  >
-                                    {type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                                  </Badge>
-                                ))}
-                                {supportedTypes.length > 3 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    +{supportedTypes.length - 3} more
-                                  </Badge>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          
-                          {selectedTemplate?.id === template.id && (
-                            <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
-                          )}
-                        </div>
-                      </CardHeader>
-                      
-                      <CardContent className="pt-0">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                            <span>{template.rating_average?.toFixed(1) || 'N/A'}</span>
-                          </div>
-                          <span>•</span>
-                          <div className="flex items-center gap-1">
-                            <Download className="h-3 w-3" />
-                            <span>{template.download_count || 0} uses</span>
-                          </div>
-                          {showAllTemplates && !matchesCurrentType && (
-                            <>
-                              <span>•</span>
-                              <span className="text-yellow-600 dark:text-yellow-400">Different type</span>
-                            </>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      case 5:
         return (
           <DesignEditor
             settings={campaignData.settings}
@@ -771,29 +539,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
             templateName={selectedTemplate?.name}
           />
         );
-      case 6:
-        const supportsPolling = ["visitor-counter", "recently-viewed", "live-students", "trending-article", "live-readers", "user-milestones"].includes(campaignData.type);
-        return (
-          <div className="space-y-6">
-            <RulesTargeting
-              rules={campaignData.rules}
-              onChange={(rules) => updateCampaignData({ rules })}
-              campaignType={campaignData.type}
-              dataSource={campaignData.data_source}
-              templateName={selectedTemplate?.name}
-            />
-            {supportsPolling && campaignData.integration_path === 'integration' && (
-              <PollingConfigCard
-                value={campaignData.polling_config}
-                onChange={(config) => updateCampaignData({ polling_config: config })}
-              />
-            )}
-          </div>
-        );
-      case 7:
-        // Placeholder for potential future step
-        return null;
-      case 8:
+      case 3:
         return (
           <ReviewActivate
             campaignData={campaignData}
@@ -809,37 +555,20 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     }
   };
 
-  // Phase 6: Enhanced validation with comprehensive edge case handling
+  // Simplified validation for Quick Start flow
   const canProceed = () => {
     switch (currentStep) {
       case 0:
-        // Phase 6.2: Ensure campaign type is valid string
-        return typeof campaignData.type === 'string' && campaignData.type.trim() !== "";
+        // Quick Start selection - always ready
+        return false; // Selection happens via button click, not Next button
       case 1:
-        // Phase 6.2: Ensure integration path is selected
-        return typeof campaignData.integration_path === 'string' && campaignData.integration_path !== "";
+        // Integration configuration - require data source
+        return typeof campaignData.data_source === 'string' && campaignData.data_source.trim() !== "";
       case 2:
-        // Skip if not integration path
-        if (campaignData.integration_path !== 'integration') {
-          return true;
-        }
-        console.log('Step 2 canProceed - data_source:', campaignData.data_source);
-        return typeof campaignData.data_source === 'string' && campaignData.data_source !== "";
+        // Design customization - always allow to proceed
+        return true;
       case 3:
-        // Connection step - always allow to proceed (skip is optional)
-        return true;
-      case 4:
-        // Message Template Selector - allow to proceed if variant is selected
-        return selectedMessageVariant !== null;
-      case 5:
-        // Template chooser - allow proceeding even if no template selected
-        // User can customize from scratch in the next step
-        return !isLoadingTemplates; // Only block if still loading
-      case 6:
-        // Design editor - always allow to proceed
-        return true;
-      case 7:
-        // Rules & targeting - always allow to proceed
+        // Review - always ready
         return true;
       default:
         return true;
@@ -913,7 +642,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-2xl">Create New Campaign</DialogTitle>
           <DialogDescription className="sr-only">
@@ -928,8 +657,23 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto py-6">
-          {renderStep()}
+        <div className="flex-1 overflow-hidden flex gap-6">
+          {/* Main Content - Left Side */}
+          <div className="flex-1 overflow-y-auto py-6 pr-2">
+            {renderStep()}
+          </div>
+
+          {/* Live Preview - Right Side - Show only on Customize Design step */}
+          {currentStep === 1 && campaignData.settings && (
+            <div className="w-96 border-l pl-6 overflow-y-auto py-6">
+              <WidgetPreviewFrame
+                settings={campaignData.settings}
+                campaignType={campaignData.type}
+                position={campaignData.settings.position}
+                animation={campaignData.settings.animation}
+              />
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between border-t pt-4">

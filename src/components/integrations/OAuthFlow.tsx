@@ -5,29 +5,58 @@ import { CheckCircle, Shield, ExternalLink, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { GA4PropertyPicker } from "./GA4PropertyPicker";
+import { useAutoCampaignCreation } from "@/hooks/useAutoCampaignCreation";
+import { SuccessModal } from "@/components/campaigns/SuccessModal";
+import { useNavigate } from "react-router-dom";
 
 interface OAuthFlowProps {
   integration: any;
   websiteId: string;
   onSuccess: () => void;
+  autoCreateCampaign?: boolean; // New prop to enable auto-campaign creation
 }
 
-export function OAuthFlow({ integration, websiteId, onSuccess }: OAuthFlowProps) {
+export function OAuthFlow({ integration, websiteId, onSuccess, autoCreateCampaign = false }: OAuthFlowProps) {
   const [connecting, setConnecting] = useState(false);
   const [showPropertyPicker, setShowPropertyPicker] = useState(false);
   const [properties, setProperties] = useState<any[]>([]);
   const [oauthState, setOauthState] = useState<string>("");
   const [isFinalizingConnection, setIsFinalizingConnection] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdCampaign, setCreatedCampaign] = useState<any>(null);
+  const { createCampaignFromIntegration, isCreating } = useAutoCampaignCreation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Listen for OAuth callback message from popup
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = async (event: MessageEvent) => {
       console.log('Received OAuth message:', event.data);
       
       if (event.data.type === 'oauth_success') {
         setConnecting(false);
-        toast.success(`${integration.name} connected successfully!`);
-        onSuccess();
+        
+        // Auto-create campaign if enabled
+        if (autoCreateCampaign) {
+          toast.success(`${integration.name} connected! Creating your first notification...`);
+          
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const result = await createCampaignFromIntegration({
+              integrationName: integration.id,
+              connectorId: event.data.connectorId,
+              websiteId,
+              userId: user.id
+            });
+            
+            if (result.success && result.campaign) {
+              setCreatedCampaign(result.campaign);
+              setShowSuccessModal(true);
+            }
+          }
+        } else {
+          toast.success(`${integration.name} connected successfully!`);
+          onSuccess();
+        }
       } else if (event.data.type === 'oauth_property_selection') {
         setConnecting(false);
         // Show property picker dialog for GA4
@@ -233,12 +262,17 @@ export function OAuthFlow({ integration, websiteId, onSuccess }: OAuthFlowProps)
             size="lg" 
             className="w-full"
             onClick={handleOAuthConnect}
-            disabled={connecting}
+            disabled={connecting || isCreating}
           >
             {connecting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Connecting...
+              </>
+            ) : isCreating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Creating Campaign...
               </>
             ) : (
               <>
@@ -261,6 +295,26 @@ export function OAuthFlow({ integration, websiteId, onSuccess }: OAuthFlowProps)
         onCancel={handlePropertyCancel}
         isLoading={isFinalizingConnection}
       />
+
+      {/* Success Modal */}
+      {showSuccessModal && createdCampaign && (
+        <SuccessModal
+          open={showSuccessModal}
+          onClose={() => {
+            setShowSuccessModal(false);
+            onSuccess();
+          }}
+          campaignName={createdCampaign.name}
+          integrationName={integration.name}
+          campaignId={createdCampaign.id}
+          onViewCampaign={() => {
+            navigate(`/campaigns/${createdCampaign.id}`);
+          }}
+          onCustomize={() => {
+            navigate(`/campaigns/${createdCampaign.id}`);
+          }}
+        />
+      )}
     </>
   );
 }

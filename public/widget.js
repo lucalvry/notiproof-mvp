@@ -13,10 +13,128 @@
   let customBrandName = script.getAttribute('data-brand-name') || 'NotiProof';
   let customLogoUrl = script.getAttribute('data-logo-url') || '';
   
-  function log(...args) {
-    if (DEBUG) {
-      console.log('[NotiProof]', ...args);
+  
+  // URL matching helper with wildcard support
+  function matchesUrlPattern(url, pattern) {
+    if (!pattern) return false;
+    // Convert wildcard pattern to regex
+    const regexPattern = pattern
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special chars except *
+      .replace(/\*/g, '.*'); // Convert * to .*
+    const regex = new RegExp('^' + regexPattern + '$', 'i');
+    return regex.test(url);
+  }
+  
+  // Check if current URL matches targeting rules
+  function shouldShowOnCurrentUrl() {
+    if (!displayRules.url_rules) return true;
+    
+    const currentUrl = window.location.pathname;
+    const { include_urls = [], exclude_urls = [] } = displayRules.url_rules;
+    
+    // Check exclude rules first (higher priority)
+    if (exclude_urls.length > 0) {
+      for (const pattern of exclude_urls) {
+        if (matchesUrlPattern(currentUrl, pattern)) {
+          log('URL excluded by pattern:', pattern);
+          return false;
+        }
+      }
     }
+    
+    // Check include rules
+    if (include_urls.length > 0) {
+      for (const pattern of include_urls) {
+        if (matchesUrlPattern(currentUrl, pattern)) {
+          log('URL included by pattern:', pattern);
+          return true;
+        }
+      }
+      log('URL not in include list');
+      return false; // Not in include list
+    }
+    
+    return true; // No rules means show everywhere
+  }
+  
+  // Check if visitor's country matches targeting rules
+  function shouldShowForCountry() {
+    if (!displayRules.countries || !visitorCountry) return true;
+    
+    const { include = [], exclude = [] } = displayRules.countries;
+    
+    // Check exclude first
+    if (exclude.length > 0 && exclude.includes(visitorCountry)) {
+      log('Country excluded:', visitorCountry);
+      return false;
+    }
+    
+    // Check include
+    if (include.length > 0) {
+      const allowed = include.includes(visitorCountry);
+      if (!allowed) {
+        log('Country not in include list:', visitorCountry);
+      }
+      return allowed;
+    }
+    
+    return true;
+  }
+  
+  // Track impressions in localStorage
+  function getSessionImpressions() {
+    try {
+      const stored = localStorage.getItem(SESSION_KEY);
+      return stored ? parseInt(stored, 10) : 0;
+    } catch {
+      return sessionCount;
+    }
+  }
+  
+  function incrementSessionImpressions() {
+    try {
+      const current = getSessionImpressions();
+      localStorage.setItem(SESSION_KEY, (current + 1).toString());
+    } catch (e) {
+      log('Failed to store session impressions:', e);
+    }
+    sessionCount++;
+  }
+  
+  function getPageImpressions() {
+    try {
+      const stored = localStorage.getItem(PAGE_KEY);
+      return stored ? parseInt(stored, 10) : 0;
+    } catch {
+      return displayedCount;
+    }
+  }
+  
+  function incrementPageImpressions() {
+    try {
+      const current = getPageImpressions();
+      localStorage.setItem(PAGE_KEY, (current + 1).toString());
+    } catch (e) {
+      log('Failed to store page impressions:', e);
+    }
+    displayedCount++;
+  }
+  
+  function checkFrequencyLimits() {
+    const pageImpressions = getPageImpressions();
+    const sessionImpressions = getSessionImpressions();
+    
+    if (pageImpressions >= maxPerPage) {
+      log('Page frequency limit reached:', pageImpressions, '/', maxPerPage);
+      return false;
+    }
+    
+    if (sessionImpressions >= maxPerSession) {
+      log('Session frequency limit reached:', sessionImpressions, '/', maxPerSession);
+      return false;
+    }
+    
+    return true;
   }
   
   function error(...args) {
@@ -52,9 +170,36 @@
   let eventQueue = [];
   let displayedCount = 0;
   let sessionCount = 0;
+  let isPaused = false;
   const sessionId = generateSessionId();
-  const maxPerPage = 5;
-  const maxPerSession = 20;
+  let maxPerPage = 5;
+  let maxPerSession = 20;
+  let visitorCountry = null;
+  let displayRules = {};
+  
+  // Fetch visitor country using IP geolocation
+  async function fetchVisitorCountry() {
+    try {
+      log('Fetching visitor country via IP geolocation...');
+      const response = await fetch('https://ipapi.co/json/');
+      if (response.ok) {
+        const data = await response.json();
+        visitorCountry = data.country_code; // Returns 2-letter country code (e.g., 'US', 'GB')
+        log('Visitor country detected:', visitorCountry);
+      } else {
+        log('Failed to fetch visitor country, geo-targeting will be skipped');
+      }
+    } catch (err) {
+      log('Error fetching visitor country:', err);
+    }
+  }
+  
+  // Initialize geolocation on widget load
+  fetchVisitorCountry();
+  
+  // Session storage keys
+  const SESSION_KEY = 'notiproof_session_' + sessionId;
+  const PAGE_KEY = 'notiproof_page_' + window.location.pathname;
   
   // Widget Configuration from data attributes with versioning support
   const widgetVersion = parseInt(script.getAttribute('data-version') || '2', 10);
@@ -81,6 +226,10 @@
     ctaText: script.getAttribute('data-cta-text') || 'Learn More',
     ctaUrl: script.getAttribute('data-cta-url') || '',
     showActiveVisitors: script.getAttribute('data-show-active-visitors') !== 'false',
+    pauseAfterClick: script.getAttribute('data-pause-after-click') === 'true',
+    pauseAfterClose: script.getAttribute('data-pause-after-close') === 'true',
+    makeClickable: script.getAttribute('data-make-clickable') !== 'false',
+    debugMode: script.getAttribute('data-debug-mode') === 'true',
     
     // PHASE 4: Product image display settings with version check
     showProductImages: (() => {
@@ -337,8 +486,25 @@
   
   
   function showNotification(event) {
-    if (displayedCount >= config.maxPerPage || sessionCount >= config.maxPerSession) {
-      log('Display limit reached', { displayedCount, sessionCount, maxPerPage: config.maxPerPage, maxPerSession: config.maxPerSession });
+    if (isPaused) {
+      log('Notifications paused');
+      return;
+    }
+    
+    if (!checkFrequencyLimits()) {
+      log('Frequency limits reached');
+      return;
+    }
+    
+    // Apply URL targeting rules
+    if (!shouldShowOnCurrentUrl()) {
+      log('Event filtered by URL rules');
+      return;
+    }
+    
+    // Apply geo-targeting rules
+    if (!shouldShowForCountry()) {
+      log('Event filtered by geo-targeting rules');
       return;
     }
     
@@ -355,12 +521,13 @@
       padding: ${isMobile ? '12px' : '16px'};
       margin-bottom: 10px;
       max-width: ${isMobile ? '100%' : '350px'};
-      cursor: ${config.showCTA || event.event_data?.url ? 'pointer' : 'default'};
+      cursor: ${config.makeClickable && (config.showCTA || event.event_data?.url) ? 'pointer' : 'default'};
       transition: ${getAnimationStyles(config.animation)};
       opacity: 0;
       transform: ${config.animation === 'slide' ? 'translateY(20px)' : 'scale(0.95)'};
       font-size: ${isMobile ? Math.max(12, config.fontSize - 2) : config.fontSize}px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      position: relative;
     `;
     
     const time = new Date(event.created_at);
@@ -368,6 +535,15 @@
     
     // Build notification content
     let contentHTML = '<div style="display: flex; align-items: start; gap: 12px;">';
+    
+    // Close button (top right)
+    contentHTML += `
+      <div style="position: absolute; top: 8px; right: 8px; cursor: pointer; opacity: 0.5; hover: opacity: 1; transition: opacity 0.2s;" data-close>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1 1L13 13M1 13L13 1" stroke="${config.textColor}" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+    `;
     
     // PHASE 4: Product/Preset Image - FIXED to work independently of showAvatar
     const showProductImages = config.showProductImages !== false; // Default to true
@@ -467,13 +643,21 @@
     log('Displaying notification', { eventId: event.id, message: event.message_template });
     
     trackView(event.id);
-    displayedCount++;
-    sessionCount++;
+    incrementPageImpressions();
+    incrementSessionImpressions();
     
     // Click handling
     notification.addEventListener('click', (e) => {
+      if (!config.makeClickable) return;
+      
       log('Notification clicked', { eventId: event.id });
       trackClick(event.id);
+      
+      // Pause if configured
+      if (config.pauseAfterClick) {
+        isPaused = true;
+        log('Notifications paused after click');
+      }
       
       // Handle CTA click
       if (config.showCTA && config.ctaUrl && e.target.tagName === 'BUTTON') {
@@ -486,6 +670,21 @@
       notification.style.transform = config.animation === 'slide' ? 'translateY(20px)' : 'scale(0.95)';
       setTimeout(() => notification.remove(), 300);
     });
+    
+    // Close button handling
+    const closeBtn = notification.querySelector('[data-close]');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (config.pauseAfterClose) {
+          isPaused = true;
+          log('Notifications paused after close');
+        }
+        notification.style.opacity = '0';
+        notification.style.transform = config.animation === 'slide' ? 'translateY(20px)' : 'scale(0.95)';
+        setTimeout(() => notification.remove(), 300);
+      });
+    }
     
     // Auto-hide
     setTimeout(() => {
@@ -527,6 +726,33 @@
         }
         const data = await response.json();
         eventQueue = data.events || [];
+        
+        // Apply display settings from API
+        if (data.display_settings) {
+          const ds = data.display_settings;
+          maxPerPage = ds.max_per_page ?? config.maxPerPage;
+          maxPerSession = ds.max_per_session ?? config.maxPerSession;
+          displayRules = ds.default_rules || {};
+          
+          // Override config with server settings
+          if (ds.initial_delay !== undefined) config.initialDelay = ds.initial_delay * 1000;
+          if (ds.display_duration !== undefined) config.displayDuration = ds.display_duration * 1000;
+          if (ds.interval !== undefined) config.interval = ds.interval * 1000;
+          if (ds.position) config.position = ds.position;
+          if (ds.animation) config.animation = ds.animation;
+          if (ds.pause_after_click !== undefined) config.pauseAfterClick = ds.pause_after_click;
+          if (ds.pause_after_close !== undefined) config.pauseAfterClose = ds.pause_after_close;
+          if (ds.make_clickable !== undefined) config.makeClickable = ds.make_clickable;
+          if (ds.debug_mode !== undefined) config.debugMode = ds.debug_mode;
+          
+          log('Display settings applied from server', { maxPerPage, maxPerSession, displayRules });
+        }
+        
+        // Store visitor country
+        if (data.visitor_country) {
+          visitorCountry = data.visitor_country;
+          log('Visitor country:', visitorCountry);
+        }
         
         // Apply white-label settings from API response
         if (data.white_label) {
@@ -732,13 +958,13 @@
     
     // Initial delay before first notification
     setTimeout(() => {
-      if (eventQueue.length > 0) {
+      if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused) {
         showNotification(eventQueue.shift());
       }
       
       // Then show notifications at intervals
       setInterval(() => {
-        if (eventQueue.length > 0 && displayedCount < config.maxPerPage && sessionCount < config.maxPerSession) {
+        if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused) {
           const event = eventQueue.shift();
           showNotification(event);
         }

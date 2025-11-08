@@ -220,6 +220,22 @@ export default function Websites() {
             </Card>
           ))}
         </div>
+      ) : websites.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="rounded-full bg-primary/10 p-6 mb-4">
+              <Globe className="h-12 w-12 text-primary" />
+            </div>
+            <h3 className="text-2xl font-bold mb-2">No Websites Yet</h3>
+            <p className="text-muted-foreground mb-6 max-w-md">
+              Get started by adding your first website. You'll be able to create social proof widgets and track their performance.
+            </p>
+            <Button size="lg" onClick={() => setAddDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Your First Website
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {websites.map((site) => (

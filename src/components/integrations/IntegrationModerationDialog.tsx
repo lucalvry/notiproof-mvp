@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, XCircle, Edit2, Eye, Trash2 } from "lucide-react";
+import { CheckCircle2, XCircle, Edit2, Eye, Trash2, Shield, MapPin, Calendar, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { NotificationPreview } from "@/components/templates/NotificationPreview";
@@ -146,6 +146,62 @@ export function IntegrationModerationDialog({
     },
   });
 
+  // Bulk approve all pending
+  const bulkApproveMutation = useMutation({
+    mutationFn: async () => {
+      const pendingIds = events
+        .filter(e => e.moderation_status === 'pending')
+        .map(e => e.id);
+
+      if (pendingIds.length === 0) return 0;
+
+      const { error } = await supabase
+        .from("events")
+        .update({ moderation_status: "approved", status: "approved" })
+        .in("id", pendingIds);
+
+      if (error) throw error;
+      return pendingIds.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["events-moderation"] });
+      queryClient.invalidateQueries({ queryKey: ["integration-pending-count"] });
+      toast.success(`Approved ${count} events`);
+    },
+    onError: (error) => {
+      toast.error("Failed to approve events");
+      console.error(error);
+    },
+  });
+
+  // Bulk delete rejected
+  const bulkDeleteRejectedMutation = useMutation({
+    mutationFn: async () => {
+      const rejectedIds = events
+        .filter(e => e.moderation_status === 'rejected')
+        .map(e => e.id);
+
+      if (rejectedIds.length === 0) return 0;
+
+      const { error } = await supabase
+        .from("events")
+        .delete()
+        .in("id", rejectedIds);
+
+      if (error) throw error;
+      return rejectedIds.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["events-moderation"] });
+      queryClient.invalidateQueries({ queryKey: ["integration-pending-count"] });
+      toast.success(`Deleted ${count} rejected events`);
+    },
+    onError: (error) => {
+      toast.error("Failed to delete events");
+      console.error(error);
+    },
+  });
+
   const handleApprove = (eventId: string) => {
     updateStatusMutation.mutate({ eventId, status: "approved" });
   };
@@ -177,12 +233,19 @@ export function IntegrationModerationDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{integrationName} Events</DialogTitle>
-            <DialogDescription>
-              Review and moderate events from {integrationName}
-            </DialogDescription>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <Shield className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <DialogTitle>Moderate {integrationName} Events</DialogTitle>
+                <DialogDescription>
+                  Review and approve events from this integration before they appear on your site
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           <Tabs value={selectedStatus} onValueChange={(v) => setSelectedStatus(v as any)}>
@@ -201,47 +264,108 @@ export function IntegrationModerationDialog({
 
             <TabsContent value={selectedStatus} className="mt-6">
               {isLoading ? (
-                <div className="text-center py-12 text-muted-foreground">Loading events...</div>
+                <div className="text-center py-12">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-r-transparent"></div>
+                  <p className="mt-4 text-sm text-muted-foreground">Loading events...</p>
+                </div>
               ) : events.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <p className="text-muted-foreground">No {selectedStatus} events from {integrationName}</p>
-                  </CardContent>
-                </Card>
+                <div className="py-12 text-center">
+                  <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="font-semibold text-lg mb-2">
+                    No {selectedStatus} events
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedStatus === 'pending' 
+                      ? "All events have been reviewed!" 
+                      : `No ${selectedStatus} events from ${integrationName}`}
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-4">
+                  {/* Bulk Actions */}
+                  {selectedStatus === 'pending' && events.length > 0 && (
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        onClick={() => bulkApproveMutation.mutate()}
+                        disabled={bulkApproveMutation.isPending}
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Approve All ({events.length})
+                      </Button>
+                    </div>
+                  )}
+                  {selectedStatus === 'rejected' && events.length > 0 && (
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => bulkDeleteRejectedMutation.mutate()}
+                        disabled={bulkDeleteRejectedMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete All ({events.length})
+                      </Button>
+                    </div>
+                  )}
                   {events.map((event) => (
-                    <Card key={event.id}>
-                      <CardHeader>
+                    <Card key={event.id} className={event.moderation_status === 'pending' ? "border-l-4 border-l-orange-500" : ""}>
+                      <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <CardTitle className="text-base">
-                              {event.message_template || "No message template"}
-                            </CardTitle>
-                            <CardDescription className="mt-2 flex items-center gap-3">
-                              <span>{formatDistanceToNow(new Date(event.created_at), { addSuffix: true })}</span>
+                            <div className="flex items-center gap-2 mb-2">
                               <Badge variant="outline" className="text-xs">
                                 {event.event_data?.ga4_event_name || event.event_type}
                               </Badge>
-                              {event.user_name && <span className="text-xs">by {event.user_name}</span>}
-                              {event.user_location && <span className="text-xs">from {event.user_location}</span>}
-                            </CardDescription>
+                              <Badge
+                                variant={
+                                  event.moderation_status === "approved"
+                                    ? "default"
+                                    : event.moderation_status === "rejected"
+                                    ? "destructive"
+                                    : "secondary"
+                                }
+                                className="text-xs"
+                              >
+                                {event.moderation_status}
+                              </Badge>
+                              {event.source && (
+                                <Badge variant="outline" className="text-xs">
+                                  {event.source}
+                                </Badge>
+                              )}
+                            </div>
+                            <CardTitle className="text-base font-medium leading-tight">
+                              {event.message_template || "No message template"}
+                            </CardTitle>
                           </div>
-                          <Badge
-                            variant={
-                              event.moderation_status === "approved"
-                                ? "default"
-                                : event.moderation_status === "rejected"
-                                ? "destructive"
-                                : "secondary"
-                            }
-                          >
-                            {event.moderation_status}
-                          </Badge>
                         </div>
                       </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center gap-2 flex-wrap">
+                      <CardContent className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          {event.user_name && (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Eye className="h-3 w-3" />
+                              <span>{event.user_name}</span>
+                            </div>
+                          )}
+                          {event.user_location && (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <MapPin className="h-3 w-3" />
+                              <span>{event.user_location}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            <span>{formatDistanceToNow(new Date(event.created_at), { addSuffix: true })}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Eye className="h-3 w-3" />
+                            <span>{event.views} views · {event.clicks} clicks</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap pt-2 border-t">
                           <Button
                             size="sm"
                             variant="outline"
@@ -310,10 +434,6 @@ export function IntegrationModerationDialog({
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
-                        </div>
-                        <div className="mt-3 text-xs text-muted-foreground flex gap-4">
-                          <span>Views: {event.views}</span>
-                          <span>Clicks: {event.clicks}</span>
                         </div>
                       </CardContent>
                     </Card>

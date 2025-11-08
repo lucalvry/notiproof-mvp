@@ -11,6 +11,7 @@ import { GeoTargetingCard } from "./targeting/GeoTargetingCard";
 import { DeviceTargetingCard } from "./targeting/DeviceTargetingCard";
 import { BehaviorTargetingCard } from "./targeting/BehaviorTargetingCard";
 import { ScheduleTargetingCard } from "./targeting/ScheduleTargetingCard";
+import { FrequencyUsageIndicator } from "./FrequencyUsageIndicator";
 
 interface RulesTargetingProps {
   rules: any;
@@ -114,6 +115,11 @@ export function RulesTargeting({
         </TabsList>
 
         <TabsContent value="display" className="space-y-4 mt-4">
+          <FrequencyUsageIndicator 
+            maxPerPage={targetingRules.display.max_per_page || 5}
+            maxPerSession={targetingRules.display.max_per_session || 20}
+          />
+          
           <Card>
             <CardHeader>
               <CardTitle>Display Frequency</CardTitle>

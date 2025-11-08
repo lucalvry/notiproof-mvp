@@ -45,18 +45,29 @@ import ABTesting from "./pages/ABTesting";
 import GA4PropertySelection from "./pages/GA4PropertySelection";
 import EventModeration from "./pages/EventModeration";
 import Pricing from "./pages/Pricing";
+import Rules from "./pages/Rules";
 import { OAuthCallback } from "./components/integrations/OAuthCallback";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <WebsiteProvider>
-        <Routes>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <WebsiteProvider>
+          <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/signup" element={<Navigate to="/register" replace />} />
@@ -97,9 +108,12 @@ const App = () => (
             <Route path="/campaigns/:id" element={<CampaignDetails />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/rules" element={<Rules />} />
+            <Route path="/events" element={<EventModeration />} />
             <Route path="/analytics/widget/:id" element={<WidgetAnalytics />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/rules" element={<Rules />} />
             <Route path="/billing" element={<Billing />} />
             <Route path="/account" element={<Account />} />
             <Route path="/team" element={<Team />} />
@@ -111,11 +125,12 @@ const App = () => (
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
-        </Routes>
-        </WebsiteProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+          </Routes>
+          </WebsiteProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

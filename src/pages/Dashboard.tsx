@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { OnboardingPrompts } from "@/components/dashboard/OnboardingPrompts";
 import { UsageDashboard } from "@/components/billing/UsageDashboard";
+import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -176,35 +177,8 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Charts Placeholder */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>
-              Your proof notifications in the last 7 days
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed">
-              <p className="text-muted-foreground">Chart placeholder</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Campaigns</CardTitle>
-            <CardDescription>
-              Best performing campaigns this month
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed">
-              <p className="text-muted-foreground">Chart placeholder</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Charts with Real Data */}
+      <DashboardCharts />
 
       {/* Onboarding Wizard for first-time users */}
       {userId && (

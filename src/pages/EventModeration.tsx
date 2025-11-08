@@ -59,21 +59,26 @@ export default function EventModeration() {
         .eq("widgets.user_id", user.id)
         .eq("moderation_status", selectedStatus);
 
-      // Apply source filter
-      if (sourceFilter === "demo") {
-        query = query.eq("source", "demo" as any);
-      } else if (sourceFilter === "real") {
-        query = query.neq("source", "demo" as any);
-      } else if (sourceFilter !== "all") {
-        query = query.eq("source", sourceFilter as any);
-      }
-
+      // Note: source filter is informational only since source column might not exist
+      // If it exists in your schema, the filtering would work client-side
+      
       const { data, error } = await query
         .order("created_at", { ascending: false })
         .limit(50);
 
       if (error) throw error;
-      return data as Event[];
+      
+      // Apply client-side filtering for source if needed
+      let filteredData = data as Event[];
+      if (sourceFilter !== "all" && filteredData.length > 0) {
+        filteredData = filteredData.filter(event => {
+          if (sourceFilter === "demo") return event.source === "demo";
+          if (sourceFilter === "real") return event.source !== "demo";
+          return event.source === sourceFilter;
+        });
+      }
+      
+      return filteredData;
     },
   });
 

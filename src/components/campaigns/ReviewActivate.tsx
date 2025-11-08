@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ interface ReviewActivateProps {
 
 export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: ReviewActivateProps) {
   const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const [campaignName, setCampaignName] = useState("");
   const [saving, setSaving] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -56,30 +58,67 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
         websiteId = websites[0].id;
       }
 
-      const { error } = await supabase.from("campaigns").insert([{
-        user_id: user.id,
-        name: campaignName,
-        description: `${campaignData.type} campaign - ${campaignData.data_source}`,
-        status: "draft",
-        website_id: websiteId,
-        data_source: campaignData.data_source || 'manual',
-        display_rules: {
-          ...campaignData.settings,
-          frequency: campaignData.rules?.frequency,
-          sessionLimit: campaignData.rules?.sessionLimit,
-          pageTargeting: campaignData.rules?.pageTargeting,
-          deviceTargeting: campaignData.rules?.deviceTargeting,
-        },
-        polling_config: campaignData.polling_config || {
-          enabled: false,
-          interval_minutes: 5,
-          max_events_per_fetch: 10,
-          last_poll_at: null
-        },
-      }]);
+      // Create campaign as draft
+      const { data: campaign, error: campaignError } = await supabase
+        .from("campaigns")
+        .insert([{
+          user_id: user.id,
+          name: campaignName,
+          description: `${campaignData.type} campaign - ${campaignData.data_source}`,
+          status: "draft",
+          website_id: websiteId,
+          data_source: campaignData.data_source || 'manual',
+          display_rules: {
+            ...campaignData.settings,
+            frequency: campaignData.rules?.frequency,
+            sessionLimit: campaignData.rules?.sessionLimit,
+            pageTargeting: campaignData.rules?.pageTargeting,
+            deviceTargeting: campaignData.rules?.deviceTargeting,
+          },
+          polling_config: campaignData.polling_config || {
+            enabled: false,
+            interval_minutes: 5,
+            max_events_per_fetch: 10,
+            last_poll_at: null
+          },
+        }])
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (campaignError) throw campaignError;
+
+      // Create draft widget too
+      const { error: widgetError } = await supabase
+        .from("widgets")
+        .insert({
+          user_id: user.id,
+          website_id: websiteId,
+          campaign_id: campaign.id,
+          name: `${campaignName} Widget`,
+          template_name: campaignData.settings?.layout || "notification",
+          status: "draft", // Draft widget
+          integration: campaignData.data_source || "manual",
+          style_config: {
+            borderRadius: campaignData.settings?.borderRadius,
+            showImage: campaignData.settings?.showImage,
+            headline: campaignData.settings?.headline,
+            subtext: campaignData.settings?.subtext,
+            ctaEnabled: campaignData.settings?.ctaEnabled,
+            ctaLabel: campaignData.settings?.ctaLabel,
+          },
+          display_rules: {
+            show_duration_ms: 5000,
+            interval_ms: (campaignData.rules?.frequency || 10) * 1000,
+            max_per_session: campaignData.rules?.sessionLimit || 5,
+          },
+        });
+
+      if (widgetError) throw widgetError;
+
       toast.success("Campaign saved as draft");
+      
+      // Invalidate queries before navigating
+      await queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       onComplete();
     } catch (error) {
       console.error("Error saving campaign:", error);
@@ -215,8 +254,55 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
     }
   };
 
-  const handleSendTest = () => {
-    toast.success("Test proof notification sent!");
+  const handleSendTest = async () => {
+    if (!campaignName) {
+      toast.error("Please enter a campaign name first");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) throw new Error("No email found");
+
+      // Create test event data
+      const testEvent = {
+        user_name: "Sarah Johnson",
+        location: "San Francisco, CA",
+        product_name: "Premium Plan",
+        action: "completed test action",
+        count: "47",
+        page_name: "Pricing Page",
+        price: "$99.99",
+        plan_name: "Pro Subscription",
+        timestamp: new Date().toISOString(),
+      };
+
+      // Replace placeholders in headline
+      let testMessage = campaignData.settings?.headline || "Test notification";
+      Object.entries(testEvent).forEach(([key, value]) => {
+        testMessage = testMessage.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+      });
+
+      // Send test email via edge function
+      const { error } = await supabase.functions.invoke('send-test-notification', {
+        body: {
+          email: user.email,
+          campaignName: campaignName,
+          message: testMessage,
+          subtext: campaignData.settings?.subtext || "",
+          settings: campaignData.settings,
+        }
+      });
+
+      if (error) throw error;
+      toast.success(`Test notification sent to ${user.email}!`);
+    } catch (error) {
+      console.error("Error sending test:", error);
+      toast.error("Failed to send test notification");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Generate demo events based on business type
@@ -266,8 +352,10 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
     <>
       <WidgetInstallationSuccess
         open={showSuccessModal}
-        onClose={() => {
+        onClose={async () => {
           setShowSuccessModal(false);
+          // Force refresh campaigns list before navigating
+          await queryClient.invalidateQueries({ queryKey: ['campaigns'] });
           onComplete();
         }}
         widgetId={createdWidget?.id || ""}

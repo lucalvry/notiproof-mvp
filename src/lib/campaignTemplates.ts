@@ -415,6 +415,30 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
 ];
 
 /**
+ * Get campaign type for a given integration
+ */
+export function getCampaignTypeForIntegration(integration: string): string {
+  const integrationToCampaignType: Record<string, string> = {
+    shopify: 'recent-purchase',
+    woocommerce: 'recent-purchase',
+    stripe: 'upgrade-events',
+    mailchimp: 'newsletter-signups',
+    convertkit: 'newsletter-signups',
+    typeform: 'contact-form',
+    calendly: 'new-bookings',
+    gumroad: 'recent-purchase',
+    ga4: 'visitor-counter',
+    instagram: 'social-shares',
+    twitter: 'social-shares',
+    google_reviews: 'product-reviews',
+    zapier: 'custom-event',
+    webhook: 'custom-event',
+  };
+  
+  return integrationToCampaignType[integration] || 'new-signup';
+}
+
+/**
  * Get template by campaign type ID
  */
 export function getTemplateById(campaignTypeId: string): CampaignTemplate | undefined {

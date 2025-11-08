@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
-import { Plus, MoreVertical, Play, Pause, Copy, Trash2 } from "lucide-react";
+import { Plus, Plug, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CampaignWizard } from "@/components/campaigns/CampaignWizard";
+import { CampaignCard } from "@/components/campaigns/CampaignCard";
+import { CampaignGridSkeleton } from "@/components/ui/campaign-skeleton";
 import { useNavigate } from "react-router-dom";
 import { useSubscription } from "@/hooks/useSubscription";
 import { FreeTrialLimitBanner } from "@/components/billing/FreeTrialLimitBanner";
+import confetti from "canvas-confetti";
 
 // Using database schema types
 interface Campaign {
@@ -29,6 +29,10 @@ interface Campaign {
   repeat_config: any;
   created_at: string;
   updated_at: string;
+  settings?: any;
+  total_views?: number;
+  total_clicks?: number;
+  widgets?: any[];
 }
 
 export default function Campaigns() {
@@ -48,13 +52,42 @@ export default function Campaigns() {
 
   const fetchCampaigns = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Please log in to view campaigns");
+        setLoading(false);
+        return;
+      }
+
+      // Fetch campaigns with optional widgets and events (left join)
       const { data, error } = await supabase
         .from("campaigns")
-        .select("*")
+        .select(`
+          *,
+          widgets(
+            id,
+            events!events_widget_id_fkey(views, clicks)
+          )
+        `)
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setCampaigns(data || []);
+      
+      // Calculate totals for each campaign
+      const campaignsWithStats = (data || []).map(campaign => {
+        const allEvents = campaign.widgets?.flatMap(w => w.events || []) || [];
+        const total_views = allEvents.reduce((sum: number, e: any) => sum + (e.views || 0), 0);
+        const total_clicks = allEvents.reduce((sum: number, e: any) => sum + (e.clicks || 0), 0);
+        
+        return {
+          ...campaign,
+          total_views,
+          total_clicks,
+        };
+      });
+      
+      setCampaigns(campaignsWithStats);
     } catch (error) {
       console.error("Error fetching campaigns:", error);
       toast.error("Failed to load campaigns");
@@ -75,7 +108,21 @@ export default function Campaigns() {
         .eq("id", id);
 
       if (error) throw error;
-      toast.success(`Campaign ${newStatus === "active" ? "activated" : "paused"}`);
+      
+      // Celebrate activation with confetti
+      if (newStatus === "active") {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+        toast.success("🎉 Campaign activated!", {
+          description: "Your notification is now live and visible to visitors"
+        });
+      } else {
+        toast.success("Campaign paused");
+      }
+      
       fetchCampaigns();
     } catch (error) {
       console.error("Error updating campaign:", error);
@@ -107,7 +154,10 @@ export default function Campaigns() {
         }]);
 
       if (error) throw error;
-      toast.success("Campaign duplicated");
+      
+      toast.success("✨ Campaign duplicated!", {
+        description: "Edit the copy to customize it for your needs"
+      });
       fetchCampaigns();
     } catch (error) {
       console.error("Error duplicating campaign:", error);
@@ -133,22 +183,42 @@ export default function Campaigns() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-full">Loading...</div>;
+    return (
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-9 w-48 bg-muted animate-pulse rounded" />
+            <div className="h-5 w-64 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="flex gap-3">
+            <div className="h-10 w-40 bg-muted animate-pulse rounded" />
+            <div className="h-10 w-48 bg-muted animate-pulse rounded" />
+          </div>
+        </div>
+        <CampaignGridSkeleton />
+      </div>
+    );
   }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Campaigns</h1>
+          <h1 className="text-3xl font-bold">Notifications</h1>
           <p className="text-muted-foreground">
-            Create and manage your social proof campaigns
+            Create and manage your social proof notifications
           </p>
         </div>
-        <Button className="gap-2" onClick={() => setWizardOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Create Campaign
-        </Button>
+        <div className="flex gap-3">
+          <Button variant="outline" className="gap-2" onClick={() => navigate('/integrations')}>
+            <Plug className="h-4 w-4" />
+            Manage Integrations
+          </Button>
+          <Button className="gap-2" onClick={() => setWizardOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Create Notification
+          </Button>
+        </div>
       </div>
 
       {/* Show upgrade banner when approaching campaign template limit */}
@@ -160,115 +230,67 @@ export default function Campaigns() {
       />
 
       {campaigns.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>No campaigns yet</CardTitle>
-            <CardDescription>
-              Create your first campaign to start showing social proof on your website
+        <Card className="border-dashed">
+          <CardHeader className="text-center pb-4">
+            <div className="flex justify-center mb-4">
+              <div className="rounded-full bg-primary/10 p-4">
+                <Sparkles className="h-12 w-12 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Create Your First Notification</CardTitle>
+            <CardDescription className="text-base max-w-md mx-auto">
+              Get your first social proof notification live in under 2 minutes with our Quick Start templates. 
+              Choose from pre-made designs or connect your own data.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex justify-center py-12">
-            <Button className="gap-2" onClick={() => setWizardOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Create Your First Campaign
+          <CardContent className="flex flex-col items-center gap-4 pb-12">
+            <Button className="gap-2" onClick={() => setWizardOpen(true)} size="lg">
+              <Plus className="h-5 w-5" />
+              Get Started with Quick Start
             </Button>
+            <div className="flex items-center gap-6 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                Demo data included
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                No coding required
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                Live in 2 minutes
+              </div>
+            </div>
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Campaign Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Start Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {campaigns.map((campaign) => (
-                  <TableRow
-                    key={campaign.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => navigate(`/campaigns/${campaign.id}`)}
-                  >
-                    <TableCell className="font-medium">{campaign.name}</TableCell>
-                    <TableCell className="capitalize">{campaign.description || "—"}</TableCell>
-                    <TableCell className="capitalize">
-                      {campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          campaign.status === "active"
-                            ? "default"
-                            : campaign.status === "draft"
-                            ? "secondary"
-                            : "outline"
-                        }
-                      >
-                        {campaign.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/campaigns/${campaign.id}`)}>
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              handleStatusChange(
-                                campaign.id,
-                                campaign.status === "active" ? "paused" : "active"
-                              )
-                            }
-                          >
-                            {campaign.status === "active" ? (
-                              <>
-                                <Pause className="mr-2 h-4 w-4" />
-                                Pause
-                              </>
-                            ) : (
-                              <>
-                                <Play className="mr-2 h-4 w-4" />
-                                Activate
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDuplicate(campaign)}>
-                            <Copy className="mr-2 h-4 w-4" />
-                            Duplicate
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDelete(campaign.id)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {campaigns.map((campaign) => (
+            <CampaignCard
+              key={campaign.id}
+              campaign={campaign}
+              onStatusChange={handleStatusChange}
+              onDuplicate={handleDuplicate}
+              onDelete={handleDelete}
+              onClick={(id) => navigate(`/campaigns/${id}`)}
+            />
+          ))}
+        </div>
       )}
 
       <CampaignWizard
         open={wizardOpen}
         onClose={() => setWizardOpen(false)}
         onComplete={() => {
+          // Celebrate first campaign creation
+          if (campaigns.length === 0) {
+            confetti({
+              particleCount: 150,
+              spread: 100,
+              origin: { y: 0.6 }
+            });
+          }
           setWizardOpen(false);
           fetchCampaigns();
         }}

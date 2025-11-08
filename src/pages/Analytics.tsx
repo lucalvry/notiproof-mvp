@@ -9,8 +9,10 @@ import { DeviceBreakdown } from "@/components/analytics/DeviceBreakdown";
 import { HourHeatmap } from "@/components/analytics/HourHeatmap";
 import { TopEvents } from "@/components/analytics/TopEvents";
 import { AIInsights } from "@/components/analytics/AIInsights";
+import { RevenueAttributionWidget } from "@/components/analytics/RevenueAttributionWidget";
 import { useSubscription } from "@/hooks/useSubscription";
 import { ExportButton } from "@/components/analytics/ExportButton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Analytics() {
   const [userId, setUserId] = useState<string>();
@@ -63,8 +65,15 @@ export default function Analytics() {
         />
       </div>
 
-      {/* Section 1: Overview Cards */}
-      <OverviewCards
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="revenue">Revenue Attribution</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          {/* Section 1: Overview Cards */}
+          <OverviewCards
         totalViews={analytics?.totalViews || 0}
         totalClicks={analytics?.totalClicks || 0}
         conversionRate={analytics?.conversionRate || 0}
@@ -120,12 +129,18 @@ export default function Analytics() {
         isLoading={isLoading}
       />
 
-      {/* Section 8: AI Insights */}
-      <AIInsights
-        insights={isProPlan ? sampleInsights : []}
-        isProPlan={isProPlan}
-        isLoading={isLoading}
-      />
+          {/* Section 8: AI Insights */}
+          <AIInsights
+            insights={isProPlan ? sampleInsights : []}
+            isProPlan={isProPlan}
+            isLoading={isLoading}
+          />
+        </TabsContent>
+
+        <TabsContent value="revenue" className="space-y-6">
+          <RevenueAttributionWidget userId={userId || ''} periodType="monthly" />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

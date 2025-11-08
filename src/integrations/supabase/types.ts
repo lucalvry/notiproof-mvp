@@ -252,6 +252,74 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_revenue_stats: {
+        Row: {
+          assisted_conversions: number | null
+          assisted_revenue: number | null
+          avg_conversion_value: number | null
+          avg_time_to_conversion: unknown
+          campaign_id: string
+          currency: string | null
+          direct_conversions: number | null
+          direct_revenue: number | null
+          id: string
+          influenced_revenue: number | null
+          period_end: string
+          period_start: string
+          period_type: string
+          total_conversions: number | null
+          total_revenue: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          assisted_conversions?: number | null
+          assisted_revenue?: number | null
+          avg_conversion_value?: number | null
+          avg_time_to_conversion?: unknown
+          campaign_id: string
+          currency?: string | null
+          direct_conversions?: number | null
+          direct_revenue?: number | null
+          id?: string
+          influenced_revenue?: number | null
+          period_end: string
+          period_start: string
+          period_type: string
+          total_conversions?: number | null
+          total_revenue?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          assisted_conversions?: number | null
+          assisted_revenue?: number | null
+          avg_conversion_value?: number | null
+          avg_time_to_conversion?: unknown
+          campaign_id?: string
+          currency?: string | null
+          direct_conversions?: number | null
+          direct_revenue?: number | null
+          id?: string
+          influenced_revenue?: number | null
+          period_end?: string
+          period_start?: string
+          period_type?: string
+          total_conversions?: number | null
+          total_revenue?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_revenue_stats_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           auto_repeat: boolean
@@ -261,6 +329,7 @@ export type Database = {
           display_rules: Json
           end_date: string | null
           id: string
+          integration_settings: Json | null
           name: string
           organization_id: string | null
           polling_config: Json | null
@@ -279,6 +348,7 @@ export type Database = {
           display_rules?: Json
           end_date?: string | null
           id?: string
+          integration_settings?: Json | null
           name: string
           organization_id?: string | null
           polling_config?: Json | null
@@ -297,6 +367,7 @@ export type Database = {
           display_rules?: Json
           end_date?: string | null
           id?: string
+          integration_settings?: Json | null
           name?: string
           organization_id?: string | null
           polling_config?: Json | null
@@ -569,6 +640,56 @@ export type Database = {
             columns: ["widget_id"]
             isOneToOne: false
             referencedRelation: "widgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ga_integration_config: {
+        Row: {
+          api_secret: string | null
+          created_at: string | null
+          enabled: boolean | null
+          event_mapping: Json | null
+          id: string
+          measurement_id: string
+          send_revenue: boolean | null
+          send_user_properties: boolean | null
+          updated_at: string | null
+          user_id: string
+          website_id: string
+        }
+        Insert: {
+          api_secret?: string | null
+          created_at?: string | null
+          enabled?: boolean | null
+          event_mapping?: Json | null
+          id?: string
+          measurement_id: string
+          send_revenue?: boolean | null
+          send_user_properties?: boolean | null
+          updated_at?: string | null
+          user_id: string
+          website_id: string
+        }
+        Update: {
+          api_secret?: string | null
+          created_at?: string | null
+          enabled?: boolean | null
+          event_mapping?: Json | null
+          id?: string
+          measurement_id?: string
+          send_revenue?: boolean | null
+          send_user_properties?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ga_integration_config_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: true
+            referencedRelation: "websites"
             referencedColumns: ["id"]
           },
         ]
@@ -1106,6 +1227,94 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      notification_conversions: {
+        Row: {
+          attribution_type: string
+          attribution_weight: number | null
+          campaign_id: string
+          conversion_data: Json | null
+          conversion_type: string
+          conversion_value: number | null
+          created_at: string | null
+          currency: string | null
+          event_id: string | null
+          id: string
+          session_id: string | null
+          time_to_conversion: unknown
+          touchpoints_count: number | null
+          user_id: string
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          visitor_id: string | null
+          website_id: string
+        }
+        Insert: {
+          attribution_type: string
+          attribution_weight?: number | null
+          campaign_id: string
+          conversion_data?: Json | null
+          conversion_type: string
+          conversion_value?: number | null
+          created_at?: string | null
+          currency?: string | null
+          event_id?: string | null
+          id?: string
+          session_id?: string | null
+          time_to_conversion?: unknown
+          touchpoints_count?: number | null
+          user_id: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          visitor_id?: string | null
+          website_id: string
+        }
+        Update: {
+          attribution_type?: string
+          attribution_weight?: number | null
+          campaign_id?: string
+          conversion_data?: Json | null
+          conversion_type?: string
+          conversion_value?: number | null
+          created_at?: string | null
+          currency?: string | null
+          event_id?: string | null
+          id?: string
+          session_id?: string | null
+          time_to_conversion?: unknown
+          touchpoints_count?: number | null
+          user_id?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          visitor_id?: string | null
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_conversions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_conversions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_conversions_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       organizations: {
         Row: {
@@ -1799,6 +2008,69 @@ export type Database = {
           },
         ]
       }
+      visitor_journeys: {
+        Row: {
+          conversion_id: string | null
+          converted: boolean | null
+          country: string | null
+          device_type: string | null
+          first_seen_at: string | null
+          id: string
+          last_seen_at: string | null
+          notifications_viewed: Json | null
+          session_id: string
+          utm_medium: string | null
+          utm_source: string | null
+          visitor_id: string
+          website_id: string
+        }
+        Insert: {
+          conversion_id?: string | null
+          converted?: boolean | null
+          country?: string | null
+          device_type?: string | null
+          first_seen_at?: string | null
+          id?: string
+          last_seen_at?: string | null
+          notifications_viewed?: Json | null
+          session_id: string
+          utm_medium?: string | null
+          utm_source?: string | null
+          visitor_id: string
+          website_id: string
+        }
+        Update: {
+          conversion_id?: string | null
+          converted?: boolean | null
+          country?: string | null
+          device_type?: string | null
+          first_seen_at?: string | null
+          id?: string
+          last_seen_at?: string | null
+          notifications_viewed?: Json | null
+          session_id?: string
+          utm_medium?: string | null
+          utm_source?: string | null
+          visitor_id?: string
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visitor_journeys_conversion_id_fkey"
+            columns: ["conversion_id"]
+            isOneToOne: false
+            referencedRelation: "notification_conversions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_journeys_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       visitor_sessions: {
         Row: {
           created_at: string
@@ -1875,34 +2147,76 @@ export type Database = {
       }
       website_settings: {
         Row: {
+          animation: string | null
           border_radius: number | null
           brand_color: string | null
           created_at: string | null
+          debug_mode: boolean | null
+          default_rules: Json | null
+          display_duration: number | null
           display_notifications: boolean | null
+          exclude_team_ips: boolean | null
           id: string
+          initial_delay: number | null
+          interval: number | null
+          make_clickable: boolean | null
+          max_per_page: number | null
+          max_per_session: number | null
           mobile_notifications: boolean | null
+          mobile_position_override: string | null
+          pause_after_click: boolean | null
+          pause_after_close: boolean | null
+          position: string | null
           sound_effects: boolean | null
           updated_at: string | null
           website_id: string
         }
         Insert: {
+          animation?: string | null
           border_radius?: number | null
           brand_color?: string | null
           created_at?: string | null
+          debug_mode?: boolean | null
+          default_rules?: Json | null
+          display_duration?: number | null
           display_notifications?: boolean | null
+          exclude_team_ips?: boolean | null
           id?: string
+          initial_delay?: number | null
+          interval?: number | null
+          make_clickable?: boolean | null
+          max_per_page?: number | null
+          max_per_session?: number | null
           mobile_notifications?: boolean | null
+          mobile_position_override?: string | null
+          pause_after_click?: boolean | null
+          pause_after_close?: boolean | null
+          position?: string | null
           sound_effects?: boolean | null
           updated_at?: string | null
           website_id: string
         }
         Update: {
+          animation?: string | null
           border_radius?: number | null
           brand_color?: string | null
           created_at?: string | null
+          debug_mode?: boolean | null
+          default_rules?: Json | null
+          display_duration?: number | null
           display_notifications?: boolean | null
+          exclude_team_ips?: boolean | null
           id?: string
+          initial_delay?: number | null
+          interval?: number | null
+          make_clickable?: boolean | null
+          max_per_page?: number | null
+          max_per_session?: number | null
           mobile_notifications?: boolean | null
+          mobile_position_override?: string | null
+          pause_after_click?: boolean | null
+          pause_after_close?: boolean | null
+          position?: string | null
           sound_effects?: boolean | null
           updated_at?: string | null
           website_id?: string
@@ -2171,6 +2485,7 @@ export type Database = {
           feature_flags: Json | null
           id: string
           integration: string
+          integration_settings: Json | null
           name: string
           notification_types: Json | null
           organization_id: string | null
@@ -2190,6 +2505,7 @@ export type Database = {
           feature_flags?: Json | null
           id?: string
           integration?: string
+          integration_settings?: Json | null
           name: string
           notification_types?: Json | null
           organization_id?: string | null
@@ -2209,6 +2525,7 @@ export type Database = {
           feature_flags?: Json | null
           id?: string
           integration?: string
+          integration_settings?: Json | null
           name?: string
           notification_types?: Json | null
           organization_id?: string | null
@@ -2384,6 +2701,21 @@ export type Database = {
         Returns: string
       }
       poll_active_campaigns: { Args: never; Returns: undefined }
+      record_conversion: {
+        Args: {
+          _conversion_data?: Json
+          _conversion_type: string
+          _conversion_value?: number
+          _session_id: string
+          _visitor_id: string
+          _website_id: string
+        }
+        Returns: string
+      }
+      refresh_revenue_stats: {
+        Args: { _campaign_id: string; _period_type?: string }
+        Returns: undefined
+      }
       update_article_helpful_count: {
         Args: { article_uuid: string }
         Returns: undefined

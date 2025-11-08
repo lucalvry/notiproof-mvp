@@ -10,7 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Sparkles, Link2, ShoppingCart, FileText, ChevronDown, AlertTriangle, Smartphone, Shield } from "lucide-react";
+import { Sparkles, Link2, ShoppingCart, FileText, ChevronDown, AlertTriangle, Smartphone, Shield, ExternalLink, RotateCcw } from "lucide-react";
+import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
+import { SettingsSections } from "../settings/SettingsSections";
+import { PreviewOnSiteDialog } from "./PreviewOnSiteDialog";
+import { toast } from "sonner";
 
 interface DesignEditorProps {
   settings: any;
@@ -82,8 +86,8 @@ export function DesignEditor({
   integrationPath, 
   templateName 
 }: DesignEditorProps) {
-  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
-  const [previewBackground, setPreviewBackground] = useState<'light' | 'dark' | 'image'>('light');
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   
   // Enhancement 3: Advanced Placeholder Helper - Get available placeholders for integration
   const getAvailablePlaceholders = () => {
@@ -241,9 +245,9 @@ export function DesignEditor({
     hoverScale: "1.02",
     hoverBrightness: "1.05",
     
-    // Content
-    headline: getCampaignPlaceholder(),
-    subtext: getCampaignSubtext(),
+    // Content - PRIORITY: Use settings.headline if exists (from Step 2), else generate
+    headline: settings.headline || getCampaignPlaceholder(),
+    subtext: settings.subtext || getCampaignSubtext(),
     showAvatar: true,
     showTimestamp: true,
     showLocation: true,
@@ -308,7 +312,7 @@ export function DesignEditor({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Editor Panel */}
+      {/* Editor Panel - Left Side */}
       <div className="space-y-6">
         {/* PHASE 2: Context Display Card */}
         {(campaignType || templateName || dataSource) && (
@@ -503,6 +507,35 @@ export function DesignEditor({
                     onChange={(e) => updateDesign({ headline: e.target.value })}
                     placeholder={getCampaignPlaceholder()}
                   />
+                  
+                  {/* PHASE 2: Restore Message Template Button */}
+                  {settings.messageTemplate && settings.messageTemplate !== design.headline && (
+                    <Alert className="bg-primary/5 border-primary/20">
+                      <AlertDescription>
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-medium">Original template from Step 2</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                              {settings.messageTemplate}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              updateDesign({ headline: settings.messageTemplate });
+                              toast.success("Message template restored from Step 2");
+                            }}
+                            className="text-xs gap-1.5 shrink-0"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            Restore
+                          </Button>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
                   <p className="text-xs text-muted-foreground">
                     💡 Click "Insert Variable" to see all available placeholders for {dataSource || 'your integration'}
                   </p>
@@ -1010,182 +1043,47 @@ export function DesignEditor({
         </Tabs>
       </div>
 
-      {/* Live Preview Panel */}
-      <div className="space-y-4">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Live Preview</CardTitle>
-                <CardDescription>Real-time preview of your notification</CardDescription>
-              </div>
-              <div className="flex gap-2">
-                <Tabs value={previewDevice} onValueChange={(v: any) => setPreviewDevice(v)} className="w-auto">
-                  <TabsList className="grid w-[200px] grid-cols-2">
-                    <TabsTrigger value="desktop">Desktop</TabsTrigger>
-                    <TabsTrigger value="mobile">Mobile</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const preview = document.getElementById('notification-preview');
-                    if (preview) {
-                      preview.classList.remove('animate-in');
-                      setTimeout(() => preview.classList.add('animate-in'), 10);
-                    }
-                  }}
-                >
-                  Replay
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <Button
-                  variant={previewBackground === 'light' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setPreviewBackground('light')}
-                >
-                  Light
-                </Button>
-                <Button
-                  variant={previewBackground === 'dark' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setPreviewBackground('dark')}
-                >
-                  Dark
-                </Button>
-                <Button
-                  variant={previewBackground === 'image' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setPreviewBackground('image')}
-                >
-                  Image
-                </Button>
-              </div>
-            </div>
-            <div 
-              className={`relative rounded-lg overflow-hidden border mt-3 ${
-                previewDevice === 'mobile' ? 'max-w-[375px] mx-auto h-[667px]' : 'h-[500px]'
-              } ${
-                previewBackground === 'dark' ? 'bg-slate-900' :
-                previewBackground === 'image' ? 'bg-gradient-to-br from-purple-500 via-pink-500 to-red-500' :
-                'bg-gradient-to-br from-muted/30 to-muted/50'
-              }`}
-            >
-              {/* Simulated website background */}
-              <div className={`absolute inset-0 p-8 ${previewBackground === 'dark' ? 'opacity-30' : 'opacity-20'}`}>
-                <div className={`h-6 w-48 rounded mb-6 ${previewBackground === 'dark' ? 'bg-white' : 'bg-foreground'}`} />
-                <div className={`h-3 w-full rounded mb-2 ${previewBackground === 'dark' ? 'bg-white' : 'bg-foreground'}`} />
-                <div className={`h-3 w-3/4 rounded mb-2 ${previewBackground === 'dark' ? 'bg-white' : 'bg-foreground'}`} />
-                <div className={`h-3 w-5/6 rounded ${previewBackground === 'dark' ? 'bg-white' : 'bg-foreground'}`} />
-              </div>
-
-              {/* Notification Preview */}
-              <div
-                id="notification-preview"
-                className={`absolute ${
-                  previewDevice === 'mobile' || design.position === "bottom-center"
-                    ? "bottom-4 left-1/2 -translate-x-1/2"
-                    : design.position === "bottom-left"
-                    ? "bottom-4 left-4"
-                    : design.position === "bottom-right"
-                    ? "bottom-4 right-4"
-                    : design.position === "top-left"
-                    ? "top-4 left-4"
-                    : design.position === "top-right"
-                    ? "top-4 right-4"
-                    : design.position === "top-center"
-                    ? "top-4 left-1/2 -translate-x-1/2"
-                    : "bottom-4 left-4"
-                } ${previewDevice === 'mobile' ? 'max-w-[calc(100%-2rem)]' : 'max-w-sm'} animate-in ${
-                  design.animation === "slide"
-                    ? "slide-in-from-bottom-5"
-                    : design.animation === "fade"
-                    ? "fade-in"
-                    : design.animation === "bounce"
-                    ? "slide-in-from-bottom-5 duration-500"
-                    : ""
-                } ${
-                  design.animationSpeed === "slow"
-                    ? "duration-800"
-                    : design.animationSpeed === "fast"
-                    ? "duration-300"
-                    : "duration-500"
-                } cursor-pointer transition-transform hover:scale-[${design.hoverScale}]`}
-                style={{
-                  backgroundColor: design.backgroundColor,
-                  color: design.textColor,
-                  borderRadius: `${design.borderRadius}px`,
-                  boxShadow: {
-                    none: 'none',
-                    sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-                    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                    xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
-                  }[design.shadow],
-                  fontSize: previewDevice === 'mobile' ? `${Math.max(12, parseInt(design.fontSize) - 2)}px` : `${design.fontSize}px`,
-                  fontFamily: design.fontFamily
-                }}
-              >
-                <div className="p-4">
-                  <div className="flex items-start gap-3">
-                    {design.showAvatar && (
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0"
-                        style={{ background: `linear-gradient(135deg, ${design.primaryColor}, ${design.primaryColor}dd)` }}
-                      >
-                        JD
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold mb-1 leading-tight" style={{ color: design.textColor }}>
-                        {design.headline || "Your headline here"}
-                      </p>
-                      {design.subtext && (
-                        <p className="text-sm opacity-75 mb-2" style={{ color: design.textColor }}>
-                          {design.subtext}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-2 text-xs opacity-60" style={{ color: design.textColor }}>
-                        {design.showTimestamp && <span>2m ago</span>}
-                        {design.showTimestamp && design.showLocation && <span>•</span>}
-                        {design.showLocation && <span>New York, US</span>}
-                      </div>
-                      {design.ctaEnabled && design.ctaLabel && (
-                        <Button
-                          size="sm"
-                          className="mt-2"
-                          style={{ 
-                            backgroundColor: design.primaryColor,
-                            color: '#ffffff',
-                            fontSize: `${Math.max(12, parseInt(design.fontSize) - 2)}px`
-                          }}
-                        >
-                          {design.ctaLabel}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-              <p className="text-xs text-muted-foreground">
-                💡 <strong>Tip:</strong> {previewDevice === 'mobile' 
-                  ? 'Mobile view automatically centers notifications for optimal UX. Font size is reduced by 2px on mobile.'
-                  : 'Toggle to mobile view to see how your notification adapts to smaller screens. Hover to see hover effects.'
-                }
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Preview Panel - Right Side (Sticky) */}
+      <div className="lg:sticky lg:top-6 lg:self-start space-y-4">
+        <WidgetPreviewFrame
+          settings={design}
+          campaignType={campaignType}
+          position={design.position}
+          animation={design.animation}
+        />
+        
+        {/* Preview on Site Button - NEW */}
+        <Button
+          variant="default"
+          className="w-full gap-2 mt-4"
+          onClick={() => setShowPreviewDialog(true)}
+        >
+          <ExternalLink className="h-4 w-4" />
+          Preview on Your Site
+        </Button>
+        
+        {/* Advanced Settings Section */}
+        {showAdvancedSettings && (
+          <SettingsSections
+            settings={design}
+            onChange={updateDesign}
+          />
+        )}
+        
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+        >
+          {showAdvancedSettings ? 'Hide' : 'Show'} Advanced Settings
+        </Button>
       </div>
+      
+      {/* Preview Dialog */}
+      <PreviewOnSiteDialog
+        open={showPreviewDialog}
+        onClose={() => setShowPreviewDialog(false)}
+      />
     </div>
   );
 }

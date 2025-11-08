@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare, Plug, Layout, Users } from "lucide-react";
+import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare, Plug, Layout, Users, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -33,11 +33,9 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard", section: "website" },
-  { label: "Campaigns", icon: Megaphone, path: "/campaigns", section: "website" },
-  { label: "Templates", icon: Layout, path: "/templates", section: "website" },
-  { label: "Moderation", icon: MessageSquare, path: "/moderation", section: "website" },
+  { label: "Notifications", icon: Megaphone, path: "/campaigns", section: "website" },
   { label: "Analytics", icon: BarChart, path: "/analytics", section: "website" },
-  { label: "Integrations", icon: Plug, path: "/integrations", section: "website" },
+  { label: "Rules", icon: Layout, path: "/rules", section: "website" },
   { label: "Settings", icon: Settings, path: "/settings", section: "website" },
   { label: "All Websites", icon: Globe, path: "/websites", section: "global" },
   { label: "Team", icon: Users, path: "/team", section: "global" },
@@ -289,61 +287,83 @@ export function AppLayout() {
 
           <div className="flex-1" />
 
-          {/* Setup Guide Button */}
-          {user?.id && (
-            <SetupGuideButton 
-              userId={user.id} 
-              onOpenWizard={() => setShowOnboardingWizard(true)} 
-            />
-          )}
+          {/* Global Actions */}
+          <div className="flex items-center gap-2">
+            {/* Setup Guide Button */}
+            {user?.id && (
+              <SetupGuideButton 
+                userId={user.id} 
+                onOpenWizard={() => setShowOnboardingWizard(true)} 
+              />
+            )}
 
-          {/* Website Selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Globe className="h-4 w-4" />
-                <span className="hidden md:inline">
-                  {currentWebsite?.domain || "Select Website"}
-                </span>
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {websites.map((website) => (
-                <DropdownMenuItem
-                  key={website.id}
-                  onClick={() => setCurrentWebsite(website)}
-                  className={currentWebsite?.id === website.id ? "bg-accent" : ""}
-                >
-                  {website.domain}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleNavigation("/websites")}>
-                + Add New Website
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Usage Meter */}
-          {websitesLoading || subscriptionLoading ? (
-            <div className="hidden items-center gap-2 md:flex">
-              <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-              <div className="h-4 w-12 animate-pulse rounded bg-muted" />
-            </div>
-          ) : (
-            <div className="hidden items-center gap-2 md:flex">
-              <span className="text-sm text-muted-foreground">
-                {sitesUsed} / {sitesAllowed} sites
-              </span>
-              <span className="text-xs text-muted-foreground">({planName})</span>
-              {(!isBusinessPlan || sitesUsed >= sitesAllowed * 0.8) && (
-                <Button size="sm" onClick={() => handleNavigation("/billing")}>
-                  Upgrade
+            {/* Website Selector - Links to All Websites in Global section */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Globe className="h-4 w-4" />
+                  <span className="hidden md:inline">
+                    {currentWebsite?.domain || "Select Website"}
+                  </span>
+                  <ChevronDown className="h-4 w-4" />
                 </Button>
-              )}
-            </div>
-          )}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {websites.length === 0 ? (
+                  <DropdownMenuItem onClick={() => handleNavigation("/websites")}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Your First Website
+                  </DropdownMenuItem>
+                ) : (
+                  <>
+                    {websites.map((website) => (
+                      <DropdownMenuItem
+                        key={website.id}
+                        onClick={() => setCurrentWebsite(website)}
+                        className={currentWebsite?.id === website.id ? "bg-accent" : ""}
+                      >
+                        <Globe className="h-4 w-4 mr-2" />
+                        {website.domain}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => handleNavigation("/websites")}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add New Website
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Usage Meter - Links to Billing in Global section */}
+            {websitesLoading || subscriptionLoading ? (
+              <div className="hidden items-center gap-2 md:flex">
+                <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                <div className="h-4 w-12 animate-pulse rounded bg-muted" />
+              </div>
+            ) : (
+              <div className="hidden items-center gap-2 md:flex">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleNavigation("/billing")}
+                  className="gap-2"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  <span className="text-sm text-muted-foreground">
+                    {sitesUsed} / {sitesAllowed} sites
+                  </span>
+                  <span className="text-xs text-muted-foreground">({planName})</span>
+                </Button>
+                {(!isBusinessPlan || sitesUsed >= sitesAllowed * 0.8) && (
+                  <Button size="sm" variant="default" onClick={() => handleNavigation("/billing")}>
+                    Upgrade
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* User Menu */}
           <DropdownMenu>
