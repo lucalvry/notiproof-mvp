@@ -586,9 +586,10 @@ export default function Websites() {
                     <li>Paste it into your website's HTML</li>
                     <li>Place it right before the closing {`</body>`} tag</li>
                     <li>Save and publish your website</li>
+                    <li>Visit your website in a browser to trigger verification</li>
                   </ol>
                   <p className="text-xs text-muted-foreground pt-2">
-                    Verification usually happens within 10 seconds after the page loads.
+                    ⚡ <strong>Important:</strong> Verification happens automatically when someone visits your website with the script installed. You can click "Check Connection" below after visiting your site.
                   </p>
                 </div>
               </div>
@@ -636,13 +637,14 @@ export default function Websites() {
                   window.location.reload();
                 } else if (data?.is_verified && (widgetCount || 0) === 0) {
                   toast.info("✅ Website verified! Now create a widget to display notifications.");
+                  window.location.reload();
                 } else {
-                  toast.info("Not verified yet. Make sure the verification code is installed correctly on your website.");
+                  toast.error("❌ Not verified yet. The script must be installed on your live website and someone must visit a page with the script for verification to complete. If you've already installed it, try visiting your website in a new tab.");
                 }
               }}
             >
               <RefreshCw className="h-4 w-4 mr-2" />
-              Check Verification
+              Check Connection
             </Button>
             {selectedWebsite?.is_verified && (
               <Button onClick={() => {

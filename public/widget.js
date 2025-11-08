@@ -141,6 +141,12 @@
     console.error('[NotiProof]', ...args);
   }
   
+  function log(...args) {
+    if (DEBUG || (typeof config !== 'undefined' && config.debugMode)) {
+      console.log('[NotiProof]', ...args);
+    }
+  }
+  
   // Check if we have either widgetId or siteToken
   if (!widgetId && !siteToken) {
     error('Either data-widget-id or data-site-token attribute is required');
