@@ -49,7 +49,9 @@ import Rules from "./pages/Rules";
 import { OAuthCallback } from "./components/integrations/OAuthCallback";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { inject } from "@vercel/analytics";
-
+import ReactGA from "react-ga4";
+import { useLocation } from "react-router-dom";
+import { useEffect } from "react";
 
 
 
@@ -65,6 +67,12 @@ const queryClient = new QueryClient({
 
 inject();
 
+
+ReactGA.initialize("G-PM00N0M1DQ"); // <-- replace with your actual ID
+
+
+
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
@@ -73,6 +81,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <WebsiteProvider>
+            <TrackPageViews /> {/* 👈 this line */}
           <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -138,5 +147,24 @@ const App = () => (
     </QueryClientProvider>
   </ErrorBoundary>
 );
+
+ReactGA.event({
+  category: "Button",
+  action: "Click",
+  label: "Upgrade Plan",
+});
+
+
+
+const TrackPageViews = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    ReactGA.send({ hitType: "pageview", page: location.pathname + location.search });
+  }, [location]);
+
+  return null;
+};
+
 
 export default App;
