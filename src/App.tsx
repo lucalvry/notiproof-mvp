@@ -53,6 +53,20 @@ import ReactGA from "react-ga4";
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 
+// Initialize Google Analytics
+ReactGA.initialize("G-PM00N0M1DQ");
+
+// Track page views on route change
+const TrackPageViews = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    ReactGA.send({ hitType: "pageview", page: location.pathname + location.search });
+  }, [location]);
+
+  return null;
+};
+
 
 
 const queryClient = new QueryClient({
@@ -66,12 +80,6 @@ const queryClient = new QueryClient({
 });
 
 inject();
-
-
-ReactGA.initialize("G-PM00N0M1DQ"); // <-- replace with your actual ID
-
-
-
 
 const App = () => (
   <ErrorBoundary>
@@ -147,24 +155,5 @@ const App = () => (
     </QueryClientProvider>
   </ErrorBoundary>
 );
-
-ReactGA.event({
-  category: "Button",
-  action: "Click",
-  label: "Upgrade Plan",
-});
-
-
-
-const TrackPageViews = () => {
-  const location = useLocation();
-
-  useEffect(() => {
-    ReactGA.send({ hitType: "pageview", page: location.pathname + location.search });
-  }, [location]);
-
-  return null;
-};
-
 
 export default App;

@@ -142,7 +142,8 @@
   }
   
   function log(...args) {
-    if (DEBUG || (typeof config !== 'undefined' && config.debugMode)) {
+    const debugMode = script.getAttribute('data-debug-mode') === 'true';
+    if (DEBUG || debugMode) {
       console.log('[NotiProof]', ...args);
     }
   }
