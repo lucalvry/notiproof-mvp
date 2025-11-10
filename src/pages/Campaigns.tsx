@@ -167,8 +167,22 @@ export default function Campaigns() {
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from("campaigns").delete().eq("id", id);
-      if (error) throw error;
+      // First delete all widgets associated with this campaign
+      const { error: widgetsError } = await supabase
+        .from("widgets")
+        .delete()
+        .eq("campaign_id", id);
+      
+      if (widgetsError) throw widgetsError;
+      
+      // Then delete the campaign
+      const { error: campaignError } = await supabase
+        .from("campaigns")
+        .delete()
+        .eq("id", id);
+      
+      if (campaignError) throw campaignError;
+      
       toast.success("Campaign deleted");
       fetchCampaigns();
     } catch (error) {
@@ -265,7 +279,7 @@ export default function Campaigns() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {campaigns.map((campaign) => (
             <CampaignCard
               key={campaign.id}
@@ -273,7 +287,13 @@ export default function Campaigns() {
               onStatusChange={handleStatusChange}
               onDuplicate={handleDuplicate}
               onDelete={handleDelete}
-              onClick={(id) => navigate(`/campaigns/${id}`)}
+              onClick={(id, tab) => {
+                if (tab) {
+                  navigate(`/campaigns/${id}?tab=${tab}`);
+                } else {
+                  navigate(`/campaigns/${id}`);
+                }
+              }}
             />
           ))}
         </div>

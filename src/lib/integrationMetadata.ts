@@ -1,4 +1,4 @@
-import { Settings, Webhook, Zap, ShoppingBag, CreditCard, Calendar, FileText, Instagram, Twitter, Star, Globe, Music, BookOpen, DollarSign, Users, Newspaper, Mail, MessageSquare, BarChart, Code } from "lucide-react";
+import { Settings, Webhook, Zap, ShoppingBag, CreditCard, Calendar, FileText, Instagram, Twitter, Star, Globe, Music, BookOpen, DollarSign, Users, Newspaper, Mail, MessageSquare, BarChart, Code, FormInput, Megaphone } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export interface IntegrationMetadata {
@@ -6,7 +6,7 @@ export interface IntegrationMetadata {
   type: string;
   description: string;
   icon: LucideIcon;
-  connectorType?: 'webhook' | 'api_poll' | 'oauth' | 'embed' | 'zapier_proxy';
+  connectorType?: 'webhook' | 'api_poll' | 'oauth' | 'embed' | 'zapier_proxy' | 'native';
   requiresOauth?: boolean;
   phase?: 1 | 2 | 3;
   popularityScore?: number; // 1-100, higher = more popular
@@ -14,9 +14,49 @@ export interface IntegrationMetadata {
   isTrending?: boolean;
   setupComplexity?: 'easy' | 'medium' | 'hard';
   setupTime?: string; // e.g., "10 min", "30 min"
+  isNative?: boolean; // Flag for native integrations (no external connection required)
 }
 
 const integrationMetadataMap: Record<string, IntegrationMetadata> = {
+  instant_capture: {
+    displayName: "Instant Capture",
+    type: "native",
+    description: "Track form submissions without third-party tools",
+    icon: FormInput,
+    connectorType: 'native',
+    phase: 1,
+    popularityScore: 100,
+    category: 'forms',
+    setupComplexity: 'easy',
+    setupTime: '2 min',
+    isNative: true,
+  },
+  live_visitors: {
+    displayName: "Active Visitors",
+    type: "native",
+    description: "Show how many people are viewing your site right now",
+    icon: Users,
+    connectorType: 'native',
+    phase: 1,
+    popularityScore: 95,
+    category: 'analytics',
+    setupComplexity: 'easy',
+    setupTime: '1 min',
+    isNative: true,
+  },
+  announcements: {
+    displayName: "Smart Announcements",
+    type: "native",
+    description: "Create scheduled promotions and announcements",
+    icon: Megaphone,
+    connectorType: 'native',
+    phase: 1,
+    popularityScore: 90,
+    category: 'content',
+    setupComplexity: 'easy',
+    setupTime: '1 min',
+    isNative: true,
+  },
   webhook: {
     displayName: "Generic Webhook",
     type: "webhook",

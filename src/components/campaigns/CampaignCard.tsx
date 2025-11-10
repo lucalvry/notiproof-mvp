@@ -44,7 +44,7 @@ interface CampaignCardProps {
   onStatusChange: (id: string, newStatus: string) => void;
   onDuplicate: (campaign: Campaign) => void;
   onDelete: (id: string) => void;
-  onClick: (id: string) => void;
+  onClick: (id: string, tab?: string) => void;
 }
 
 export function CampaignCard({
@@ -103,20 +103,20 @@ export function CampaignCard({
         isActive ? "bg-success" : "bg-muted"
       )} />
 
-      <CardHeader className="pb-3 pl-6">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3 flex-1 min-w-0">
+      <CardHeader className="pb-3 px-4 md:pl-6">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2 md:gap-3 flex-1 min-w-0">
             {/* Integration icon */}
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
               <IntegrationIcon className="h-5 w-5 text-primary" />
             </div>
             
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="font-semibold text-base truncate">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h3 className="font-semibold text-sm md:text-base break-words">
                   {campaign.name}
                 </h3>
-                <Badge variant={isActive ? "default" : "secondary"} className="text-xs">
+                <Badge variant={isActive ? "default" : "secondary"} className="text-xs shrink-0">
                   {isActive ? (
                     <>
                       <div className="h-1.5 w-1.5 rounded-full bg-success mr-1.5 animate-pulse" />
@@ -129,26 +129,26 @@ export function CampaignCard({
               </div>
               
               {campaign.description && (
-                <p className="text-sm text-muted-foreground line-clamp-1">
+                <p className="text-xs md:text-sm text-muted-foreground line-clamp-2">
                   {campaign.description}
                 </p>
               )}
               
-              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                <IntegrationIcon className="h-3 w-3" />
-                <span>{integrationMeta.displayName}</span>
+              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground flex-wrap">
+                <IntegrationIcon className="h-3 w-3 shrink-0" />
+                <span className="break-all">{integrationMeta.displayName}</span>
               </div>
             </div>
           </div>
 
           {/* Actions dropdown */}
-          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-1 md:gap-2" onClick={(e) => e.stopPropagation()}>
             <Switch
               checked={isActive}
               onCheckedChange={(checked) => 
                 onStatusChange(campaign.id, checked ? "active" : "paused")
               }
-              className="scale-90"
+              className="scale-75 md:scale-90 shrink-0"
             />
             
             <DropdownMenu>
@@ -156,13 +156,13 @@ export function CampaignCard({
                 <Button 
                   variant="ghost" 
                   size="icon"
-                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-8 w-8 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                 >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onClick(campaign.id)}>
+                <DropdownMenuItem onClick={() => onClick(campaign.id, 'settings')}>
                   <Settings className="mr-2 h-4 w-4" />
                   Edit Settings
                 </DropdownMenuItem>
@@ -203,7 +203,7 @@ export function CampaignCard({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4 pl-6">
+      <CardContent className="space-y-4 px-4 md:pl-6">
         {/* Notification Preview */}
         <div className="relative">
           <div className={cn(
@@ -213,7 +213,7 @@ export function CampaignCard({
             <NotificationPreview template={previewTemplate} />
           </div>
           {isHovered && (
-            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="hidden md:flex absolute inset-0 bg-background/80 backdrop-blur-sm rounded-lg items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
               <Button size="sm" variant="secondary">
                 <Eye className="h-4 w-4 mr-2" />
                 Preview
@@ -223,22 +223,22 @@ export function CampaignCard({
         </div>
 
         {/* Stats */}
-        <div className="flex items-center justify-between pt-3 border-t">
-          <div className="flex items-center gap-4 text-sm">
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Eye className="h-4 w-4" />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-3 border-t gap-3">
+          <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm flex-wrap">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-muted-foreground">
+              <Eye className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
               <span className="font-medium text-foreground">{views.toLocaleString()}</span>
               <span className="text-xs">views</span>
             </div>
             
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <MousePointerClick className="h-4 w-4" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-muted-foreground">
+              <MousePointerClick className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
               <span className="font-medium text-foreground">{clicks.toLocaleString()}</span>
               <span className="text-xs">clicks</span>
             </div>
             
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <TrendingUp className="h-4 w-4" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-muted-foreground">
+              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
               <span className="font-medium text-foreground">{ctr}%</span>
               <span className="text-xs">CTR</span>
             </div>
@@ -247,7 +247,7 @@ export function CampaignCard({
           <Button 
             variant="ghost" 
             size="sm"
-            className="text-xs"
+            className="text-xs w-full sm:w-auto"
             onClick={(e) => {
               e.stopPropagation();
               onClick(campaign.id);

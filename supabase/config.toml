@@ -156,3 +156,9 @@ verify_jwt = true
 [functions.migrate-campaigns]
 verify_jwt = true
 
+[functions.track-form]
+verify_jwt = false
+
+[functions.process-announcements]
+verify_jwt = false
+

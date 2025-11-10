@@ -3,6 +3,8 @@
   
   const WIDGET_VERSION = 2; // Current widget version
   const API_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
+  const SUPABASE_URL = 'https://ewymvxhpkswhsirdrjub.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3eW12eGhwa3N3aHNpcmRyanViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTY0NDksImV4cCI6MjA3MDU3MjQ0OX0.ToRbUm37-ZnYkmmCfLW7am38rUGgFAppNxcZ2tar9mc';
   const DEBUG = window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
   
   const script = document.currentScript;
@@ -1012,6 +1014,133 @@
     log('Branding footer added');
   }
   
+  // NATIVE INTEGRATIONS - Instant Capture (Form Submission Tracking)
+  function initInstantCapture(campaignId, websiteId, config) {
+    const targetUrl = config.target_url || window.location.pathname;
+    
+    // Only listen on target page
+    if (!window.location.pathname.includes(targetUrl)) {
+      log('[Instant Capture] Not on target URL:', targetUrl);
+      return;
+    }
+    
+    log('[Instant Capture] Listening for form submissions on', targetUrl);
+    
+    document.addEventListener('submit', async (e) => {
+      if (e.target.tagName !== 'FORM') return;
+      
+      // Extract form data
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+      
+      log('[Instant Capture] Form submitted, capturing...', data);
+      
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/track-form`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY
+          },
+          body: JSON.stringify({
+            campaign_id: campaignId,
+            website_id: websiteId,
+            form_data: data,
+            page_url: window.location.href
+          })
+        });
+        
+        log('[Instant Capture] Form data captured successfully');
+      } catch (error) {
+        error('[Instant Capture] Form capture failed:', error);
+      }
+    }, true); // Use capture phase
+  }
+  
+  // NATIVE INTEGRATIONS - Active Visitors (Simulated Visitor Count)
+  function initActiveVisitors(campaignId, config) {
+    const { 
+      mode = 'simulated',
+      min_count = 5, 
+      max_count = 50,
+      update_interval_seconds = 10,
+      scope = 'site'
+    } = config;
+    
+    let currentCount = getRandomCount(min_count, max_count);
+    
+    // Create visitor count notification
+    function createVisitorNotification() {
+      return {
+        id: `visitor-${Date.now()}`,
+        event_type: 'active_visitors',
+        message_template: `${currentCount} people are viewing ${scope === 'site' ? 'this site' : 'this page'} right now`,
+        timestamp: new Date().toISOString(),
+        is_simulated: true,
+        event_data: { visitor_count: currentCount, mode, scope }
+      };
+    }
+    
+    // Show initial count
+    const initialNotif = createVisitorNotification();
+    eventQueue.push(initialNotif);
+    log('[Active Visitors] Initial count:', currentCount);
+    
+    // Update count periodically
+    setInterval(() => {
+      // Fluctuate count within range (±10%)
+      const variance = Math.floor(currentCount * 0.1);
+      currentCount = Math.max(
+        min_count,
+        Math.min(max_count, currentCount + getRandomInt(-variance, variance))
+      );
+      
+      const notif = createVisitorNotification();
+      eventQueue.push(notif);
+      log('[Active Visitors] Updated count:', currentCount);
+    }, update_interval_seconds * 1000);
+  }
+  
+  function getRandomCount(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+  
+  function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+  
+  // NATIVE INTEGRATIONS - Initialize all native campaigns
+  async function initNativeCampaigns(campaigns, websiteId) {
+    if (!campaigns || campaigns.length === 0) return;
+    
+    log('[Native] Initializing native campaigns...', campaigns.length);
+    
+    for (const campaign of campaigns) {
+      const nativeConfig = campaign.native_config || {};
+      
+      switch (campaign.data_source) {
+        case 'instant_capture':
+          initInstantCapture(campaign.id, websiteId, nativeConfig);
+          log('[Native] Instant Capture initialized for campaign', campaign.id);
+          break;
+          
+        case 'live_visitors':
+          initActiveVisitors(campaign.id, nativeConfig);
+          log('[Native] Active Visitors initialized for campaign', campaign.id);
+          break;
+          
+        case 'announcements':
+          // Announcements are handled server-side via cron
+          log('[Native] Announcements will be fetched from server for campaign', campaign.id);
+          break;
+          
+        default:
+          // Not a native integration
+          break;
+      }
+    }
+  }
+  
   async function init() {
     log('Initializing NotiProof widget with config:', config);
     await autoVerifyWebsite();
@@ -1024,7 +1153,22 @@
     
     startDisplayLoop();
     
-    // Start active visitor tracking
+    // Initialize native integrations if in site mode
+    if (mode === 'site' && siteToken) {
+      try {
+        const response = await fetch(`${API_BASE}/site/${siteToken}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.campaigns) {
+            await initNativeCampaigns(data.campaigns, data.website_id);
+          }
+        }
+      } catch (err) {
+        log('Failed to initialize native campaigns:', err);
+      }
+    }
+    
+    // Start active visitor tracking (legacy GA4)
     if (config.showActiveVisitors) {
       fetchActiveVisitorCount(); // Initial fetch
       activeVisitorInterval = setInterval(fetchActiveVisitorCount, 15000); // Update every 15 seconds

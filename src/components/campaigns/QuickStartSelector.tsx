@@ -48,8 +48,8 @@ const QUICK_START_TEMPLATES: QuickStartTemplate[] = [
     },
   },
   {
-    id: "live-visitors",
-    name: "Live Visitors",
+    id: "active-visitors",
+    name: "Active Visitors",
     description: "Display current visitor activity",
     icon: TrendingUp,
     category: "Activity",

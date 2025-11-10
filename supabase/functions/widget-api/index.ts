@@ -183,9 +183,22 @@ Deno.serve(async (req) => {
 
       if (eventsError) throw eventsError;
 
+      // Fetch active native integration campaigns (instant_capture, live_visitors, announcements)
+      const { data: campaigns, error: campaignsError } = await supabase
+        .from('campaigns')
+        .select('id, name, data_source, native_config, status, settings')
+        .eq('website_id', website.id)
+        .eq('status', 'active')
+        .in('data_source', ['instant_capture', 'live_visitors', 'announcements']);
+
+      if (campaignsError) {
+        console.error('Failed to fetch native campaigns:', campaignsError);
+      }
+
       return new Response(JSON.stringify({ 
         widgets: widgets || [],
         events: events || [],
+        campaigns: campaigns || [], // Native integration campaigns
         display_settings: displaySettings,
         visitor_country: visitorCountry,
         white_label: whiteLabelSettings

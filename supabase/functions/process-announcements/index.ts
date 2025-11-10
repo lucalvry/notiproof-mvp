@@ -1,0 +1,169 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    console.log('[process-announcements] Starting scheduled announcement processing...')
+
+    // 1. Get active announcement campaigns
+    const { data: campaigns, error: campaignsError } = await supabase
+      .from('campaigns')
+      .select('*')
+      .eq('data_source', 'announcements')
+      .eq('status', 'active')
+
+    if (campaignsError) {
+      console.error('[process-announcements] Error fetching campaigns:', campaignsError)
+      throw campaignsError
+    }
+
+    if (!campaigns || campaigns.length === 0) {
+      console.log('[process-announcements] No active announcement campaigns found')
+      return new Response(JSON.stringify({ processed: 0 }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    console.log(`[process-announcements] Found ${campaigns.length} active announcement campaigns`)
+
+    let processed = 0
+
+    for (const campaign of campaigns) {
+      const nativeConfig = campaign.native_config as any
+      
+      // Check if announcement should be shown now
+      if (!shouldShowAnnouncement(nativeConfig)) {
+        console.log(`[process-announcements] Skipping campaign ${campaign.id} - not scheduled for now`)
+        continue
+      }
+
+      console.log(`[process-announcements] Processing campaign ${campaign.id}`)
+
+      // Create event for this announcement
+      const { error } = await supabase
+        .from('events')
+        .insert({
+          widget_id: campaign.id,
+          website_id: campaign.website_id,
+          event_type: 'announcement',
+          source: 'announcement',
+          event_data: {
+            title: nativeConfig.title,
+            message: nativeConfig.message,
+            cta_text: nativeConfig.cta_text,
+            cta_url: nativeConfig.cta_url,
+            priority: nativeConfig.priority || 5,
+            variables: nativeConfig.variables || {}
+          },
+          message_template: replaceVariables(nativeConfig.message, nativeConfig.variables),
+          status: 'approved',
+          moderation_status: 'approved',
+          expires_at: nativeConfig.end_date || null
+        })
+
+      if (error) {
+        console.error(`[process-announcements] Error creating event for campaign ${campaign.id}:`, error)
+      } else {
+        processed++
+        console.log(`[process-announcements] Created event for campaign ${campaign.id}`)
+      }
+    }
+
+    console.log(`[process-announcements] Processed ${processed} announcements`)
+    return new Response(JSON.stringify({ processed, total_campaigns: campaigns.length }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+
+  } catch (error) {
+    console.error('[process-announcements] Error:', error)
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+})
+
+function shouldShowAnnouncement(config: any): boolean {
+  const now = new Date()
+  
+  console.log('[shouldShowAnnouncement] Checking schedule for:', config.schedule_type)
+  
+  if (config.schedule_type === 'instant') {
+    return true
+  }
+  
+  if (config.schedule_type === 'scheduled') {
+    const start = new Date(config.start_date)
+    const end = config.end_date ? new Date(config.end_date) : null
+    
+    if (now < start) {
+      console.log('[shouldShowAnnouncement] Not started yet')
+      return false
+    }
+    if (end && now > end) {
+      console.log('[shouldShowAnnouncement] Already ended')
+      return false
+    }
+    return true
+  }
+  
+  if (config.schedule_type === 'recurring') {
+    const recurrence = config.recurrence || {}
+    const dayOfWeek = now.getDay()
+    const timeOfDay = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    
+    if (recurrence.pattern === 'weekly') {
+      if (!recurrence.days_of_week?.includes(dayOfWeek)) {
+        console.log('[shouldShowAnnouncement] Not scheduled for today')
+        return false
+      }
+    }
+    
+    if (recurrence.time_of_day) {
+      const [targetHour, targetMin] = recurrence.time_of_day.split(':').map(Number)
+      const [currentHour, currentMin] = timeOfDay.split(':').map(Number)
+      
+      // Allow 5-minute window
+      const targetMinutes = targetHour * 60 + targetMin
+      const currentMinutes = currentHour * 60 + currentMin
+      const diff = Math.abs(targetMinutes - currentMinutes)
+      
+      if (diff > 5) {
+        console.log('[shouldShowAnnouncement] Outside time window')
+        return false
+      }
+    }
+    
+    return true
+  }
+  
+  return false
+}
+
+function replaceVariables(template: string, variables: Record<string, string>): string {
+  let result = template
+  
+  // Replace {{now}} with current date
+  result = result.replace(/\{\{now\}\}/g, new Date().toLocaleDateString())
+  
+  // Replace custom variables
+  for (const [key, value] of Object.entries(variables)) {
+    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value)
+  }
+  
+  return result
+}

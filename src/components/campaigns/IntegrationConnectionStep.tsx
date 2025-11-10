@@ -3,6 +3,7 @@ import { IntegrationConnectionFlow } from "./IntegrationConnectionFlow";
 import { supabase } from "@/integrations/supabase/client";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, RefreshCw } from "lucide-react";
 import { getIntegrationMetadata } from "@/lib/integrationMetadata";
 
@@ -62,6 +63,7 @@ export function IntegrationConnectionStep({
     );
   }
 
+  // Handle existing connection
   if (existingConnector && !showReconnect) {
     const metadata = getIntegrationMetadata(dataSource);
     

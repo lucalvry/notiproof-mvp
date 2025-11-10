@@ -392,7 +392,7 @@ export default function CampaignDetails() {
       )}
 
 
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs defaultValue={new URLSearchParams(window.location.search).get('tab') || 'overview'} className="w-full">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>

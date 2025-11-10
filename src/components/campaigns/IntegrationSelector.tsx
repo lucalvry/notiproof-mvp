@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { getIntegrationMetadata, normalizeIntegrationKey } from "@/lib/integrationMetadata";
 import { getDataSourcesForCampaignType } from "@/lib/campaignDataSources";
 import { useToast } from "@/hooks/use-toast";
+import { ConnectionStatusBadge } from "./ConnectionStatusBadge";
 
 interface IntegrationSelectorProps {
   campaignType: string;
@@ -106,10 +107,20 @@ export function IntegrationSelector({
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-xs flex-wrap">
                     <Badge variant="secondary" className="text-xs">
                       {integration.connectorType || 'webhook'}
                     </Badge>
+                    
+                    {/* Show Native badge or Connection status */}
+                    {integration.isNative ? (
+                      <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs">
+                        🏠 Native
+                      </Badge>
+                    ) : (
+                      <ConnectionStatusBadge integrationType={integration.displayName.toLowerCase().replace(/\s+/g, '_').replace(/\//g, '_')} />
+                    )}
+                    
                     {integration.phase && (
                       <span className="text-muted-foreground">Phase {integration.phase}</span>
                     )}

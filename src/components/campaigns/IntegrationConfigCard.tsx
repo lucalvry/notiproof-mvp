@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { MessageTemplateBuilder } from "./MessageTemplateBuilder";
@@ -20,6 +21,9 @@ interface IntegrationConfig {
   image_fallback_url: string;
   locale: string;
   actions: ActionRule[];
+  cta_text?: string;
+  cta_url?: string;
+  [key: string]: any; // Allow additional properties for native integrations
 }
 
 interface IntegrationConfigCardProps {
@@ -93,33 +97,78 @@ export function IntegrationConfigCard({
           </TabsContent>
 
           <TabsContent value="images" className="space-y-4">
+            {/* Auto-extract product images from integration */}
+            <Alert>
+              <AlertDescription className="text-sm">
+                <strong>💡 Pro Tip:</strong> We'll automatically extract product images from {dataSource} events.
+                If an event doesn't have an image, we'll use your fallback.
+              </AlertDescription>
+            </Alert>
+
+            {/* Show which field contains the image */}
             <div className="space-y-2">
-              <Label htmlFor="image-fallback">Default Image Fallback URL</Label>
-              <Input
-                id="image-fallback"
-                placeholder="https://example.com/default-avatar.png"
-                value={config.image_fallback_url}
-                onChange={(e) => onChange({ ...config, image_fallback_url: e.target.value })}
-              />
+              <Label>Image Source Field</Label>
+              <Select
+                value={(config as any).image_field_mapping || 'auto'}
+                onValueChange={(value) => onChange({ ...config, image_field_mapping: value } as any)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Auto-detect" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">🤖 Auto-detect from integration</SelectItem>
+                  <SelectItem value="product_image">product_image</SelectItem>
+                  <SelectItem value="product_thumbnail">product_thumbnail</SelectItem>
+                  <SelectItem value="image_url">image_url</SelectItem>
+                  <SelectItem value="avatar_url">avatar_url</SelectItem>
+                  <SelectItem value="user_photo">user_photo</SelectItem>
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
-                This image will be used when an event doesn't have an image
+                Which field in your {dataSource} data contains the image URL?
               </p>
             </div>
 
+            {/* Existing fallback image field */}
+            <div className="space-y-2">
+              <Label htmlFor="image-fallback">Fallback Image (when event has no image)</Label>
+              <Input
+                id="image-fallback"
+                type="url"
+                placeholder="https://example.com/default-product.png"
+                value={config.image_fallback_url}
+                onChange={(e) => onChange({ ...config, image_fallback_url: e.target.value })}
+              />
+            </div>
+
+            {/* Image preview */}
             {config.image_fallback_url && (
               <div className="space-y-2">
                 <Label>Preview</Label>
-                <div className="border rounded-lg p-4 flex items-center gap-3 bg-muted/50">
-                  <img 
-                    src={config.image_fallback_url} 
-                    alt="Fallback preview" 
-                    className="w-12 h-12 rounded-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="%23ddd"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23999">?</text></svg>';
-                    }}
-                  />
-                  <div className="text-sm text-muted-foreground">
-                    Fallback image loaded successfully
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-center space-y-1">
+                    <img 
+                      src={config.image_fallback_url} 
+                      alt="Fallback" 
+                      className="w-full aspect-square rounded-lg object-cover border-2 border-dashed"
+                      onError={(e) => {
+                        e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23ddd"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23999" font-size="40">?</text></svg>';
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">Fallback</p>
+                  </div>
+                  {/* Show examples of how images will appear */}
+                  <div className="text-center space-y-1">
+                    <div className="w-full aspect-square rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-2xl">
+                      👤
+                    </div>
+                    <p className="text-xs text-muted-foreground">Avatar Style</p>
+                  </div>
+                  <div className="text-center space-y-1">
+                    <div className="w-full aspect-square rounded-lg bg-gradient-to-br from-blue-400 to-cyan-400 flex items-center justify-center text-2xl">
+                      🛍️
+                    </div>
+                    <p className="text-xs text-muted-foreground">Product Style</p>
                   </div>
                 </div>
               </div>

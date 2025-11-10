@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,12 @@ import { IntegrationConfigCard } from "./IntegrationConfigCard";
 import { getIntegrationMetadata } from "@/lib/integrationMetadata";
 import { supabase } from "@/integrations/supabase/client";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
+import { InstantCaptureConfig } from "./native/InstantCaptureConfig";
+import { LiveVisitorConfig } from "./native/LiveVisitorConfig";
+import { AnnouncementConfig } from "./native/AnnouncementConfig";
+import { LiveEventPreview } from "./LiveEventPreview";
+import { EventSyncStatus } from "./EventSyncStatus";
+import { adapterRegistry } from "@/lib/integrations";
 
 interface IntegrationConfigurationStepProps {
   dataSource: string;
@@ -19,31 +25,13 @@ interface IntegrationConfigurationStepProps {
     messageTemplate: string;
     placeholders: string[];
     connectorId?: string;
-    integrationSettings?: {
-      message_template: string;
-      image_fallback_url: string;
-      locale: string;
-      actions: Array<{
-        type: 'replace_variable' | 'change_url' | 'change_image' | 'hide_event';
-        condition: string;
-        value: string;
-      }>;
-    };
+    integrationSettings?: any;
   };
   onConfigComplete: (config: {
     messageTemplate: string;
     placeholders: string[];
     connectorId?: string;
-    integrationSettings?: {
-      message_template: string;
-      image_fallback_url: string;
-      locale: string;
-      actions: Array<{
-        type: 'replace_variable' | 'change_url' | 'change_image' | 'hide_event';
-        condition: string;
-        value: string;
-      }>;
-    };
+    integrationSettings?: any;
   }) => void;
 }
 
@@ -56,7 +44,6 @@ export function IntegrationConfigurationStep({
   const { currentWebsite } = useWebsiteContext();
   const [isConnected, setIsConnected] = useState(false);
   const [connectorId, setConnectorId] = useState<string | null>(null);
-  const [messageTemplate, setMessageTemplate] = useState(existingConfig?.messageTemplate || "");
   const [selectedPlaceholders, setSelectedPlaceholders] = useState<string[]>(existingConfig?.placeholders || []);
   const [isCheckingConnection, setIsCheckingConnection] = useState(true);
   
@@ -66,11 +53,188 @@ export function IntegrationConfigurationStep({
     image_fallback_url: existingConfig?.integrationSettings?.image_fallback_url || "",
     locale: existingConfig?.integrationSettings?.locale || "en",
     actions: existingConfig?.integrationSettings?.actions || [],
+    // Phase 2: Fix CTA fields - initialize as empty strings, not undefined
+    cta_text: (existingConfig?.integrationSettings as any)?.cta_text || "",
+    cta_url: (existingConfig?.integrationSettings as any)?.cta_url || "",
   });
 
   const metadata = getIntegrationMetadata(dataSource);
 
-  // Check if integration is already connected
+  // Debounced preview update ref
+  const previewUpdateTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Update preview when template changes for 3rd party integrations
+  useEffect(() => {
+    if (isConnected && integrationSettings.message_template) {
+      console.log('📡 Emitting preview update from Step 2:', integrationSettings.message_template);
+      
+      window.dispatchEvent(new CustomEvent('notiproof:preview-update', {
+        detail: { 
+          settings: {
+            headline: integrationSettings.message_template,
+            backgroundColor: "#ffffff",
+            textColor: "#1a1a1a",
+            primaryColor: "#2563EB",
+            borderRadius: 12,
+            fontSize: 14,
+            position: "bottom-left",
+            animation: "slide",
+            showTimestamp: true,
+          }, 
+          messageTemplate: integrationSettings.message_template 
+        }
+      }));
+    }
+  }, [integrationSettings.message_template, isConnected]);
+
+  // Debounced preview update function (300ms delay)
+  const updatePreviewDebounced = (newConfig: any) => {
+    // Clear existing timer
+    if (previewUpdateTimerRef.current) {
+      clearTimeout(previewUpdateTimerRef.current);
+    }
+
+    // Set new timer for 300ms delay
+    previewUpdateTimerRef.current = setTimeout(() => {
+      const message = dataSource === 'announcements' 
+        ? (newConfig?.message || newConfig?.title || "")
+        : dataSource === 'live_visitors'
+        ? `${newConfig?.min_count || 10} people are viewing this page right now`
+        : dataSource === 'instant_capture'
+        ? "Someone just submitted a form!"
+        : "";
+      
+      const previewSettings = {
+        headline: dataSource === 'announcements' ? (newConfig?.title || "") : message,
+        message: dataSource === 'announcements' ? (newConfig?.message || "") : message,
+        subtext: newConfig?.cta_text || "",
+        backgroundColor: "#ffffff",
+        textColor: "#1a1a1a",
+        primaryColor: "#2563EB",
+        borderRadius: 12,
+        fontSize: 14,
+        position: "bottom-left",
+        animation: "slide",
+        showTimestamp: true,
+        notificationIcon: dataSource === 'announcements' ? '📢' : dataSource === 'live_visitors' ? '👥' : '📋',
+      };
+      
+      console.log('🎨 Local preview update (not calling parent):', { message, previewSettings });
+      
+      // ✅ Dispatch custom event for preview - DO NOT call parent
+      window.dispatchEvent(new CustomEvent('notiproof:preview-update', {
+        detail: { 
+          settings: previewSettings, 
+          messageTemplate: message 
+        }
+      }));
+    }, 300);
+  };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUpdateTimerRef.current) {
+        clearTimeout(previewUpdateTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Handle native integrations
+  if (metadata.isNative) {
+    const nativeConfig = {
+      // Instant Capture defaults
+      target_url: '',
+      auto_detect: true,
+      field_mappings: {},
+      require_moderation: true,
+      
+      // Live Visitors defaults
+      mode: 'simulated',
+      scope: 'site',
+      min_count: 5,
+      max_count: 50,
+      variance_percent: 30,
+      update_interval_seconds: 10,
+      
+      // Announcements defaults
+      title: '',
+      message: '',
+      cta_text: '',
+      cta_url: '',
+      schedule_type: 'instant',
+      priority: 5,
+      variables: {},
+      
+      // Merge with existing config (existing values override defaults)
+      ...(existingConfig?.integrationSettings || {}),
+    };
+
+    console.log('🔧 Native config initialized:', nativeConfig);
+
+  const handleNativeConfigChange = (newConfig: any) => {
+    console.log('📝 Native config changed:', {
+      previous: integrationSettings,
+      new: newConfig,
+      merged: { ...integrationSettings, ...newConfig }
+    });
+    
+    // ✅ MERGE with existing state instead of replacing
+    setIntegrationSettings(prev => ({
+      ...prev,
+      ...newConfig
+    }));
+    
+    updatePreviewDebounced(newConfig);
+  };
+
+  const handleNativeContinue = () => {
+    // Extract message from native config based on integration type
+    const nativeSettings = integrationSettings as any;
+    const message = nativeSettings?.message || 
+                   nativeSettings?.title ||
+                   (dataSource === 'live_visitors' ? `${nativeSettings?.min_count || 10} people are viewing this page right now` : '') ||
+                   "";
+    
+    onConfigComplete({
+      messageTemplate: message,
+      placeholders: [],
+      integrationSettings,
+    });
+  };
+
+    return (
+      <div className="space-y-6">
+        {dataSource === 'instant_capture' && (
+          <InstantCaptureConfig config={nativeConfig} onChange={handleNativeConfigChange} />
+        )}
+        
+        {dataSource === 'live_visitors' && (
+          <LiveVisitorConfig config={nativeConfig} onChange={handleNativeConfigChange} />
+        )}
+        
+        {dataSource === 'announcements' && (
+          <AnnouncementConfig config={nativeConfig} onChange={handleNativeConfigChange} />
+        )}
+
+        {!['instant_capture', 'live_visitors', 'announcements'].includes(dataSource) && (
+          <div className="text-center text-muted-foreground">Native integration config not found</div>
+        )}
+
+        {/* Continue Button for Native Integrations */}
+        <div className="flex justify-end gap-3 pt-4">
+          <Button
+            size="lg"
+            onClick={handleNativeContinue}
+          >
+            Continue to Design
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if integration is already connected (for 3rd party only)
   useState(() => {
     const checkConnection = async () => {
       try {
@@ -104,15 +268,24 @@ export function IntegrationConfigurationStep({
   });
 
   const handleComplete = () => {
+    // Use integration_settings.message_template for 3rd party integrations
+    const settings = integrationSettings as any;
+    const finalMessageTemplate = integrationSettings.message_template || 
+                                  settings.title || 
+                                  settings.message || 
+                                  "";
+    
+    console.log('✅ Step 2 Complete - Sending template to Step 3:', finalMessageTemplate);
+    
     onConfigComplete({
-      messageTemplate: integrationSettings.message_template || messageTemplate,
+      messageTemplate: finalMessageTemplate,
       placeholders: selectedPlaceholders,
       connectorId: connectorId || undefined,
       integrationSettings,
     });
   };
 
-  const canComplete = messageTemplate.trim() !== "" || isConnected;
+  const canComplete = integrationSettings.message_template?.trim() !== "" || isConnected;
 
   if (isCheckingConnection) {
     return (
@@ -177,7 +350,12 @@ export function IntegrationConfigurationStep({
             dataSource={dataSource}
             campaignType={campaignType}
             config={integrationSettings}
-            onChange={setIntegrationSettings}
+            onChange={(newConfig) => setIntegrationSettings({
+              ...integrationSettings,
+              ...newConfig,
+              cta_text: newConfig.cta_text ?? integrationSettings.cta_text,
+              cta_url: newConfig.cta_url ?? integrationSettings.cta_url,
+            })}
           />
 
           <Card>
@@ -195,6 +373,33 @@ export function IntegrationConfigurationStep({
               />
             </CardContent>
           </Card>
+
+          {/* Event Sync Status */}
+          {connectorId && (
+            <EventSyncStatus
+              connectorId={connectorId}
+              integrationId={dataSource}
+            />
+          )}
+
+          {/* Live Event Preview */}
+          {connectorId && integrationSettings.message_template && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Live Event Preview</CardTitle>
+                <CardDescription>
+                  See how your template will look with real data
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <LiveEventPreview
+                  connectorId={connectorId}
+                  integrationId={dataSource}
+                  template={integrationSettings.message_template}
+                />
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
@@ -210,10 +415,10 @@ export function IntegrationConfigurationStep({
       </div>
 
       {!canComplete && (
-        <Alert>
+          <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Please connect your integration and set up a message template to continue
+            Please connect your integration to continue
           </AlertDescription>
         </Alert>
       )}

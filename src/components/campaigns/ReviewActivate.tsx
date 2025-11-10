@@ -68,6 +68,13 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
           status: "draft",
           website_id: websiteId,
           data_source: campaignData.data_source || 'manual',
+          // Save native config for native integrations
+          native_config: campaignData.integration_settings || {},
+          integration_settings: campaignData.integration_settings || {
+            locale: "en",
+            actions: [],
+            image_fallback_url: ""
+          },
           display_rules: {
             ...campaignData.settings,
             frequency: campaignData.rules?.frequency,
@@ -182,6 +189,13 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
           data_source: campaignData.data_source || 'manual',
           start_date: campaignData.rules?.startDate || new Date().toISOString(),
           end_date: campaignData.rules?.endDate || null,
+          // Save native config for native integrations
+          native_config: campaignData.integration_settings || {},
+          integration_settings: campaignData.integration_settings || {
+            locale: "en",
+            actions: [],
+            image_fallback_url: ""
+          },
           display_rules: {
             ...campaignData.settings,
             frequency: campaignData.rules?.frequency,

@@ -331,6 +331,7 @@ export type Database = {
           id: string
           integration_settings: Json | null
           name: string
+          native_config: Json | null
           organization_id: string | null
           polling_config: Json | null
           repeat_config: Json | null
@@ -350,6 +351,7 @@ export type Database = {
           id?: string
           integration_settings?: Json | null
           name: string
+          native_config?: Json | null
           organization_id?: string | null
           polling_config?: Json | null
           repeat_config?: Json | null
@@ -369,6 +371,7 @@ export type Database = {
           id?: string
           integration_settings?: Json | null
           name?: string
+          native_config?: Json | null
           organization_id?: string | null
           polling_config?: Json | null
           repeat_config?: Json | null
@@ -533,6 +536,7 @@ export type Database = {
           event_data: Json
           event_type: string
           expires_at: string | null
+          external_id: string | null
           flagged: boolean
           id: string
           integration_type:
@@ -565,6 +569,7 @@ export type Database = {
           event_data: Json
           event_type: string
           expires_at?: string | null
+          external_id?: string | null
           flagged?: boolean
           id?: string
           integration_type?:
@@ -597,6 +602,7 @@ export type Database = {
           event_data?: Json
           event_type?: string
           expires_at?: string | null
+          external_id?: string | null
           flagged?: boolean
           id?: string
           integration_type?:
@@ -1005,37 +1011,46 @@ export type Database = {
       }
       integration_connectors: {
         Row: {
+          auto_sync_enabled: boolean | null
           config: Json
           created_at: string
           id: string
           integration_type: Database["public"]["Enums"]["integration_type"]
           last_sync: string | null
+          last_sync_status: Json | null
           name: string
           status: string | null
+          sync_frequency_minutes: number | null
           updated_at: string
           user_id: string
           website_id: string
         }
         Insert: {
+          auto_sync_enabled?: boolean | null
           config?: Json
           created_at?: string
           id?: string
           integration_type: Database["public"]["Enums"]["integration_type"]
           last_sync?: string | null
+          last_sync_status?: Json | null
           name: string
           status?: string | null
+          sync_frequency_minutes?: number | null
           updated_at?: string
           user_id: string
           website_id: string
         }
         Update: {
+          auto_sync_enabled?: boolean | null
           config?: Json
           created_at?: string
           id?: string
           integration_type?: Database["public"]["Enums"]["integration_type"]
           last_sync?: string | null
+          last_sync_status?: Json | null
           name?: string
           status?: string | null
+          sync_frequency_minutes?: number | null
           updated_at?: string
           user_id?: string
           website_id?: string

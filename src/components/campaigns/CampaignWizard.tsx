@@ -17,6 +17,7 @@ import { PollingConfigCard } from "./PollingConfigCard";
 import { MessageTemplateSelector, MessageTemplateVariant } from "./MessageTemplateSelector";
 import { QuickStartSelector } from "./QuickStartSelector";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
+import { NativeIntegrationConfig } from "./native/NativeIntegrationConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getIntegrationMetadata, inferCampaignType } from "@/lib/integrationMetadata";
@@ -28,34 +29,79 @@ interface CampaignWizardProps {
   onComplete: () => void;
 }
 
-const STEPS = [
-  "Choose Data Source",
-  "Configure Integration",
-  "Customize Design",
-  "Review & Activate",
-];
+// Dynamic step generation based on integration type
+const getWizardSteps = (integrationPath: string, dataSource: string) => {
+  const metadata = dataSource ? getIntegrationMetadata(dataSource) : null;
+  
+  // Native integrations (no connection needed)
+  if (metadata?.isNative) {
+    return [
+      "Choose Template",
+      "Configure Content",
+      "Design & Preview",
+      "Review & Activate"
+    ];
+  }
+  
+  // External integrations (require connection)
+  if (integrationPath === 'integration') {
+    return [
+      "Choose Integration",
+      "Connect",
+      "Configure Message",
+      "Design",
+      "Review & Activate"
+    ];
+  }
+  
+  // Manual/Demo
+  return [
+    "Setup",
+    "Design",
+    "Review & Activate"
+  ];
+};
+
+// Track if using live preview
+const ENABLE_LIVE_PREVIEW = true;
 
 export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [useQuickStart, setUseQuickStart] = useState(false);
+  // Separate preview state for real-time updates (doesn't trigger parent re-renders)
+  const [previewState, setPreviewState] = useState<any>(null);
+  const [steps, setSteps] = useState(getWizardSteps("", ""));
   const [campaignData, setCampaignData] = useState({
     name: "",
     type: "",
-    integration_path: "", // 'integration', 'manual', or 'demo'
+    integration_path: "", // 'integration', 'manual', 'native'
     data_source: "",
     
-    // PHASE 1: Message configuration from Step 2
+    // For external integrations - connector ID
+    connector_id: null as string | null,
+    
+    // Message configuration from Step 2
     message_config: {
       template: "",
       placeholders: [] as string[],
       connectorId: null as string | null,
     },
     
-    // PHASE 1: Integration-specific settings
+    // Integration-specific settings (both native and external)
     integration_settings: {
       message_template: "",
       image_fallback_url: "",
       locale: "en",
+      
+      // Native-specific settings
+      schedule: {
+        enabled: false,
+        start_date: null as string | null,
+        end_date: null as string | null,
+        recurrence: null as any,
+      },
+      
+      // Action rules (for external integrations)
       actions: [] as Array<{
         type: 'replace_variable' | 'change_url' | 'change_image' | 'hide_event';
         condition: string;
@@ -63,7 +109,20 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
       }>,
     },
     
-    settings: {} as Record<string, any>,
+    // CRITICAL: Initialize settings with defaults for preview to work
+    settings: {
+      backgroundColor: "#ffffff",
+      textColor: "#1a1a1a",
+      primaryColor: "#2563EB",
+      borderRadius: 12,
+      fontSize: 14,
+      position: "bottom-left",
+      animation: "slide",
+      showTimestamp: true,
+      headline: "",
+      message: "",
+      subtext: "",
+    } as Record<string, any>,
     rules: {} as Record<string, any>,
     polling_config: {
       enabled: false,
@@ -80,7 +139,13 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
   const [templateFetchError, setTemplateFetchError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  const progress = ((currentStep + 1) / STEPS.length) * 100;
+  const progress = ((currentStep + 1) / steps.length) * 100;
+
+  // Update steps when integration type changes
+  useEffect(() => {
+    const newSteps = getWizardSteps(campaignData.integration_path, campaignData.data_source);
+    setSteps(newSteps);
+  }, [campaignData.integration_path, campaignData.data_source]);
 
   // Check for template parameter on mount
   useEffect(() => {
@@ -136,7 +201,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
   };
 
   const handleNext = () => {
-    if (currentStep < STEPS.length - 1) {
+    if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -154,6 +219,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
       type: "",
       integration_path: "",
       data_source: "",
+      connector_id: null,
       message_config: {
         template: "",
         placeholders: [],
@@ -163,6 +229,12 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
         message_template: "",
         image_fallback_url: "",
         locale: "en",
+        schedule: {
+          enabled: false,
+          start_date: null,
+          end_date: null,
+          recurrence: null,
+        },
         actions: [],
       },
       settings: {},
@@ -453,82 +525,226 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     return () => window.removeEventListener('notiproof:wizard-advance', handleAutoAdvance);
   }, [currentStep]);
 
+  // Listen for preview updates (separate from form submission)
+  useEffect(() => {
+    const handlePreviewUpdate = (e: CustomEvent) => {
+      console.log('👁️ Preview event received:', e.detail);
+      setPreviewState(e.detail);
+    };
+    
+    window.addEventListener('notiproof:preview-update', handlePreviewUpdate as any);
+    return () => window.removeEventListener('notiproof:preview-update', handlePreviewUpdate as any);
+  }, []);
+
   // Removed auto-skip useEffect - IntegrationConnectionStep handles connection checking internally
 
   const renderStep = () => {
+    const metadata = campaignData.data_source 
+      ? getIntegrationMetadata(campaignData.data_source) 
+      : null;
+    
+    // Native Integration Flow
+    if (metadata?.isNative) {
+      switch (currentStep) {
+        case 0:
+          return (
+            <QuickStartSelector
+              onSelect={(template) => {
+                if (template.id === "custom-setup") {
+                  setUseQuickStart(false);
+                } else {
+                  setUseQuickStart(true);
+                  updateCampaignData({
+                    name: template.name,
+                    type: template.config.campaignType,
+                    integration_path: 'native',
+                    data_source: template.config.dataSource,
+                    settings: template.config.settings,
+                  });
+                  toast.success(`${template.name} template selected!`);
+                  setCurrentStep(1);
+                }
+              }}
+              showDataSourceSelector={!useQuickStart}
+              onDataSourceSelect={(dataSource) => {
+                const inferredType = inferCampaignType(dataSource);
+                updateCampaignData({
+                  integration_path: metadata?.isNative ? 'native' : 'integration',
+                  data_source: dataSource,
+                  type: inferredType,
+                });
+                toast.success("Data source selected!");
+                handleNext();
+              }}
+            />
+          );
+        case 1:
+          return (
+            <NativeIntegrationConfig 
+              dataSource={campaignData.data_source}
+              config={campaignData.integration_settings}
+              onConfigComplete={(config) => {
+                updateCampaignData({ 
+                  integration_settings: config,
+                  settings: {
+                    ...campaignData.settings,
+                    headline: config.message || config.title || '',
+                    subtext: config.cta_text || '',
+                  }
+                });
+                handleNext();
+              }}
+            />
+          );
+        case 2:
+          return (
+            <DesignEditor
+              settings={campaignData.settings}
+              onChange={(settings) => updateCampaignData({ settings })}
+              campaignType={campaignData.type}
+              dataSource={campaignData.data_source}
+              integrationPath={campaignData.integration_path}
+              templateName={selectedTemplate?.name}
+            />
+          );
+        case 3:
+          return (
+            <ReviewActivate
+              campaignData={campaignData}
+              selectedTemplate={selectedTemplate}
+              onComplete={() => {
+                onComplete();
+                handleClose();
+              }}
+            />
+          );
+      }
+    }
+    
+    // External Integration Flow
+    if (campaignData.integration_path === 'integration') {
+      switch (currentStep) {
+        case 0:
+          return (
+            <IntegrationSelector
+              campaignType={campaignData.type || 'recent-activity'}
+              selectedIntegration={campaignData.data_source}
+              onSelect={(dataSource) => {
+                const inferredType = inferCampaignType(dataSource);
+                updateCampaignData({
+                  integration_path: 'integration',
+                  data_source: dataSource,
+                  type: inferredType,
+                });
+                toast.success("Integration selected!");
+                handleNext();
+              }}
+            />
+          );
+        case 1:
+          return (
+            <IntegrationConnectionStep
+              dataSource={campaignData.data_source}
+              onConnectionComplete={(result) => {
+                updateCampaignData({ 
+                  connector_id: result.connectorId || null
+                });
+                handleNext();
+              }}
+            />
+          );
+        case 2:
+          return (
+            <IntegrationConfigurationStep
+              dataSource={campaignData.data_source}
+              campaignType={campaignData.type}
+              existingConfig={{
+                messageTemplate: campaignData.message_config.template,
+                placeholders: campaignData.message_config.placeholders,
+                connectorId: campaignData.connector_id || undefined,
+                integrationSettings: campaignData.integration_settings,
+              }}
+              onConfigComplete={(config: any) => {
+                const finalTemplate = config.messageTemplate || 
+                                     config.integrationSettings?.message_template || "";
+                
+                updateCampaignData({
+                  message_config: {
+                    template: finalTemplate,
+                    placeholders: config.placeholders,
+                    connectorId: config.connectorId || null,
+                  },
+                  integration_settings: config.integrationSettings || campaignData.integration_settings,
+                  settings: {
+                    ...campaignData.settings,
+                    headline: finalTemplate,
+                    placeholders: config.placeholders,
+                  },
+                });
+                handleNext();
+              }}
+            />
+          );
+        case 3:
+          return (
+            <DesignEditor
+              settings={campaignData.settings}
+              onChange={(settings) => updateCampaignData({ settings })}
+              campaignType={campaignData.type}
+              dataSource={campaignData.data_source}
+              integrationPath={campaignData.integration_path}
+              templateName={selectedTemplate?.name}
+            />
+          );
+        case 4:
+          return (
+            <ReviewActivate
+              campaignData={campaignData}
+              selectedTemplate={selectedTemplate}
+              onComplete={() => {
+                onComplete();
+                handleClose();
+              }}
+            />
+          );
+      }
+    }
+    
+    // Manual Flow (fallback)
     switch (currentStep) {
       case 0:
         return (
           <QuickStartSelector
             onSelect={(template) => {
               if (template.id === "custom-setup") {
-                // Show data source selector
                 setUseQuickStart(false);
               } else {
-                // Apply quick start template with auto-campaign creation
                 setUseQuickStart(true);
                 updateCampaignData({
                   name: template.name,
                   type: template.config.campaignType,
-                  integration_path: template.config.integrationPath,
-                  data_source: template.config.dataSource,
+                  integration_path: 'manual',
+                  data_source: 'manual',
                   settings: template.config.settings,
                 });
-                toast.success(`${template.name} template selected!`, {
-                  description: "Your notification is ready! Customize if needed.",
-                });
-                setCurrentStep(1); // Jump to customization
+                toast.success(`${template.name} template selected!`);
+                setCurrentStep(1);
               }
             }}
             showDataSourceSelector={!useQuickStart}
             onDataSourceSelect={(dataSource) => {
               const inferredType = inferCampaignType(dataSource);
-              
               updateCampaignData({
-                integration_path: 'integration',
+                integration_path: 'manual',
                 data_source: dataSource,
                 type: inferredType,
               });
-              
-              toast.success("Data source selected!", {
-                description: `Creating ${inferredType.replace('-', ' ')} notification`,
-              });
+              toast.success("Manual setup selected!");
               handleNext();
             }}
           />
         );
       case 1:
-        return (
-          <IntegrationConfigurationStep
-            dataSource={campaignData.data_source}
-            campaignType={campaignData.type}
-            existingConfig={{
-              messageTemplate: campaignData.message_config.template,
-              placeholders: campaignData.message_config.placeholders,
-              connectorId: campaignData.message_config.connectorId || undefined,
-              integrationSettings: campaignData.integration_settings,
-            }}
-            onConfigComplete={(config) => {
-              // PHASE 1 & 3: Apply message template + integration settings
-              updateCampaignData({
-                message_config: {
-                  template: config.messageTemplate,
-                  placeholders: config.placeholders,
-                  connectorId: config.connectorId || null,
-                },
-                integration_settings: config.integrationSettings || campaignData.integration_settings,
-                settings: {
-                  ...campaignData.settings,
-                  headline: config.messageTemplate, // Apply to design editor
-                  messageTemplate: config.messageTemplate,
-                  placeholders: config.placeholders,
-                },
-              });
-              handleNext();
-            }}
-          />
-        );
-      case 2:
         return (
           <DesignEditor
             settings={campaignData.settings}
@@ -539,7 +755,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
             templateName={selectedTemplate?.name}
           />
         );
-      case 3:
+      case 2:
         return (
           <ReviewActivate
             campaignData={campaignData}
@@ -650,8 +866,8 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
           </DialogDescription>
           <div className="space-y-2 pt-4">
             <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Step {currentStep + 1} of {STEPS.length}</span>
-              <span>{STEPS[currentStep]}</span>
+              <span>Step {currentStep + 1} of {steps.length}</span>
+              <span>{steps[currentStep]}</span>
             </div>
             <Progress value={progress} className="h-2" />
           </div>
@@ -659,21 +875,54 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
 
         <div className="flex-1 overflow-hidden flex gap-6">
           {/* Main Content - Left Side */}
-          <div className="flex-1 overflow-y-auto py-6 pr-2">
+          <div className={`${ENABLE_LIVE_PREVIEW && (currentStep === 1 || currentStep === 2) ? 'flex-1' : 'w-full'} overflow-y-auto py-6 ${ENABLE_LIVE_PREVIEW && (currentStep === 1 || currentStep === 2) ? 'pr-2' : ''}`}>
             {renderStep()}
           </div>
 
-          {/* Live Preview - Right Side - Show only on Customize Design step */}
-          {currentStep === 1 && campaignData.settings && (
-            <div className="w-96 border-l pl-6 overflow-y-auto py-6">
-              <WidgetPreviewFrame
-                settings={campaignData.settings}
-                campaignType={campaignData.type}
-                position={campaignData.settings.position}
-                animation={campaignData.settings.animation}
-              />
-            </div>
-          )}
+          {/* Live Preview - Right Side - Show on step 1 AND step 2 */}
+          {ENABLE_LIVE_PREVIEW && (currentStep === 1 || currentStep === 2) && (() => {
+            // Build preview settings with proper fallbacks
+            const previewSettings = previewState?.settings || campaignData.settings || {
+              backgroundColor: "#ffffff",
+              textColor: "#1a1a1a",
+              primaryColor: "#2563EB",
+              borderRadius: 12,
+              fontSize: 14,
+              position: "bottom-left",
+              animation: "slide",
+              showTimestamp: true,
+            };
+
+            // CRITICAL: Check ALL possible sources for message template
+            const messageTemplate = previewState?.messageTemplate || 
+                                   campaignData.settings?.headline || 
+                                   campaignData.settings?.messageTemplate ||
+                                   campaignData.settings?.message || 
+                                   campaignData.integration_settings?.message_template ||
+                                   campaignData.message_config?.template ||
+                                   "Preview your notification here";
+
+            console.log('🖼️ PREVIEW RENDER:', {
+              step: currentStep,
+              dataSource: campaignData.data_source,
+              previewStateExists: !!previewState,
+              finalMessage: messageTemplate,
+              settingsHeadline: campaignData.settings?.headline,
+              integrationTemplate: campaignData.integration_settings?.message_template,
+              messageConfigTemplate: campaignData.message_config?.template,
+            });
+            
+            return (
+              <div className="w-96 flex-shrink-0 border-l pl-6 overflow-y-auto py-6">
+                <WidgetPreviewFrame
+                  settings={previewSettings}
+                  messageTemplate={messageTemplate}
+                  campaignType={campaignData.type}
+                  websiteDomain={undefined}
+                />
+              </div>
+            );
+          })()}
         </div>
 
         <div className="flex justify-between border-t pt-4">
@@ -685,7 +934,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
             <Button variant="ghost" onClick={handleClose}>
               Cancel
             </Button>
-            {currentStep < STEPS.length - 1 && (
+            {currentStep < steps.length - 1 && (
               <Button onClick={handleNextWithSkip} disabled={!canProceed()}>
                 Next
                 <ChevronRight className="h-4 w-4 ml-2" />

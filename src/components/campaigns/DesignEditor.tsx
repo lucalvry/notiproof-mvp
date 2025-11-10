@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,6 +88,16 @@ export function DesignEditor({
 }: DesignEditorProps) {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  
+  // PHASE 2: Debug what we're receiving
+  useEffect(() => {
+    console.log('🎨 DesignEditor mounted with:', {
+      headline: settings.headline,
+      messageTemplate: settings.messageTemplate,
+      message: settings.message,
+      allSettings: settings
+    });
+  }, [settings]);
   
   // Enhancement 3: Advanced Placeholder Helper - Get available placeholders for integration
   const getAvailablePlaceholders = () => {
@@ -246,9 +256,8 @@ export function DesignEditor({
     hoverBrightness: "1.05",
     
     // Content - PRIORITY: Use settings.headline if exists (from Step 2), else generate
-    headline: settings.headline || getCampaignPlaceholder(),
+    headline: settings.headline || settings.messageTemplate || settings.message || getCampaignPlaceholder(),
     subtext: settings.subtext || getCampaignSubtext(),
-    showAvatar: true,
     showTimestamp: true,
     showLocation: true,
     clickable: true,
@@ -273,6 +282,14 @@ export function DesignEditor({
     interval: "8",
     maxPerPage: "5",
     maxPerSession: "20",
+    
+    // Images (PHASE 2)
+    showProductImage: true,
+    showAvatar: true,
+    productImageUrl: "",
+    userAvatarUrl: "",
+    fallbackImageUrl: "",
+    notificationIcon: "🛍️",
   };
   
   const [design, setDesign] = useState({
@@ -307,15 +324,12 @@ export function DesignEditor({
     
     return icons[campaignType] || Sparkles;
   };
-  
   const CampaignIcon = getCampaignIcon();
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Editor Panel - Left Side */}
-      <div className="space-y-6">
-        {/* PHASE 2: Context Display Card */}
-        {(campaignType || templateName || dataSource) && (
+    <div className="space-y-6">
+      {/* PHASE 2: Context Display Card */}
+      {(campaignType || templateName || dataSource) && (
           <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
             <CardContent className="pt-4">
               <div className="space-y-3">
@@ -761,6 +775,88 @@ export function DesignEditor({
                     </>
                   )}
                 </div>
+
+                {/* PHASE 2: Image Configuration */}
+                <div className="space-y-3 pt-2 border-t">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">🖼️</span>
+                    <p className="text-sm font-medium">Notification Images</p>
+                  </div>
+                  
+                  {/* Show Product Images Toggle */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Show Product Images</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Display product thumbnails from your integration
+                      </p>
+                    </div>
+                    <Switch
+                      checked={design.showProductImage !== false}
+                      onCheckedChange={(checked) => updateDesign({ showProductImage: checked })}
+                    />
+                  </div>
+
+                  {/* Show User Avatars Toggle */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Show User Avatars</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Display customer profile pictures or initials
+                      </p>
+                    </div>
+                    <Switch
+                      checked={design.showAvatar !== false}
+                      onCheckedChange={(checked) => updateDesign({ showAvatar: checked })}
+                    />
+                  </div>
+
+                  {/* Fallback Image URL */}
+                  <div className="space-y-2">
+                    <Label>Fallback Image (when data has no image)</Label>
+                    <Input
+                      type="url"
+                      placeholder="https://example.com/default-image.png"
+                      value={design.fallbackImageUrl || ""}
+                      onChange={(e) => updateDesign({ fallbackImageUrl: e.target.value })}
+                    />
+                    {design.fallbackImageUrl && (
+                      <div className="flex items-center gap-2 p-2 border rounded">
+                        <img 
+                          src={design.fallbackImageUrl} 
+                          alt="Fallback preview" 
+                          className="w-10 h-10 rounded-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%23ddd"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23999" font-size="20">?</text></svg>';
+                          }}
+                        />
+                        <span className="text-xs text-muted-foreground">Preview</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Icon/Emoji Picker for Non-Commerce Campaigns */}
+                  {!['recent-purchase', 'cart-additions', 'product-reviews'].includes(campaignType || '') && (
+                    <div className="space-y-2">
+                      <Label>Notification Icon</Label>
+                      <div className="grid grid-cols-8 gap-2">
+                        {['🎉', '✅', '🔥', '⭐', '💡', '📢', '🚀', '👋', '💰', '📊', '🎯', '🏆'].map(emoji => (
+                          <Button
+                            key={emoji}
+                            variant={design.notificationIcon === emoji ? "default" : "outline"}
+                            onClick={() => updateDesign({ notificationIcon: emoji })}
+                            className="text-xl p-2 h-12"
+                          >
+                            {emoji}
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Choose an icon to display when there's no product image
+                      </p>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1041,43 +1137,6 @@ export function DesignEditor({
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
-
-      {/* Preview Panel - Right Side (Sticky) */}
-      <div className="lg:sticky lg:top-6 lg:self-start space-y-4">
-        <WidgetPreviewFrame
-          settings={design}
-          campaignType={campaignType}
-          position={design.position}
-          animation={design.animation}
-        />
-        
-        {/* Preview on Site Button - NEW */}
-        <Button
-          variant="default"
-          className="w-full gap-2 mt-4"
-          onClick={() => setShowPreviewDialog(true)}
-        >
-          <ExternalLink className="h-4 w-4" />
-          Preview on Your Site
-        </Button>
-        
-        {/* Advanced Settings Section */}
-        {showAdvancedSettings && (
-          <SettingsSections
-            settings={design}
-            onChange={updateDesign}
-          />
-        )}
-        
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-        >
-          {showAdvancedSettings ? 'Hide' : 'Show'} Advanced Settings
-        </Button>
-      </div>
       
       {/* Preview Dialog */}
       <PreviewOnSiteDialog

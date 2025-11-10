@@ -66,12 +66,43 @@ export function NotificationPreview({ template }: NotificationPreviewProps) {
         >
           <div className="p-4">
             <div className="flex items-start gap-3">
-              {previewData.userName && (
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback style={{ backgroundColor: `${accentColor}20`, color: accentColor }}>
-                    {previewData.userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                  </AvatarFallback>
-                </Avatar>
+              {(previewData.userName || previewData.productImage || styleConfig.notificationIcon) && (
+                <div className="shrink-0">
+                  {previewData.productImage && styleConfig.showProductImage !== false ? (
+                    <img 
+                      src={previewData.productImage} 
+                      alt="Product" 
+                      className="h-10 w-10 rounded-lg object-cover"
+                      onError={(e) => {
+                        // Fallback to icon or avatar on image load error
+                        if (styleConfig.fallbackImageUrl) {
+                          e.currentTarget.src = styleConfig.fallbackImageUrl;
+                        } else {
+                          e.currentTarget.style.display = 'none';
+                        }
+                      }}
+                    />
+                  ) : previewData.userAvatar && styleConfig.showAvatar !== false ? (
+                    <img 
+                      src={previewData.userAvatar} 
+                      alt={previewData.userName} 
+                      className="h-10 w-10 rounded-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  ) : styleConfig.notificationIcon ? (
+                    <div className="h-10 w-10 flex items-center justify-center text-2xl">
+                      {styleConfig.notificationIcon}
+                    </div>
+                  ) : previewData.userName ? (
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback style={{ backgroundColor: `${accentColor}20`, color: accentColor }}>
+                        {previewData.userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
+                  ) : null}
+                </div>
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">

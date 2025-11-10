@@ -1,302 +1,404 @@
 import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Smartphone, Monitor, Tablet, RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Monitor, Smartphone, Tablet, Eye, RefreshCw, ExternalLink, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
 
 interface WidgetPreviewFrameProps {
   settings: any;
   campaignType?: string;
+  messageTemplate?: string;
+  websiteDomain?: string;
   position?: string;
   animation?: string;
 }
 
+type DeviceType = 'desktop' | 'tablet' | 'mobile';
+
 export function WidgetPreviewFrame({ 
   settings, 
   campaignType,
-  position = "bottom-left",
-  animation = "slide" 
+  messageTemplate,
+  websiteDomain,
+  position,
+  animation
 }: WidgetPreviewFrameProps) {
-  const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
-  const [refreshKey, setRefreshKey] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [device, setDevice] = useState<DeviceType>('desktop');
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [iframeReady, setIframeReady] = useState(false);
+  const updateTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const deviceDimensions = {
-    desktop: { width: '100%', height: '600px', icon: Monitor },
+  // Device dimensions
+  const dimensions = {
+    desktop: { width: '100%', height: '500px', icon: Monitor },
     tablet: { width: '768px', height: '500px', icon: Tablet },
-    mobile: { width: '375px', height: '667px', icon: Smartphone },
+    mobile: { width: '375px', height: '500px', icon: Smartphone },
   };
 
-  const currentDevice = deviceDimensions[device];
-  const DeviceIcon = currentDevice.icon;
-
-  // Inject widget preview into iframe
+  // Wait for iframe to be ready
   useEffect(() => {
-    if (!iframeRef.current) return;
-
     const iframe = iframeRef.current;
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!iframe) return;
     
-    if (!doc) return;
+    const handleIframeLoad = () => {
+      console.log('✅ Iframe loaded and ready');
+      setIframeReady(true);
+    };
+    
+    iframe.addEventListener('load', handleIframeLoad);
+    return () => iframe.removeEventListener('load', handleIframeLoad);
+  }, []);
 
-    // Generate preview HTML with widget
-    const previewHTML = generatePreviewHTML(settings, position, animation);
-    
-    doc.open();
-    doc.write(previewHTML);
-    doc.close();
-  }, [settings, position, animation, refreshKey]);
+  // Debounced update preview with 300ms delay (only when iframe is ready)
+  useEffect(() => {
+    if (!iframeReady) {
+      console.log('⏳ Waiting for iframe to be ready...');
+      return;
+    }
 
-  const generatePreviewHTML = (settings: any, position: string, animation: string) => {
-    // Use ACTUAL campaign data from settings
-    const headline = settings.headline || 'John Smith from New York just purchased';
-    const subtext = settings.subtext || '';
-    
-    // Replace placeholders with realistic preview data
-    const previewHeadline = headline
-      .replace(/\{\{user_name\}\}/g, 'Sarah Johnson')
-      .replace(/\{\{location\}\}/g, 'San Francisco, CA')
-      .replace(/\{\{product_name\}\}/g, 'Premium Plan')
-      .replace(/\{\{count\}\}/g, '47')
-      .replace(/\{\{page_name\}\}/g, 'Pricing Page')
-      .replace(/\{\{price\}\}/g, '$99.99')
-      .replace(/\{\{plan_name\}\}/g, 'Pro Subscription')
-      .replace(/\{\{action\}\}/g, 'signed up')
-      .replace(/\{\{event_type\}\}/g, 'Purchase')
-      .replace(/\{\{time\}\}/g, '2 minutes ago')
-      .replace(/\{\{name\}\}/g, 'Sarah');
-    
-    const previewSubtext = subtext
-      .replace(/\{\{name\}\}/g, 'Sarah')
-      .replace(/\{\{count\}\}/g, '3,421')
-      .replace(/\{\{location\}\}/g, 'San Francisco')
-      .replace(/\{\{product_name\}\}/g, 'Premium Plan')
-      .replace(/\{\{time\}\}/g, '2 minutes ago');
-    
-    const positionMap: Record<string, string> = {
+    console.log('🎨 WidgetPreviewFrame received:', {
+      settings,
+      messageTemplate,
+      campaignType,
+      position,
+      animation,
+      hasSettings: !!settings,
+      settingsKeys: settings ? Object.keys(settings) : []
+    });
+
+    // Clear existing timer
+    if (updateTimerRef.current) {
+      clearTimeout(updateTimerRef.current);
+    }
+
+    // Set new timer with 300ms delay
+    updateTimerRef.current = setTimeout(() => {
+      updatePreview();
+    }, 300);
+
+    // Cleanup on unmount
+    return () => {
+      if (updateTimerRef.current) {
+        clearTimeout(updateTimerRef.current);
+      }
+    };
+  }, [settings, messageTemplate, device, refreshKey, iframeReady]);
+
+  const updatePreview = () => {
+    if (!iframeRef.current?.contentWindow) {
+      console.warn('⚠️ Iframe not ready');
+      return;
+    }
+
+    const iframeDoc = iframeRef.current.contentDocument;
+    if (!iframeDoc) {
+      console.warn('⚠️ Iframe document not ready');
+      return;
+    }
+
+    // Wait for iframe to be fully ready
+    if (iframeDoc.readyState !== 'complete') {
+      console.log('⏳ Waiting for iframe to load...');
+      setTimeout(updatePreview, 100);
+      return;
+    }
+
+    // Get message from various sources (Phase 1: Add fallbacks for native campaigns)
+    const displayMessage = messageTemplate || 
+      settings.headline || 
+      settings.message || // Native campaign message
+      settings.title ||   // Announcement title
+      'Preview your notification here';
+
+    // Build preview HTML with widget
+    const previewHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Widget Preview</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+          }
+          .preview-content {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 600px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+          }
+          .preview-content h1 {
+            font-size: 24px;
+            margin-bottom: 12px;
+            color: #1a1a1a;
+          }
+          .preview-content p {
+            color: #666;
+            line-height: 1.6;
+            font-size: 14px;
+          }
+          
+          /* Widget Notification Styles */
+          #notiproof-notification {
+            position: fixed;
+            ${getPositionStyles(position || settings.position || 'bottom-left')}
+            background: ${settings.backgroundColor || '#ffffff'};
+            border-radius: ${settings.borderRadius || 12}px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            padding: 16px;
+            max-width: 350px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: ${getAnimation(animation || settings.animation || 'slide')} 0.3s ease-out;
+            z-index: 999999;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+          }
+          #notiproof-notification:hover {
+            transform: scale(1.02);
+          }
+          .notification-avatar {
+            flex-shrink: 0;
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, ${settings.primaryColor || '#2563EB'}, ${adjustColor(settings.primaryColor || '#2563EB', 20)});
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+          }
+          .notification-avatar-img {
+            flex-shrink: 0;
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            object-fit: cover;
+          }
+          .notification-avatar-img.avatar {
+            border-radius: 50%;
+          }
+          .notification-content {
+            flex: 1;
+            min-width: 0;
+          }
+          .notification-headline {
+            font-size: ${settings.fontSize || 14}px;
+            font-weight: 600;
+            color: ${settings.textColor || '#1a1a1a'};
+            margin-bottom: 4px;
+            line-height: 1.4;
+          }
+          .notification-subtext {
+            font-size: 12px;
+            color: ${adjustColor(settings.textColor || '#1a1a1a', -50)};
+            opacity: 0.7;
+          }
+          .notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: ${settings.primaryColor || '#2563EB'};
+            color: white;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+          }
+          
+          @keyframes slideIn {
+            from { transform: translateX(${(position || settings.position || 'bottom-left').includes('left') ? '-' : ''}100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.05); }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); opacity: 1; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="preview-content">
+          <h1>Your Website Preview</h1>
+          <p>This is how your notification widget will appear to visitors on your actual website.</p>
+        </div>
+        
+        <div id="notiproof-notification">
+          ${(() => {
+            // Priority: Product Image > User Avatar > Icon > Fallback
+            if (settings.showProductImage !== false && settings.productImageUrl) {
+              return `<img src="${settings.productImageUrl}" class="notification-avatar-img" alt="Product" onerror="this.style.display='none'" />`;
+            } else if (settings.showAvatar !== false && settings.userAvatarUrl) {
+              return `<img src="${settings.userAvatarUrl}" class="notification-avatar-img avatar" alt="User" onerror="this.style.display='none'" />`;
+            } else if (settings.notificationIcon) {
+              return `<div class="notification-avatar">${settings.notificationIcon}</div>`;
+            } else if (settings.fallbackImageUrl) {
+              return `<img src="${settings.fallbackImageUrl}" class="notification-avatar-img" alt="Notification" onerror="this.style.display='none'" />`;
+            } else {
+              return '<div class="notification-avatar">🛍️</div>';
+            }
+          })()}
+          <div class="notification-content">
+            <div class="notification-headline">${escapeHtml(displayMessage)}</div>
+            ${settings.subtext ? `<div class="notification-subtext">${escapeHtml(settings.subtext)}</div>` : ''}
+            ${settings.showTimestamp !== false ? '<div class="notification-subtext">Just now</div>' : ''}
+          </div>
+          ${campaignType === 'limited-stock' ? '<div class="notification-badge">Low Stock</div>' : ''}
+        </div>
+      </body>
+      </html>
+    `;
+
+    iframeDoc.open();
+    iframeDoc.write(previewHtml);
+    iframeDoc.close();
+  };
+
+  const getPositionStyles = (position: string) => {
+    const positions: Record<string, string> = {
       'bottom-left': 'bottom: 20px; left: 20px;',
       'bottom-right': 'bottom: 20px; right: 20px;',
       'bottom-center': 'bottom: 20px; left: 50%; transform: translateX(-50%);',
       'top-left': 'top: 20px; left: 20px;',
       'top-right': 'top: 20px; right: 20px;',
       'top-center': 'top: 20px; left: 50%; transform: translateX(-50%);',
-      'center-left': 'top: 50%; left: 20px; transform: translateY(-50%);',
-      'center-right': 'top: 50%; right: 20px; transform: translateY(-50%);',
-      'center': 'top: 50%; left: 50%; transform: translate(-50%, -50%);',
     };
+    return positions[position] || positions['bottom-left'];
+  };
 
-    const animationMap: Record<string, string> = {
-      'slide': 'transform: translateY(0); transition: transform 0.3s ease-out;',
-      'fade': 'opacity: 1; transition: opacity 0.3s ease-out;',
-      'bounce': 'animation: bounce 0.5s ease-out;',
-      'none': '',
+  const getAnimation = (animation: string) => {
+    const animations: Record<string, string> = {
+      'slide': 'slideIn',
+      'fade': 'fadeIn',
+      'bounce': 'bounceIn',
+      'none': 'fadeIn',
     };
+    return animations[animation] || 'slideIn';
+  };
 
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              min-height: 100vh;
-              padding: 20px;
-              overflow: hidden;
-            }
-            .mock-content {
-              max-width: 800px;
-              margin: 0 auto;
-              background: white;
-              border-radius: 12px;
-              padding: 40px;
-              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            }
-            .mock-heading {
-              font-size: 32px;
-              font-weight: 700;
-              color: #1a1a1a;
-              margin-bottom: 16px;
-            }
-            .mock-text {
-              font-size: 16px;
-              color: #6b7280;
-              line-height: 1.6;
-              margin-bottom: 12px;
-            }
-            @keyframes bounce {
-              0%, 100% { transform: translateY(0); }
-              50% { transform: translateY(-10px); }
-            }
-            .notification-widget {
-              position: fixed;
-              ${positionMap[position] || positionMap['bottom-left']}
-              z-index: 9999;
-              ${animationMap[animation] || ''}
-              background: ${settings.backgroundColor || '#ffffff'};
-              color: ${settings.textColor || '#1a1a1a'};
-              padding: 16px;
-              border-radius: ${settings.borderRadius || 12}px;
-              box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-              max-width: 380px;
-              width: calc(100% - 40px);
-              border: 2px solid ${settings.primaryColor || '#2563EB'}40;
-            }
-            .widget-content {
-              display: flex;
-              align-items: start;
-              gap: 12px;
-            }
-            .widget-avatar {
-              width: 40px;
-              height: 40px;
-              border-radius: 50%;
-              background: ${settings.primaryColor || '#2563EB'}20;
-              color: ${settings.primaryColor || '#2563EB'};
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-weight: 600;
-              font-size: 14px;
-              flex-shrink: 0;
-            }
-            .widget-text {
-              flex: 1;
-              min-width: 0;
-            }
-            .widget-headline {
-              font-size: ${settings.fontSize || 14}px;
-              font-weight: 600;
-              margin-bottom: 4px;
-              line-height: 1.4;
-            }
-            .widget-subtext {
-              font-size: ${(parseInt(settings.fontSize || 14) - 2)}px;
-              opacity: 0.7;
-              line-height: 1.4;
-            }
-            .widget-badge {
-              display: inline-block;
-              background: ${settings.primaryColor || '#2563EB'}20;
-              color: ${settings.primaryColor || '#2563EB'};
-              padding: 2px 8px;
-              border-radius: 4px;
-              font-size: 11px;
-              font-weight: 500;
-              margin-left: 6px;
-            }
-            .widget-timestamp {
-              font-size: 11px;
-              opacity: 0.5;
-              margin-top: 6px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="mock-content">
-            <h1 class="mock-heading">Your Amazing Product</h1>
-            <p class="mock-text">
-              Welcome to our website! We're showing you how your social proof notification will appear to your visitors.
-            </p>
-            <p class="mock-text">
-              This preview updates in real-time as you customize the design, so you can see exactly how it will look.
-            </p>
-            <p class="mock-text">
-              The notification will appear in the position you selected with your chosen colors, fonts, and animation.
-            </p>
-          </div>
+  const adjustColor = (color: string, amount: number) => {
+    const hex = color.replace('#', '');
+    const num = parseInt(hex, 16);
+    const r = Math.max(0, Math.min(255, (num >> 16) + amount));
+    const g = Math.max(0, Math.min(255, ((num >> 8) & 0xFF) + amount));
+    const b = Math.max(0, Math.min(255, (num & 0xFF) + amount));
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+  };
 
-          <div class="notification-widget">
-            <div class="widget-content">
-              ${settings.showAvatar !== false ? '<div class="widget-avatar">SJ</div>' : ''}
-              <div class="widget-text">
-                <div class="widget-headline">
-                  ${previewHeadline}
-                  ${settings.showLocation !== false ? '<span class="widget-badge">🌎 SF</span>' : ''}
-                </div>
-                ${previewSubtext ? `<div class="widget-subtext">${previewSubtext}</div>` : ''}
-                ${settings.showTimestamp !== false ? '<div class="widget-timestamp">✓ Just now</div>' : ''}
-              </div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
+  const escapeHtml = (text: string) => {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   };
 
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1);
+    toast.success("Preview refreshed");
   };
 
+  const handlePreviewOnSite = () => {
+    if (!websiteDomain) {
+      toast.error("Website domain not configured");
+      return;
+    }
+    window.open(`https://${websiteDomain}?notiproof_preview=true`, '_blank');
+  };
+
+  const DeviceIcon = dimensions[device].icon;
+
   return (
-    <Card>
+    <Card className="border-2 sticky top-0">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-base flex items-center gap-2">
+              <Eye className="h-4 w-4" />
               Live Preview
-              <Badge variant="secondary" className="text-xs">Updates in real-time</Badge>
             </CardTitle>
-            <CardDescription className="text-xs">See how your widget will appear</CardDescription>
+            <CardDescription className="text-xs mt-1">
+              Updates as you design
+            </CardDescription>
           </div>
           <Button
             variant="outline"
             size="sm"
             onClick={handleRefresh}
-            className="h-8 gap-2"
+            className="h-7 px-2"
           >
             <RefreshCw className="h-3 w-3" />
-            Refresh
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="p-0">
         {/* Device Selector */}
-        <div className="flex items-center gap-2">
+        <div className="flex gap-1 p-2 bg-muted/30 border-t border-b">
           {(['desktop', 'tablet', 'mobile'] as const).map((d) => {
-            const Icon = deviceDimensions[d].icon;
+            const Icon = dimensions[d].icon;
             return (
               <Button
                 key={d}
-                variant={device === d ? 'default' : 'outline'}
+                variant={device === d ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={() => setDevice(d)}
-                className="h-8 gap-2 flex-1"
+                className="h-7 px-2 flex-1"
               >
                 <Icon className="h-3 w-3" />
-                <span className="capitalize text-xs">{d}</span>
               </Button>
             );
           })}
         </div>
 
         {/* Preview Frame */}
-        <div 
-          className="border rounded-lg bg-muted/30 flex items-center justify-center p-4 overflow-auto"
-          style={{ minHeight: '400px' }}
-        >
-          <div style={{ width: currentDevice.width, maxWidth: '100%' }}>
+        <div className="bg-muted/30 flex items-center justify-center overflow-hidden" style={{ height: dimensions[device].height }}>
+          <div className="transition-all duration-300" style={{ width: dimensions[device].width, height: dimensions[device].height }}>
             <iframe
               ref={iframeRef}
-              style={{
-                width: '100%',
-                height: currentDevice.height,
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '8px',
-                backgroundColor: 'white',
-              }}
+              className="w-full h-full border-0"
               title="Widget Preview"
+              sandbox="allow-scripts"
             />
           </div>
         </div>
 
-        <Alert>
+        {websiteDomain && (
+          <div className="p-2 bg-muted/50 border-t flex items-center justify-between">
+            <Badge variant="outline" className="text-xs">
+              {websiteDomain}
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreviewOnSite}
+              className="h-6 text-xs px-2"
+            >
+              <ExternalLink className="h-3 w-3 mr-1" />
+              Test
+            </Button>
+          </div>
+        )}
+        
+        <Alert className="m-2 mb-3">
+          <AlertCircle className="h-3 w-3" />
           <AlertDescription className="text-xs">
-            <strong>Tip:</strong> Changes to design, position, and animation appear instantly in the preview above.
+            Changes appear instantly - try editing colors, position, or message
           </AlertDescription>
         </Alert>
       </CardContent>
