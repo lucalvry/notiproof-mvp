@@ -243,7 +243,18 @@ export function WidgetPreviewFrame({
         
         <div id="notiproof-notification">
           ${(() => {
-            // Priority: Product Image > User Avatar > Icon > Fallback
+            const integrationSettings = settings.integration_settings || {};
+            
+            // Check announcement-specific image config first
+            if (integrationSettings.image_type === 'emoji' && integrationSettings.emoji) {
+              return `<div class="notification-avatar">${integrationSettings.emoji}</div>`;
+            } else if (integrationSettings.image_type === 'url' && integrationSettings.image_url) {
+              return `<img src="${integrationSettings.image_url}" class="notification-avatar-img" alt="Notification" onerror="this.style.display='none'" />`;
+            } else if (integrationSettings.image_type === 'icon' && integrationSettings.icon) {
+              return `<div class="notification-avatar">${integrationSettings.icon}</div>`;
+            }
+            
+            // Fallback to existing logic for other campaign types
             if (settings.showProductImage !== false && settings.productImageUrl) {
               return `<img src="${settings.productImageUrl}" class="notification-avatar-img" alt="Product" onerror="this.style.display='none'" />`;
             } else if (settings.showAvatar !== false && settings.userAvatarUrl) {

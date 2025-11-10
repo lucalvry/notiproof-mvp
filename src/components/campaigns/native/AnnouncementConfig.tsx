@@ -25,6 +25,10 @@ interface AnnouncementConfigProps {
     };
     priority: number;
     variables: Record<string, string>;
+    image_type: 'emoji' | 'icon' | 'upload' | 'url';
+    emoji?: string;
+    image_url?: string;
+    icon?: string;
   };
   onChange: (config: any) => void;
 }
@@ -51,6 +55,64 @@ export function AnnouncementConfig({ config, onChange }: AnnouncementConfigProps
                 onChange(updatedConfig);
               }}
             />
+          </div>
+          
+          {/* Image Selection */}
+          <div className="space-y-3">
+            <Label>Notification Visual</Label>
+            <Tabs 
+              value={config.image_type || 'emoji'} 
+              onValueChange={(v) => onChange({ ...config, image_type: v as any })}
+            >
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="emoji">Emoji</TabsTrigger>
+                <TabsTrigger value="icon">Icon</TabsTrigger>
+                <TabsTrigger value="url">Image URL</TabsTrigger>
+                <TabsTrigger value="upload">Upload</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="emoji" className="mt-3">
+                <Input 
+                  placeholder="e.g., 🎉 🔥 ✨ 🎁"
+                  value={config.emoji || '📢'}
+                  onChange={(e) => onChange({ ...config, emoji: e.target.value })}
+                />
+              </TabsContent>
+              
+              <TabsContent value="icon" className="mt-3">
+                <Select 
+                  value={config.icon || '📢'} 
+                  onValueChange={(v) => onChange({ ...config, icon: v })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="🛍️">🛍️ Shopping Bag</SelectItem>
+                    <SelectItem value="🎉">🎉 Celebration</SelectItem>
+                    <SelectItem value="📢">📢 Announcement</SelectItem>
+                    <SelectItem value="⚡">⚡ Flash</SelectItem>
+                    <SelectItem value="🎁">🎁 Gift</SelectItem>
+                    <SelectItem value="🔥">🔥 Hot Deal</SelectItem>
+                    <SelectItem value="✨">✨ Sparkle</SelectItem>
+                    <SelectItem value="💎">💎 Premium</SelectItem>
+                  </SelectContent>
+                </Select>
+              </TabsContent>
+              
+              <TabsContent value="url" className="mt-3">
+                <Input 
+                  placeholder="https://example.com/image.jpg"
+                  value={config.image_url || ''}
+                  onChange={(e) => onChange({ ...config, image_url: e.target.value })}
+                />
+              </TabsContent>
+              
+              <TabsContent value="upload" className="mt-3">
+                <div className="border-2 border-dashed rounded-lg p-6 text-center bg-muted/30">
+                  <p className="text-sm text-muted-foreground mb-2">Image upload coming soon</p>
+                  <p className="text-xs text-muted-foreground">Use Image URL for now</p>
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
           
           <div className="space-y-2">

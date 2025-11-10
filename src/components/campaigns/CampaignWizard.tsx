@@ -93,6 +93,12 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
       image_fallback_url: "",
       locale: "en",
       
+      // Image settings for announcements
+      image_type: 'emoji' as 'emoji' | 'icon' | 'upload' | 'url',
+      emoji: '📢',
+      icon: '📢',
+      image_url: '',
+      
       // Native-specific settings
       schedule: {
         enabled: false,
@@ -229,6 +235,10 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
         message_template: "",
         image_fallback_url: "",
         locale: "en",
+        image_type: 'emoji' as 'emoji' | 'icon' | 'upload' | 'url',
+        emoji: '📢',
+        icon: '📢',
+        image_url: '',
         schedule: {
           enabled: false,
           start_date: null,
@@ -882,15 +892,19 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
           {/* Live Preview - Right Side - Show on step 1 AND step 2 */}
           {ENABLE_LIVE_PREVIEW && (currentStep === 1 || currentStep === 2) && (() => {
             // Build preview settings with proper fallbacks
-            const previewSettings = previewState?.settings || campaignData.settings || {
-              backgroundColor: "#ffffff",
-              textColor: "#1a1a1a",
-              primaryColor: "#2563EB",
-              borderRadius: 12,
-              fontSize: 14,
-              position: "bottom-left",
-              animation: "slide",
-              showTimestamp: true,
+            const previewSettings = {
+              ...(previewState?.settings || campaignData.settings || {
+                backgroundColor: "#ffffff",
+                textColor: "#1a1a1a",
+                primaryColor: "#2563EB",
+                borderRadius: 12,
+                fontSize: 14,
+                position: "bottom-left",
+                animation: "slide",
+                showTimestamp: true,
+              }),
+              // CRITICAL: Include integration_settings for announcement image config
+              integration_settings: campaignData.integration_settings
             };
 
             // CRITICAL: Check ALL possible sources for message template
@@ -910,6 +924,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
               settingsHeadline: campaignData.settings?.headline,
               integrationTemplate: campaignData.integration_settings?.message_template,
               messageConfigTemplate: campaignData.message_config?.template,
+              imageConfig: campaignData.integration_settings?.image_type,
             });
             
             return (
