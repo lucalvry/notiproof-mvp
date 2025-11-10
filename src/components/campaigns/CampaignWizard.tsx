@@ -304,6 +304,13 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
       // Phase 6.2: Edge case - prevent fetching if wizard is closed
       if (!open) return;
 
+      // Skip template fetching for native integrations
+      const metadata = campaignData.data_source ? getIntegrationMetadata(campaignData.data_source) : null;
+      if (metadata?.isNative) {
+        console.info('📢 Skipping template fetch for native integration');
+        return;
+      }
+
       setIsLoadingTemplates(true);
       setTemplateFetchError(null);
       
@@ -593,6 +600,16 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
             <NativeIntegrationConfig 
               dataSource={campaignData.data_source}
               config={campaignData.integration_settings}
+              onPreviewUpdate={(config) => {
+                updateCampaignData({ 
+                  integration_settings: config,
+                  settings: {
+                    ...campaignData.settings,
+                    headline: config.message || config.title || '',
+                    subtext: config.cta_text || '',
+                  }
+                });
+              }}
               onConfigComplete={(config) => {
                 updateCampaignData({ 
                   integration_settings: config,

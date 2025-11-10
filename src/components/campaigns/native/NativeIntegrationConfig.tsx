@@ -10,12 +10,14 @@ interface NativeIntegrationConfigProps {
   dataSource: string;
   config: any;
   onConfigComplete: (config: any) => void;
+  onPreviewUpdate?: (config: any) => void;
 }
 
 export function NativeIntegrationConfig({ 
   dataSource, 
   config,
-  onConfigComplete 
+  onConfigComplete,
+  onPreviewUpdate
 }: NativeIntegrationConfigProps) {
   // Default configurations for each native integration type
   const getDefaultConfig = () => {
@@ -56,7 +58,8 @@ export function NativeIntegrationConfig({
   const [localConfig, setLocalConfig] = useState(() => config || getDefaultConfig());
 
   const handleChange = (updatedConfig: any) => {
-    setLocalConfig(updatedConfig); // Only update local state, don't call onConfigComplete
+    setLocalConfig(updatedConfig);
+    onPreviewUpdate?.(updatedConfig); // Update preview in real-time
   };
 
   // Render specific config UI based on native integration type
