@@ -305,9 +305,20 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
       if (!open) return;
 
       // Skip template fetching for native integrations
+      if (campaignData.integration_path === 'native') {
+        console.info('📢 Skipping template fetch for native integration path');
+        return;
+      }
+      
       const metadata = campaignData.data_source ? getIntegrationMetadata(campaignData.data_source) : null;
       if (metadata?.isNative) {
-        console.info('📢 Skipping template fetch for native integration');
+        console.info('📢 Skipping template fetch for native data source');
+        return;
+      }
+      
+      // Skip if no campaign type selected yet (prevents fetching all on initial mount)
+      if (!campaignData.type) {
+        console.info('📢 Skipping template fetch - no campaign type selected yet');
         return;
       }
 
@@ -466,7 +477,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     };
 
     fetchTemplates();
-  }, [open, campaignData.type, showAllTemplates, retryCount]); // Add retryCount for manual retry
+  }, [open, campaignData.type, campaignData.integration_path, campaignData.data_source, showAllTemplates, retryCount]); // Add dependencies for native integration skip
 
   const updateCampaignData = (data: Partial<typeof campaignData>) => {
     setCampaignData((prev) => ({ ...prev, ...data }));

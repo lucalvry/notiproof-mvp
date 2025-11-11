@@ -52,13 +52,8 @@ export function WidgetPreviewFrame({
     return () => iframe.removeEventListener('load', handleIframeLoad);
   }, []);
 
-  // Debounced update preview with 300ms delay (only when iframe is ready)
+  // Update preview immediately whenever settings change
   useEffect(() => {
-    if (!iframeReady) {
-      console.log('⏳ Waiting for iframe to be ready...');
-      return;
-    }
-
     console.log('🎨 WidgetPreviewFrame received:', {
       settings,
       messageTemplate,
@@ -69,48 +64,27 @@ export function WidgetPreviewFrame({
       settingsKeys: settings ? Object.keys(settings) : []
     });
 
-    // Clear existing timer
-    if (updateTimerRef.current) {
-      clearTimeout(updateTimerRef.current);
-    }
-
-    // Set new timer with 300ms delay
-    updateTimerRef.current = setTimeout(() => {
+    if (iframeRef.current) {
       updatePreview();
-    }, 300);
-
-    // Cleanup on unmount
-    return () => {
-      if (updateTimerRef.current) {
-        clearTimeout(updateTimerRef.current);
-      }
-    };
-  }, [settings, messageTemplate, device, refreshKey, iframeReady]);
+    }
+  }, [settings, messageTemplate, device, refreshKey]);
 
   const updatePreview = () => {
-    if (!iframeRef.current?.contentWindow) {
+    if (!iframeRef.current) {
       console.warn('⚠️ Iframe not ready');
       return;
     }
 
-    const iframeDoc = iframeRef.current.contentDocument;
-    if (!iframeDoc) {
-      console.warn('⚠️ Iframe document not ready');
-      return;
-    }
-
-    // Wait for iframe to be fully ready
-    if (iframeDoc.readyState !== 'complete') {
-      console.log('⏳ Waiting for iframe to load...');
-      setTimeout(updatePreview, 100);
-      return;
-    }
-
+    // Get integration settings for announcements
+    const integrationSettings = settings.integration_settings || {};
+    
     // Get message from various sources (Phase 1: Add fallbacks for native campaigns)
     const displayMessage = messageTemplate || 
+      integrationSettings.message ||  // Announcement message
+      integrationSettings.title ||    // Announcement title
       settings.headline || 
-      settings.message || // Native campaign message
-      settings.title ||   // Announcement title
+      settings.message || 
+      settings.title ||   
       'Preview your notification here';
 
     // Build preview HTML with widget
@@ -270,7 +244,10 @@ export function WidgetPreviewFrame({
           <div class="notification-content">
             <div class="notification-headline">${escapeHtml(displayMessage)}</div>
             ${settings.subtext ? `<div class="notification-subtext">${escapeHtml(settings.subtext)}</div>` : ''}
-            ${settings.showTimestamp !== false ? '<div class="notification-subtext">Just now</div>' : ''}
+            ${integrationSettings.cta_url && integrationSettings.cta_text 
+              ? `<div class="notification-subtext"><a href="${escapeHtml(integrationSettings.cta_url)}" target="_blank" rel="noopener noreferrer" style="color:${settings.primaryColor || '#2563EB'}; text-decoration:underline; font-weight: 600;">${escapeHtml(integrationSettings.cta_text)}</a></div>` 
+              : ''}
+            ${settings.showTimestamp !== false && !integrationSettings.cta_text ? '<div class="notification-subtext">Just now</div>' : ''}
           </div>
           ${campaignType === 'limited-stock' ? '<div class="notification-badge">Low Stock</div>' : ''}
         </div>
@@ -278,9 +255,8 @@ export function WidgetPreviewFrame({
       </html>
     `;
 
-    iframeDoc.open();
-    iframeDoc.write(previewHtml);
-    iframeDoc.close();
+    // Use srcdoc for instant, reliable updates
+    iframeRef.current.srcdoc = previewHtml;
   };
 
   const getPositionStyles = (position: string) => {
@@ -384,7 +360,7 @@ export function WidgetPreviewFrame({
               ref={iframeRef}
               className="w-full h-full border-0"
               title="Widget Preview"
-              sandbox="allow-scripts"
+              sandbox="allow-scripts allow-same-origin"
             />
           </div>
         </div>
