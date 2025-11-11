@@ -53,26 +53,44 @@ serve(async (req) => {
 
       console.log(`[process-announcements] Processing campaign ${campaign.id}`)
 
+      // First, get the widget for this campaign
+      const { data: widget, error: widgetError } = await supabase
+        .from('widgets')
+        .select('id')
+        .eq('campaign_id', campaign.id)
+        .eq('status', 'active')
+        .single()
+
+      if (widgetError || !widget) {
+        console.error(`[process-announcements] No active widget found for campaign ${campaign.id}:`, widgetError)
+        continue
+      }
+
+      console.log(`[process-announcements] Found widget ${widget.id} for campaign ${campaign.id}`)
+
       // Create event for this announcement
       const { error } = await supabase
         .from('events')
         .insert({
-          widget_id: campaign.id,
+          widget_id: widget.id,
           website_id: campaign.website_id,
           event_type: 'announcement',
-          source: 'announcement',
+          source: 'manual',
           event_data: {
             title: nativeConfig.title,
             message: nativeConfig.message,
             cta_text: nativeConfig.cta_text,
             cta_url: nativeConfig.cta_url,
+            icon: nativeConfig.icon || nativeConfig.emoji || '📢',
             priority: nativeConfig.priority || 5,
             variables: nativeConfig.variables || {}
           },
           message_template: replaceVariables(nativeConfig.message, nativeConfig.variables),
+          user_name: nativeConfig.title || 'Announcement',
+          user_location: '',
           status: 'approved',
           moderation_status: 'approved',
-          expires_at: nativeConfig.end_date || null
+          expires_at: nativeConfig.schedule?.end_date || nativeConfig.end_date || null
         })
 
       if (error) {
@@ -154,15 +172,17 @@ function shouldShowAnnouncement(config: any): boolean {
   return false
 }
 
-function replaceVariables(template: string, variables: Record<string, string>): string {
+function replaceVariables(template: string, variables: Record<string, string> = {}): string {
   let result = template
   
   // Replace {{now}} with current date
   result = result.replace(/\{\{now\}\}/g, new Date().toLocaleDateString())
   
-  // Replace custom variables
-  for (const [key, value] of Object.entries(variables)) {
-    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value)
+  // Replace custom variables - check if variables exists and is not null
+  if (variables && typeof variables === 'object') {
+    for (const [key, value] of Object.entries(variables)) {
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value)
+    }
   }
   
   return result

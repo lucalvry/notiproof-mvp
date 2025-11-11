@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
     // Get GA4 connector
     const { data: connector, error: connectorError } = await supabase
       .from('integration_connectors')
-      .select('config')
+      .select('id, config')
       .eq('website_id', website_id)
       .eq('integration_type', 'ga4')
       .eq('status', 'active')

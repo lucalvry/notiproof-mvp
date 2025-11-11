@@ -78,13 +78,10 @@ export function WidgetPreviewFrame({
     // Get integration settings for announcements
     const integrationSettings = settings.integration_settings || {};
     
-    // Get message from various sources (Phase 1: Add fallbacks for native campaigns)
-    const displayMessage = messageTemplate || 
-      integrationSettings.message ||  // Announcement message
-      integrationSettings.title ||    // Announcement title
+    // Get message from various sources - prioritize announcement title for headline
+    const displayMessage = integrationSettings.title || // Announcement headline
+      messageTemplate || 
       settings.headline || 
-      settings.message || 
-      settings.title ||   
       'Preview your notification here';
 
     // Build preview HTML with widget
@@ -242,12 +239,12 @@ export function WidgetPreviewFrame({
             }
           })()}
           <div class="notification-content">
-            <div class="notification-headline">${escapeHtml(displayMessage)}</div>
-            ${settings.subtext ? `<div class="notification-subtext">${escapeHtml(settings.subtext)}</div>` : ''}
+            <div class="notification-headline">${escapeHtml(integrationSettings.title || settings.headline || displayMessage)}</div>
+            ${integrationSettings.message ? `<div class="notification-subtext">${escapeHtml(integrationSettings.message)}</div>` : (settings.subtext ? `<div class="notification-subtext">${escapeHtml(settings.subtext)}</div>` : '')}
             ${integrationSettings.cta_url && integrationSettings.cta_text 
               ? `<div class="notification-subtext"><a href="${escapeHtml(integrationSettings.cta_url)}" target="_blank" rel="noopener noreferrer" style="color:${settings.primaryColor || '#2563EB'}; text-decoration:underline; font-weight: 600;">${escapeHtml(integrationSettings.cta_text)}</a></div>` 
               : ''}
-            ${settings.showTimestamp !== false && !integrationSettings.cta_text ? '<div class="notification-subtext">Just now</div>' : ''}
+            ${settings.showTimestamp !== false && !integrationSettings.cta_text && !integrationSettings.message ? '<div class="notification-subtext">Just now</div>' : ''}
           </div>
           ${campaignType === 'limited-stock' ? '<div class="notification-badge">Low Stock</div>' : ''}
         </div>

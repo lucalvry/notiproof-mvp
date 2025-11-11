@@ -206,10 +206,15 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     }
   };
 
+  // PHASE 5: Navigation with step validation
   const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
+    const maxStep = steps.length - 1;
+    if (currentStep >= maxStep) {
+      console.warn('⚠️ Already at last step, cannot advance');
+      return;
     }
+    console.log(`📍 Advancing from step ${currentStep} to ${currentStep + 1}`);
+    setCurrentStep(currentStep + 1);
   };
 
   const handleBack = () => {
@@ -616,8 +621,9 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
                   integration_settings: config,
                   settings: {
                     ...campaignData.settings,
-                    headline: config.message || config.title || '',
-                    subtext: config.cta_text || '',
+                    headline: config.title || '', // TITLE is headline
+                    message: config.message || '', // MESSAGE is subtext
+                    subtext: config.message || '', // Also store as subtext
                   }
                 });
               }}
@@ -626,8 +632,9 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
                   integration_settings: config,
                   settings: {
                     ...campaignData.settings,
-                    headline: config.message || config.title || '',
-                    subtext: config.cta_text || '',
+                    headline: config.title || '', // TITLE is headline
+                    message: config.message || '', // MESSAGE is subtext
+                    subtext: config.message || '', // Also store as subtext
                   }
                 });
                 handleNext();
@@ -811,11 +818,19 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
 
   // Simplified validation for Quick Start flow
   const canProceed = () => {
+    const metadata = campaignData.data_source 
+      ? getIntegrationMetadata(campaignData.data_source) 
+      : null;
+    
     switch (currentStep) {
       case 0:
         // Quick Start selection - always ready
         return false; // Selection happens via button click, not Next button
       case 1:
+        // Native integrations have their own "Continue to Design" button
+        if (metadata?.isNative) {
+          return false; // Hide Next button for native integrations at step 1
+        }
         // Integration configuration - require data source
         return typeof campaignData.data_source === 'string' && campaignData.data_source.trim() !== "";
       case 2:
@@ -827,6 +842,24 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
       default:
         return true;
     }
+  };
+
+  const shouldHideNextButton = () => {
+    const metadata = campaignData.data_source 
+      ? getIntegrationMetadata(campaignData.data_source) 
+      : null;
+    
+    // Hide Next button at Step 1 for native integrations (they use "Continue to Design" button)
+    if (metadata?.isNative && currentStep === 1) {
+      return true;
+    }
+    
+    // Hide at step 0 (selection happens via card clicks)
+    if (currentStep === 0) {
+      return true;
+    }
+    
+    return false;
   };
 
   const handleNextWithSkip = async () => {
@@ -977,7 +1010,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
             <Button variant="ghost" onClick={handleClose}>
               Cancel
             </Button>
-            {currentStep < steps.length - 1 && (
+            {currentStep < steps.length - 1 && !shouldHideNextButton() && (
               <Button onClick={handleNextWithSkip} disabled={!canProceed()}>
                 Next
                 <ChevronRight className="h-4 w-4 ml-2" />

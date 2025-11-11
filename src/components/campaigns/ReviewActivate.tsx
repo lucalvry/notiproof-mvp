@@ -10,6 +10,7 @@ import { CheckCircle2, Send, Sparkles, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { WidgetInstallationSuccess } from "./WidgetInstallationSuccess";
+import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
 
 interface ReviewActivateProps {
   campaignData: any;
@@ -121,6 +122,19 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
         });
 
       if (widgetError) throw widgetError;
+
+      // For Smart Announcements in draft mode, create the announcement event
+      if (campaignData.data_source === 'announcements' && campaignData.integration_settings) {
+        const announcementConfig = campaignData.integration_settings;
+        
+        let messageTemplate = announcementConfig.title || '';
+        if (announcementConfig.message) {
+          messageTemplate += (messageTemplate ? ' - ' : '') + announcementConfig.message;
+        }
+
+        // Note: For draft widgets, we don't have a widget_id yet, so skip event creation
+        // Events will be created when the campaign is activated
+      }
 
       toast.success("Campaign saved as draft");
       
@@ -246,13 +260,58 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
 
       if (widgetError) throw widgetError;
 
-      // Auto-generate demo events based on business type
-      const demoEvents = generateDemoEvents(newWidget.id, website?.business_type || 'saas');
-      const { error: eventsError } = await supabase
-        .from("events")
-        .insert(demoEvents);
+      // PHASE 4: Only create demo events for non-native integrations when explicitly requested
+      // Native integrations (announcements, live_visitors, instant_capture) should create their own events
+      const isNativeIntegration = ['announcements', 'live_visitors', 'instant_capture'].includes(
+        campaignData.data_source || ''
+      );
 
-      if (eventsError) console.error("Error creating demo events:", eventsError);
+      if (!isNativeIntegration && campaignData.integration_path === 'demo') {
+        // Only generate demo events if user explicitly chose demo mode
+        const demoEvents = generateDemoEvents(newWidget.id, website?.business_type || 'saas');
+        const { error: eventsError } = await supabase
+          .from("events")
+          .insert(demoEvents);
+
+        if (eventsError) console.error("Error creating demo events:", eventsError);
+      }
+
+      // PHASE 3: For Smart Announcements, create the actual announcement event
+      if (campaignData.data_source === 'announcements' && campaignData.integration_settings) {
+        const announcementConfig = campaignData.integration_settings;
+        
+        // Build the message template from the announcement config
+        let messageTemplate = announcementConfig.title || '';
+        if (announcementConfig.message) {
+          messageTemplate += (messageTemplate ? ' - ' : '') + announcementConfig.message;
+        }
+
+        // Create the announcement event
+        const { error: announcementError } = await supabase
+          .from("events")
+          .insert([{
+            widget_id: newWidget.id,
+            event_type: 'announcement',
+            source: 'manual' as const,
+            status: 'approved',
+            message_template: messageTemplate,
+            event_data: {
+              title: announcementConfig.title,
+              message: announcementConfig.message,
+              cta_text: announcementConfig.cta_text,
+              cta_url: announcementConfig.cta_url,
+              schedule_type: announcementConfig.schedule_type || 'instant',
+              priority: announcementConfig.priority || 5,
+            },
+            views: 0,
+            clicks: 0,
+          }]);
+
+        if (announcementError) {
+          console.error("Error creating announcement event:", announcementError);
+          toast.error("Campaign created but announcement event failed. Please check the Events tab.");
+        }
+      }
 
       toast.success("Campaign and widget created successfully!");
       
@@ -484,42 +543,21 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
         </Card>
       )}
 
+      {/* Live Preview Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Design Preview</CardTitle>
+          <CardTitle>Live Preview</CardTitle>
+          <CardDescription>Exactly how your notification will appear on your website</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-muted rounded-lg p-6 flex items-center justify-center">
-            <div
-              className="max-w-sm bg-card border shadow-lg p-4 rounded-lg"
-              style={{
-                borderRadius: `${campaignData.settings?.borderRadius || 12}px`,
-              }}
-            >
-              <div className="flex gap-3">
-                {campaignData.settings?.showImage && (
-                  <div className="w-12 h-12 rounded bg-primary/10 flex items-center justify-center text-primary text-xs">
-                    IMG
-                  </div>
-                )}
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    {campaignData.settings?.headline || "Your notification preview"}
-                  </p>
-                  {campaignData.settings?.subtext && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {campaignData.settings.subtext}
-                    </p>
-                  )}
-                  {campaignData.settings?.ctaEnabled && (
-                    <Button size="sm" className="mt-2">
-                      {campaignData.settings.ctaLabel || "Learn More"}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+          <WidgetPreviewFrame
+            settings={campaignData.settings}
+            messageTemplate={campaignData.settings?.headline || campaignData.integration_settings?.title || campaignData.integration_settings?.message || ""}
+            campaignType={campaignData.type}
+            websiteDomain={campaignData.website_id || "your-site.com"}
+            position={campaignData.settings?.position || "bottom-left"}
+            animation={campaignData.settings?.animation || "slide"}
+          />
         </CardContent>
       </Card>
 

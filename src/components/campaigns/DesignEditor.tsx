@@ -629,53 +629,55 @@ export function DesignEditor({
                   </p>
                 </div>
                 
-                {/* PHASE 1: Privacy Controls - Show Names & Locations */}
-                <div className="space-y-3 pt-2 border-t">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Shield className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-medium">Privacy Controls</p>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Show Customer Names</Label>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Display actual names or use "Someone"
-                      </p>
+                {/* PHASE 1: Privacy Controls - Show Names & Locations (not for announcements) */}
+                {dataSource !== 'announcements' && (
+                  <div className="space-y-3 pt-2 border-t">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Shield className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-medium">Privacy Controls</p>
                     </div>
-                    <Switch
-                      checked={design.showNames !== false}
-                      onCheckedChange={(checked) => {
-                        updateDesign({ showNames: checked });
-                        // Update headline template based on privacy setting
-                        if (!checked && design.headline) {
-                          const updatedHeadline = design.headline.replace(/\{\{user_name\}\}/gi, 'Someone');
-                          updateDesign({ headline: updatedHeadline, showNames: checked });
-                        }
-                      }}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Show Locations</Label>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Display city/country information
-                      </p>
+                    
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Show Customer Names</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Display actual names or use "Someone"
+                        </p>
+                      </div>
+                      <Switch
+                        checked={design.showNames !== false}
+                        onCheckedChange={(checked) => {
+                          updateDesign({ showNames: checked });
+                          // Update headline template based on privacy setting
+                          if (!checked && design.headline) {
+                            const updatedHeadline = design.headline.replace(/\{\{user_name\}\}/gi, 'Someone');
+                            updateDesign({ headline: updatedHeadline, showNames: checked });
+                          }
+                        }}
+                      />
                     </div>
-                    <Switch
-                      checked={design.showLocations !== false}
-                      onCheckedChange={(checked) => {
-                        updateDesign({ showLocations: checked });
-                        // Update headline template based on privacy setting
-                        if (!checked && design.headline) {
-                          const updatedHeadline = design.headline.replace(/ from \{\{location\}\}/gi, '');
-                          updateDesign({ headline: updatedHeadline, showLocations: checked });
-                        }
-                      }}
-                    />
+                    
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Show Locations</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Display city/country information
+                        </p>
+                      </div>
+                      <Switch
+                        checked={design.showLocations !== false}
+                        onCheckedChange={(checked) => {
+                          updateDesign({ showLocations: checked });
+                          // Update headline template based on privacy setting
+                          if (!checked && design.headline) {
+                            const updatedHeadline = design.headline.replace(/ from \{\{location\}\}/gi, '');
+                            updateDesign({ headline: updatedHeadline, showLocations: checked });
+                          }
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
                 
                 <div className="space-y-3 pt-2 border-t">
                   <p className="text-sm font-medium">Show/Hide Elements</p>
@@ -702,79 +704,84 @@ export function DesignEditor({
                   </div>
                 </div>
                 
-                {/* PHASE 4: Product Images Display Control */}
-                <div className="space-y-3 pt-2 border-t">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Show Product Images</Label>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Display product images when available (replaces avatar)
-                      </p>
+                {/* PHASE 4: Product Images Display Control (not for announcements) */}
+                {dataSource !== 'announcements' && (
+                  <div className="space-y-3 pt-2 border-t">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Show Product Images</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Display product images when available (replaces avatar)
+                        </p>
+                      </div>
+                      <Switch
+                        checked={design.showProductImages !== false}
+                        onCheckedChange={(checked) => updateDesign({ showProductImages: checked })}
+                      />
                     </div>
-                    <Switch
-                      checked={design.showProductImages !== false}
-                      onCheckedChange={(checked) => updateDesign({ showProductImages: checked })}
-                    />
+                    
+                    {design.showProductImages !== false && (
+                      <div className="ml-2 space-y-2 pl-3 border-l-2 border-muted">
+                        <Label className="text-xs font-medium">Fallback Icon</Label>
+                        <Select
+                          value={design.fallbackIcon || 'default'}
+                          onValueChange={(value) => updateDesign({ fallbackIcon: value })}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">📦 Package (Default)</SelectItem>
+                            <SelectItem value="cart">🛒 Shopping Cart</SelectItem>
+                            <SelectItem value="heart">❤️ Heart</SelectItem>
+                            <SelectItem value="fire">🔥 Fire</SelectItem>
+                            <SelectItem value="star">⭐ Star</SelectItem>
+                            <SelectItem value="gift">🎁 Gift</SelectItem>
+                            <SelectItem value="trophy">🏆 Trophy</SelectItem>
+                            <SelectItem value="rocket">🚀 Rocket</SelectItem>
+                            <SelectItem value="sparkles">✨ Sparkles</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Icon shown when no product image is available
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  
-                  {design.showProductImages !== false && (
-                    <div className="ml-2 space-y-2 pl-3 border-l-2 border-muted">
-                      <Label className="text-xs font-medium">Fallback Icon</Label>
-                      <Select
-                        value={design.fallbackIcon || 'default'}
-                        onValueChange={(value) => updateDesign({ fallbackIcon: value })}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="default">📦 Package (Default)</SelectItem>
-                          <SelectItem value="cart">🛒 Shopping Cart</SelectItem>
-                          <SelectItem value="heart">❤️ Heart</SelectItem>
-                          <SelectItem value="fire">🔥 Fire</SelectItem>
-                          <SelectItem value="star">⭐ Star</SelectItem>
-                          <SelectItem value="gift">🎁 Gift</SelectItem>
-                          <SelectItem value="trophy">🏆 Trophy</SelectItem>
-                          <SelectItem value="rocket">🚀 Rocket</SelectItem>
-                          <SelectItem value="sparkles">✨ Sparkles</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Icon shown when no product image is available
-                      </p>
-                    </div>
-                  )}
-                </div>
+                )}
                 
-                <div className="space-y-3 pt-2 border-t">
-                  <div className="flex items-center justify-between">
-                    <Label>Enable CTA Button</Label>
-                    <Switch
-                      checked={design.ctaEnabled}
-                      onCheckedChange={(checked) => updateDesign({ ctaEnabled: checked })}
-                    />
+                {/* CTA Button (not for announcements - they configure CTA in Step 2) */}
+                {dataSource !== 'announcements' && (
+                  <div className="space-y-3 pt-2 border-t">
+                    <div className="flex items-center justify-between">
+                      <Label>Enable CTA Button</Label>
+                      <Switch
+                        checked={design.ctaEnabled}
+                        onCheckedChange={(checked) => updateDesign({ ctaEnabled: checked })}
+                      />
+                    </div>
+                    {design.ctaEnabled && (
+                      <>
+                        <div className="space-y-2">
+                          <Label>CTA Label</Label>
+                          <Input
+                            value={design.ctaLabel}
+                            onChange={(e) => updateDesign({ ctaLabel: e.target.value })}
+                            placeholder="Learn More"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>CTA URL</Label>
+                          <Input
+                            value={design.ctaUrl}
+                            onChange={(e) => updateDesign({ ctaUrl: e.target.value })}
+                            placeholder="https://your-site.com/product"
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
-                  {design.ctaEnabled && (
-                    <>
-                      <div className="space-y-2">
-                        <Label>CTA Label</Label>
-                        <Input
-                          value={design.ctaLabel}
-                          onChange={(e) => updateDesign({ ctaLabel: e.target.value })}
-                          placeholder="Learn More"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>CTA URL</Label>
-                        <Input
-                          value={design.ctaUrl}
-                          onChange={(e) => updateDesign({ ctaUrl: e.target.value })}
-                          placeholder="https://your-site.com/product"
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
+                )}
 
                 {/* PHASE 2: Image Configuration */}
                 <div className="space-y-3 pt-2 border-t">
@@ -835,8 +842,8 @@ export function DesignEditor({
                     )}
                   </div>
 
-                  {/* Icon/Emoji Picker for Non-Commerce Campaigns */}
-                  {!['recent-purchase', 'cart-additions', 'product-reviews'].includes(campaignType || '') && (
+                  {/* Icon/Emoji Picker for Non-Commerce Campaigns (not for announcements) */}
+                  {!['recent-purchase', 'cart-additions', 'product-reviews'].includes(campaignType || '') && dataSource !== 'announcements' && (
                     <div className="space-y-2">
                       <Label>Notification Icon</Label>
                       <div className="grid grid-cols-8 gap-2">

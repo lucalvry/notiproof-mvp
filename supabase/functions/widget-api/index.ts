@@ -170,8 +170,24 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Fetch active native integration campaigns first to determine if we should exclude demo events
+      const { data: activeCampaigns, error: campaignsCheckError } = await supabase
+        .from('campaigns')
+        .select('id, data_source')
+        .eq('website_id', website.id)
+        .eq('status', 'active')
+        .in('data_source', ['instant_capture', 'live_visitors', 'announcements']);
+
+      const hasActiveCampaigns = activeCampaigns && activeCampaigns.length > 0;
+
+      // Filter out demo events if there are active campaigns
+      let allowedSourcesDefault = ['manual', 'connector', 'tracking', 'woocommerce', 'quick_win'];
+      if (!hasActiveCampaigns) {
+        // Only include demo events if no active campaigns exist
+        allowedSourcesDefault.push('demo');
+      }
+
       // Fetch events for all widgets - use valid DB enum values
-      const allowedSourcesDefault = ['manual', 'connector', 'tracking', 'demo', 'woocommerce', 'quick_win'];
       const { data: events, error: eventsError } = await supabase
         .from('events')
         .select('id, event_type, message_template, user_name, user_location, created_at, event_data, widget_id')
@@ -186,7 +202,7 @@ Deno.serve(async (req) => {
       // Fetch active native integration campaigns (instant_capture, live_visitors, announcements)
       const { data: campaigns, error: campaignsError } = await supabase
         .from('campaigns')
-        .select('id, name, data_source, native_config, status, settings')
+        .select('id, name, data_source, native_config, status, integration_settings')
         .eq('website_id', website.id)
         .eq('status', 'active')
         .in('data_source', ['instant_capture', 'live_visitors', 'announcements']);

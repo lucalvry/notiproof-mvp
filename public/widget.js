@@ -855,26 +855,30 @@
     }
   }
   
+  // PHASE 7: Fix 401 error - Only fetch for live_visitors campaigns via widget-api
   async function fetchActiveVisitorCount() {
     try {
-      // Use GA4 realtime endpoint instead of legacy Supabase polling
-      const GA4_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/ga4-realtime';
-      const endpoint = mode === 'site' 
-        ? `${GA4_BASE}?site_token=${siteToken}`
-        : `${API_BASE}/active-count?widget_id=${widgetId}`;
+      // Don't fetch active count for non-live-visitor campaigns
+      if (!showActiveVisitors) {
+        log('Active visitor tracking disabled for this campaign type');
+        return;
+      }
+
+      // Use widget-api endpoint which handles GA4 auth server-side
+      const endpoint = `${API_BASE}/widget-api/active-visitors?site_token=${siteToken}`;
       
-      log('Fetching active visitor count from GA4');
+      log('Fetching active visitor count via widget-api');
       const response = await fetch(endpoint);
       
       if (!response.ok) {
-        // Gracefully fallback on error
-        log('GA4 fetch failed, skipping active count display');
+        // Gracefully fallback on error (don't show active count)
+        log('Active visitor fetch failed (status ' + response.status + '), skipping');
         return;
       }
       
       const data = await response.json();
       currentActiveCount = data.count || 0;
-      log('Active visitor count updated (GA4)', currentActiveCount, 'cached:', data.cached);
+      log('Active visitor count updated:', currentActiveCount, data.cached ? '(cached)' : '(fresh)');
       
       // Show active visitor notification if count changed and is > 1
       if (currentActiveCount > 1 && showActiveVisitors) {
@@ -882,6 +886,7 @@
       }
     } catch (err) {
       error('Failed to fetch active visitor count', err);
+      // Don't break widget - just skip active visitor notifications
     }
   }
   

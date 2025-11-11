@@ -46,9 +46,9 @@ export function AnnouncementConfig({ config, onChange }: AnnouncementConfigProps
         {/* Basic Info */}
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Announcement Title (Internal)</Label>
+            <Label>Notification Headline</Label>
             <Input
-              placeholder="e.g., Black Friday Sale, Product Launch"
+              placeholder="e.g., 🎉 Black Friday Sale - 50% Off!"
               value={config.title}
               onChange={(e) => {
                 const updatedConfig = { ...config, title: e.target.value };

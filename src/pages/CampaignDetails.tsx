@@ -499,26 +499,42 @@ export default function CampaignDetails() {
                   template={{
                     name: campaign.name,
                     template_config: {
-                      position: ((campaign as any).settings?.position) || "bottom-right",
-                      animation: ((campaign as any).settings?.animation) || "slide",
-                      previewData: sampleEvent
-                        ? {
-                            message: sampleEvent.message_template || "Someone just took action",
-                            location: sampleEvent.user_location || "Unknown",
-                            time: formatDistanceToNow(new Date(sampleEvent.created_at), { addSuffix: true }),
-                          }
-                        : {
-                            userName: "Sarah M.",
-                            location: "San Francisco",
-                            action: "just signed up",
-                            time: "2 minutes ago",
-                          },
+                      position: ((campaign as any).settings?.position) || ((campaign as any).integration_settings?.position) || "bottom-right",
+                      animation: ((campaign as any).settings?.animation) || ((campaign as any).integration_settings?.animation) || "slide",
+                      previewData: (() => {
+                        // For announcement campaigns, use integration_settings
+                        if (campaign.data_source === 'announcements') {
+                          const integrationSettings = (campaign as any).integration_settings || {};
+                          return {
+                            message: integrationSettings.title || integrationSettings.message || integrationSettings.message_template || "Your announcement message",
+                            userName: integrationSettings.title ? undefined : "Admin",
+                            location: undefined,
+                            time: "Just now",
+                            cta: integrationSettings.cta_text,
+                            icon: "📢",
+                          };
+                        }
+                        
+                        // For other campaigns, use sample event or defaults
+                        return sampleEvent
+                          ? {
+                              message: sampleEvent.message_template || "Someone just took action",
+                              location: sampleEvent.user_location || "Unknown",
+                              time: formatDistanceToNow(new Date(sampleEvent.created_at), { addSuffix: true }),
+                            }
+                          : {
+                              userName: "Sarah M.",
+                              location: "San Francisco",
+                              action: "just signed up",
+                              time: "2 minutes ago",
+                            };
+                      })(),
                     },
                     style_config: {
-                      accentColor: ((campaign as any).settings?.accentColor) || "#3B82F6",
-                      backgroundColor: ((campaign as any).settings?.backgroundColor) || "#ffffff",
-                      textColor: ((campaign as any).settings?.textColor) || "#1a1a1a",
-                      borderRadius: ((campaign as any).settings?.borderRadius) || 12,
+                      accentColor: ((campaign as any).settings?.accentColor) || ((campaign as any).integration_settings?.primary_color) || "#3B82F6",
+                      backgroundColor: ((campaign as any).settings?.backgroundColor) || ((campaign as any).integration_settings?.background_color) || "#ffffff",
+                      textColor: ((campaign as any).settings?.textColor) || ((campaign as any).integration_settings?.text_color) || "#1a1a1a",
+                      borderRadius: ((campaign as any).settings?.borderRadius) || ((campaign as any).integration_settings?.border_radius) || 12,
                     },
                   }}
                 />
