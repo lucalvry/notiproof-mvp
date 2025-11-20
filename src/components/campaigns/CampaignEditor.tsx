@@ -24,7 +24,7 @@ export function CampaignEditor({ campaignId, open, onClose, onSave }: CampaignEd
   const [campaignName, setCampaignName] = useState("");
   const [campaignData, setCampaignData] = useState<any>({
     type: "",
-    data_source: "",
+    data_sources: [],
     settings: {},
     rules: {},
   });
@@ -47,9 +47,16 @@ export function CampaignEditor({ campaignId, open, onClose, onSave }: CampaignEd
 
       setCampaignName(data.name);
       const displayRules = data.display_rules as any;
+      const dataSources = Array.isArray(data.data_sources) ? data.data_sources as any[] : [];
+      
       setCampaignData({
-        type: data.description?.split(" campaign")[0] || "",
-        data_source: data.description?.split(" - ")[1] || "manual",
+        type: data.campaign_type || "notification",
+        data_sources: dataSources,
+        template_id: data.template_id,
+        template_mapping: data.template_mapping || {},
+        priority: data.priority || 100,
+        frequency_cap: data.frequency_cap || { per_user: 1, per_session: 1, cooldown_seconds: 600 },
+        schedule: data.schedule || {},
         settings: displayRules || {},
         rules: {
           frequency: displayRules?.interval_ms ? displayRules.interval_ms / 1000 : 10,
@@ -80,7 +87,13 @@ export function CampaignEditor({ campaignId, open, onClose, onSave }: CampaignEd
         .from("campaigns")
         .update({
           name: campaignName,
-          description: `${campaignData.type} campaign - ${campaignData.data_source}`,
+          campaign_type: campaignData.type,
+          data_sources: campaignData.data_sources || [],
+          template_id: campaignData.template_id || null,
+          template_mapping: campaignData.template_mapping || {},
+          priority: campaignData.priority || 100,
+          frequency_cap: campaignData.frequency_cap,
+          schedule: campaignData.schedule,
           display_rules: {
             ...campaignData.settings,
             frequency: campaignData.rules?.frequency,

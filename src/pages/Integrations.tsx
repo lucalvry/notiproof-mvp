@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, Upload, Search, TrendingUp, Star, Zap as ZapIcon } from "lucide-react";
+import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, Upload, Search, TrendingUp, Star, Zap as ZapIcon, Home } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { getIntegrationMetadata } from "@/lib/integrationMetadata";
 import { useSubscription } from "@/hooks/useSubscription";
 import { FreeTrialLimitBanner } from "@/components/billing/FreeTrialLimitBanner";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 interface Integration {
   id: string;
@@ -29,6 +30,7 @@ interface Integration {
   eventCount?: number;
   icon: any;
   connector?: any;
+  isNative?: boolean;
 }
 
 export default function Integrations() {
@@ -96,7 +98,6 @@ export default function Integrations() {
 
       setCurrentUserId(user.id);
 
-
       // Get user's primary website
       const { data: websites } = await supabase
         .from("websites")
@@ -129,51 +130,94 @@ export default function Integrations() {
         .select('*')
         .eq('is_active', true);
 
-      if (!configs || configs.length === 0) {
-        setIntegrations([]);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch user's integration connectors
-      const { data: connectors, error } = await supabase
+      // Fetch user's integration connectors (for webhook/oauth integrations)
+      const { data: connectors, error: connectorsError } = await supabase
         .from("integration_connectors")
         .select("*")
         .eq("website_id", websiteId);
 
-      if (error) throw error;
+      if (connectorsError) throw connectorsError;
 
-      // Build integrations list dynamically from database configs
-      const mappedIntegrations = configs.map(config => {
-        const metadata = getIntegrationMetadata(config.integration_type);
-        const connector = connectors?.find(c => c.integration_type === config.integration_type);
-        const configData = config.config as any;
-        const quota = configData?.quota_per_plan?.[userPlan] || 1;
-        const used = connectors?.filter(c => c.integration_type === config.integration_type).length || 0;
+      // Fetch user's native integrations (from integrations table)
+      const { data: nativeIntegrations, error: nativeError } = await supabase
+        .from("integrations")
+        .select("*")
+        .eq("website_id", websiteId)
+        .eq("user_id", user.id);
+
+      if (nativeError) throw nativeError;
+
+      const mappedIntegrations: Array<Integration & { 
+        popularityScore: number; 
+        isTrending: boolean; 
+        connectorType?: string;
+        isNative?: boolean;
+      }> = [];
+
+      // Add native integrations (testimonials, announcements, live_visitors, instant_capture)
+      const nativeIntegrationTypes = ['testimonials', 'announcements', 'live_visitors', 'instant_capture'];
+      nativeIntegrationTypes.forEach(integrationType => {
+        const metadata = getIntegrationMetadata(integrationType);
+        const nativeConnection = nativeIntegrations?.find(ni => ni.provider === integrationType);
         
-        return {
-          id: config.integration_type,
+        mappedIntegrations.push({
+          id: integrationType,
           name: metadata.displayName,
           type: metadata.type,
           description: metadata.description,
           icon: metadata.icon,
-          status: connector ? (connector.status === "active" ? "connected" : "error") : "disconnected",
-          lastSync: connector?.last_sync || undefined,
-          connector: connector || undefined,
+          status: nativeConnection?.is_active ? "connected" : "disconnected",
+          lastSync: nativeConnection?.last_sync_at || undefined,
+          connector: nativeConnection || undefined,
           popularityScore: metadata.popularityScore || 50,
           isTrending: metadata.isTrending || false,
-          connectorType: metadata.connectorType,
-        } as Integration & { popularityScore: number; isTrending: boolean; connectorType?: string };
+          connectorType: 'native',
+          isNative: true,
+        });
       });
+
+      // Build integrations list dynamically from database configs (webhook/oauth integrations)
+      if (configs && configs.length > 0) {
+        configs.forEach(config => {
+          const metadata = getIntegrationMetadata(config.integration_type);
+          const connector = connectors?.find(c => c.integration_type === config.integration_type);
+          const configData = config.config as any;
+          const quota = configData?.quota_per_plan?.[userPlan] || 1;
+          const used = connectors?.filter(c => c.integration_type === config.integration_type).length || 0;
+          
+          mappedIntegrations.push({
+            id: config.integration_type,
+            name: metadata.displayName,
+            type: metadata.type,
+            description: metadata.description,
+            icon: metadata.icon,
+            status: connector ? (connector.status === "active" ? "connected" : "error") : "disconnected",
+            lastSync: connector?.last_sync || undefined,
+            connector: connector || undefined,
+            popularityScore: metadata.popularityScore || 50,
+            isTrending: metadata.isTrending || false,
+            connectorType: metadata.connectorType,
+            isNative: false,
+          });
+        });
+      }
 
       // Calculate quotas for each integration
       const quotas: Record<string, { quota: number; used: number }> = {};
-      configs.forEach(config => {
+      
+      // Native integrations - unlimited
+      nativeIntegrationTypes.forEach(type => {
+        quotas[type] = { quota: 999, used: 0 };
+      });
+      
+      // Database integrations - from config
+      configs?.forEach(config => {
         const configData = config.config as any;
         const quota = configData?.quota_per_plan?.[userPlan] || 1;
         const used = connectors?.filter(c => c.integration_type === config.integration_type).length || 0;
         quotas[config.integration_type] = { quota, used };
       });
+      
       setIntegrationQuotas(quotas);
 
       setIntegrations(mappedIntegrations);
@@ -299,6 +343,20 @@ export default function Integrations() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/dashboard">
+              <Home className="h-4 w-4" />
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Integrations</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Integrations Marketplace</h1>

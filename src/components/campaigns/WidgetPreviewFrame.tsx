@@ -239,12 +239,15 @@ export function WidgetPreviewFrame({
             }
           })()}
           <div class="notification-content">
-            <div class="notification-headline">${escapeHtml(integrationSettings.title || settings.headline || displayMessage)}</div>
-            ${integrationSettings.message ? `<div class="notification-subtext">${escapeHtml(integrationSettings.message)}</div>` : (settings.subtext ? `<div class="notification-subtext">${escapeHtml(settings.subtext)}</div>` : '')}
-            ${integrationSettings.cta_url && integrationSettings.cta_text 
-              ? `<div class="notification-subtext"><a href="${escapeHtml(integrationSettings.cta_url)}" target="_blank" rel="noopener noreferrer" style="color:${settings.primaryColor || '#2563EB'}; text-decoration:underline; font-weight: 600;">${escapeHtml(integrationSettings.cta_text)}</a></div>` 
-              : ''}
-            ${settings.showTimestamp !== false && !integrationSettings.cta_text && !integrationSettings.message ? '<div class="notification-subtext">Just now</div>' : ''}
+            ${integrationSettings.title 
+              ? `<div class="notification-headline">${escapeHtml(integrationSettings.title)}</div>` 
+              : `<div class="notification-headline">${escapeHtml(settings.headline || displayMessage)}</div>`}
+            ${integrationSettings.message 
+              ? `<div class="notification-subtext" style="margin-bottom: ${integrationSettings.cta_text ? '8px' : '0'};">${escapeHtml(integrationSettings.message)}</div>` 
+              : (settings.subtext ? `<div class="notification-subtext">${escapeHtml(settings.subtext)}</div>` : '')}
+            ${integrationSettings.cta_text && integrationSettings.cta_url 
+              ? `<button style="margin-top: 8px; padding: 6px 12px; background: ${settings.primaryColor || '#2563EB'}; color: white; border: none; border-radius: 4px; font-size: 12px; font-weight: 500; cursor: pointer;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">${escapeHtml(integrationSettings.cta_text)}</button>` 
+              : (!integrationSettings.cta_text && settings.showTimestamp !== false ? '<div class="notification-subtext">Just now</div>' : '')}
           </div>
           ${campaignType === 'limited-stock' ? '<div class="notification-badge">Low Stock</div>' : ''}
         </div>

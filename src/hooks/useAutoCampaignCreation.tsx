@@ -57,7 +57,9 @@ export function useAutoCampaignCreation() {
           name: campaignName,
           type: campaignType,
           status: 'active',
-          data_source: integrationName,
+          data_sources: integrationName ? [{
+            provider: integrationName
+          }] : [],
           message_template: messageTemplate,
           template_name: campaignType,
           settings: defaultSettings,

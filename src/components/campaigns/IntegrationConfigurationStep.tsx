@@ -14,6 +14,7 @@ import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { InstantCaptureConfig } from "./native/InstantCaptureConfig";
 import { LiveVisitorConfig } from "./native/LiveVisitorConfig";
 import { AnnouncementConfig } from "./native/AnnouncementConfig";
+import { TestimonialTemplateConfig } from "./native/TestimonialTemplateConfig";
 import { LiveEventPreview } from "./LiveEventPreview";
 import { EventSyncStatus } from "./EventSyncStatus";
 import { adapterRegistry } from "@/lib/integrations";
@@ -217,7 +218,15 @@ export function IntegrationConfigurationStep({
           <AnnouncementConfig config={nativeConfig} onChange={handleNativeConfigChange} />
         )}
 
-        {!['instant_capture', 'live_visitors', 'announcements'].includes(dataSource) && (
+        {dataSource === 'testimonials' && currentWebsite?.id && (
+          <TestimonialTemplateConfig 
+            websiteId={currentWebsite.id}
+            config={nativeConfig} 
+            onChange={handleNativeConfigChange} 
+          />
+        )}
+
+        {!['instant_capture', 'live_visitors', 'announcements', 'testimonials'].includes(dataSource) && (
           <div className="text-center text-muted-foreground">Native integration config not found</div>
         )}
 

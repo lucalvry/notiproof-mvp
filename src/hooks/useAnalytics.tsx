@@ -11,6 +11,15 @@ export interface AnalyticsData {
   previousClicks: number;
   previousConversionRate: number;
   previousActiveWidgets: number;
+  testimonialMetrics?: {
+    totalTestimonials: number;
+    approvedTestimonials: number;
+    averageRating: number;
+    testimonialsWithMedia: number;
+    testimonialViews: number;
+    testimonialClicks: number;
+    testimonialCtr: number;
+  };
   topCampaigns: Array<{
     name: string;
     views: number;
@@ -50,9 +59,9 @@ export interface AnalyticsData {
   }>;
 }
 
-export const useAnalytics = (userId: string | undefined, days: number = 30) => {
+export const useAnalytics = (userId: string | undefined, days: number = 30, websiteId?: string) => {
   return useQuery({
-    queryKey: ['analytics', userId, days],
+    queryKey: ['analytics', userId, days, websiteId],
     queryFn: async (): Promise<AnalyticsData> => {
       if (!userId) {
         return {
@@ -75,12 +84,20 @@ export const useAnalytics = (userId: string | undefined, days: number = 30) => {
       }
 
       const startDate = subDays(new Date(), days).toISOString();
+      const prevStart = subDays(new Date(), days * 2).toISOString();
+      const prevEnd = subDays(new Date(), days).toISOString();
 
-      // Get user's websites
-      const { data: websites } = await supabase
+      // Get user's websites with optional filter
+      let websitesQuery = supabase
         .from('websites')
         .select('id')
         .eq('user_id', userId);
+      
+      if (websiteId) {
+        websitesQuery = websitesQuery.eq('id', websiteId);
+      }
+      
+      const { data: websites } = await websitesQuery;
 
       if (!websites || websites.length === 0) {
         return {
@@ -92,6 +109,15 @@ export const useAnalytics = (userId: string | undefined, days: number = 30) => {
           previousClicks: 0,
           previousConversionRate: 0,
           previousActiveWidgets: 0,
+          testimonialMetrics: {
+            totalTestimonials: 0,
+            approvedTestimonials: 0,
+            averageRating: 0,
+            testimonialsWithMedia: 0,
+            testimonialViews: 0,
+            testimonialClicks: 0,
+            testimonialCtr: 0,
+          },
           topCampaigns: [],
           topPages: [],
           dailyStats: [],
@@ -111,7 +137,6 @@ export const useAnalytics = (userId: string | undefined, days: number = 30) => {
         .in('website_id', websiteIds);
 
       const widgetIds = widgets?.map(w => w.id) || [];
-
       const activeWidgets = widgets?.filter(w => w.status === 'active').length || 0;
 
       if (widgetIds.length === 0) {
@@ -124,6 +149,15 @@ export const useAnalytics = (userId: string | undefined, days: number = 30) => {
           previousClicks: 0,
           previousConversionRate: 0,
           previousActiveWidgets: 0,
+          testimonialMetrics: {
+            totalTestimonials: 0,
+            approvedTestimonials: 0,
+            averageRating: 0,
+            testimonialsWithMedia: 0,
+            testimonialViews: 0,
+            testimonialClicks: 0,
+            testimonialCtr: 0,
+          },
           topCampaigns: [],
           topPages: [],
           dailyStats: [],
@@ -137,19 +171,49 @@ export const useAnalytics = (userId: string | undefined, days: number = 30) => {
       // Get events for current period
       const { data: events } = await supabase
         .from('events')
-        .select('widget_id, views, clicks, page_url, created_at, user_location, event_type, message_template, event_data')
+        .select('widget_id, views, clicks, page_url, created_at, user_location, event_type, message_template, event_data, integration_type')
         .in('widget_id', widgetIds)
         .gte('created_at', startDate)
         .order('created_at', { ascending: true });
 
-      // Get events for previous period (for comparison)
-      const previousStartDate = subDays(new Date(startDate), days).toISOString();
+      // Get events for previous period
       const { data: previousEvents } = await supabase
         .from('events')
         .select('views, clicks')
         .in('widget_id', widgetIds)
-        .gte('created_at', previousStartDate)
-        .lt('created_at', startDate);
+        .gte('created_at', prevStart)
+        .lt('created_at', prevEnd);
+
+      // Get testimonial metrics
+      let testimonialMetrics = undefined;
+      const { data: testimonials } = await supabase
+        .from('testimonials')
+        .select('id, rating, image_url, video_url, status')
+        .in('website_id', websiteIds);
+
+      if (testimonials && testimonials.length > 0) {
+        const approvedTestimonials = testimonials.filter(t => t.status === 'approved');
+        const testimonialsWithMedia = testimonials.filter(t => t.image_url || t.video_url).length;
+        const averageRating = testimonials.reduce((sum, t) => sum + (t.rating || 0), 0) / testimonials.length;
+        
+        // Get testimonial campaign events (using event_type instead of integration_type)
+        const testimonialEvents = events?.filter(e => 
+          e.event_type === 'testimonial_submitted' || 
+          e.message_template?.toLowerCase().includes('testimonial')
+        ) || [];
+        const testimonialViews = testimonialEvents.reduce((sum, e) => sum + (e.views || 0), 0);
+        const testimonialClicks = testimonialEvents.reduce((sum, e) => sum + (e.clicks || 0), 0);
+        
+        testimonialMetrics = {
+          totalTestimonials: testimonials.length,
+          approvedTestimonials: approvedTestimonials.length,
+          averageRating: Math.round(averageRating * 10) / 10,
+          testimonialsWithMedia,
+          testimonialViews,
+          testimonialClicks,
+          testimonialCtr: testimonialViews > 0 ? (testimonialClicks / testimonialViews) * 100 : 0,
+        };
+      }
 
       const totalViews = events?.reduce((sum, e) => sum + (e.views || 0), 0) || 0;
       const totalClicks = events?.reduce((sum, e) => sum + (e.clicks || 0), 0) || 0;
@@ -187,7 +251,7 @@ export const useAnalytics = (userId: string | undefined, days: number = 30) => {
         .sort((a, b) => b.views - a.views)
         .slice(0, 5) || [];
 
-      // Daily stats (simplified - group by date)
+      // Daily stats
       const dailyMap = events?.reduce((acc, event) => {
         const date = new Date(event.created_at).toISOString().split('T')[0];
         if (!acc[date]) {
@@ -221,7 +285,7 @@ export const useAnalytics = (userId: string | undefined, days: number = 30) => {
         }))
         .sort((a, b) => b.views - a.views);
 
-      // Device data (placeholder - will be populated when we track device info)
+      // Device data
       const deviceData = [
         { device: 'Desktop', views: Math.floor(totalViews * 0.6), percentage: 60 },
         { device: 'Mobile', views: Math.floor(totalViews * 0.3), percentage: 30 },
@@ -278,6 +342,7 @@ export const useAnalytics = (userId: string | undefined, days: number = 30) => {
         previousClicks,
         previousConversionRate,
         previousActiveWidgets,
+        testimonialMetrics,
         topCampaigns: campaignStats,
         topPages: pageStats,
         dailyStats,

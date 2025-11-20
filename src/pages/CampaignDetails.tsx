@@ -32,6 +32,11 @@ export default function CampaignDetails() {
   const [events, setEvents] = useState<any[]>([]);
   const [sampleEvent, setSampleEvent] = useState<any>(null);
   const [dateRange, setDateRange] = useState(30);
+  
+  // Determine campaign data sources
+  const dataSources = Array.isArray(campaign?.data_sources) ? campaign.data_sources : [];
+  const hasGA4 = dataSources.some((ds: any) => ds.provider === 'ga4');
+  const hasAnnouncements = campaign?.campaign_type === 'announcements';
   const [settingsForm, setSettingsForm] = useState({
     name: "",
     status: "draft",
@@ -165,8 +170,8 @@ export default function CampaignDetails() {
       toast.error("No website connected to this campaign");
       return;
     }
-
-    if (campaign.data_source !== 'ga4') {
+    
+    if (!hasGA4) {
       toast.error("Manual sync only available for GA4 campaigns");
       return;
     }
@@ -298,7 +303,7 @@ export default function CampaignDetails() {
           <div>
             <h1 className="text-3xl font-bold">{campaign.name}</h1>
             <p className="text-muted-foreground capitalize">
-              {campaign.type?.replace("-", " ") || "Campaign"} {campaign.data_source ? `• ${campaign.data_source}` : ""}
+              {campaign.type?.replace("-", " ") || "Campaign"}
             </p>
           </div>
           <Badge
@@ -308,7 +313,7 @@ export default function CampaignDetails() {
           </Badge>
         </div>
         <div className="flex gap-2">
-          {campaign.data_source === 'ga4' && (
+          {hasGA4 && (
             <Button 
               variant="outline" 
               onClick={handleManualSync}
@@ -440,7 +445,7 @@ export default function CampaignDetails() {
             </Card>
           </div>
 
-          {campaign.data_source === 'ga4' && campaign.polling_config && (
+          {hasGA4 && campaign.polling_config && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -503,7 +508,7 @@ export default function CampaignDetails() {
                       animation: ((campaign as any).settings?.animation) || ((campaign as any).integration_settings?.animation) || "slide",
                       previewData: (() => {
                         // For announcement campaigns, use integration_settings
-                        if (campaign.data_source === 'announcements') {
+                        if (hasAnnouncements) {
                           const integrationSettings = (campaign as any).integration_settings || {};
                           return {
                             message: integrationSettings.title || integrationSettings.message || integrationSettings.message_template || "Your announcement message",

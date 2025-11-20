@@ -23,15 +23,20 @@ serve(async (req) => {
     const { data: campaigns, error: campaignsError } = await supabase
       .from('campaigns')
       .select('*')
-      .eq('data_source', 'announcements')
-      .eq('status', 'active')
-
+      .eq('status', 'active');
+    
     if (campaignsError) {
       console.error('[process-announcements] Error fetching campaigns:', campaignsError)
       throw campaignsError
     }
+    
+    // Filter for announcement campaigns
+    const announcementCampaigns = campaigns?.filter(c => {
+      const sources = c.data_sources as any[];
+      return sources && sources.some(s => s.provider === 'announcements');
+    }) || [];
 
-    if (!campaigns || campaigns.length === 0) {
+    if (announcementCampaigns.length === 0) {
       console.log('[process-announcements] No active announcement campaigns found')
       return new Response(JSON.stringify({ processed: 0 }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -67,8 +72,56 @@ serve(async (req) => {
       }
 
       console.log(`[process-announcements] Found widget ${widget.id} for campaign ${campaign.id}`)
+      console.log(`[process-announcements] Native config for campaign ${campaign.id}:`, JSON.stringify(nativeConfig, null, 2))
 
-      // Create event for this announcement
+      // STEP 3 FIX: Add defensive checks for CTA data
+      const ctaText = nativeConfig.cta_text || nativeConfig.ctaText || '';
+      const ctaUrl = nativeConfig.cta_url || nativeConfig.ctaUrl || '';
+      
+      // Log CTA extraction
+      console.log(`[process-announcements] CTA extraction - Text: "${ctaText}", URL: "${ctaUrl}"`)
+      
+      if (!ctaText || !ctaUrl) {
+        console.warn(`[process-announcements] WARNING: Campaign ${campaign.id} missing CTA data. cta_text: "${ctaText}", cta_url: "${ctaUrl}"`)
+      }
+
+      // STEP 4 FIX: Add defensive checks for title and message data
+      const title = nativeConfig.title || '';
+      const message = nativeConfig.message || '';
+      
+      // Log title/message extraction
+      console.log(`[process-announcements] Title/Message extraction - Title: "${title}", Message: "${message}"`)
+      
+      if (!title) {
+        console.warn(`[process-announcements] WARNING: Campaign ${campaign.id} missing title`)
+      }
+      
+      if (!message) {
+        console.warn(`[process-announcements] WARNING: Campaign ${campaign.id} missing message. This will prevent subtext from showing.`)
+      }
+
+      // Create event for this announcement with ALL configuration data
+      const eventData = {
+        title: title,
+        message: message,
+        cta_text: ctaText,
+        cta_url: ctaUrl,
+        // Include image configuration
+        image_type: nativeConfig.image_type || 'icon',
+        emoji: nativeConfig.emoji || '📢',
+        icon: nativeConfig.icon || '📢',
+        image_url: nativeConfig.image_url || '',
+        priority: nativeConfig.priority || 5,
+        variables: nativeConfig.variables || {}
+      };
+
+      console.log(`[process-announcements] Creating event with data:`, JSON.stringify(eventData, null, 2))
+      console.log(`[process-announcements] Data completeness check:`)
+      console.log(`  - Has title: ${!!eventData.title} (length: ${eventData.title?.length || 0})`)
+      console.log(`  - Has message: ${!!eventData.message} (length: ${eventData.message?.length || 0})`)
+      console.log(`  - Has cta_text: ${!!eventData.cta_text} (length: ${eventData.cta_text?.length || 0})`)
+      console.log(`  - Has cta_url: ${!!eventData.cta_url} (length: ${eventData.cta_url?.length || 0})`)
+
       const { error } = await supabase
         .from('events')
         .insert({
@@ -76,16 +129,8 @@ serve(async (req) => {
           website_id: campaign.website_id,
           event_type: 'announcement',
           source: 'manual',
-          event_data: {
-            title: nativeConfig.title,
-            message: nativeConfig.message,
-            cta_text: nativeConfig.cta_text,
-            cta_url: nativeConfig.cta_url,
-            icon: nativeConfig.icon || nativeConfig.emoji || '📢',
-            priority: nativeConfig.priority || 5,
-            variables: nativeConfig.variables || {}
-          },
-          message_template: replaceVariables(nativeConfig.message, nativeConfig.variables),
+          event_data: eventData,
+          message_template: nativeConfig.title || 'Announcement',
           user_name: nativeConfig.title || 'Announcement',
           user_location: '',
           status: 'approved',
@@ -95,9 +140,17 @@ serve(async (req) => {
 
       if (error) {
         console.error(`[process-announcements] Error creating event for campaign ${campaign.id}:`, error)
+        console.error(`[process-announcements] Failed event_data:`, JSON.stringify(eventData, null, 2))
       } else {
         processed++
-        console.log(`[process-announcements] Created event for campaign ${campaign.id}`)
+        console.log(`[process-announcements] ✅ Successfully created event for campaign ${campaign.id}`)
+        console.log(`[process-announcements] ✅ Event data saved to database:`)
+        console.log(`  - Title: "${eventData.title}"`)
+        console.log(`  - Message: "${eventData.message}"`)
+        console.log(`  - CTA Text: "${eventData.cta_text}"`)
+        console.log(`  - CTA URL: "${eventData.cta_url}"`)
+        console.log(`  - Image Type: "${eventData.image_type}"`)
+        console.log(`  - Icon/Emoji: "${eventData.icon || eventData.emoji}"`)
       }
     }
 
@@ -108,7 +161,8 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('[process-announcements] Error:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })

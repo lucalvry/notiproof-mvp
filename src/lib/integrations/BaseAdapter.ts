@@ -1,27 +1,58 @@
-import { IntegrationAdapter, NormalizedEvent, FetchOptions } from './IntegrationAdapter';
+import { IntegrationAdapter, CanonicalEvent, ConnectionResult, TestResult, NormalizedField } from './types';
 
-export abstract class BaseIntegrationAdapter implements IntegrationAdapter {
-  abstract id: string;
+/**
+ * Base adapter class with common functionality
+ */
+export abstract class BaseAdapter implements IntegrationAdapter {
+  abstract provider: string;
   abstract displayName: string;
-  abstract type: 'native' | 'external' | 'manual';
   
-  // Default implementations
-  async testConnection(connectorId: string): Promise<{ success: boolean; message: string }> {
-    return { success: true, message: 'Connection active' };
-  }
-  
-  getSyncConfig() {
+  /**
+   * Default connection implementation - override if needed
+   */
+  async connect(credentials: Record<string, any>): Promise<ConnectionResult> {
     return {
-      supportsWebhook: false,
-      supportsPolling: true,
-      defaultInterval: 60, // 1 hour
-      maxEventsPerSync: 100,
+      success: true,
+      credentials,
     };
   }
   
-  // Must implement
-  abstract fetchEvents(connectorId: string, options?: FetchOptions): Promise<NormalizedEvent[]>;
-  abstract normalizeEvent(rawEvent: any): NormalizedEvent;
-  abstract getTemplateFields(): string[];
-  abstract getSampleEvent(): NormalizedEvent;
+  /**
+   * Default test connection - override for actual testing
+   */
+  async testConnection(credentials: Record<string, any>): Promise<TestResult> {
+    return {
+      success: true,
+      message: 'Connection active',
+    };
+  }
+  
+  /**
+   * Default event validation - override for webhook signature validation
+   */
+  validateEvent(rawEvent: any, signature?: string, secret?: string): boolean {
+    return rawEvent && typeof rawEvent === 'object';
+  }
+  
+  /**
+   * Generate unique event ID
+   */
+  protected generateEventId(prefix: string = 'evt'): string {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+  
+  /**
+   * Must implement: list available normalized fields
+   */
+  abstract availableFields(): NormalizedField[];
+  
+  /**
+   * Must implement: normalize raw event to canonical shape
+   */
+  abstract normalize(rawEvent: any): CanonicalEvent;
+  
+  /**
+   * Must implement: provide sample events
+   */
+  abstract getSampleEvents(): CanonicalEvent[];
 }

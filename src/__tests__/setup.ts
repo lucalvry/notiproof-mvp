@@ -1,0 +1,13 @@
+import { expect, afterEach, vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
+
+// Cleanup after each test case
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
+// Extend matchers if needed
+expect.extend({
+  // Custom matchers can be added here
+});

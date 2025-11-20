@@ -20,7 +20,7 @@ interface Campaign {
   status: string;
   organization_id: string | null;
   website_id: string;
-  data_source: string;
+  data_sources: any;
   display_rules: any;
   polling_config: any;
   start_date: string | null;
@@ -143,7 +143,7 @@ export default function Campaigns() {
           description: campaign.description,
           status: "draft",
           website_id: campaign.website_id,
-          data_source: campaign.data_source || 'manual',
+          data_sources: campaign.data_sources || [],
           display_rules: campaign.display_rules,
           start_date: campaign.start_date,
           end_date: campaign.end_date,

@@ -1,6 +1,6 @@
 /**
  * Campaign Type to Data Source Mapping
- * Defines which data sources (integrations) are relevant for each campaign type
+ * Defines which data sources (integrations) are available for each campaign type
  */
 
 export const CAMPAIGN_DATA_SOURCE_MAP: Record<string, string[]> = {
@@ -20,7 +20,7 @@ export const CAMPAIGN_DATA_SOURCE_MAP: Record<string, string[]> = {
   'upgrade-events': ['stripe', 'webhook', 'manual'],
   'feature-releases': ['webhook', 'zapier', 'manual'],
   'user-milestones': ['webhook', 'zapier', 'segment', 'mixpanel', 'manual'],
-  'testimonial': ['typeform', 'jotform', 'trustpilot', 'webhook', 'manual'],
+  'testimonial': ['testimonials', 'typeform', 'jotform', 'trustpilot', 'webhook', 'manual'],
 
   // ========== SERVICES/BOOKING (4 types) ==========
   'new-bookings': ['calendly', 'acuity', 'webhook', 'typeform', 'jotform', 'manual'],
@@ -65,11 +65,11 @@ export const CAMPAIGN_DATA_SOURCE_MAP: Record<string, string[]> = {
   'manual-upload': ['manual', 'csv'],
 };
 
-export function getDataSourcesForCampaignType(campaignType: string): string[] {
+export function getAvailableDataSourcesForCampaignType(campaignType: string): string[] {
   return CAMPAIGN_DATA_SOURCE_MAP[campaignType] || ['webhook', 'manual'];
 }
 
-export function isDataSourceRelevant(campaignType: string, dataSource: string): boolean {
-  const relevantSources = getDataSourcesForCampaignType(campaignType);
-  return relevantSources.includes(dataSource);
+export function isDataSourceCompatible(campaignType: string, dataSource: string): boolean {
+  const availableSources = getAvailableDataSourcesForCampaignType(campaignType);
+  return availableSources.includes(dataSource);
 }

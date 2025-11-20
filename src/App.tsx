@@ -14,6 +14,7 @@ import Websites from "./pages/Websites";
 import Dashboard from "./pages/Dashboard";
 import Campaigns from "./pages/Campaigns";
 import CampaignDetails from "./pages/CampaignDetails";
+import Playlists from "./pages/Playlists";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
@@ -41,11 +42,16 @@ import WidgetAnalytics from "./pages/WidgetAnalytics";
 import Templates from "./pages/Templates";
 import SelectPlan from "./pages/SelectPlan";
 import Team from "./pages/Team";
+import DataMigration from "./pages/admin/DataMigration";
+import FeatureFlags from "./pages/admin/FeatureFlags";
 import ABTesting from "./pages/ABTesting";
 import GA4PropertySelection from "./pages/GA4PropertySelection";
 import EventModeration from "./pages/EventModeration";
 import Pricing from "./pages/Pricing";
 import Rules from "./pages/Rules";
+import TestimonialCollection from "./pages/TestimonialCollection";
+import TestimonialModeration from "./pages/TestimonialModeration";
+import TestimonialManagement from "./pages/TestimonialManagement";
 import { OAuthCallback } from "./components/integrations/OAuthCallback";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { inject } from "@vercel/analytics";
@@ -102,6 +108,10 @@ const App = () => (
         <Route path="/accept-invite" element={<AcceptInvite />} />
         <Route path="/oauth-callback" element={<OAuthCallback />} />
         <Route path="/ga4-property-selection" element={<GA4PropertySelection />} />
+        
+        {/* Public Testimonial Collection Form */}
+        <Route path="/collect/:slug" element={<TestimonialCollection />} />
+        
           <Route path="/" element={<Navigate to="/websites" replace />} />
           
           {/* Admin Routes */}
@@ -119,6 +129,8 @@ const App = () => (
             <Route path="onboarding" element={<AdminOnboarding />} />
             <Route path="logs" element={<AdminLogs />} />
             <Route path="system" element={<AdminSystem />} />
+            <Route path="migration" element={<DataMigration />} />
+            <Route path="feature-flags" element={<FeatureFlags />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="help-articles" element={<AdminHelpArticles />} />
           </Route>
@@ -129,18 +141,24 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/campaigns/:id" element={<CampaignDetails />} />
+            <Route path="/playlists" element={<Playlists />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/rules" element={<Rules />} />
             <Route path="/events" element={<EventModeration />} />
             <Route path="/analytics/widget/:id" element={<WidgetAnalytics />} />
             <Route path="/integrations" element={<Integrations />} />
+            <Route path="/templates" element={<Templates />} />
+            <Route path="/testimonials" element={<TestimonialManagement />} />
+            <Route path="/testimonial-moderation" element={<TestimonialModeration />} />
+            <Route path="/collect/:slug" element={<TestimonialCollection />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/rules" element={<Rules />} />
             <Route path="/billing" element={<Billing />} />
             <Route path="/account" element={<Account />} />
             <Route path="/team" element={<Team />} />
             <Route path="/ab-testing" element={<ABTesting />} />
+            <Route path="/testimonials" element={<TestimonialModeration />} />
             <Route path="/moderation" element={<EventModeration />} />
             <Route path="/help" element={<Help />} />
             <Route path="/help/article/:slug" element={<HelpArticle />} />

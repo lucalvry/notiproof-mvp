@@ -1,18 +1,22 @@
-import { adapterRegistry } from './AdapterRegistry';
-import { ShopifyAdapter } from './adapters/ShopifyAdapter';
-import { StripeAdapter } from './adapters/StripeAdapter';
-import { AnnouncementsAdapter } from './adapters/AnnouncementsAdapter';
-import { LiveVisitorsAdapter } from './adapters/LiveVisitorsAdapter';
-import { InstantCaptureAdapter } from './adapters/InstantCaptureAdapter';
+/**
+ * Unified Integration System
+ * 
+ * This is the canonical integration layer that powers all campaigns.
+ * All campaigns, templates, and data sources go through this unified interface.
+ */
 
-// Register all adapters
-adapterRegistry.register(new ShopifyAdapter());
-adapterRegistry.register(new StripeAdapter());
-adapterRegistry.register(new AnnouncementsAdapter());
-adapterRegistry.register(new LiveVisitorsAdapter());
-adapterRegistry.register(new InstantCaptureAdapter());
-
-export { adapterRegistry };
-export * from './IntegrationAdapter';
-export * from './AdapterRegistry';
+export * from './types';
 export * from './BaseAdapter';
+export * from './AdapterRegistry';
+
+// Re-export adapters
+export { ShopifyAdapter } from './adapters/ShopifyAdapter';
+export { StripeAdapter } from './adapters/StripeAdapter';
+export { WooCommerceAdapter } from './adapters/WooCommerceAdapter';
+export { TestimonialAdapter } from './adapters/TestimonialAdapter';
+export { AnnouncementAdapter } from './adapters/AnnouncementAdapter';
+export { InstantCaptureAdapter } from './adapters/InstantCaptureAdapter';
+export { LiveVisitorsAdapter } from './adapters/LiveVisitorsAdapter';
+
+// Export singleton registry
+export { adapterRegistry } from './AdapterRegistry';

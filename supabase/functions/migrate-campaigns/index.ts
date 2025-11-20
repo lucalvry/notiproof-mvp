@@ -90,7 +90,6 @@ Deno.serve(async (req) => {
     if (!widgetsToMigrate || widgetsToMigrate.length === 0) {
       return new Response(
         JSON.stringify({
-          success: true,
           message: 'No widgets need migration',
           ...result,
         }),
@@ -155,7 +154,6 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        success: result.errors.length === 0,
         message: `Successfully migrated ${result.migratedWidgets} widgets across ${result.migratedCampaigns} campaigns`,
         ...result,
       }),

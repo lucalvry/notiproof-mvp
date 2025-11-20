@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare, Plug, Layout, Users, Plus } from "lucide-react";
+import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare, Plug, Layout, Users, Plus, ListOrdered } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -34,7 +34,9 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard", section: "website" },
   { label: "Notifications", icon: Megaphone, path: "/campaigns", section: "website" },
+  { label: "Playlists", icon: ListOrdered, path: "/playlists", section: "website" },
   { label: "Analytics", icon: BarChart, path: "/analytics", section: "website" },
+  { label: "Testimonials", icon: MessageSquare, path: "/testimonials", section: "website" },
   { label: "Rules", icon: Layout, path: "/rules", section: "website" },
   { label: "Settings", icon: Settings, path: "/settings", section: "website" },
   { label: "All Websites", icon: Globe, path: "/websites", section: "global" },

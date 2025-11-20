@@ -1,97 +1,179 @@
-import { BaseIntegrationAdapter } from '../BaseAdapter';
-import { NormalizedEvent, FetchOptions } from '../IntegrationAdapter';
-import { supabase } from '@/integrations/supabase/client';
+import { BaseAdapter } from '../BaseAdapter';
+import { CanonicalEvent, NormalizedField } from '../types';
 
-export class ShopifyAdapter extends BaseIntegrationAdapter {
-  id = 'shopify';
+export class ShopifyAdapter extends BaseAdapter {
+  provider = 'shopify';
   displayName = 'Shopify';
-  type = 'external' as const;
   
-  async fetchEvents(connectorId: string, options?: FetchOptions): Promise<NormalizedEvent[]> {
-    // Fetch from events table filtered by connector
-    const query = supabase
-      .from('events')
-      .select('*')
-      .eq('integration_type', 'shopify')
-      .eq('source', 'connector')
-      .order('created_at', { ascending: false })
-      .limit(options?.limit || 50);
-    
-    if (options?.since) {
-      query.gte('created_at', options.since.toISOString());
-    }
-    
-    const { data, error } = await query;
-    
-    if (error) throw error;
-    
-    return (data || []).map(event => this.normalizeEvent(event));
-  }
-  
-  normalizeEvent(rawEvent: any): NormalizedEvent {
-    const eventData = rawEvent.event_data || {};
-    
-    return {
-      id: rawEvent.id,
-      source: 'shopify',
-      event_type: rawEvent.event_type || 'purchase',
-      timestamp: new Date(rawEvent.created_at),
-      message: rawEvent.message_template || `${eventData.customer_name || 'Someone'} purchased ${eventData.product_name || 'a product'}`,
-      user_name: eventData.customer_name || rawEvent.user_name,
-      user_email: eventData.customer_email,
-      user_location: eventData.customer_location || rawEvent.user_location,
-      user_avatar: eventData.customer_avatar,
-      image_url: eventData.product_image,
-      metadata: {
-        product_name: eventData.product_name,
-        product_price: eventData.product_price,
-        order_id: eventData.order_id,
-        order_total: eventData.order_total,
-      },
-      external_id: eventData.order_id,
-      raw_data: rawEvent,
-    };
-  }
-  
-  getTemplateFields(): string[] {
+  availableFields(): NormalizedField[] {
     return [
-      'user_name',
-      'user_location',
-      'product_name',
-      'product_price',
-      'order_total',
-      'order_id',
+      {
+        key: 'template.customer_name',
+        label: 'Customer Name',
+        type: 'string',
+        description: 'Customer full name',
+        example: 'John Doe',
+      },
+      {
+        key: 'template.customer_email',
+        label: 'Customer Email',
+        type: 'string',
+        description: 'Customer email address',
+        example: 'john@example.com',
+      },
+      {
+        key: 'template.customer_location',
+        label: 'Customer Location',
+        type: 'string',
+        description: 'Customer city and country',
+        example: 'New York, USA',
+      },
+      {
+        key: 'template.product_name',
+        label: 'Product Name',
+        type: 'string',
+        description: 'Product title',
+        example: 'Classic Sneakers',
+        required: true,
+      },
+      {
+        key: 'template.product_image',
+        label: 'Product Image',
+        type: 'image',
+        description: 'Product image URL',
+        example: 'https://cdn.shopify.com/...',
+      },
+      {
+        key: 'template.price',
+        label: 'Price',
+        type: 'currency',
+        description: 'Product price',
+        example: 49.99,
+        required: true,
+      },
+      {
+        key: 'template.currency',
+        label: 'Currency',
+        type: 'string',
+        description: 'Currency code',
+        example: 'USD',
+      },
+      {
+        key: 'template.order_id',
+        label: 'Order ID',
+        type: 'string',
+        description: 'Order number',
+        example: '#1234',
+      },
+      {
+        key: 'template.time_ago',
+        label: 'Time Ago',
+        type: 'string',
+        description: 'Relative time',
+        example: '5 minutes ago',
+      },
     ];
   }
   
-  getSampleEvent(): NormalizedEvent {
+  normalize(rawEvent: any): CanonicalEvent {
+    const isOrder = rawEvent.topic === 'orders/create' || rawEvent.event_type === 'order_created';
+    const order = rawEvent.order || rawEvent;
+    
+    // Extract customer info
+    const customer = order.customer || {};
+    const customerName = customer.first_name && customer.last_name 
+      ? `${customer.first_name} ${customer.last_name}`
+      : customer.email?.split('@')[0] || 'Someone';
+    
+    // Extract location
+    const shippingAddress = order.shipping_address || {};
+    const customerLocation = shippingAddress.city && shippingAddress.country
+      ? `${shippingAddress.city}, ${shippingAddress.country}`
+      : shippingAddress.country || undefined;
+    
+    // Extract first product
+    const lineItems = order.line_items || [];
+    const firstProduct = lineItems[0] || {};
+    
+    // Calculate relative time
+    const createdAt = order.created_at || new Date().toISOString();
+    const timeAgo = this.getRelativeTime(createdAt);
+    
     return {
-      id: 'sample-shopify-1',
-      source: 'shopify',
-      event_type: 'purchase',
-      timestamp: new Date(),
-      message: 'Sarah from New York just purchased Premium Sneakers',
-      user_name: 'Sarah Johnson',
-      user_location: 'New York, NY',
-      user_avatar: 'https://i.pravatar.cc/150?img=1',
-      image_url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400',
-      metadata: {
-        product_name: 'Premium Sneakers',
-        product_price: '$129.99',
-        order_total: '$129.99',
-        order_id: 'SHP-12345',
+      event_id: this.generateEventId('shopify'),
+      provider: 'shopify',
+      provider_event_type: rawEvent.topic || 'order_created',
+      timestamp: createdAt,
+      payload: rawEvent,
+      normalized: {
+        'template.customer_name': customerName,
+        'template.customer_email': customer.email,
+        'template.customer_location': customerLocation,
+        'template.product_name': firstProduct.title || firstProduct.name,
+        'template.product_image': firstProduct.image?.src || firstProduct.featured_image,
+        'template.price': parseFloat(firstProduct.price || '0'),
+        'template.currency': order.currency || 'USD',
+        'template.order_id': `#${order.order_number || order.id}`,
+        'template.time_ago': timeAgo,
+        'meta.total_items': lineItems.length,
+        'meta.total_price': parseFloat(order.total_price || '0'),
       },
-      external_id: 'SHP-12345',
-      raw_data: {},
     };
   }
   
-  getSyncConfig() {
-    return {
-      supportsWebhook: true,
-      supportsPolling: false,
-      defaultInterval: 0,
-      maxEventsPerSync: 100,
-    };
+  getSampleEvents(): CanonicalEvent[] {
+    return [
+      {
+        event_id: 'shopify_sample_1',
+        provider: 'shopify',
+        provider_event_type: 'order_created',
+        timestamp: new Date().toISOString(),
+        payload: {},
+        normalized: {
+          'template.customer_name': 'Sarah Johnson',
+          'template.customer_email': 'sarah@example.com',
+          'template.customer_location': 'Los Angeles, USA',
+          'template.product_name': 'Premium Wireless Headphones',
+          'template.product_image': 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400',
+          'template.price': 199.99,
+          'template.currency': 'USD',
+          'template.order_id': '#10234',
+          'template.time_ago': '2 minutes ago',
+        },
+      },
+      {
+        event_id: 'shopify_sample_2',
+        provider: 'shopify',
+        provider_event_type: 'order_created',
+        timestamp: new Date().toISOString(),
+        payload: {},
+        normalized: {
+          'template.customer_name': 'Michael Chen',
+          'template.customer_location': 'Toronto, Canada',
+          'template.product_name': 'Organic Cotton T-Shirt',
+          'template.product_image': 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400',
+          'template.price': 29.99,
+          'template.currency': 'CAD',
+          'template.order_id': '#10235',
+          'template.time_ago': '5 minutes ago',
+        },
+      },
+    ];
+  }
+  
+  private getRelativeTime(timestamp: string): string {
+    const now = new Date();
+    const then = new Date(timestamp);
+    const diffMs = now.getTime() - then.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   }
 }

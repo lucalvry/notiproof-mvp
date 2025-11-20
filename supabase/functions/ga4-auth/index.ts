@@ -288,8 +288,8 @@ serve(async (req) => {
           user_id,
           error_message: 'User has no GA4 properties with sufficient access across all accounts',
           details: { 
-            account_summaries_count: propertiesData.accountSummaries?.length || 0,
-            raw_response: propertiesData 
+            pages_fetched: pageCount,
+            total_properties: allProperties.length
           }
         });
 

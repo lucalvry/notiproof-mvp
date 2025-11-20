@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { corsHeaders } from "../_shared/cors.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY");
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
@@ -18,6 +18,8 @@ interface TestNotificationRequest {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'));
+  
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });

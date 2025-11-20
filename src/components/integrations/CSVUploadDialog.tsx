@@ -110,6 +110,7 @@ export function CSVUploadDialog({
           // Prepare events for bulk insert
           const events = validRows.map(row => ({
             widget_id: targetWidgetId,
+            website_id: websiteId,
             event_type: row.event_type || 'manual_upload',
             event_data: { ...row, imported_from: 'csv' },
             message_template: row.message_template,

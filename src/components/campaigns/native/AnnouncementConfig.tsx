@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,13 +7,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Info, Eye } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TemplateRenderer } from "@/components/templates/TemplateRenderer";
+import { CanonicalEvent } from "@/lib/integrations/types";
+import type { TemplateConfig } from "@/lib/templateEngine";
 
 interface AnnouncementConfigProps {
   config: {
+    /** Notification headline (max 80 characters) */
     title: string;
+    /** Message content (max 150 characters) */
     message: string;
+    /** CTA button text (max 20 characters, optional) */
     cta_text?: string;
+    /** CTA button URL (optional) */
     cta_url?: string;
     schedule_type: 'instant' | 'scheduled' | 'recurring';
     start_date?: string;
@@ -31,30 +40,69 @@ interface AnnouncementConfigProps {
     icon?: string;
   };
   onChange: (config: any) => void;
+  selectedTemplate?: TemplateConfig;
 }
 
-export function AnnouncementConfig({ config, onChange }: AnnouncementConfigProps) {
+export function AnnouncementConfig({ config, onChange, selectedTemplate }: AnnouncementConfigProps) {
+  const [showPreview, setShowPreview] = useState(true);
+
+  // Create mock event data for live preview
+  const mockEvent: CanonicalEvent = useMemo(() => ({
+    event_id: 'preview',
+    provider: 'announcements',
+    provider_event_type: 'announcement_preview',
+    timestamp: new Date().toISOString(),
+    payload: {},
+    normalized: {
+      'template.title': config.title || 'Your Title Here',
+      'template.message': config.message || 'Your message content will appear here',
+      'template.icon': config.icon || config.emoji || '📢',
+      'template.cta_text': config.cta_text || 'Click Here',
+      'template.cta_url': config.cta_url || '#',
+      'template.image_url': config.image_url || '',
+    },
+  }), [config]);
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>📢 Smart Announcement Setup</CardTitle>
-        <CardDescription>
-          Create promotional notifications without third-party tools
-        </CardDescription>
-      </CardHeader>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Configuration Form */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>📢 Smart Announcement Setup</CardTitle>
+              <CardDescription>
+                Create promotional notifications without third-party tools
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPreview(!showPreview)}
+              className="lg:hidden"
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              {showPreview ? 'Hide' : 'Show'} Preview
+            </Button>
+          </div>
+        </CardHeader>
       <CardContent className="space-y-6">
         {/* Basic Info */}
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Notification Headline</Label>
+            <div className="flex items-center justify-between">
+              <Label>Notification Headline</Label>
+              <span className="text-xs text-muted-foreground">{config.title?.length || 0}/80</span>
+            </div>
             <Input
               placeholder="e.g., 🎉 Black Friday Sale - 50% Off!"
-              value={config.title}
+              value={config.title || ''}
+              maxLength={80}
               onChange={(e) => {
-                const updatedConfig = { ...config, title: e.target.value };
-                onChange(updatedConfig);
+                onChange({ ...config, title: e.target.value });
               }}
             />
+            <p className="text-xs text-muted-foreground">Keep it short and attention-grabbing</p>
           </div>
           
           {/* Image Selection */}
@@ -116,50 +164,60 @@ export function AnnouncementConfig({ config, onChange }: AnnouncementConfigProps
           </div>
           
           <div className="space-y-2">
-            <Label>Message Content</Label>
+            <div className="flex items-center justify-between">
+              <Label>Message Content</Label>
+              <span className="text-xs text-muted-foreground">{config.message?.length || 0}/150</span>
+            </div>
             <Textarea
               placeholder="e.g., Limited time: {{discount}}% off all products!"
-              value={config.message}
+              value={config.message || ''}
+              maxLength={150}
               onChange={(e) => {
-                const updatedConfig = { ...config, message: e.target.value };
-                onChange(updatedConfig);
+                onChange({ ...config, message: e.target.value });
               }}
               rows={3}
             />
-            <div className="flex flex-wrap gap-2 mt-2">
+            <p className="text-xs text-muted-foreground">Additional details about your announcement</p>
+            <div className="flex flex-wrap gap-2">
               <Badge variant="secondary" className="text-xs">Available: {`{{discount}}`}</Badge>
               <Badge variant="secondary" className="text-xs">{`{{coupon_code}}`}</Badge>
               <Badge variant="secondary" className="text-xs">{`{{product_name}}`}</Badge>
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Call-to-Action Text (Optional)</Label>
-              <Input
-                placeholder="e.g., Shop Now, Learn More"
-                value={config.cta_text ?? ''}
-                onChange={(e) => {
-                  console.log('✏️ CTA Text changed:', e.target.value);
-                  const updatedConfig = { ...config, cta_text: e.target.value };
-                  console.log('📤 Calling parent onChange with:', updatedConfig);
-                  onChange(updatedConfig);
-                }}
-              />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Call-to-Action Text (Optional)</Label>
+                <Input
+                  placeholder="e.g., Shop Now, Learn More"
+                  value={config.cta_text ?? ''}
+                  maxLength={20}
+                  onChange={(e) => {
+                    onChange({ ...config, cta_text: e.target.value });
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">Button text (20 chars max)</p>
+              </div>
+              <div className="space-y-2">
+                <Label>CTA Link URL (Optional)</Label>
+                <Input
+                  placeholder="https://..."
+                  value={config.cta_url ?? ''}
+                  onChange={(e) => {
+                    onChange({ ...config, cta_url: e.target.value });
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">Where the button links to</p>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>CTA Link URL (Optional)</Label>
-              <Input
-                placeholder="https://..."
-                value={config.cta_url ?? ''}
-                onChange={(e) => {
-                  console.log('✏️ CTA URL changed:', e.target.value);
-                  const updatedConfig = { ...config, cta_url: e.target.value };
-                  console.log('📤 Calling parent onChange with:', updatedConfig);
-                  onChange(updatedConfig);
-                }}
-              />
-            </div>
+            
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                💡 <strong>Best Practice:</strong> Add a CTA button to make your announcement actionable. If left empty, the notification will show "Just now" timestamp instead.
+              </AlertDescription>
+            </Alert>
           </div>
         </div>
 
@@ -279,5 +337,36 @@ export function AnnouncementConfig({ config, onChange }: AnnouncementConfigProps
         </div>
       </CardContent>
     </Card>
+
+      {/* Live Preview Panel */}
+      {showPreview && selectedTemplate && (
+        <Card className="lg:sticky lg:top-6 lg:self-start">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Live Preview
+            </CardTitle>
+            <CardDescription>
+              See how your announcement will appear to visitors
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="border rounded-lg overflow-hidden bg-muted/30 relative min-h-[300px] flex items-center justify-center">
+              <div className="absolute inset-0 scale-75 origin-center">
+                <TemplateRenderer
+                  template={selectedTemplate}
+                  event={mockEvent}
+                  className="announcement-preview"
+                />
+              </div>
+            </div>
+            <div className="mt-4 text-xs text-muted-foreground">
+              <Badge variant="outline" className="mb-2">Preview Mode</Badge>
+              <p>This is a scaled-down preview. Your announcement will display at full size on your website.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

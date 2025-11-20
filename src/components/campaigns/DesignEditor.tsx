@@ -679,30 +679,32 @@ export function DesignEditor({
                   </div>
                 )}
                 
-                <div className="space-y-3 pt-2 border-t">
-                  <p className="text-sm font-medium">Show/Hide Elements</p>
-                  <div className="flex items-center justify-between">
-                    <Label>Show avatar</Label>
-                    <Switch
-                      checked={design.showAvatar}
-                      onCheckedChange={(checked) => updateDesign({ showAvatar: checked })}
-                    />
+                {dataSource !== 'announcements' && (
+                  <div className="space-y-3 pt-2 border-t">
+                    <p className="text-sm font-medium">Show/Hide Elements</p>
+                    <div className="flex items-center justify-between">
+                      <Label>Show avatar</Label>
+                      <Switch
+                        checked={design.showAvatar}
+                        onCheckedChange={(checked) => updateDesign({ showAvatar: checked })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label>Show timestamp</Label>
+                      <Switch
+                        checked={design.showTimestamp}
+                        onCheckedChange={(checked) => updateDesign({ showTimestamp: checked })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label>Show location</Label>
+                      <Switch
+                        checked={design.showLocation}
+                        onCheckedChange={(checked) => updateDesign({ showLocation: checked })}
+                      />
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <Label>Show timestamp</Label>
-                    <Switch
-                      checked={design.showTimestamp}
-                      onCheckedChange={(checked) => updateDesign({ showTimestamp: checked })}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label>Show location</Label>
-                    <Switch
-                      checked={design.showLocation}
-                      onCheckedChange={(checked) => updateDesign({ showLocation: checked })}
-                    />
-                  </div>
-                </div>
+                )}
                 
                 {/* PHASE 4: Product Images Display Control (not for announcements) */}
                 {dataSource !== 'announcements' && (
@@ -783,87 +785,89 @@ export function DesignEditor({
                   </div>
                 )}
 
-                {/* PHASE 2: Image Configuration */}
-                <div className="space-y-3 pt-2 border-t">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-2xl">🖼️</span>
-                    <p className="text-sm font-medium">Notification Images</p>
-                  </div>
-                  
-                  {/* Show Product Images Toggle */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Show Product Images</Label>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Display product thumbnails from your integration
-                      </p>
+                {/* PHASE 2: Image Configuration (not for announcements - they configure in Step 2) */}
+                {dataSource !== 'announcements' && (
+                  <div className="space-y-3 pt-2 border-t">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">🖼️</span>
+                      <p className="text-sm font-medium">Notification Images</p>
                     </div>
-                    <Switch
-                      checked={design.showProductImage !== false}
-                      onCheckedChange={(checked) => updateDesign({ showProductImage: checked })}
-                    />
-                  </div>
-
-                  {/* Show User Avatars Toggle */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Show User Avatars</Label>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Display customer profile pictures or initials
-                      </p>
+                    
+                    {/* Show Product Images Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Show Product Images</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Display product thumbnails from your integration
+                        </p>
+                      </div>
+                      <Switch
+                        checked={design.showProductImage !== false}
+                        onCheckedChange={(checked) => updateDesign({ showProductImage: checked })}
+                      />
                     </div>
-                    <Switch
-                      checked={design.showAvatar !== false}
-                      onCheckedChange={(checked) => updateDesign({ showAvatar: checked })}
-                    />
-                  </div>
 
-                  {/* Fallback Image URL */}
-                  <div className="space-y-2">
-                    <Label>Fallback Image (when data has no image)</Label>
-                    <Input
-                      type="url"
-                      placeholder="https://example.com/default-image.png"
-                      value={design.fallbackImageUrl || ""}
-                      onChange={(e) => updateDesign({ fallbackImageUrl: e.target.value })}
-                    />
-                    {design.fallbackImageUrl && (
-                      <div className="flex items-center gap-2 p-2 border rounded">
-                        <img 
-                          src={design.fallbackImageUrl} 
-                          alt="Fallback preview" 
-                          className="w-10 h-10 rounded-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%23ddd"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23999" font-size="20">?</text></svg>';
-                          }}
-                        />
-                        <span className="text-xs text-muted-foreground">Preview</span>
+                    {/* Show User Avatars Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Show User Avatars</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Display customer profile pictures or initials
+                        </p>
+                      </div>
+                      <Switch
+                        checked={design.showAvatar !== false}
+                        onCheckedChange={(checked) => updateDesign({ showAvatar: checked })}
+                      />
+                    </div>
+
+                    {/* Fallback Image URL */}
+                    <div className="space-y-2">
+                      <Label>Fallback Image (when data has no image)</Label>
+                      <Input
+                        type="url"
+                        placeholder="https://example.com/default-image.png"
+                        value={design.fallbackImageUrl || ""}
+                        onChange={(e) => updateDesign({ fallbackImageUrl: e.target.value })}
+                      />
+                      {design.fallbackImageUrl && (
+                        <div className="flex items-center gap-2 p-2 border rounded">
+                          <img 
+                            src={design.fallbackImageUrl} 
+                            alt="Fallback preview" 
+                            className="w-10 h-10 rounded-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%23ddd"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23999" font-size="20">?</text></svg>';
+                            }}
+                          />
+                          <span className="text-xs text-muted-foreground">Preview</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Icon/Emoji Picker for Non-Commerce Campaigns (not for announcements) */}
+                    {!['recent-purchase', 'cart-additions', 'product-reviews'].includes(campaignType || '') && dataSource !== 'announcements' && (
+                      <div className="space-y-2">
+                        <Label>Notification Icon</Label>
+                        <div className="grid grid-cols-8 gap-2">
+                          {['🎉', '✅', '🔥', '⭐', '💡', '📢', '🚀', '👋', '💰', '📊', '🎯', '🏆'].map(emoji => (
+                            <Button
+                              key={emoji}
+                              variant={design.notificationIcon === emoji ? "default" : "outline"}
+                              onClick={() => updateDesign({ notificationIcon: emoji })}
+                              className="text-xl p-2 h-12"
+                            >
+                              {emoji}
+                            </Button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Choose an icon to display when there's no product image
+                        </p>
                       </div>
                     )}
                   </div>
-
-                  {/* Icon/Emoji Picker for Non-Commerce Campaigns (not for announcements) */}
-                  {!['recent-purchase', 'cart-additions', 'product-reviews'].includes(campaignType || '') && dataSource !== 'announcements' && (
-                    <div className="space-y-2">
-                      <Label>Notification Icon</Label>
-                      <div className="grid grid-cols-8 gap-2">
-                        {['🎉', '✅', '🔥', '⭐', '💡', '📢', '🚀', '👋', '💰', '📊', '🎯', '🏆'].map(emoji => (
-                          <Button
-                            key={emoji}
-                            variant={design.notificationIcon === emoji ? "default" : "outline"}
-                            onClick={() => updateDesign({ notificationIcon: emoji })}
-                            className="text-xl p-2 h-12"
-                          >
-                            {emoji}
-                          </Button>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Choose an icon to display when there's no product image
-                      </p>
-                    </div>
-                  )}
-                </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

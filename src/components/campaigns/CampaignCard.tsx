@@ -29,7 +29,7 @@ interface Campaign {
   name: string;
   description: string | null;
   status: string;
-  data_source: string;
+  data_sources: any;
   display_rules: any;
   created_at: string;
   updated_at: string;
@@ -58,7 +58,10 @@ export function CampaignCard({
   const isActive = campaign.status === "active";
 
   // Get integration metadata for icon
-  const integrationMeta = getIntegrationMetadata(campaign.data_source || 'manual');
+  const primaryProvider = Array.isArray(campaign.data_sources) && campaign.data_sources.length > 0
+    ? campaign.data_sources[0].provider
+    : 'manual';
+  const integrationMeta = getIntegrationMetadata(primaryProvider);
   const IntegrationIcon = integrationMeta.icon;
 
   // Calculate CTR

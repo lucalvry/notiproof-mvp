@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { IntegrationMetadata } from "./integrationMetadata";
 
-export type AuthFlowType = 'oauth' | 'webhook' | 'api_key' | 'custom';
+export type AuthFlowType = 'oauth' | 'webhook' | 'api_key' | 'native' | 'custom';
 
 export interface IntegrationPlugin {
   id: string;
@@ -80,6 +80,10 @@ export function getAuthFlowType(integration: any): AuthFlowType {
   
   if (metadata.requiresOauth || metadata.connectorType === 'oauth') {
     return 'oauth';
+  }
+  
+  if (metadata.connectorType === 'native' || metadata.isNative) {
+    return 'native';
   }
   
   if (metadata.connectorType === 'webhook' || metadata.connectorType === 'zapier_proxy') {

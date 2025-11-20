@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getIntegrationMetadata, normalizeIntegrationKey } from "@/lib/integrationMetadata";
-import { getDataSourcesForCampaignType } from "@/lib/campaignDataSources";
+import { getAvailableDataSourcesForCampaignType } from "@/lib/campaignDataSources";
 import { useToast } from "@/hooks/use-toast";
 import { ConnectionStatusBadge } from "./ConnectionStatusBadge";
 
@@ -20,8 +20,8 @@ export function IntegrationSelector({
 }: IntegrationSelectorProps) {
   const { toast } = useToast();
   
-  // Get relevant integrations for this campaign type
-  const relevantIntegrations = getDataSourcesForCampaignType(campaignType);
+  // Get available integrations for this campaign type
+  const relevantIntegrations = getAvailableDataSourcesForCampaignType(campaignType);
   
   // Filter out 'manual' and 'csv' as they're not real integrations
   const integrationOptions = relevantIntegrations

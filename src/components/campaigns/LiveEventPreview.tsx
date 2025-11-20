@@ -29,38 +29,26 @@ export function LiveEventPreview({ connectorId, integrationId, template }: LiveE
         return;
       }
 
-      // Try to fetch real recent events
-      const events = await adapter.fetchEvents(connectorId, { limit: 3 });
-
-      if (events.length > 0) {
-        setSampleEvents(events);
-      } else {
-        // Fallback to sample
-        setSampleEvents([adapter.getSampleEvent()]);
-      }
+      // Use sample events from adapter
+      const samples = adapter.getSampleEvents();
+      setSampleEvents(samples.slice(0, 3));
     } catch (error) {
       console.error('Error loading sample events:', error);
-      // Fallback to sample on error
-      const adapter = adapterRegistry.get(integrationId);
-      if (adapter) {
-        setSampleEvents([adapter.getSampleEvent()]);
-      }
+      setSampleEvents([]);
     } finally {
       setLoading(false);
     }
   };
 
   const renderTemplate = (event: any) => {
-    let rendered = template || event.message;
+    let rendered = template || event.normalized?.message || 'Sample event';
 
-    // Replace placeholders
-    Object.entries(event.metadata || {}).forEach(([key, value]) => {
-      rendered = rendered.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
-    });
-
-    rendered = rendered
-      .replace(/\{\{user_name\}\}/g, event.user_name || 'Someone')
-      .replace(/\{\{user_location\}\}/g, event.user_location || '');
+    // Replace placeholders with normalized fields
+    if (event.normalized) {
+      Object.entries(event.normalized).forEach(([key, value]) => {
+        rendered = rendered.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
+      });
+    }
 
     return rendered;
   };
@@ -92,20 +80,20 @@ export function LiveEventPreview({ connectorId, integrationId, template }: LiveE
         >
           <div className="flex items-start gap-3">
             <Avatar className="h-10 w-10">
-              <AvatarImage src={event.user_avatar || event.image_url} />
-              <AvatarFallback>{event.user_name?.[0] || '?'}</AvatarFallback>
+              <AvatarImage src={event.normalized?.user_avatar || event.normalized?.image_url} />
+              <AvatarFallback>{event.normalized?.user_name?.[0] || '?'}</AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <p className="text-sm font-medium">{renderTemplate(event)}</p>
-              {event.user_location && (
-                <p className="text-xs text-muted-foreground mt-1">📍 {event.user_location}</p>
+              {event.normalized?.user_location && (
+                <p className="text-xs text-muted-foreground mt-1">📍 {event.normalized.user_location}</p>
               )}
               <p className="text-xs text-muted-foreground mt-1">
                 ✓ {formatDistanceToNow(new Date(event.timestamp), { addSuffix: true })}
               </p>
             </div>
             <Badge variant="secondary" className="text-xs">
-              Live Data
+              Sample Data
             </Badge>
           </div>
         </Card>

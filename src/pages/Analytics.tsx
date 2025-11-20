@@ -10,6 +10,8 @@ import { HourHeatmap } from "@/components/analytics/HourHeatmap";
 import { TopEvents } from "@/components/analytics/TopEvents";
 import { AIInsights } from "@/components/analytics/AIInsights";
 import { RevenueAttributionWidget } from "@/components/analytics/RevenueAttributionWidget";
+import { TestimonialMetricsCard } from "@/components/analytics/TestimonialMetricsCard";
+import { WebsiteSelector } from "@/components/analytics/WebsiteSelector";
 import { useSubscription } from "@/hooks/useSubscription";
 import { ExportButton } from "@/components/analytics/ExportButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,7 +19,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 export default function Analytics() {
   const [userId, setUserId] = useState<string>();
   const [dateRange, setDateRange] = useState(30);
-  const { data: analytics, isLoading } = useAnalytics(userId, dateRange);
+  const [selectedWebsite, setSelectedWebsite] = useState<string>('all');
+  const { data: analytics, isLoading } = useAnalytics(
+    userId, 
+    dateRange, 
+    selectedWebsite === 'all' ? undefined : selectedWebsite
+  );
   const { subscription } = useSubscription(userId);
   const performanceChartRef = useRef<HTMLDivElement>(null);
   const geoMapRef = useRef<HTMLDivElement>(null);
@@ -52,17 +59,24 @@ export default function Analytics() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold">Analytics</h1>
           <p className="text-muted-foreground">
             Detailed insights about your campaigns
           </p>
         </div>
-        <ExportButton 
-          data={analytics?.dailyStats || []} 
-          filename={`analytics-${new Date().toISOString().split('T')[0]}`}
-        />
+        <div className="flex items-center gap-4">
+          <WebsiteSelector 
+            userId={userId || ''} 
+            value={selectedWebsite}
+            onValueChange={setSelectedWebsite}
+          />
+          <ExportButton 
+            data={analytics?.dailyStats || []} 
+            filename={`analytics-${new Date().toISOString().split('T')[0]}`}
+          />
+        </div>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
@@ -84,6 +98,14 @@ export default function Analytics() {
         previousActiveWidgets={analytics?.previousActiveWidgets}
         isLoading={isLoading}
       />
+
+      {/* Testimonial Metrics - only show if there are testimonials */}
+      {analytics?.testimonialMetrics && (
+        <TestimonialMetricsCard 
+          metrics={analytics.testimonialMetrics}
+          isLoading={isLoading}
+        />
+      )}
 
       {/* Section 2: Performance Graph */}
       <div ref={performanceChartRef}>

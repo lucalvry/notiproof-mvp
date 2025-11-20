@@ -1,7 +1,7 @@
 (function() {
   'use strict';
   
-  const WIDGET_VERSION = 2; // Current widget version
+  const WIDGET_VERSION = 3; // Current widget version - FORCE CACHE BUST
   const API_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
   const SUPABASE_URL = 'https://ewymvxhpkswhsirdrjub.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3eW12eGhwa3N3aHNpcmRyanViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTY0NDksImV4cCI6MjA3MDU3MjQ0OX0.ToRbUm37-ZnYkmmCfLW7am38rUGgFAppNxcZ2tar9mc';
@@ -234,7 +234,7 @@
     showCTA: script.getAttribute('data-show-cta') === 'true',
     ctaText: script.getAttribute('data-cta-text') || 'Learn More',
     ctaUrl: script.getAttribute('data-cta-url') || '',
-    showActiveVisitors: script.getAttribute('data-show-active-visitors') !== 'false',
+    showActiveVisitors: script.getAttribute('data-show-active-visitors') === 'true',
     pauseAfterClick: script.getAttribute('data-pause-after-click') === 'true',
     pauseAfterClose: script.getAttribute('data-pause-after-close') === 'true',
     makeClickable: script.getAttribute('data-make-clickable') !== 'false',
@@ -351,6 +351,13 @@
     } catch {
       return false;
     }
+  }
+  
+  // HTML escape helper to prevent XSS
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
   
   // Linkify product names in message templates with XSS protection
@@ -495,6 +502,46 @@
   
   
   function showNotification(event) {
+    // CRITICAL STEP 4: Log event received by showNotification
+    console.log('[Widget] STEP 4 - showNotification called with event:', {
+      event_id: event.id,
+      event_type: event.event_type,
+      is_announcement: event.event_type === 'announcement',
+      has_event_data: !!event.event_data,
+      event_data_type: typeof event.event_data,
+      event_data_is_string: typeof event.event_data === 'string',
+      event_data_keys: event.event_data && typeof event.event_data === 'object' ? Object.keys(event.event_data) : 'N/A',
+      raw_event_data: event.event_data
+    });
+    
+    // FIX: Ensure event_data is parsed if it's a string (double-encoded JSON)
+    if (event.event_data && typeof event.event_data === 'string') {
+      try {
+        event.event_data = JSON.parse(event.event_data);
+        console.log('[Widget] ✅ Parsed event_data from string to object');
+      } catch (e) {
+        console.error('[Widget] ❌ Failed to parse event_data:', e);
+      }
+    }
+    
+    // DEBUG: Log full event structure for announcements
+    if (event.event_type === 'announcement') {
+      console.group('🎯 ANNOUNCEMENT DEBUG');
+      console.log('event.event_type:', event.event_type);
+      console.log('event.event_data type:', typeof event.event_data);
+      console.log('event.event_data value:', event.event_data);
+      if (event.event_data && typeof event.event_data === 'object') {
+        console.log('  ✅ event.event_data.title:', event.event_data.title);
+        console.log('  ✅ event.event_data.message:', event.event_data.message);
+        console.log('  ✅ event.event_data.icon:', event.event_data.icon);
+        console.log('  ✅ event.event_data.emoji:', event.event_data.emoji);
+        console.log('  ✅ event.event_data.image_type:', event.event_data.image_type);
+        console.log('  ✅ event.event_data.cta_text:', event.event_data.cta_text);
+        console.log('  ✅ event.event_data.cta_url:', event.event_data.cta_url);
+      }
+      console.groupEnd();
+    }
+    
     if (isPaused) {
       log('Notifications paused');
       return;
@@ -554,12 +601,68 @@
       </div>
     `;
     
-    // PHASE 4: Product/Preset Image - FIXED to work independently of showAvatar
-    const showProductImages = config.showProductImages !== false; // Default to true
-    const hasProductImage = event.event_data?.product_image || event.event_data?.category || event.event_type;
-    
-    if (showProductImages && hasProductImage) {
-      // Use product/preset image (works with or without showAvatar)
+    // ANNOUNCEMENT-SPECIFIC IMAGE HANDLING
+    if (event.event_type === 'announcement') {
+      console.log('🖼️ [Widget] Announcement image data:', {
+        image_type: event.event_data?.image_type,
+        emoji: event.event_data?.emoji,
+        icon: event.event_data?.icon,
+        image_url: event.event_data?.image_url,
+        full_event_data: event.event_data
+      });
+
+      const imageType = event.event_data?.image_type;
+      
+      if (imageType === 'emoji' && event.event_data.emoji) {
+        console.log('🖼️ [Widget] Rendering emoji:', event.event_data.emoji);
+        contentHTML += `<div style="
+          width: 48px; height: 48px; border-radius: 8px;
+          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 28px; flex-shrink: 0;
+        ">${event.event_data.emoji}</div>`;
+      } else if (imageType === 'icon' && event.event_data.icon) {
+        console.log('🖼️ [Widget] Rendering icon:', event.event_data.icon);
+        contentHTML += `<div style="
+          width: 48px; height: 48px; border-radius: 8px;
+          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 28px; flex-shrink: 0;
+        ">${event.event_data.icon}</div>`;
+      } else if (imageType === 'url' && event.event_data.image_url && isValidUrl(event.event_data.image_url)) {
+        console.log('🖼️ [Widget] Rendering image URL:', event.event_data.image_url);
+        contentHTML += `<img src="${escapeHtml(event.event_data.image_url)}" 
+          style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;"
+          alt="Announcement" onerror="this.style.display='none'" />`;
+      } else {
+        // Fallback logic: try icon, then emoji, then default
+        console.log('🖼️ [Widget] Using fallback image (imageType:', imageType, ')');
+        if (event.event_data?.icon) {
+          console.log('🖼️ [Widget] Fallback to icon:', event.event_data.icon);
+          contentHTML += `<div style="
+            width: 48px; height: 48px; border-radius: 8px;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px; flex-shrink: 0;
+          ">${event.event_data.icon}</div>`;
+        } else if (event.event_data?.emoji) {
+          console.log('🖼️ [Widget] Fallback to emoji:', event.event_data.emoji);
+          contentHTML += `<div style="
+            width: 48px; height: 48px; border-radius: 8px;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px; flex-shrink: 0;
+          ">${event.event_data.emoji}</div>`;
+        } else {
+          console.log('🖼️ [Widget] Using default 📢 emoji');
+          contentHTML += `<div style="width: 48px; height: 48px; border-radius: 8px;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px; flex-shrink: 0;">📢</div>`;
+        }
+      }
+    } else if (showProductImages && hasProductImage) {
+      // EXISTING PRODUCT IMAGE LOGIC
       contentHTML += '<div data-image-placeholder></div>';
     } else if (config.showAvatar && event.user_name) {
       // Traditional avatar fallback (only if no preset image)
@@ -589,14 +692,89 @@
     // Content
     contentHTML += '<div style="flex: 1; min-width: 0;">';
     
-    // Message with product linkification
-    const linkedMessage = linkifyMessage(event.message_template || 'New activity', event.event_data);
-    contentHTML += `<div style="font-weight: 600; margin-bottom: 4px; line-height: 1.4;">
-      ${linkedMessage}
-    </div>`;
+    // JSON parsing already done at function start (line 505)
+    // This duplicate parsing has been moved up
+    if (false && event.event_data && typeof event.event_data === 'string') {
+      try {
+        event.event_data = JSON.parse(event.event_data);
+        console.log('[Widget] Parsed event_data from string to object');
+      } catch (e) {
+        console.error('[Widget] Failed to parse event_data:', e);
+      }
+    }
     
-    // Metadata (time + location)
-    if (config.showTimestamp || (config.showLocation && event.user_location)) {
+    // DIAGNOSTIC: Check announcement rendering condition
+    console.log('[Widget] Event rendering check:', {
+      event_id: event.id,
+      event_type: event.event_type,
+      event_type_is_announcement: event.event_type === 'announcement',
+      has_event_data: !!event.event_data,
+      event_data_type: typeof event.event_data,
+      has_title: !!event.event_data?.title,
+      title_value: event.event_data?.title,
+      condition_passes: event.event_type === 'announcement' && event.event_data?.title,
+      full_event_data: event.event_data
+    });
+    
+    // CRITICAL DIAGNOSTIC: Log BEFORE condition check to see why it might fail
+    console.log('[Widget] CRITICAL STEP 1 - About to check announcement condition:', {
+      event_type: event.event_type,
+      is_announcement: event.event_type === 'announcement',
+      has_event_data: !!event.event_data,
+      has_title: !!event.event_data?.title,
+      title_value: event.event_data?.title,
+      title_type: typeof event.event_data?.title,
+      title_trimmed: event.event_data?.title?.trim(),
+      condition_will_pass: (event.event_type === 'announcement' && !!event.event_data?.title?.trim())
+    });
+    
+    // ANNOUNCEMENT-SPECIFIC MESSAGE RENDERING: Separate title and message with different font weights
+    if (event.event_type === 'announcement' && event.event_data?.title?.trim()) {
+      // STEP 4 FIX: Add comprehensive logging for announcement data
+      console.log('[Widget] STEP 4 - Announcement rendering data:', {
+        has_title: !!event.event_data.title,
+        title_value: event.event_data.title,
+        title_length: event.event_data.title?.length || 0,
+        has_message: !!event.event_data.message,
+        message_value: event.event_data.message,
+        message_length: event.event_data.message?.length || 0,
+        full_event_data: event.event_data
+      });
+      
+      // Render announcement header (bold)
+      contentHTML += `<div style="font-weight: 600; margin-bottom: 4px; line-height: 1.4;">
+        ${escapeHtml(event.event_data.title)}
+      </div>`;
+      
+      // STEP 4 FIX: Enhanced message rendering with defensive checks
+      // Check for message as non-empty string
+      const hasMessage = event.event_data.message && 
+                        typeof event.event_data.message === 'string' && 
+                        event.event_data.message.trim().length > 0;
+      
+      if (hasMessage) {
+        console.log('[Widget] STEP 4 - Rendering announcement message:', event.event_data.message);
+        contentHTML += `<div style="font-weight: 400; margin-bottom: 4px; line-height: 1.4; opacity: 0.9;">
+          ${escapeHtml(event.event_data.message)}
+        </div>`;
+      } else {
+        console.warn('[Widget] STEP 4 - Announcement message missing or empty:', {
+          message_exists: !!event.event_data.message,
+          message_type: typeof event.event_data.message,
+          message_value: event.event_data.message
+        });
+      }
+    } else {
+      // Regular event - existing logic with product linkification
+      const linkedMessage = linkifyMessage(event.message_template || 'New activity', event.event_data);
+      contentHTML += `<div style="font-weight: 600; margin-bottom: 4px; line-height: 1.4;">
+        ${linkedMessage}
+      </div>`;
+    }
+    
+    // Metadata (time + location) - Skip for announcements with CTA
+    const skipMetadata = event.event_type === 'announcement' && event.event_data?.cta_text && event.event_data?.cta_url;
+    if (!skipMetadata && (config.showTimestamp || (config.showLocation && event.user_location))) {
       contentHTML += '<div style="font-size: 12px; opacity: 0.7; display: flex; align-items: center; gap: 6px;">';
       if (config.showTimestamp) {
         contentHTML += `<span>${timeAgo}</span>`;
@@ -607,8 +785,46 @@
       contentHTML += '</div>';
     }
     
-    // CTA Button
-    if (config.showCTA && config.ctaText && config.ctaUrl) {
+    // CTA Button - check both config.showCTA AND announcement-specific CTA
+    // STEP 3 FIX: Add defensive checks and logging for announcement CTA
+    if (event.event_type === 'announcement') {
+      console.log('[Widget] Announcement event_data:', event.event_data);
+      console.log('[Widget] CTA check - cta_text:', event.event_data?.cta_text, 'cta_url:', event.event_data?.cta_url);
+    }
+    
+    // STEP 3 FIX: Ensure CTA values are non-empty strings
+    const hasAnnouncementCTA = event.event_type === 'announcement' && 
+                               event.event_data?.cta_text && 
+                               event.event_data?.cta_text.trim().length > 0 &&
+                               event.event_data?.cta_url && 
+                               event.event_data?.cta_url.trim().length > 0;
+    
+    const hasConfigCTA = config.showCTA && 
+                         config.ctaText && 
+                         config.ctaText.trim().length > 0 &&
+                         config.ctaUrl && 
+                         config.ctaUrl.trim().length > 0;
+    
+    const announcementCTA = hasAnnouncementCTA;
+    const showButton = hasConfigCTA || announcementCTA;
+    
+    if (event.event_type === 'announcement' && !hasAnnouncementCTA) {
+      console.warn('[Widget] Announcement missing valid CTA data:', {
+        has_cta_text: !!event.event_data?.cta_text,
+        cta_text_value: event.event_data?.cta_text,
+        has_cta_url: !!event.event_data?.cta_url,
+        cta_url_value: event.event_data?.cta_url
+      });
+    }
+    
+    console.log('[Widget] CTA Button Check - announcementCTA:', announcementCTA, 'showButton:', showButton);
+    
+    if (showButton) {
+      const ctaText = announcementCTA ? event.event_data.cta_text : config.ctaText;
+      const ctaUrl = announcementCTA ? event.event_data.cta_url : config.ctaUrl;
+      
+      console.log('[Widget] Rendering CTA button - Text:', ctaText, 'URL:', ctaUrl);
+      
       contentHTML += `
         <button style="
           margin-top: 8px;
@@ -621,8 +837,9 @@
           font-weight: 500;
           cursor: pointer;
           transition: opacity 0.2s;
-        " onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
-          ${config.ctaText}
+        " onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" 
+           data-cta-url="${escapeHtml(ctaUrl)}">
+          ${escapeHtml(ctaText)}
         </button>
       `;
     }
@@ -657,6 +874,7 @@
     
     // Click handling
     notification.addEventListener('click', (e) => {
+      if (e.target.closest('[data-close]')) return;
       if (!config.makeClickable) return;
       
       log('Notification clicked', { eventId: event.id });
@@ -668,10 +886,16 @@
         log('Notifications paused after click');
       }
       
-      // Handle CTA click
-      if (config.showCTA && config.ctaUrl && e.target.tagName === 'BUTTON') {
+      // Handle announcement CTA click (highest priority)
+      const ctaButton = e.target.closest('[data-cta-url]');
+      if (ctaButton) {
+        const url = ctaButton.getAttribute('data-cta-url');
+        if (url) window.open(url, '_blank');
+      } else if (config.showCTA && config.ctaUrl && e.target.tagName === 'BUTTON') {
+        // Handle regular CTA
         window.open(config.ctaUrl, '_blank');
       } else if (event.event_data?.url) {
+        // Handle event URL
         window.open(event.event_data.url, '_blank');
       }
       
@@ -736,6 +960,22 @@
         const data = await response.json();
         eventQueue = data.events || [];
         
+        // CRITICAL STEP 3: Log eventQueue population
+        const announcementCount = eventQueue.filter(e => e.event_type === 'announcement').length;
+        console.log('[Widget] STEP 3 - Event queue loaded:', {
+          total_events: eventQueue.length,
+          announcement_events: announcementCount,
+          announcement_details: eventQueue
+            .filter(e => e.event_type === 'announcement')
+            .map(e => ({
+              id: e.id,
+              has_title: !!e.event_data?.title,
+              title: e.event_data?.title,
+              has_message: !!e.event_data?.message,
+              message: e.event_data?.message
+            }))
+        });
+        
         // Apply display settings from API
         if (data.display_settings) {
           const ds = data.display_settings;
@@ -766,8 +1006,11 @@
         // Apply white-label settings from API response
         if (data.white_label) {
           const wl = data.white_label;
+          // FIX: Apply hide_branding regardless of enabled status
+          hideBranding = wl.hide_branding || false;
+          
+          // Only apply custom branding if enabled
           if (wl.enabled) {
-            hideBranding = wl.hide_branding;
             customBrandName = wl.custom_brand_name || 'NotiProof';
             customLogoUrl = wl.custom_logo_url || '';
             
@@ -775,8 +1018,19 @@
             if (wl.custom_colors) {
               config.primaryColor = wl.custom_colors.primary || config.primaryColor;
             }
-            
-            log('White-label settings applied', { hideBranding, customBrandName });
+          }
+          
+          log('White-label settings applied', { hideBranding, customBrandName });
+        }
+        
+        // Hide branding for paid plans automatically
+        if (data.subscription) {
+          const planName = data.subscription.plan_name || 'Free';
+          const isPaid = !['Free', 'free', 'trial'].includes(planName);
+          
+          if (isPaid) {
+            hideBranding = true;
+            log('Branding hidden for paid plan:', planName);
           }
         }
         
@@ -859,7 +1113,7 @@
   async function fetchActiveVisitorCount() {
     try {
       // Don't fetch active count for non-live-visitor campaigns
-      if (!showActiveVisitors) {
+      if (!config.showActiveVisitors) {
         log('Active visitor tracking disabled for this campaign type');
         return;
       }
@@ -881,7 +1135,7 @@
       log('Active visitor count updated:', currentActiveCount, data.cached ? '(cached)' : '(fresh)');
       
       // Show active visitor notification if count changed and is > 1
-      if (currentActiveCount > 1 && showActiveVisitors) {
+      if (currentActiveCount > 1 && config.showActiveVisitors) {
         showActiveVisitorNotification(currentActiveCount);
       }
     } catch (err) {
@@ -973,13 +1227,28 @@
     // Initial delay before first notification
     setTimeout(() => {
       if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused) {
-        showNotification(eventQueue.shift());
+        const event = eventQueue.shift();
+        console.log('[Widget] STEP 4 - About to show notification:', {
+          event_id: event.id,
+          event_type: event.event_type,
+          is_announcement: event.event_type === 'announcement',
+          has_event_data: !!event.event_data,
+          event_data_keys: event.event_data ? Object.keys(event.event_data) : []
+        });
+        showNotification(event);
       }
       
       // Then show notifications at intervals
       setInterval(() => {
         if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused) {
           const event = eventQueue.shift();
+          console.log('[Widget] STEP 4 - About to show notification (interval):', {
+            event_id: event.id,
+            event_type: event.event_type,
+            is_announcement: event.event_type === 'announcement',
+            has_event_data: !!event.event_data,
+            event_data_keys: event.event_data ? Object.keys(event.event_data) : []
+          });
           showNotification(event);
         }
       }, config.interval);
@@ -1173,8 +1442,8 @@
       }
     }
     
-    // Start active visitor tracking (legacy GA4)
-    if (config.showActiveVisitors) {
+    // Start active visitor tracking (legacy GA4) - Only if explicitly enabled AND live_visitors campaign exists
+    if (config.showActiveVisitors && data.campaigns?.some(c => c.data_source === 'live_visitors')) {
       fetchActiveVisitorCount(); // Initial fetch
       activeVisitorInterval = setInterval(fetchActiveVisitorCount, 15000); // Update every 15 seconds
     }

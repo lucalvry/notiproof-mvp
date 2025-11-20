@@ -9,6 +9,7 @@ import { getAuthFlowType } from "@/lib/integrationPlugins";
 import { OAuthFlow } from "./OAuthFlow";
 import { WebhookFlow } from "./WebhookFlow";
 import { APIKeyFlow } from "./APIKeyFlow";
+import { NativeIntegrationFlow } from "./NativeIntegrationFlow";
 
 interface IntegrationConnectionDialogProps {
   integration: any;
@@ -49,6 +50,15 @@ export function IntegrationConnectionDialog({
         return (
           <OAuthFlow 
             integration={integration} 
+            websiteId={websiteId}
+            onSuccess={handleSuccess}
+          />
+        );
+      
+      case 'native':
+        return (
+          <NativeIntegrationFlow
+            integration={integration}
             websiteId={websiteId}
             onSuccess={handleSuccess}
           />

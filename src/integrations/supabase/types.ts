@@ -252,6 +252,47 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_playlists: {
+        Row: {
+          campaign_order: string[] | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          rules: Json | null
+          updated_at: string | null
+          website_id: string
+        }
+        Insert: {
+          campaign_order?: string[] | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          rules?: Json | null
+          updated_at?: string | null
+          website_id: string
+        }
+        Update: {
+          campaign_order?: string[] | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          rules?: Json | null
+          updated_at?: string | null
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_playlists_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_revenue_stats: {
         Row: {
           assisted_conversions: number | null
@@ -323,65 +364,90 @@ export type Database = {
       campaigns: {
         Row: {
           auto_repeat: boolean
+          campaign_type: string | null
           created_at: string
-          data_source: string | null
+          data_sources: Json | null
           description: string | null
           display_rules: Json
           end_date: string | null
+          frequency_cap: Json | null
           id: string
           integration_settings: Json | null
           name: string
           native_config: Json | null
           organization_id: string | null
           polling_config: Json | null
+          priority: number | null
           repeat_config: Json | null
+          schedule: Json | null
           start_date: string | null
           status: string
+          template_id: string | null
+          template_mapping: Json | null
           updated_at: string
           user_id: string
           website_id: string
         }
         Insert: {
           auto_repeat?: boolean
+          campaign_type?: string | null
           created_at?: string
-          data_source?: string | null
+          data_sources?: Json | null
           description?: string | null
           display_rules?: Json
           end_date?: string | null
+          frequency_cap?: Json | null
           id?: string
           integration_settings?: Json | null
           name: string
           native_config?: Json | null
           organization_id?: string | null
           polling_config?: Json | null
+          priority?: number | null
           repeat_config?: Json | null
+          schedule?: Json | null
           start_date?: string | null
           status?: string
+          template_id?: string | null
+          template_mapping?: Json | null
           updated_at?: string
           user_id: string
           website_id: string
         }
         Update: {
           auto_repeat?: boolean
+          campaign_type?: string | null
           created_at?: string
-          data_source?: string | null
+          data_sources?: Json | null
           description?: string | null
           display_rules?: Json
           end_date?: string | null
+          frequency_cap?: Json | null
           id?: string
           integration_settings?: Json | null
           name?: string
           native_config?: Json | null
           organization_id?: string | null
           polling_config?: Json | null
+          priority?: number | null
           repeat_config?: Json | null
+          schedule?: Json | null
           start_date?: string | null
           status?: string
+          template_id?: string | null
+          template_mapping?: Json | null
           updated_at?: string
           user_id?: string
           website_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "campaigns_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "campaigns_website_id_fkey"
             columns: ["website_id"]
@@ -530,6 +596,7 @@ export type Database = {
         Row: {
           business_context: Json | null
           business_type: Database["public"]["Enums"]["business_type"] | null
+          canonical_event: Json | null
           clicks: number | null
           context_template: string | null
           created_at: string | null
@@ -539,6 +606,7 @@ export type Database = {
           external_id: string | null
           flagged: boolean
           id: string
+          integration_id: string | null
           integration_type:
             | Database["public"]["Enums"]["integration_type"]
             | null
@@ -557,12 +625,13 @@ export type Database = {
           user_name: string | null
           variant_id: string | null
           views: number | null
-          website_id: string | null
+          website_id: string
           widget_id: string
         }
         Insert: {
           business_context?: Json | null
           business_type?: Database["public"]["Enums"]["business_type"] | null
+          canonical_event?: Json | null
           clicks?: number | null
           context_template?: string | null
           created_at?: string | null
@@ -572,6 +641,7 @@ export type Database = {
           external_id?: string | null
           flagged?: boolean
           id?: string
+          integration_id?: string | null
           integration_type?:
             | Database["public"]["Enums"]["integration_type"]
             | null
@@ -590,12 +660,13 @@ export type Database = {
           user_name?: string | null
           variant_id?: string | null
           views?: number | null
-          website_id?: string | null
+          website_id: string
           widget_id: string
         }
         Update: {
           business_context?: Json | null
           business_type?: Database["public"]["Enums"]["business_type"] | null
+          canonical_event?: Json | null
           clicks?: number | null
           context_template?: string | null
           created_at?: string | null
@@ -605,6 +676,7 @@ export type Database = {
           external_id?: string | null
           flagged?: boolean
           id?: string
+          integration_id?: string | null
           integration_type?:
             | Database["public"]["Enums"]["integration_type"]
             | null
@@ -623,15 +695,29 @@ export type Database = {
           user_name?: string | null
           variant_id?: string | null
           views?: number | null
-          website_id?: string | null
+          website_id?: string
           widget_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "events_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "events_variant_id_fkey"
             columns: ["variant_id"]
             isOneToOne: false
             referencedRelation: "widget_variants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
             referencedColumns: ["id"]
           },
           {
@@ -649,6 +735,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      feature_flags: {
+        Row: {
+          created_at: string
+          description: string | null
+          enabled: boolean
+          id: string
+          metadata: Json | null
+          name: string
+          rollout_percentage: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          metadata?: Json | null
+          name: string
+          rollout_percentage?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          metadata?: Json | null
+          name?: string
+          rollout_percentage?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       ga_integration_config: {
         Row: {
@@ -1123,6 +1242,56 @@ export type Database = {
         }
         Relationships: []
       }
+      integrations: {
+        Row: {
+          created_at: string | null
+          credentials: Json | null
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          name: string
+          provider: string
+          sync_status: Json | null
+          updated_at: string | null
+          user_id: string
+          website_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          credentials?: Json | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          name: string
+          provider: string
+          sync_status?: Json | null
+          updated_at?: string | null
+          user_id: string
+          website_id: string
+        }
+        Update: {
+          created_at?: string | null
+          credentials?: Json | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          name?: string
+          provider?: string
+          sync_status?: Json | null
+          updated_at?: string | null
+          user_id?: string
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integrations_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integrations_config: {
         Row: {
           config: Json
@@ -1240,6 +1409,51 @@ export type Database = {
           tags?: string[] | null
           template_config?: Json
           updated_at?: string
+        }
+        Relationships: []
+      }
+      migration_log: {
+        Row: {
+          batch_number: number | null
+          completed_at: string | null
+          created_at: string | null
+          dry_run: boolean | null
+          error_details: Json | null
+          id: string
+          migration_type: string
+          performed_by: string | null
+          records_failed: number | null
+          records_processed: number | null
+          records_succeeded: number | null
+          started_at: string | null
+        }
+        Insert: {
+          batch_number?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          dry_run?: boolean | null
+          error_details?: Json | null
+          id?: string
+          migration_type: string
+          performed_by?: string | null
+          records_failed?: number | null
+          records_processed?: number | null
+          records_succeeded?: number | null
+          started_at?: string | null
+        }
+        Update: {
+          batch_number?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          dry_run?: boolean | null
+          error_details?: Json | null
+          id?: string
+          migration_type?: string
+          performed_by?: string | null
+          records_failed?: number | null
+          records_processed?: number | null
+          records_succeeded?: number | null
+          started_at?: string | null
         }
         Relationships: []
       }
@@ -1802,6 +2016,240 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      templates: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          html_template: string
+          id: string
+          is_active: boolean | null
+          name: string
+          preview_json: Json | null
+          provider: string
+          required_fields: Json
+          style_variant: string
+          template_key: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          html_template: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          preview_json?: Json | null
+          provider: string
+          required_fields?: Json
+          style_variant: string
+          template_key: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          html_template?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          preview_json?: Json | null
+          provider?: string
+          required_fields?: Json
+          style_variant?: string
+          template_key?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      testimonial_collection_forms: {
+        Row: {
+          created_at: string | null
+          form_config: Json
+          id: string
+          integration_id: string | null
+          is_active: boolean | null
+          name: string
+          slug: string
+          updated_at: string | null
+          website_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          form_config?: Json
+          id?: string
+          integration_id?: string | null
+          is_active?: boolean | null
+          name: string
+          slug: string
+          updated_at?: string | null
+          website_id: string
+        }
+        Update: {
+          created_at?: string | null
+          form_config?: Json
+          id?: string
+          integration_id?: string | null
+          is_active?: boolean | null
+          name?: string
+          slug?: string
+          updated_at?: string | null
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "testimonial_collection_forms_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "testimonial_collection_forms_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      testimonial_forms: {
+        Row: {
+          created_at: string
+          form_config: Json
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          thank_you_message: string | null
+          updated_at: string
+          user_id: string
+          website_id: string
+          welcome_message: string | null
+        }
+        Insert: {
+          created_at?: string
+          form_config?: Json
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          thank_you_message?: string | null
+          updated_at?: string
+          user_id: string
+          website_id: string
+          welcome_message?: string | null
+        }
+        Update: {
+          created_at?: string
+          form_config?: Json
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          thank_you_message?: string | null
+          updated_at?: string
+          user_id?: string
+          website_id?: string
+          welcome_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "testimonial_forms_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      testimonials: {
+        Row: {
+          author_avatar_url: string | null
+          author_email: string | null
+          author_name: string
+          created_at: string | null
+          form_id: string | null
+          id: string
+          image_url: string | null
+          integration_id: string | null
+          message: string
+          metadata: Json | null
+          moderated_at: string | null
+          moderated_by: string | null
+          rating: number | null
+          source: string
+          status: string | null
+          updated_at: string | null
+          video_url: string | null
+          website_id: string
+        }
+        Insert: {
+          author_avatar_url?: string | null
+          author_email?: string | null
+          author_name: string
+          created_at?: string | null
+          form_id?: string | null
+          id?: string
+          image_url?: string | null
+          integration_id?: string | null
+          message: string
+          metadata?: Json | null
+          moderated_at?: string | null
+          moderated_by?: string | null
+          rating?: number | null
+          source?: string
+          status?: string | null
+          updated_at?: string | null
+          video_url?: string | null
+          website_id: string
+        }
+        Update: {
+          author_avatar_url?: string | null
+          author_email?: string | null
+          author_name?: string
+          created_at?: string | null
+          form_id?: string | null
+          id?: string
+          image_url?: string | null
+          integration_id?: string | null
+          message?: string
+          metadata?: Json | null
+          moderated_at?: string | null
+          moderated_by?: string | null
+          rating?: number | null
+          source?: string
+          status?: string | null
+          updated_at?: string | null
+          video_url?: string | null
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "testimonials_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "testimonial_forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "testimonials_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "testimonials_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tracking_pixels: {
         Row: {
@@ -2573,6 +3021,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "widgets_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -2628,7 +3083,7 @@ export type Database = {
         Args: never
         Returns: {
           campaign_id: string
-          interval_minutes: number
+          polling_config: Json
           user_id: string
           website_id: string
         }[]
@@ -2714,6 +3169,10 @@ export type Database = {
           _user_id?: string
         }
         Returns: string
+      }
+      migrate_integration_connectors_to_integrations: {
+        Args: never
+        Returns: undefined
       }
       poll_active_campaigns: { Args: never; Returns: undefined }
       record_conversion: {

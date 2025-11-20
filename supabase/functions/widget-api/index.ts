@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { checkRateLimit } from './rate-limit.ts';
+import { fetchTestimonialEvents } from './testimonial-handler.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -53,6 +54,88 @@ Deno.serve(async (req) => {
     const adjustedParts = pathParts[0] === 'widget-api' ? pathParts.slice(1) : pathParts;
     
     const [resource, identifier, action] = adjustedParts;
+    
+    // Check for playlist mode
+    const playlistMode = url.searchParams.get('playlist_mode') === 'true';
+    const websiteIdParam = url.searchParams.get('website_id');
+    const widgetIdParam = url.searchParams.get('widget_id');
+    const siteTokenParam = url.searchParams.get('site_token');
+    
+    // PHASE 8: Playlist API - Returns active playlist and campaigns
+    if (req.method === 'GET' && playlistMode && websiteIdParam) {
+      try {
+        // Fetch active playlist for website
+        const { data: playlist, error: playlistError } = await supabase
+          .from('campaign_playlists')
+          .select('*')
+          .eq('website_id', websiteIdParam)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (playlistError && playlistError.code !== 'PGRST116') {
+          console.error('Error fetching playlist:', playlistError);
+        }
+        
+        // Fetch active campaigns for website
+        const { data: campaigns, error: campaignsError } = await supabase
+          .from('campaigns')
+          .select(`
+            id,
+            name,
+            status,
+            data_sources,
+            priority,
+            frequency_cap,
+            schedule,
+            display_rules,
+            template_id,
+            template_mapping
+          `)
+          .eq('website_id', websiteIdParam)
+          .eq('status', 'active');
+        
+        if (campaignsError) {
+          throw campaignsError;
+        }
+        
+        // Filter campaigns by playlist order if available
+        let orderedCampaigns = campaigns || [];
+        if (playlist && playlist.campaign_order && Array.isArray(playlist.campaign_order) && playlist.campaign_order.length > 0) {
+          const orderMap = new Map<string, number>(playlist.campaign_order.map((id: string, index: number) => [id, index]));
+          orderedCampaigns = orderedCampaigns.sort((a, b) => {
+            const aOrder = orderMap.get(a.id) ?? 999;
+            const bOrder = orderMap.get(b.id) ?? 999;
+            return aOrder - bOrder;
+          });
+        }
+        
+        console.log('[widget-api] Playlist mode response:', {
+          playlist_name: playlist?.name,
+          campaigns_count: orderedCampaigns.length,
+          sequence_mode: playlist?.rules?.sequence_mode
+        });
+        
+        return new Response(JSON.stringify({
+          success: true,
+          playlist: playlist || null,
+          campaigns: orderedCampaigns,
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (error: any) {
+        console.error('[widget-api] Playlist mode error:', error);
+        return new Response(JSON.stringify({
+          error: 'Failed to fetch playlist data',
+          details: error?.message || 'Unknown error'
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
 
     // GET /site/:siteToken - Fetch all widgets and events for a website
     if (req.method === 'GET' && resource === 'site' && identifier) {
@@ -146,6 +229,24 @@ Deno.serve(async (req) => {
         custom_brand_name: ""
       };
 
+      // Fetch user's subscription plan
+      let subscriptionInfo = null;
+      const { data: subscription } = await supabase
+        .from('user_subscriptions')
+        .select(`
+          plan_id,
+          subscription_plans!inner(name)
+        `)
+        .eq('user_id', website.user_id)
+        .in('status', ['active', 'trialing'])
+        .single();
+      
+      if (subscription?.subscription_plans && Array.isArray(subscription.subscription_plans) && subscription.subscription_plans.length > 0) {
+        subscriptionInfo = {
+          plan_name: subscription.subscription_plans[0].name,
+        };
+      }
+
       // Get all active widgets for this website
       const { data: widgets, error: widgetsError } = await supabase
         .from('widgets')
@@ -170,15 +271,20 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Fetch active native integration campaigns first to determine if we should exclude demo events
+      // Fetch active campaigns to check for native integrations
       const { data: activeCampaigns, error: campaignsCheckError } = await supabase
         .from('campaigns')
-        .select('id, data_source')
+        .select('id, data_sources')
         .eq('website_id', website.id)
-        .eq('status', 'active')
-        .in('data_source', ['instant_capture', 'live_visitors', 'announcements']);
-
-      const hasActiveCampaigns = activeCampaigns && activeCampaigns.length > 0;
+        .eq('status', 'active');
+      
+      // Check if any campaign has native providers
+      const hasActiveCampaigns = activeCampaigns && activeCampaigns.some(c => {
+        const sources = c.data_sources as any[];
+        return sources && sources.some(s => 
+          ['instant_capture', 'live_visitors', 'announcements', 'testimonials'].includes(s.provider)
+        );
+      });
 
       // Filter out demo events if there are active campaigns
       let allowedSourcesDefault = ['manual', 'connector', 'tracking', 'woocommerce', 'quick_win'];
@@ -188,7 +294,7 @@ Deno.serve(async (req) => {
       }
 
       // Fetch events for all widgets - use valid DB enum values
-      const { data: events, error: eventsError } = await supabase
+      const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('id, event_type, message_template, user_name, user_location, created_at, event_data, widget_id')
         .in('widget_id', widgetIds)
@@ -199,25 +305,117 @@ Deno.serve(async (req) => {
 
       if (eventsError) throw eventsError;
 
-      // Fetch active native integration campaigns (instant_capture, live_visitors, announcements)
-      const { data: campaigns, error: campaignsError } = await supabase
-        .from('campaigns')
-        .select('id, name, data_source, native_config, status, integration_settings')
-        .eq('website_id', website.id)
-        .eq('status', 'active')
-        .in('data_source', ['instant_capture', 'live_visitors', 'announcements']);
+      let events = eventsData || [];
 
-      if (campaignsError) {
-        console.error('Failed to fetch native campaigns:', campaignsError);
+      // Ensure event_data is an object, not a string
+      if (events) {
+        events.forEach(event => {
+          if (event.event_data && typeof event.event_data === 'string') {
+            try {
+              event.event_data = JSON.parse(event.event_data);
+              console.log('[widget-api] Parsed event_data for event:', event.id);
+            } catch (e) {
+              console.error('[widget-api] Failed to parse event_data for event:', event.id, e);
+            }
+          }
+        });
       }
 
-      return new Response(JSON.stringify({ 
+      // STEP 5: Log main query results first
+      console.log('[widget-api] STEP 5 - Main query results:', {
+        total_events: events.length,
+        announcement_events_in_main: events.filter(e => e.event_type === 'announcement').length,
+        announcement_details: events
+          .filter(e => e.event_type === 'announcement')
+          .map(e => ({
+            id: e.id,
+            event_type: e.event_type,
+            has_event_data: !!e.event_data,
+            has_title: !!e.event_data?.title,
+            title: e.event_data?.title
+          }))
+      });
+
+
+      // Fetch active campaigns with native integrations
+      const { data: campaigns, error: campaignsError } = await supabase
+        .from('campaigns')
+        .select('id, name, data_sources, native_config, status, integration_settings, template_id')
+        .eq('website_id', website.id)
+        .eq('status', 'active');
+
+      if (campaignsError) {
+        console.error('Failed to fetch campaigns:', campaignsError);
+      }
+      
+      // Filter campaigns with native providers
+      const nativeCampaigns = campaigns?.filter(c => {
+        const sources = c.data_sources as any[];
+        return sources && sources.some(s => 
+          ['instant_capture', 'live_visitors', 'announcements', 'testimonials'].includes(s.provider)
+        );
+      }) || [];
+
+      // Process testimonial campaigns and fetch testimonials
+      const testimonialEvents: any[] = [];
+      for (const campaign of nativeCampaigns) {
+        const sources = campaign.data_sources as any[];
+        const testimonialSource = sources?.find(s => s.provider === 'testimonials');
+        
+        if (testimonialSource) {
+          console.log(`[Widget API] Processing testimonial campaign: ${campaign.id}`);
+          
+          // Get testimonial config from native_config
+          const nativeConfig = campaign.native_config as any;
+          const testimonialConfig = {
+            formId: nativeConfig?.formId,
+            minRating: nativeConfig?.minRating || 3,
+            limit: nativeConfig?.limit || 50,
+            onlyApproved: nativeConfig?.onlyApproved !== false,
+          };
+
+          // Fetch template if configured
+          let template = null;
+          if (campaign.template_id) {
+            const { data: templateData } = await supabase
+              .from('templates')
+              .select('*')
+              .eq('id', campaign.template_id)
+              .single();
+            
+            template = templateData;
+          }
+
+          // Fetch testimonial events
+          const events = await fetchTestimonialEvents(
+            supabase,
+            website.id,
+            testimonialConfig,
+            template
+          );
+
+          // Associate events with the correct widget
+          const campaignWidget = widgets?.find(w => w.campaign_id === campaign.id);
+          if (campaignWidget) {
+            events.forEach(e => {
+              e.widget_id = campaignWidget.id;
+            });
+            testimonialEvents.push(...events);
+          }
+        }
+      }
+
+      // Merge testimonial events with regular events
+      const allEvents = [...(events || []), ...testimonialEvents];
+
+      return new Response(JSON.stringify({
         widgets: widgets || [],
-        events: events || [],
+        events: allEvents || [],
         campaigns: campaigns || [], // Native integration campaigns
         display_settings: displaySettings,
         visitor_country: visitorCountry,
-        white_label: whiteLabelSettings
+        white_label: whiteLabelSettings,
+        subscription: subscriptionInfo
       }), {
         headers: { 
           ...corsHeaders, 

@@ -1,27 +1,20 @@
-import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Link2, Sparkles, CheckCircle2, Star, Download, Filter, Award } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { CampaignTypeSelector } from "./CampaignTypeSelector";
-import { IntegrationPathSelector } from "@/components/onboarding/IntegrationPathSelector";
-import { IntegrationSelector } from "./IntegrationSelector";
-import { IntegrationConnectionStep } from "./IntegrationConnectionStep";
-import { IntegrationConfigurationStep } from "./IntegrationConfigurationStep";
-import { DesignEditor } from "./DesignEditor";
-import { RulesTargeting } from "./RulesTargeting";
-import { ReviewActivate } from "./ReviewActivate";
-import { PollingConfigCard } from "./PollingConfigCard";
-import { MessageTemplateSelector, MessageTemplateVariant } from "./MessageTemplateSelector";
-import { QuickStartSelector } from "./QuickStartSelector";
-import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
-import { NativeIntegrationConfig } from "./native/NativeIntegrationConfig";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { getIntegrationMetadata, inferCampaignType } from "@/lib/integrationMetadata";
-import { generateDefaultTemplateForCampaignType } from "@/lib/campaignTemplates";
+import { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { WebsiteGate } from './steps/WebsiteGate';
+import { IntegrationSelectionStep } from './steps/IntegrationSelectionStep';
+import { IntegrationConnectionStep } from './IntegrationConnectionStep';
+import { TemplateSelectionStep } from './steps/TemplateSelectionStep';
+import { FieldMappingStep } from './steps/FieldMappingStep';
+import { OrchestrationStep } from './steps/OrchestrationStep';
+import { RulesTargeting } from './RulesTargeting';
+import { ReviewActivate } from './ReviewActivate';
+import { AnnouncementConfig } from './native/AnnouncementConfig';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import type { TemplateConfig } from '@/lib/templateEngine';
 
 interface CampaignWizardProps {
   open: boolean;
@@ -29,192 +22,138 @@ interface CampaignWizardProps {
   onComplete: () => void;
 }
 
-// Dynamic step generation based on integration type
-const getWizardSteps = (integrationPath: string, dataSource: string) => {
-  const metadata = dataSource ? getIntegrationMetadata(dataSource) : null;
-  
-  // Native integrations (no connection needed)
-  if (metadata?.isNative) {
-    return [
-      "Choose Template",
-      "Configure Content",
-      "Design & Preview",
-      "Review & Activate"
-    ];
-  }
-  
-  // External integrations (require connection)
-  if (integrationPath === 'integration') {
-    return [
-      "Choose Integration",
-      "Connect",
-      "Configure Message",
-      "Design",
-      "Review & Activate"
-    ];
-  }
-  
-  // Manual/Demo
-  return [
-    "Setup",
-    "Design",
-    "Review & Activate"
-  ];
-};
+interface Integration {
+  id: string;
+  provider: string;
+  name: string;
+}
 
-// Track if using live preview
-const ENABLE_LIVE_PREVIEW = true;
+const WIZARD_STEPS = [
+  'Select Website',
+  'Choose Integrations',
+  'Connect Integration',
+  'Select Template',
+  'Map Fields',
+  'Orchestration',
+  'Rules & Targeting',
+  'Review & Activate',
+];
 
 export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [useQuickStart, setUseQuickStart] = useState(false);
-  // Separate preview state for real-time updates (doesn't trigger parent re-renders)
-  const [previewState, setPreviewState] = useState<any>(null);
-  const [steps, setSteps] = useState(getWizardSteps("", ""));
-  const [campaignData, setCampaignData] = useState({
-    name: "",
-    type: "",
-    integration_path: "", // 'integration', 'manual', 'native'
-    data_source: "",
-    
-    // For external integrations - connector ID
-    connector_id: null as string | null,
-    
-    // Message configuration from Step 2
-    message_config: {
-      template: "",
-      placeholders: [] as string[],
-      connectorId: null as string | null,
-    },
-    
-    // Integration-specific settings (both native and external)
-    integration_settings: {
-      message_template: "",
-      image_fallback_url: "",
-      locale: "en",
-      
-      // Image settings for announcements
-      image_type: 'emoji' as 'emoji' | 'icon' | 'upload' | 'url',
-      emoji: '📢',
-      icon: '📢',
-      image_url: '',
-      
-      // Native-specific settings
-      schedule: {
-        enabled: false,
-        start_date: null as string | null,
-        end_date: null as string | null,
-        recurrence: null as any,
-      },
-      
-      // Action rules (for external integrations)
-      actions: [] as Array<{
-        type: 'replace_variable' | 'change_url' | 'change_image' | 'hide_event';
-        condition: string;
-        value: string;
-      }>,
-    },
-    
-    // CRITICAL: Initialize settings with defaults for preview to work
-    settings: {
-      backgroundColor: "#ffffff",
-      textColor: "#1a1a1a",
-      primaryColor: "#2563EB",
-      borderRadius: 12,
-      fontSize: 14,
-      position: "bottom-left",
-      animation: "slide",
-      showTimestamp: true,
-      headline: "",
-      message: "",
-      subtext: "",
-    } as Record<string, any>,
-    rules: {} as Record<string, any>,
-    polling_config: {
-      enabled: false,
-      interval_minutes: 5,
-      max_events_per_fetch: 10,
-      last_poll_at: null
-    },
+  const [campaignName, setCampaignName] = useState('');
+  
+  // Step 0: Website
+  const [selectedWebsiteId, setSelectedWebsiteId] = useState<string | null>(null);
+  
+  // Step 1: Integrations
+  const [selectedIntegrationIds, setSelectedIntegrationIds] = useState<string[]>([]);
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [needsConnection, setNeedsConnection] = useState(false);
+  const [connectionComplete, setConnectionComplete] = useState(false);
+  
+  // Step 2: Template
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateConfig | null>(null);
+  
+  // Step 3: Field Mapping
+  const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
+  const [testimonialFilters, setTestimonialFilters] = useState({
+    minRating: 1,
+    mediaFilter: 'all' as 'all' | 'text_only' | 'with_image' | 'with_video',
+    onlyVerified: false,
   });
-  const [templates, setTemplates] = useState<Array<Record<string, any>>>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<Record<string, any> | null>(null);
-  const [selectedMessageVariant, setSelectedMessageVariant] = useState<MessageTemplateVariant | null>(null);
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
-  const [showAllTemplates, setShowAllTemplates] = useState(false);
-  const [templateFetchError, setTemplateFetchError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
+  
+  // Step 3: Announcement Config (for native announcement integration)
+  const [announcementConfig, setAnnouncementConfig] = useState({
+    title: '',
+    message: '',
+    cta_text: '',
+    cta_url: '',
+    schedule_type: 'instant' as 'instant' | 'scheduled' | 'recurring',
+    priority: 50,
+    variables: {} as Record<string, string>,
+    image_type: 'emoji' as 'emoji' | 'icon' | 'upload' | 'url',
+    emoji: '📢',
+  });
+  
+  // Step 4: Orchestration
+  const [priority, setPriority] = useState(50);
+  const [frequencyCap, setFrequencyCap] = useState({
+    per_user: 3,
+    per_session: 1,
+    cooldown_seconds: 600,
+  });
+  const [schedule, setSchedule] = useState({
+    enabled: false,
+    start_date: null as string | null,
+    end_date: null as string | null,
+    days_of_week: [] as number[],
+    time_ranges: [] as Array<{ start: string; end: string }>,
+  });
+  
+  // Step 5: Rules & Targeting
+  const [displayRules, setDisplayRules] = useState<any>({
+    show_duration_ms: 5000,
+    interval_ms: 8000,
+    max_per_page: 5,
+    max_per_session: 20,
+    url_allowlist: [],
+    url_denylist: [],
+    referrer_allowlist: [],
+    referrer_denylist: [],
+    triggers: {
+      min_time_on_page_ms: 0,
+      scroll_depth_pct: 0,
+      exit_intent: false,
+    },
+    enforce_verified_only: false,
+    geo_allowlist: [],
+    geo_denylist: [],
+  });
 
-  const progress = ((currentStep + 1) / steps.length) * 100;
-
-  // Update steps when integration type changes
+  // Load integrations when website is selected
   useEffect(() => {
-    const newSteps = getWizardSteps(campaignData.integration_path, campaignData.data_source);
-    setSteps(newSteps);
-  }, [campaignData.integration_path, campaignData.data_source]);
-
-  // Check for template parameter on mount
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const templateId = urlParams.get('template');
-    
-    if (templateId && open) {
-      fetchAndApplyTemplate(templateId);
+    if (selectedWebsiteId) {
+      loadIntegrations();
     }
-  }, [open]);
+  }, [selectedWebsiteId]);
 
-  const fetchAndApplyTemplate = async (templateId: string) => {
+  async function loadIntegrations() {
+    if (!selectedWebsiteId) return;
+    
     try {
-      const { data: template, error } = await supabase
-        .from('marketplace_templates')
-        .select('*')
-        .eq('id', templateId)
-        .single();
+      const { data, error } = await supabase
+        .from('integrations')
+        .select('id, provider, name')
+        .eq('website_id', selectedWebsiteId)
+        .eq('is_active', true);
 
       if (error) throw error;
-
-      if (template) {
-        const templateConfig = typeof template.template_config === 'string' 
-          ? JSON.parse(template.template_config) 
-          : template.template_config;
-        
-        const styleConfig = typeof template.style_config === 'string'
-          ? JSON.parse(template.style_config)
-          : template.style_config;
-
-        const displayRules = typeof template.display_rules === 'string'
-          ? JSON.parse(template.display_rules)
-          : template.display_rules;
-
-        updateCampaignData({
-          name: template.name,
-          settings: { ...templateConfig, ...styleConfig },
-          rules: displayRules || {},
-        });
-
-        // Also update download count
-        await supabase
-          .from('marketplace_templates')
-          .update({ download_count: (template.download_count || 0) + 1 })
-          .eq('id', templateId);
-
-        toast.success(`Template "${template.name}" applied!`);
-      }
+      setIntegrations(data || []);
     } catch (error) {
-      console.error('Error loading template:', error);
-      toast.error("Failed to load template");
+      console.error('Error loading integrations:', error);
+      toast.error('Failed to load integrations');
     }
+  }
+
+  // Helper to check if all selected integrations are announcements
+  const hasOnlyAnnouncements = () => {
+    const selected = integrations.filter(i => selectedIntegrationIds.includes(i.id));
+    return selected.length > 0 && selected.every(i => i.provider === 'announcements');
   };
 
-  // PHASE 5: Navigation with step validation
-  const handleNext = () => {
-    const maxStep = steps.length - 1;
-    if (currentStep >= maxStep) {
-      console.warn('⚠️ Already at last step, cannot advance');
-      return;
+  const handleNext = async () => {
+    // Special validation before Step 3 (Template Selection)
+    if (currentStep === 1) {
+      const isValid = await validateSelectedIntegrations();
+      if (!isValid) {
+        return; // Block progression
+      }
     }
-    console.log(`📍 Advancing from step ${currentStep} to ${currentStep + 1}`);
-    setCurrentStep(currentStep + 1);
+
+    if (currentStep < WIZARD_STEPS.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
   };
 
   const handleBack = () => {
@@ -224,586 +163,274 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
   };
 
   const handleClose = () => {
+    // Reset all state
     setCurrentStep(0);
-    setCampaignData({
-      name: "",
-      type: "",
-      integration_path: "",
-      data_source: "",
-      connector_id: null,
-      message_config: {
-        template: "",
-        placeholders: [],
-        connectorId: null,
-      },
-      integration_settings: {
-        message_template: "",
-        image_fallback_url: "",
-        locale: "en",
-        image_type: 'emoji' as 'emoji' | 'icon' | 'upload' | 'url',
-        emoji: '📢',
-        icon: '📢',
-        image_url: '',
-        schedule: {
-          enabled: false,
-          start_date: null,
-          end_date: null,
-          recurrence: null,
-        },
-        actions: [],
-      },
-      settings: {},
-      rules: {},
-      polling_config: {
-        enabled: false,
-        interval_minutes: 5,
-        max_events_per_fetch: 10,
-        last_poll_at: null
-      },
-    });
+    setSelectedWebsiteId(null);
+    setSelectedIntegrationIds([]);
+    setIntegrations([]);
     setSelectedTemplate(null);
-    setShowAllTemplates(false);
-    setTemplateFetchError(null);
-    setRetryCount(0);
+    setFieldMapping({});
+    setTestimonialFilters({
+      minRating: 1,
+      mediaFilter: 'all',
+      onlyVerified: false,
+    });
+    setAnnouncementConfig({
+      title: '',
+      message: '',
+      cta_text: '',
+      cta_url: '',
+      schedule_type: 'instant',
+      priority: 50,
+      variables: {},
+      image_type: 'emoji',
+      emoji: '📢',
+    });
+    setPriority(50);
+    setFrequencyCap({ per_user: 3, per_session: 1, cooldown_seconds: 600 });
+    setNeedsConnection(false);
+    setConnectionComplete(false);
+    setSchedule({
+      enabled: false,
+      start_date: null,
+      end_date: null,
+      days_of_week: [],
+      time_ranges: [],
+    });
+    setDisplayRules({
+      show_duration_ms: 5000,
+      interval_ms: 8000,
+      max_per_page: 5,
+      max_per_session: 20,
+      url_allowlist: [],
+      url_denylist: [],
+      referrer_allowlist: [],
+      referrer_denylist: [],
+      triggers: {
+        min_time_on_page_ms: 0,
+        scroll_depth_pct: 0,
+        exit_intent: false,
+      },
+      enforce_verified_only: false,
+      geo_allowlist: [],
+      geo_denylist: [],
+    });
     onClose();
   };
 
-  /**
-   * PHASE 2 & 6: Smart Template Filtering with Error Handling
-   * 
-   * This effect handles fetching and filtering marketplace templates based on:
-   * - The selected campaign type (e.g., 'recent-purchase')
-   * - The "Show All Templates" toggle state
-   * - Retry attempts after failures
-   * 
-   * Flow:
-   * 1. Query marketplace_templates table from Supabase
-   * 2. Filter by supported_campaign_types array using PostgreSQL contains operator
-   * 3. Order by priority (DESC) then download_count (DESC)
-   * 4. Apply auto-selection logic based on result count
-   * 
-   * Auto-Selection Logic (Phase 2.2):
-   * - 1 match: Auto-select and show success toast
-   * - 0 matches: Call fallback generator (Phase 3)
-   * - 2+ matches: Show selection UI, user chooses
-   * 
-   * Error Handling (Phase 6.2):
-   * - Network failures: Show error with retry button
-   * - Database errors: Log and display user-friendly message
-   * - Generator failures: Graceful fallback to manual creation
-   * - Unmounted component: Skip state updates
-   * 
-   * Performance:
-   * - Query typically completes in < 50ms (GIN index on supported_campaign_types)
-   * - Results cached by Supabase client
-   * - Only re-fetches when dependencies change
-   * 
-   * Dependencies:
-   * - open: Only fetch when wizard is open
-   * - campaignData.type: Re-fetch when campaign type changes
-   * - showAllTemplates: Toggle between filtered and all templates
-   * - retryCount: Manual retry trigger
-   */
-  useEffect(() => {
-    const fetchTemplates = async () => {
-      // Phase 6.2: Edge case - prevent fetching if wizard is closed
-      if (!open) return;
-
-      // Skip template fetching for native integrations
-      if (campaignData.integration_path === 'native') {
-        console.info('📢 Skipping template fetch for native integration path');
-        return;
-      }
-      
-      const metadata = campaignData.data_source ? getIntegrationMetadata(campaignData.data_source) : null;
-      if (metadata?.isNative) {
-        console.info('📢 Skipping template fetch for native data source');
-        return;
-      }
-      
-      // Skip if no campaign type selected yet (prevents fetching all on initial mount)
-      if (!campaignData.type) {
-        console.info('📢 Skipping template fetch - no campaign type selected yet');
-        return;
-      }
-
-      setIsLoadingTemplates(true);
-      setTemplateFetchError(null);
-      
-      try {
-        let query = supabase
-          .from('marketplace_templates')
-          .select('*')
-          .eq('is_public', true);
-
-        // Phase 6.2: Edge case - handle undefined campaignData.type
-        if (campaignData.type && !showAllTemplates) {
-          console.info(`🔍 Fetching templates for campaign type: ${campaignData.type}`);
-          query = query.contains('supported_campaign_types', [campaignData.type]);
-        } else if (showAllTemplates) {
-          console.info('🔍 Fetching all templates (filter bypassed)');
-        } else if (!campaignData.type) {
-          console.warn('⚠️ No campaign type selected, fetching all templates');
-        }
-
-        // Order by priority first, then download count
-        const { data, error } = await query
-          .order('priority', { ascending: false })
-          .order('download_count', { ascending: false })
-          .limit(50);
-
-        // Phase 6.2: Enhanced error handling
-        if (error) {
-          console.error('Database query error:', error);
-          throw new Error(`Database error: ${error.message}`);
-        }
-        
-        const loadedTemplates = data || [];
-        console.info(`✅ Loaded ${loadedTemplates.length} templates for ${campaignData.type || 'all types'}`);
-        
-        // Phase 6.3: Prevent unnecessary state updates if component unmounted
-        if (!open) return;
-        
-        setTemplates(loadedTemplates);
-        setTemplateFetchError(null);
-        setRetryCount(0); // Reset retry count on success
-
-        // Step 2.2: Auto-selection logic (only when not showing all)
-        if (!showAllTemplates) {
-          if (loadedTemplates.length === 1) {
-            console.info('🎯 Auto-selecting single matching template');
-            const template = loadedTemplates[0];
-            setSelectedTemplate(template);
-            
-            // PHASE 1: Apply all template configs immediately
-            const templateConfig = typeof template.template_config === 'string' 
-              ? JSON.parse(template.template_config) 
-              : template.template_config || {};
-              
-            const styleConfig = typeof template.style_config === 'string'
-              ? JSON.parse(template.style_config)
-              : template.style_config || {};
-              
-            const displayRules = typeof template.display_rules === 'string'
-              ? JSON.parse(template.display_rules)
-              : template.display_rules || {};
-            
-            updateCampaignData({ 
-              settings: { 
-                ...campaignData.settings,
-                ...templateConfig,
-                ...styleConfig
-              },
-              rules: {
-                ...campaignData.rules,
-                ...displayRules
-              }
-            });
-            
-            console.info('✅ Template fully applied (auto-select):', {
-              template: template.name,
-              appliedSettings: { ...templateConfig, ...styleConfig },
-              appliedRules: displayRules
-            });
-            
-            toast.success('Perfect match template selected!');
-          } else if (loadedTemplates.length === 0 && campaignData.type) {
-            console.warn(`⚠️ No templates found for campaign type: ${campaignData.type}`);
-            // Phase 3: Generate fallback template with error handling
-            try {
-              const fallbackTemplate = generateDefaultTemplateForCampaignType(campaignData.type);
-              if (fallbackTemplate) {
-                console.info('✨ Auto-generated fallback template created');
-                setTemplates([fallbackTemplate]);
-                setSelectedTemplate(fallbackTemplate);
-                
-                // PHASE 1: Apply fallback template configs
-                const templateConfig = typeof fallbackTemplate.template_config === 'string' 
-                  ? JSON.parse(fallbackTemplate.template_config) 
-                  : fallbackTemplate.template_config || {};
-                  
-                const styleConfig = typeof fallbackTemplate.style_config === 'string'
-                  ? JSON.parse(fallbackTemplate.style_config)
-                  : fallbackTemplate.style_config || {};
-                  
-                const displayRules = typeof fallbackTemplate.display_rules === 'string'
-                  ? JSON.parse(fallbackTemplate.display_rules)
-                  : fallbackTemplate.display_rules || {};
-                
-                updateCampaignData({ 
-                  settings: { 
-                    ...campaignData.settings,
-                    ...templateConfig,
-                    ...styleConfig
-                  },
-                  rules: {
-                    ...campaignData.rules,
-                    ...displayRules
-                  }
-                });
-                
-                console.info('✅ Fallback template fully applied:', {
-                  template: fallbackTemplate.name,
-                  appliedSettings: { ...templateConfig, ...styleConfig },
-                  appliedRules: displayRules
-                });
-                
-                toast.success('Template auto-generated for your campaign type!');
-              } else {
-                toast.info('No pre-made templates found. You can customize from scratch in the next step.');
-              }
-            } catch (genError) {
-              console.error('Error generating fallback template:', genError);
-              toast.info('No templates available. You can create a custom design in the next step.');
-            }
-          } else if (loadedTemplates.length > 1) {
-            console.info(`📋 ${loadedTemplates.length} templates available for selection`);
-            // Reset selection when multiple templates are available
-            setSelectedTemplate(null);
-          }
-        } else {
-          // When showing all, reset selection
-          setSelectedTemplate(null);
-        }
-      } catch (error) {
-        console.error('❌ Error fetching templates:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        setTemplateFetchError(errorMessage);
-        
-        // Phase 6.2: Only show toast on first attempt, not on retries
-        if (retryCount === 0) {
-          toast.error('Failed to load templates. Click retry to try again.');
-        }
-        
-        setTemplates([]);
-      } finally {
-        setIsLoadingTemplates(false);
-      }
-    };
-
-    fetchTemplates();
-  }, [open, campaignData.type, campaignData.integration_path, campaignData.data_source, showAllTemplates, retryCount]); // Add dependencies for native integration skip
-
-  const updateCampaignData = (data: Partial<typeof campaignData>) => {
-    setCampaignData((prev) => ({ ...prev, ...data }));
-    
-    // Phase 6.2: Edge case - Reset template selection when campaign type changes
-    if (data.type && data.type !== campaignData.type) {
-      console.info(`Campaign type changed from ${campaignData.type} to ${data.type}, resetting template selection`);
-      setSelectedTemplate(null);
-      setShowAllTemplates(false);
-    }
+  const handleConnectNewIntegration = (provider: string) => {
+    // Mark that we need connection and proceed to connection step
+    setNeedsConnection(true);
+    handleNext();
   };
 
-  // Phase 6.2: Manual retry function for failed template fetches
-  const retryFetchTemplates = () => {
-    console.info('🔄 Retrying template fetch...');
-    setRetryCount(prev => prev + 1);
+  const handleConnectionComplete = (config?: any) => {
+    setConnectionComplete(true);
+    // Reload integrations to get the newly connected one
+    loadIntegrations();
+    toast.success('Integration connected successfully!');
   };
 
-  // Helper to determine if Step 3 (connection) should be skipped
-  const shouldSkipConnectionStep = async () => {
-    // Always skip for non-integration paths (manual/demo)
-    if (campaignData.integration_path !== 'integration') return true;
-    if (!campaignData.data_source) return true;
-    
+  // Validate that selected integrations exist in database
+  const validateSelectedIntegrations = async (): Promise<boolean> => {
+    if (selectedIntegrationIds.length === 0) return false;
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return false;
-      
-      // Get current website ID from localStorage (used by WebsiteContext)
-      const currentWebsiteId = localStorage.getItem('selectedWebsiteId');
-      if (!currentWebsiteId) {
-        console.warn('No website selected, showing connection step');
+      const { data, error } = await supabase
+        .from('integrations')
+        .select('id')
+        .in('id', selectedIntegrationIds);
+
+      if (error) {
+        console.error('Error validating integrations:', error);
         return false;
       }
-      
-      // Check if this specific integration is ALREADY connected for this user
-      const { data: existingConnector } = await supabase
-        .from('integration_connectors')
-        .select('id, status')
-        .eq('user_id', user.id)
-        .eq('website_id', currentWebsiteId)
-        .eq('integration_type', campaignData.data_source as any)
-        .eq('status', 'active')
-        .maybeSingle();
-      
-      // Only skip if integration is ACTUALLY connected and active
-      const shouldSkip = !!existingConnector;
-      
-      console.info('shouldSkipConnectionStep:', {
-        dataSource: campaignData.data_source,
-        websiteId: currentWebsiteId,
-        existingConnector: existingConnector?.id,
-        shouldSkip
-      });
-      
-      return shouldSkip;
+
+      // Check if all selected integrations exist
+      if (!data || data.length !== selectedIntegrationIds.length) {
+        toast.error('One or more selected integrations not found. Please reconnect them.');
+        return false;
+      }
+
+      return true;
     } catch (error) {
-      console.error('Error checking connection step skip:', error);
-      return false; // Show step on error (fail-safe)
+      console.error('Error validating integrations:', error);
+      return false;
     }
   };
 
-  // Auto-advance when connection flow completes
-  useEffect(() => {
-    const handleAutoAdvance = () => {
-      console.log('Auto-advancing from step', currentStep);
-      if (currentStep === 3) {
-        handleNext();
-      }
-    };
-    
-    window.addEventListener('notiproof:wizard-advance', handleAutoAdvance);
-    return () => window.removeEventListener('notiproof:wizard-advance', handleAutoAdvance);
-  }, [currentStep]);
-
-  // Listen for preview updates (separate from form submission)
-  useEffect(() => {
-    const handlePreviewUpdate = (e: CustomEvent) => {
-      console.log('👁️ Preview event received:', e.detail);
-      setPreviewState(e.detail);
-    };
-    
-    window.addEventListener('notiproof:preview-update', handlePreviewUpdate as any);
-    return () => window.removeEventListener('notiproof:preview-update', handlePreviewUpdate as any);
-  }, []);
-
-  // Removed auto-skip useEffect - IntegrationConnectionStep handles connection checking internally
+  const canProceed = () => {
+    switch (currentStep) {
+      case 0:
+        return !!selectedWebsiteId;
+      case 1:
+        return selectedIntegrationIds.length > 0;
+      case 2:
+        // Connection step - skip if not needed or already complete
+        return !needsConnection || connectionComplete;
+      case 3:
+        return !!selectedTemplate;
+      case 4:
+        // For announcements, check if title and message are filled
+        if (hasOnlyAnnouncements()) {
+          return announcementConfig.title.length > 0 && 
+                 announcementConfig.message.length > 0;
+        }
+        // For other integrations, check if all required fields are mapped
+        return selectedTemplate?.required_fields.every(
+          field => field in fieldMapping && fieldMapping[field]
+        ) || false;
+      case 5:
+        return true; // Orchestration always allows proceed
+      case 6:
+        return true; // Rules always allows proceed
+      case 7:
+        return false; // Final step, no Next button
+      default:
+        return false;
+    }
+  };
 
   const renderStep = () => {
-    const metadata = campaignData.data_source 
-      ? getIntegrationMetadata(campaignData.data_source) 
-      : null;
-    
-    // Native Integration Flow
-    if (metadata?.isNative) {
-      switch (currentStep) {
-        case 0:
-          return (
-            <QuickStartSelector
-              onSelect={(template) => {
-                if (template.id === "custom-setup") {
-                  setUseQuickStart(false);
-                } else {
-                  setUseQuickStart(true);
-                  updateCampaignData({
-                    name: template.name,
-                    type: template.config.campaignType,
-                    integration_path: 'native',
-                    data_source: template.config.dataSource,
-                    settings: template.config.settings,
-                  });
-                  toast.success(`${template.name} template selected!`);
-                  setCurrentStep(1);
-                }
-              }}
-              showDataSourceSelector={!useQuickStart}
-              onDataSourceSelect={(dataSource) => {
-                const inferredType = inferCampaignType(dataSource);
-                updateCampaignData({
-                  integration_path: metadata?.isNative ? 'native' : 'integration',
-                  data_source: dataSource,
-                  type: inferredType,
-                });
-                toast.success("Data source selected!");
-                handleNext();
-              }}
-            />
-          );
-        case 1:
-          return (
-            <NativeIntegrationConfig 
-              dataSource={campaignData.data_source}
-              config={campaignData.integration_settings}
-              onPreviewUpdate={(config) => {
-                updateCampaignData({ 
-                  integration_settings: config,
-                  settings: {
-                    ...campaignData.settings,
-                    headline: config.title || '', // TITLE is headline
-                    message: config.message || '', // MESSAGE is subtext
-                    subtext: config.message || '', // Also store as subtext
-                  }
-                });
-              }}
-              onConfigComplete={(config) => {
-                updateCampaignData({ 
-                  integration_settings: config,
-                  settings: {
-                    ...campaignData.settings,
-                    headline: config.title || '', // TITLE is headline
-                    message: config.message || '', // MESSAGE is subtext
-                    subtext: config.message || '', // Also store as subtext
-                  }
-                });
-                handleNext();
-              }}
-            />
-          );
-        case 2:
-          return (
-            <DesignEditor
-              settings={campaignData.settings}
-              onChange={(settings) => updateCampaignData({ settings })}
-              campaignType={campaignData.type}
-              dataSource={campaignData.data_source}
-              integrationPath={campaignData.integration_path}
-              templateName={selectedTemplate?.name}
-            />
-          );
-        case 3:
-          return (
-            <ReviewActivate
-              campaignData={campaignData}
-              selectedTemplate={selectedTemplate}
-              onComplete={() => {
-                onComplete();
-                handleClose();
-              }}
-            />
-          );
-      }
-    }
-    
-    // External Integration Flow
-    if (campaignData.integration_path === 'integration') {
-      switch (currentStep) {
-        case 0:
-          return (
-            <IntegrationSelector
-              campaignType={campaignData.type || 'recent-activity'}
-              selectedIntegration={campaignData.data_source}
-              onSelect={(dataSource) => {
-                const inferredType = inferCampaignType(dataSource);
-                updateCampaignData({
-                  integration_path: 'integration',
-                  data_source: dataSource,
-                  type: inferredType,
-                });
-                toast.success("Integration selected!");
-                handleNext();
-              }}
-            />
-          );
-        case 1:
-          return (
-            <IntegrationConnectionStep
-              dataSource={campaignData.data_source}
-              onConnectionComplete={(result) => {
-                updateCampaignData({ 
-                  connector_id: result.connectorId || null
-                });
-                handleNext();
-              }}
-            />
-          );
-        case 2:
-          return (
-            <IntegrationConfigurationStep
-              dataSource={campaignData.data_source}
-              campaignType={campaignData.type}
-              existingConfig={{
-                messageTemplate: campaignData.message_config.template,
-                placeholders: campaignData.message_config.placeholders,
-                connectorId: campaignData.connector_id || undefined,
-                integrationSettings: campaignData.integration_settings,
-              }}
-              onConfigComplete={(config: any) => {
-                const finalTemplate = config.messageTemplate || 
-                                     config.integrationSettings?.message_template || "";
-                
-                updateCampaignData({
-                  message_config: {
-                    template: finalTemplate,
-                    placeholders: config.placeholders,
-                    connectorId: config.connectorId || null,
-                  },
-                  integration_settings: config.integrationSettings || campaignData.integration_settings,
-                  settings: {
-                    ...campaignData.settings,
-                    headline: finalTemplate,
-                    placeholders: config.placeholders,
-                  },
-                });
-                handleNext();
-              }}
-            />
-          );
-        case 3:
-          return (
-            <DesignEditor
-              settings={campaignData.settings}
-              onChange={(settings) => updateCampaignData({ settings })}
-              campaignType={campaignData.type}
-              dataSource={campaignData.data_source}
-              integrationPath={campaignData.integration_path}
-              templateName={selectedTemplate?.name}
-            />
-          );
-        case 4:
-          return (
-            <ReviewActivate
-              campaignData={campaignData}
-              selectedTemplate={selectedTemplate}
-              onComplete={() => {
-                onComplete();
-                handleClose();
-              }}
-            />
-          );
-      }
-    }
-    
-    // Manual Flow (fallback)
     switch (currentStep) {
       case 0:
         return (
-          <QuickStartSelector
-            onSelect={(template) => {
-              if (template.id === "custom-setup") {
-                setUseQuickStart(false);
-              } else {
-                setUseQuickStart(true);
-                updateCampaignData({
-                  name: template.name,
-                  type: template.config.campaignType,
-                  integration_path: 'manual',
-                  data_source: 'manual',
-                  settings: template.config.settings,
-                });
-                toast.success(`${template.name} template selected!`);
-                setCurrentStep(1);
-              }
-            }}
-            showDataSourceSelector={!useQuickStart}
-            onDataSourceSelect={(dataSource) => {
-              const inferredType = inferCampaignType(dataSource);
-              updateCampaignData({
-                integration_path: 'manual',
-                data_source: dataSource,
-                type: inferredType,
-              });
-              toast.success("Manual setup selected!");
-              handleNext();
-            }}
+          <WebsiteGate
+            selectedWebsiteId={selectedWebsiteId}
+            onWebsiteSelect={setSelectedWebsiteId}
           />
         );
+      
       case 1:
         return (
-          <DesignEditor
-            settings={campaignData.settings}
-            onChange={(settings) => updateCampaignData({ settings })}
-            campaignType={campaignData.type}
-            dataSource={campaignData.data_source}
-            integrationPath={campaignData.integration_path}
-            templateName={selectedTemplate?.name}
+          <IntegrationSelectionStep
+            websiteId={selectedWebsiteId!}
+            selectedIntegrations={selectedIntegrationIds}
+            onSelectionChange={setSelectedIntegrationIds}
+            onConnectNew={handleConnectNewIntegration}
           />
         );
+      
       case 2:
+        // Connection step - only show if needed
+        if (!needsConnection || connectionComplete) {
+          // Skip this step, auto-proceed
+          if (!connectionComplete) {
+            setTimeout(() => handleNext(), 0);
+          }
+          return (
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground">Integration already connected, proceeding...</p>
+            </div>
+          );
+        }
+        
+        // Get the first selected integration to determine which one needs connection
+        const firstIntegrationId = selectedIntegrationIds[0];
+        const integration = integrations.find(i => i.id === firstIntegrationId);
+        
+        if (!integration) {
+          return (
+            <div className="py-12 text-center">
+              <p className="text-destructive">Integration not found</p>
+            </div>
+          );
+        }
+        
+        return (
+          <IntegrationConnectionStep
+            dataSource={integration.provider}
+            onConnectionComplete={handleConnectionComplete}
+          />
+        );
+      
+      case 3:
+        return (
+          <TemplateSelectionStep
+            selectedIntegrations={integrations.filter(i => 
+              selectedIntegrationIds.includes(i.id)
+            )}
+            selectedTemplateId={selectedTemplate?.id || null}
+            onTemplateSelect={setSelectedTemplate}
+          />
+        );
+      
+      case 4:
+        if (!selectedTemplate) return null;
+        
+        // Check if all integrations are announcements
+        if (hasOnlyAnnouncements()) {
+          // Show AnnouncementConfig for native announcement integration
+          return (
+            <AnnouncementConfig
+              config={announcementConfig}
+              onChange={setAnnouncementConfig}
+            />
+          );
+        }
+        
+        // Otherwise show FieldMappingStep for regular integrations
+        return (
+          <FieldMappingStep
+            selectedIntegrations={integrations.filter(i => 
+              selectedIntegrationIds.includes(i.id)
+            )}
+            template={selectedTemplate}
+            mapping={fieldMapping}
+            onMappingChange={setFieldMapping}
+            testimonialFilters={testimonialFilters}
+            onTestimonialFiltersChange={setTestimonialFilters}
+          />
+        );
+      
+      case 5:
+        return (
+          <OrchestrationStep
+            priority={priority}
+            frequencyCap={frequencyCap}
+            schedule={schedule}
+            onPriorityChange={setPriority}
+            onFrequencyCapChange={setFrequencyCap}
+            onScheduleChange={setSchedule}
+          />
+        );
+      
+      case 6:
+        return (
+          <RulesTargeting
+            rules={displayRules}
+            onChange={setDisplayRules}
+            campaignType="notification"
+            dataSource={integrations[0]?.provider || 'manual'}
+          />
+        );
+      
+      case 7:
         return (
           <ReviewActivate
-            campaignData={campaignData}
+            campaignData={{
+              name: campaignName || `${selectedTemplate?.name} Campaign`,
+              type: selectedTemplate?.category || 'notification',
+              website_id: selectedWebsiteId!,
+              template_id: selectedTemplate?.id || null,
+              template_mapping: fieldMapping,
+              data_sources: selectedIntegrationIds.map(id => {
+                const integration = integrations.find(i => i.id === id);
+                return {
+                  integration_id: id,
+                  provider: integration?.provider || '',
+                };
+              }),
+              priority,
+              frequency_cap: frequencyCap,
+              schedule,
+              display_rules: displayRules,
+              native_config: hasOnlyAnnouncements()
+                ? { announcement: announcementConfig }
+                : integrations.some(i => i.provider === 'testimonials')
+                  ? { testimonial_filters: testimonialFilters }
+                  : {},
+            }}
             selectedTemplate={selectedTemplate}
             onComplete={() => {
               onComplete();
@@ -811,212 +438,61 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
             }}
           />
         );
+      
       default:
         return null;
     }
   };
 
-  // Simplified validation for Quick Start flow
-  const canProceed = () => {
-    const metadata = campaignData.data_source 
-      ? getIntegrationMetadata(campaignData.data_source) 
-      : null;
-    
-    switch (currentStep) {
-      case 0:
-        // Quick Start selection - always ready
-        return false; // Selection happens via button click, not Next button
-      case 1:
-        // Native integrations have their own "Continue to Design" button
-        if (metadata?.isNative) {
-          return false; // Hide Next button for native integrations at step 1
-        }
-        // Integration configuration - require data source
-        return typeof campaignData.data_source === 'string' && campaignData.data_source.trim() !== "";
-      case 2:
-        // Design customization - always allow to proceed
-        return true;
-      case 3:
-        // Review - always ready
-        return true;
-      default:
-        return true;
-    }
-  };
-
-  const shouldHideNextButton = () => {
-    const metadata = campaignData.data_source 
-      ? getIntegrationMetadata(campaignData.data_source) 
-      : null;
-    
-    // Hide Next button at Step 1 for native integrations (they use "Continue to Design" button)
-    if (metadata?.isNative && currentStep === 1) {
-      return true;
-    }
-    
-    // Hide at step 0 (selection happens via card clicks)
-    if (currentStep === 0) {
-      return true;
-    }
-    
-    return false;
-  };
-
-  const handleNextWithSkip = async () => {
-    console.info('handleNextWithSkip - Current step:', currentStep, 'Type:', campaignData.type);
-    
-    // PHASE 5: Show feedback when template settings are loaded
-    if (currentStep === 5 && selectedTemplate) {
-      toast.success(`Template "${selectedTemplate.name}" settings loaded!`, {
-        description: "Customize the design and rules in the next steps"
-      });
-    }
-    
-    // Smart skip logic based on integration path
-    if (currentStep === 1 && campaignData.integration_path !== 'integration') {
-      // Skip integration steps (2 & 3) and message template (4) - go to template chooser (5)
-      console.info('Skipping to Step 5 - Manual/Demo path selected');
-      setCurrentStep(5);
-    } else if (currentStep === 2 && campaignData.integration_path === 'integration') {
-      // CRITICAL FIX: Properly await the async check
-      const shouldSkip = await shouldSkipConnectionStep();
-      
-      if (shouldSkip) {
-        console.info('Skipping Step 3 - Integration already connected');
-        handleNext(); // Go to step 4 (Message Template Selector)
-      } else {
-        console.info('Going to Step 3 - Connection needed');
-        handleNext();
-      }
-    } else if (currentStep === 3) {
-      // CRITICAL FIX: Also await when checking from step 3
-      const shouldSkip = await shouldSkipConnectionStep();
-      
-      if (shouldSkip) {
-        console.info('On Step 3 but should skip - jumping to Step 4');
-        handleNext(); // Go to Message Template Selector
-      } else {
-        handleNext();
-      }
-    } else {
-      handleNext();
-    }
-  };
-
-  const handleBackWithSkip = async () => {
-    console.info('handleBackWithSkip - Current step:', currentStep);
-    
-    // Smart back navigation with skip logic
-    if (currentStep === 4 && campaignData.integration_path !== 'integration') {
-      // Skip back to data source selection
-      console.info('Skipping back to Step 1 - Manual/Demo path');
-      setCurrentStep(1);
-    } else if (currentStep === 4 && campaignData.integration_path === 'integration') {
-      // CRITICAL FIX: Properly await the async check
-      const shouldSkip = await shouldSkipConnectionStep();
-      
-      if (shouldSkip) {
-        console.info('Skipping back to Step 2 - Connection not needed');
-        setCurrentStep(2);
-      } else {
-        console.info('Going back to Step 3 - Connection step');
-        handleBack();
-      }
-    } else {
-      handleBack();
-    }
-  };
+  const progress = ((currentStep + 1) / WIZARD_STEPS.length) * 100;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+        style={{
+          zIndex: 9999,
+          isolation: 'isolate',
+        }}
+      >
         <DialogHeader>
-          <DialogTitle className="text-2xl">Create New Campaign</DialogTitle>
-          <DialogDescription className="sr-only">
-            Step-by-step wizard to create and configure your campaign
+          <DialogTitle>Create Campaign</DialogTitle>
+          <DialogDescription>
+            Step {currentStep + 1} of {WIZARD_STEPS.length}: {WIZARD_STEPS[currentStep]}
           </DialogDescription>
-          <div className="space-y-2 pt-4">
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Step {currentStep + 1} of {steps.length}</span>
-              <span>{steps[currentStep]}</span>
-            </div>
-            <Progress value={progress} className="h-2" />
-          </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex gap-6">
-          {/* Main Content - Left Side */}
-          <div className={`${ENABLE_LIVE_PREVIEW && (currentStep === 1 || currentStep === 2) ? 'flex-1' : 'w-full'} overflow-y-auto py-6 ${ENABLE_LIVE_PREVIEW && (currentStep === 1 || currentStep === 2) ? 'pr-2' : ''}`}>
-            {renderStep()}
-          </div>
-
-          {/* Live Preview - Right Side - Show on step 1 AND step 2 */}
-          {ENABLE_LIVE_PREVIEW && (currentStep === 1 || currentStep === 2) && (() => {
-            // Build preview settings with proper fallbacks
-            const previewSettings = {
-              ...(previewState?.settings || campaignData.settings || {
-                backgroundColor: "#ffffff",
-                textColor: "#1a1a1a",
-                primaryColor: "#2563EB",
-                borderRadius: 12,
-                fontSize: 14,
-                position: "bottom-left",
-                animation: "slide",
-                showTimestamp: true,
-              }),
-              // CRITICAL: Include integration_settings for announcement image config
-              integration_settings: campaignData.integration_settings
-            };
-
-            // CRITICAL: Check ALL possible sources for message template
-            const messageTemplate = previewState?.messageTemplate || 
-                                   campaignData.settings?.headline || 
-                                   campaignData.settings?.messageTemplate ||
-                                   campaignData.settings?.message || 
-                                   campaignData.integration_settings?.message_template ||
-                                   campaignData.message_config?.template ||
-                                   "Preview your notification here";
-
-            console.log('🖼️ PREVIEW RENDER:', {
-              step: currentStep,
-              dataSource: campaignData.data_source,
-              previewStateExists: !!previewState,
-              finalMessage: messageTemplate,
-              settingsHeadline: campaignData.settings?.headline,
-              integrationTemplate: campaignData.integration_settings?.message_template,
-              messageConfigTemplate: campaignData.message_config?.template,
-              imageConfig: campaignData.integration_settings?.image_type,
-            });
-            
-            return (
-              <div className="w-96 flex-shrink-0 border-l pl-6 overflow-y-auto py-6">
-                <WidgetPreviewFrame
-                  settings={previewSettings}
-                  messageTemplate={messageTemplate}
-                  campaignType={campaignData.type}
-                  websiteDomain={undefined}
-                />
-              </div>
-            );
-          })()}
+        <div className="mb-4">
+          <Progress value={progress} className="h-2" />
         </div>
 
-        <div className="flex justify-between border-t pt-4">
-          <Button variant="outline" onClick={handleBackWithSkip} disabled={currentStep === 0}>
+        <div className="flex-1 overflow-y-auto px-1">
+          {renderStep()}
+        </div>
+
+        <div className="flex items-center justify-between pt-4 border-t">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={currentStep === 0}
+          >
             <ChevronLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={handleClose}>
-              Cancel
+
+          {currentStep < WIZARD_STEPS.length - 1 ? (
+            <Button
+              onClick={handleNext}
+              disabled={!canProceed()}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
-            {currentStep < steps.length - 1 && !shouldHideNextButton() && (
-              <Button onClick={handleNextWithSkip} disabled={!canProceed()}>
-                Next
-                <ChevronRight className="h-4 w-4 ml-2" />
-              </Button>
-            )}
-          </div>
+          ) : (
+            <Button variant="ghost" onClick={handleClose}>
+              Close
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

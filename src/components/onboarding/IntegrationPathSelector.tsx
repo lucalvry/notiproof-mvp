@@ -11,7 +11,7 @@ import {
   Zap
 } from "lucide-react";
 import { getIntegrationMetadata } from "@/lib/integrationMetadata";
-import { getDataSourcesForCampaignType } from "@/lib/campaignDataSources";
+import { getAvailableDataSourcesForCampaignType } from "@/lib/campaignDataSources";
 import { cn } from "@/lib/utils";
 
 interface IntegrationPathSelectorProps {
@@ -27,8 +27,8 @@ export function IntegrationPathSelector({
 }: IntegrationPathSelectorProps) {
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   
-  // Get suggested integrations for this campaign type from the unified data source
-  const allSources = getDataSourcesForCampaignType(campaignType);
+  // Get available integrations for this campaign type
+  const allSources = getAvailableDataSourcesForCampaignType(campaignType);
   
   // Filter out 'manual' and 'csv' and map to metadata
   const integrationOptions = allSources

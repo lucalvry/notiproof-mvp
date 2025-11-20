@@ -65,6 +65,12 @@ export function IntegrationCard({
                   {!isConnected && !hasError && <XCircle className="h-3 w-3 mr-1" />}
                   {integration.status}
                 </Badge>
+                {integration.isNative && (
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                    <Zap className="h-3 w-3 mr-1" />
+                    Native
+                  </Badge>
+                )}
                 {!isConnected && integration.connectorType === 'oauth' && integration.configured && (
                   <Badge variant="outline" className="bg-success/10 text-success border-success/20">
                     <CheckCircle className="h-3 w-3 mr-1" />
@@ -82,7 +88,7 @@ export function IntegrationCard({
                     {quota.used}/{quota.quota} used
                   </Badge>
                 )}
-                {!isConnected && integration.connectorType === 'oauth' && (
+                {!isConnected && !integration.isNative && integration.connectorType === 'oauth' && (
                   <Badge variant="outline" className="gap-1">
                     <Zap className="h-3 w-3" />
                     One-Click

@@ -60,23 +60,62 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
       }
 
       // Create campaign as draft
+      // STEP 5: Log what we're about to save to the database
+      console.log('💾 [ReviewActivate - DRAFT] Preparing to save campaign draft');
+      console.log('  - Campaign name:', campaignName);
+      console.log('  - Data sources:', campaignData.data_sources);
+      console.log('  - native_config (from integration_settings):', 
+        JSON.stringify(campaignData.integration_settings, null, 2));
+      
+      const primaryProvider = Array.isArray(campaignData.data_sources) && campaignData.data_sources.length > 0 
+        ? (campaignData.data_sources[0] as any).provider 
+        : 'manual';
+      
+      if (primaryProvider === 'announcements') {
+        console.log('  ANNOUNCEMENT DRAFT SAVE - Config validation:');
+        console.log('    - title:', campaignData.integration_settings?.title || '(missing)');
+        console.log('    - message:', campaignData.integration_settings?.message || '(missing)');
+        console.log('    - cta_text:', campaignData.integration_settings?.cta_text || '(missing)');
+        console.log('    - cta_url:', campaignData.integration_settings?.cta_url || '(missing)');
+        console.log('    - image_type:', campaignData.integration_settings?.image_type);
+        console.log('    - icon/emoji:', campaignData.integration_settings?.icon || campaignData.integration_settings?.emoji);
+      }
+      
       const { data: campaign, error: campaignError } = await supabase
         .from("campaigns")
         .insert([{
           user_id: user.id,
           name: campaignName,
-          description: `${campaignData.type} campaign - ${campaignData.data_source}`,
+          description: campaignData.campaign_type === 'announcements' 
+            ? 'Smart Announcement campaign'
+            : `${campaignData.type} campaign`,
           status: "draft",
           website_id: websiteId,
-          data_source: campaignData.data_source || 'manual',
-          // Save native config for native integrations
+          
+          // Multi-integration support
+          data_sources: campaignData.data_sources || null,
+          
+          // Template system
+          template_id: campaignData.template_id || null,
+          template_mapping: campaignData.template_mapping || {},
+          
+          // Orchestration
+          priority: campaignData.priority || 50,
+          frequency_cap: campaignData.frequency_cap || {
+            per_user: 3,
+            per_session: 1,
+            cooldown_seconds: 600,
+          },
+          schedule: campaignData.schedule || null,
+          
+          // Legacy: Native config for native integrations
           native_config: campaignData.integration_settings || {},
           integration_settings: campaignData.integration_settings || {
             locale: "en",
             actions: [],
             image_fallback_url: ""
           },
-          display_rules: {
+          display_rules: campaignData.display_rules || {
             ...campaignData.settings,
             frequency: campaignData.rules?.frequency,
             sessionLimit: campaignData.rules?.sessionLimit,
@@ -94,6 +133,8 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
         .single();
 
       if (campaignError) throw campaignError;
+      
+      console.log('✅ [ReviewActivate - DRAFT] Campaign draft saved successfully:', campaign.id);
 
       // Create draft widget too
       const { error: widgetError } = await supabase
@@ -105,7 +146,7 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
           name: `${campaignName} Widget`,
           template_name: campaignData.settings?.layout || "notification",
           status: "draft", // Draft widget
-          integration: campaignData.data_source || "manual",
+          integration: primaryProvider,
           style_config: {
             borderRadius: campaignData.settings?.borderRadius,
             showImage: campaignData.settings?.showImage,
@@ -124,7 +165,7 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
       if (widgetError) throw widgetError;
 
       // For Smart Announcements in draft mode, create the announcement event
-      if (campaignData.data_source === 'announcements' && campaignData.integration_settings) {
+      if (primaryProvider === 'announcements' && campaignData.integration_settings) {
         const announcementConfig = campaignData.integration_settings;
         
         let messageTemplate = announcementConfig.title || '';
@@ -192,25 +233,75 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
         .single();
 
       // Create campaign with start/end dates
+      // STEP 5: Log what we're about to save to the database
+      console.log('💾 [ReviewActivate - ACTIVATE] Preparing to save active campaign');
+      console.log('  - Campaign name:', campaignName);
+      console.log('  - Data sources:', campaignData.data_sources);
+      
+      const primaryProvider = Array.isArray(campaignData.data_sources) && campaignData.data_sources.length > 0 
+        ? (campaignData.data_sources[0] as any).provider 
+        : 'manual';
+      console.log('  - Website ID:', websiteId);
+      console.log('  - Business type:', website?.business_type);
+      console.log('  - native_config (from integration_settings):', 
+        JSON.stringify(campaignData.integration_settings, null, 2));
+      console.log('  - Settings:', JSON.stringify(campaignData.settings, null, 2));
+      
+      if (primaryProvider === 'announcements') {
+        console.log('  ANNOUNCEMENT ACTIVATION - Config validation:');
+        console.log('    - title:', campaignData.integration_settings?.title || '(missing)');
+        console.log('    - message:', campaignData.integration_settings?.message || '(missing)');
+        console.log('    - cta_text:', campaignData.integration_settings?.cta_text || '(missing)');
+        console.log('    - cta_url:', campaignData.integration_settings?.cta_url || '(missing)');
+        console.log('    - image_type:', campaignData.integration_settings?.image_type);
+        console.log('    - icon:', campaignData.integration_settings?.icon);
+        console.log('    - emoji:', campaignData.integration_settings?.emoji);
+        console.log('    - schedule_type:', campaignData.integration_settings?.schedule_type);
+        
+        if (!campaignData.integration_settings?.title || !campaignData.integration_settings?.message) {
+          console.error('  ❌ CRITICAL: Missing required announcement fields before save!');
+        }
+        
+        if (!campaignData.integration_settings?.cta_text || !campaignData.integration_settings?.cta_url) {
+          console.warn('  ⚠️ WARNING: Missing CTA fields - button will not render!');
+        }
+      }
+      
       const { data: campaign, error: campaignError } = await supabase
         .from("campaigns")
         .insert([{
           user_id: user.id,
           name: campaignName,
-          description: `${campaignData.type} campaign - ${campaignData.data_source}`,
+          description: `${campaignData.type} campaign - ${primaryProvider}`,
           status: "active",
           website_id: websiteId,
-          data_source: campaignData.data_source || 'manual',
-          start_date: campaignData.rules?.startDate || new Date().toISOString(),
-          end_date: campaignData.rules?.endDate || null,
-          // Save native config for native integrations
+          start_date: campaignData.rules?.startDate || campaignData.schedule?.start_date || new Date().toISOString(),
+          end_date: campaignData.rules?.endDate || campaignData.schedule?.end_date || null,
+          
+          // Multi-integration support
+          data_sources: campaignData.data_sources || [],
+          
+          // Template system
+          template_id: campaignData.template_id || null,
+          template_mapping: campaignData.template_mapping || {},
+          
+          // Orchestration
+          priority: campaignData.priority || 50,
+          frequency_cap: campaignData.frequency_cap || {
+            per_user: 3,
+            per_session: 1,
+            cooldown_seconds: 600,
+          },
+          schedule: campaignData.schedule || null,
+          
+          // Legacy: Native config for native integrations
           native_config: campaignData.integration_settings || {},
           integration_settings: campaignData.integration_settings || {
             locale: "en",
             actions: [],
             image_fallback_url: ""
           },
-          display_rules: {
+          display_rules: campaignData.display_rules || {
             ...campaignData.settings,
             frequency: campaignData.rules?.frequency,
             sessionLimit: campaignData.rules?.sessionLimit,
@@ -229,6 +320,24 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
 
       if (campaignError) throw campaignError;
 
+      // STEP 5: Confirm what was saved to the database
+      console.log('✅ [ReviewActivate - ACTIVATE] Campaign saved successfully!');
+      console.log('  - Campaign ID:', campaign.id);
+      console.log('  - Campaign status:', campaign.status);
+      console.log('  - Saved native_config:', JSON.stringify(campaign.native_config, null, 2));
+      console.log('  - Saved integration_settings:', JSON.stringify(campaign.integration_settings, null, 2));
+      
+      if (campaignData.campaign_type === 'announcements') {
+        const nativeConfig = campaign.native_config as any;
+        console.log('  ANNOUNCEMENT SAVED - Verification:');
+        console.log('    ✓ title in DB:', nativeConfig?.title);
+        console.log('    ✓ message in DB:', nativeConfig?.message);
+        console.log('    ✓ cta_text in DB:', nativeConfig?.cta_text);
+        console.log('    ✓ cta_url in DB:', nativeConfig?.cta_url);
+        console.log('    ✓ image_type in DB:', nativeConfig?.image_type);
+        console.log('    ✓ icon/emoji in DB:', nativeConfig?.icon || nativeConfig?.emoji);
+      }
+
       // Create widget for this campaign
       const { data: newWidget, error: widgetError } = await supabase
         .from("widgets")
@@ -239,7 +348,7 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
           name: `${campaignName} Widget`,
           template_name: campaignData.settings?.layout || "notification",
           status: "active",
-          integration: campaignData.data_source || "manual",
+          integration: primaryProvider,
           allowed_event_sources: ['natural', 'integration', 'quick-win', 'demo'],
           style_config: {
             borderRadius: campaignData.settings?.borderRadius,
@@ -263,12 +372,12 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
       // PHASE 4: Only create demo events for non-native integrations when explicitly requested
       // Native integrations (announcements, live_visitors, instant_capture) should create their own events
       const isNativeIntegration = ['announcements', 'live_visitors', 'instant_capture'].includes(
-        campaignData.data_source || ''
+        primaryProvider
       );
 
       if (!isNativeIntegration && campaignData.integration_path === 'demo') {
         // Only generate demo events if user explicitly chose demo mode
-        const demoEvents = generateDemoEvents(newWidget.id, website?.business_type || 'saas');
+        const demoEvents = generateDemoEvents(newWidget.id, websiteId, website?.business_type || 'saas');
         const { error: eventsError } = await supabase
           .from("events")
           .insert(demoEvents);
@@ -277,29 +386,43 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
       }
 
       // PHASE 3: For Smart Announcements, create the actual announcement event
-      if (campaignData.data_source === 'announcements' && campaignData.integration_settings) {
+      if (primaryProvider === 'announcements' && campaignData.integration_settings) {
         const announcementConfig = campaignData.integration_settings;
         
-        // Build the message template from the announcement config
-        let messageTemplate = announcementConfig.title || '';
-        if (announcementConfig.message) {
-          messageTemplate += (messageTemplate ? ' - ' : '') + announcementConfig.message;
+        // Validation logging
+        console.log('📢 [ReviewActivate] Creating announcement event:');
+        console.log('  - widget_id:', newWidget.id);
+        console.log('  - website_id:', websiteId);
+        console.log('  - title:', announcementConfig.title);
+        console.log('  - message:', announcementConfig.message);
+        console.log('  - cta_text:', announcementConfig.cta_text);
+        console.log('  - cta_url:', announcementConfig.cta_url);
+        
+        if (!websiteId) {
+          console.error('❌ CRITICAL: website_id is missing! Event will not be queryable!');
+          throw new Error('website_id is required for announcement events');
         }
-
-        // Create the announcement event
+        
+        // Create the announcement event with ALL configuration data
         const { error: announcementError } = await supabase
           .from("events")
           .insert([{
             widget_id: newWidget.id,
+            website_id: websiteId,
             event_type: 'announcement',
             source: 'manual' as const,
             status: 'approved',
-            message_template: messageTemplate,
+            message_template: announcementConfig.title || 'Announcement',
             event_data: {
               title: announcementConfig.title,
               message: announcementConfig.message,
               cta_text: announcementConfig.cta_text,
               cta_url: announcementConfig.cta_url,
+              // Include image configuration
+              image_type: announcementConfig.image_type || 'emoji',
+              emoji: announcementConfig.emoji,
+              icon: announcementConfig.icon,
+              image_url: announcementConfig.image_url,
               schedule_type: announcementConfig.schedule_type || 'instant',
               priority: announcementConfig.priority || 5,
             },
@@ -379,7 +502,7 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
   };
 
   // Generate demo events based on business type
-  const generateDemoEvents = (widgetId: string, businessType: string) => {
+  const generateDemoEvents = (widgetId: string, websiteId: string, businessType: string) => {
     const baseTime = new Date();
     const demoMessages: Record<string, string[]> = {
       ecommerce: [
@@ -408,6 +531,7 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
     
     return messages.map((message, index) => ({
       widget_id: widgetId,
+      website_id: websiteId,
       event_type: businessType === 'ecommerce' ? 'purchase' : 'conversion',
       source: 'demo' as const,
       status: 'approved' as const,
@@ -472,15 +596,21 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
               </p>
             </div>
             
-            {campaignData.data_source && campaignData.data_source !== 'manual' && campaignData.data_source !== 'demo' && (
-              <div>
-                <p className="text-sm text-muted-foreground">Connected Integration</p>
-                <p className="font-medium capitalize flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                  {campaignData.data_source}
-                </p>
-              </div>
-            )}
+            {(() => {
+              const primaryProvider = Array.isArray(campaignData.data_sources) && campaignData.data_sources.length > 0
+                ? (campaignData.data_sources[0] as any).provider
+                : 'manual';
+              
+              return primaryProvider && primaryProvider !== 'manual' ? (
+                <div>
+                  <p className="text-sm text-muted-foreground">Connected Integration</p>
+                  <p className="font-medium capitalize flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-success" />
+                    {primaryProvider}
+                  </p>
+                </div>
+              ) : null;
+            })()}
             
             <div>
               <p className="text-sm text-muted-foreground">Layout</p>
@@ -551,7 +681,10 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
         </CardHeader>
         <CardContent>
           <WidgetPreviewFrame
-            settings={campaignData.settings}
+            settings={{
+              ...campaignData.settings,
+              integration_settings: campaignData.integration_settings
+            }}
             messageTemplate={campaignData.settings?.headline || campaignData.integration_settings?.title || campaignData.integration_settings?.message || ""}
             campaignType={campaignData.type}
             websiteDomain={campaignData.website_id || "your-site.com"}
