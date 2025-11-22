@@ -52,6 +52,9 @@ import Rules from "./pages/Rules";
 import TestimonialCollection from "./pages/TestimonialCollection";
 import TestimonialModeration from "./pages/TestimonialModeration";
 import TestimonialManagement from "./pages/TestimonialManagement";
+import TestimonialEmailManager from "./pages/TestimonialEmailManager";
+import TestimonialTriggers from "./pages/TestimonialTriggers";
+import TestimonialFormBuilder from "./pages/TestimonialFormBuilder";
 import { OAuthCallback } from "./components/integrations/OAuthCallback";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { inject } from "@vercel/analytics";
@@ -150,6 +153,9 @@ const App = () => (
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="/testimonials" element={<TestimonialManagement />} />
+            <Route path="/testimonials/builder/:formId?" element={<TestimonialFormBuilder />} />
+            <Route path="/testimonials/email/:formId" element={<TestimonialEmailManager />} />
+            <Route path="/testimonials/triggers/:formId" element={<TestimonialTriggers />} />
             <Route path="/testimonial-moderation" element={<TestimonialModeration />} />
             <Route path="/collect/:slug" element={<TestimonialCollection />} />
             <Route path="/settings" element={<Settings />} />

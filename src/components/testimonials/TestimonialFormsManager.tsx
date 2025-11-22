@@ -3,9 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ExternalLink, QrCode, Copy, Trash2, Eye, EyeOff, MessageSquare } from "lucide-react";
+import { Plus, ExternalLink, QrCode, Copy, Trash2, Eye, EyeOff, MessageSquare, Edit } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { TestimonialFormBuilder } from "./TestimonialFormBuilder";
 import { ShareableLinks } from "./ShareableLinks";
 import {
   Dialog,
@@ -21,6 +21,7 @@ interface TestimonialForm {
   is_active: boolean;
   form_config: any;
   created_at: string;
+  view_count?: number;
   submission_count?: number;
 }
 
@@ -31,10 +32,10 @@ interface TestimonialFormsManagerProps {
 export function TestimonialFormsManager({ websiteId }: TestimonialFormsManagerProps) {
   const [forms, setForms] = useState<TestimonialForm[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showBuilder, setShowBuilder] = useState(false);
   const [selectedForm, setSelectedForm] = useState<TestimonialForm | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadForms();
@@ -114,11 +115,6 @@ export function TestimonialFormsManager({ websiteId }: TestimonialFormsManagerPr
     }
   }
 
-  function handleFormCreated() {
-    setShowBuilder(false);
-    loadForms();
-  }
-
   function handleShare(form: TestimonialForm) {
     setSelectedForm(form);
     setShowShareDialog(true);
@@ -138,7 +134,7 @@ export function TestimonialFormsManager({ websiteId }: TestimonialFormsManagerPr
             <p className="text-muted-foreground mb-4">
               Create your first testimonial collection form
             </p>
-            <Button onClick={() => setShowBuilder(true)}>
+            <Button onClick={() => navigate('/testimonials/builder')}>
               <Plus className="h-4 w-4 mr-2" />
               Create Form
             </Button>
@@ -146,7 +142,7 @@ export function TestimonialFormsManager({ websiteId }: TestimonialFormsManagerPr
         ) : (
           <>
             <div className="flex justify-end">
-              <Button onClick={() => setShowBuilder(true)}>
+              <Button onClick={() => navigate('/testimonials/builder')}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create Form
               </Button>
@@ -168,12 +164,28 @@ export function TestimonialFormsManager({ websiteId }: TestimonialFormsManagerPr
                       </Badge>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>{form.submission_count || 0} submissions</span>
+                   <CardContent className="space-y-3">
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Eye className="h-4 w-4" />
+                        <span>{(form as any).view_count || 0} views</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <MessageSquare className="h-4 w-4" />
+                        <span>{form.submission_count || 0} submissions</span>
+                      </div>
                     </div>
 
                     <div className="flex gap-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigate(`/testimonials/builder/${form.id}`)}
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+
                       <Button
                         size="sm"
                         variant="outline"
@@ -222,19 +234,6 @@ export function TestimonialFormsManager({ websiteId }: TestimonialFormsManagerPr
           </>
         )}
       </div>
-
-      <Dialog open={showBuilder} onOpenChange={setShowBuilder}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create Collection Form</DialogTitle>
-          </DialogHeader>
-          <TestimonialFormBuilder
-            websiteId={websiteId}
-            onComplete={handleFormCreated}
-            onCancel={() => setShowBuilder(false)}
-          />
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
         <DialogContent className="max-w-2xl">

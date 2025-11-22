@@ -438,9 +438,8 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
 
       toast.success("Campaign and widget created successfully!");
       
-      // Show success modal with installation code
-      setCreatedWidget({ id: newWidget.id, campaignId: campaign.id });
-      setShowSuccessModal(true);
+      // Redirect to campaigns page immediately
+      onComplete();
     } catch (error) {
       console.error("Error activating campaign:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to activate campaign";
@@ -682,14 +681,26 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
         <CardContent>
           <WidgetPreviewFrame
             settings={{
-              ...campaignData.settings,
-              integration_settings: campaignData.integration_settings
+              ...campaignData.display_rules,
+              integration_settings: campaignData.integration_settings || campaignData.native_config,
+              headline: campaignData.integration_settings?.title || campaignData.native_config?.title,
+              subtext: campaignData.integration_settings?.message || campaignData.native_config?.message,
+              icon: campaignData.integration_settings?.icon || campaignData.integration_settings?.emoji || 
+                    campaignData.native_config?.icon || campaignData.native_config?.emoji,
+              cta_text: campaignData.integration_settings?.cta_text || campaignData.native_config?.cta_text,
+              cta_url: campaignData.integration_settings?.cta_url || campaignData.native_config?.cta_url,
             }}
-            messageTemplate={campaignData.settings?.headline || campaignData.integration_settings?.title || campaignData.integration_settings?.message || ""}
+            messageTemplate={
+              campaignData.integration_settings?.title || 
+              campaignData.native_config?.title || 
+              campaignData.integration_settings?.message || 
+              campaignData.native_config?.message || 
+              "Your notification preview"
+            }
             campaignType={campaignData.type}
             websiteDomain={campaignData.website_id || "your-site.com"}
-            position={campaignData.settings?.position || "bottom-left"}
-            animation={campaignData.settings?.animation || "slide"}
+            position={campaignData.display_rules?.position || "bottom-left"}
+            animation={campaignData.display_rules?.animation || "slide"}
           />
         </CardContent>
       </Card>

@@ -365,6 +365,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
             <AnnouncementConfig
               config={announcementConfig}
               onChange={setAnnouncementConfig}
+              selectedTemplate={selectedTemplate}
             />
           );
         }
@@ -426,7 +427,12 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
               schedule,
               display_rules: displayRules,
               native_config: hasOnlyAnnouncements()
-                ? { announcement: announcementConfig }
+                ? announcementConfig
+                : integrations.some(i => i.provider === 'testimonials')
+                  ? { testimonial_filters: testimonialFilters }
+                  : {},
+              integration_settings: hasOnlyAnnouncements()
+                ? announcementConfig
                 : integrations.some(i => i.provider === 'testimonials')
                   ? { testimonial_filters: testimonialFilters }
                   : {},

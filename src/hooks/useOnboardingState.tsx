@@ -119,10 +119,18 @@ export function useOnboardingState(userId: string | undefined): OnboardingState 
         _completed: completed,
       });
       
-      if (error) throw error;
+      if (error) {
+        // Silently log error - onboarding tracking is not critical
+        console.warn('Onboarding milestone update failed:', error.message);
+        return;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile', userId] });
+    },
+    onError: (error) => {
+      // Silently handle errors - onboarding tracking is not critical
+      console.warn('Onboarding milestone mutation error:', error);
     },
   });
 

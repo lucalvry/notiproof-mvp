@@ -17,9 +17,12 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CampaignEditor } from "@/components/campaigns/CampaignEditor";
 import { NotificationPreview } from "@/components/templates/NotificationPreview";
+import { TemplateRenderer } from "@/components/templates/TemplateRenderer";
 import { PerformanceGraph } from "@/components/analytics/PerformanceGraph";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDistanceToNow } from "date-fns";
+import { AnnouncementConfig } from "@/components/campaigns/native/AnnouncementConfig";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function CampaignDetails() {
   const { id } = useParams();
@@ -32,11 +35,13 @@ export default function CampaignDetails() {
   const [events, setEvents] = useState<any[]>([]);
   const [sampleEvent, setSampleEvent] = useState<any>(null);
   const [dateRange, setDateRange] = useState(30);
+  const [campaignTemplate, setCampaignTemplate] = useState<any>(null);
+  const [editingConfig, setEditingConfig] = useState<any>(null);
   
   // Determine campaign data sources
   const dataSources = Array.isArray(campaign?.data_sources) ? campaign.data_sources : [];
   const hasGA4 = dataSources.some((ds: any) => ds.provider === 'ga4');
-  const hasAnnouncements = campaign?.campaign_type === 'announcements';
+  const isAnnouncementCampaign = dataSources.some((ds: any) => ds.provider === 'announcements');
   const [settingsForm, setSettingsForm] = useState({
     name: "",
     status: "draft",
@@ -89,6 +94,19 @@ export default function CampaignDetails() {
 
       if (error) throw error;
       setCampaign(data);
+
+      // Fetch template if campaign has one
+      if (data.template_id) {
+        const { data: templateData } = await supabase
+          .from('marketplace_templates')
+          .select('*')
+          .eq('id', data.template_id)
+          .single();
+        
+        if (templateData) {
+          setCampaignTemplate(templateData);
+        }
+      }
 
       // Initialize settings form
       const displayRules = (data.display_rules as any) || {};
@@ -500,28 +518,34 @@ export default function CampaignDetails() {
             </CardHeader>
             <CardContent>
               <div className="h-96">
-                <NotificationPreview
-                  template={{
-                    name: campaign.name,
-                    template_config: {
-                      position: ((campaign as any).settings?.position) || ((campaign as any).integration_settings?.position) || "bottom-right",
-                      animation: ((campaign as any).settings?.animation) || ((campaign as any).integration_settings?.animation) || "slide",
-                      previewData: (() => {
-                        // For announcement campaigns, use integration_settings
-                        if (hasAnnouncements) {
-                          const integrationSettings = (campaign as any).integration_settings || {};
-                          return {
-                            message: integrationSettings.title || integrationSettings.message || integrationSettings.message_template || "Your announcement message",
-                            userName: integrationSettings.title ? undefined : "Admin",
-                            location: undefined,
-                            time: "Just now",
-                            cta: integrationSettings.cta_text,
-                            icon: "📢",
-                          };
-                        }
-                        
-                        // For other campaigns, use sample event or defaults
-                        return sampleEvent
+                {isAnnouncementCampaign && campaignTemplate ? (
+                  <TemplateRenderer
+                    template={campaignTemplate}
+                    event={{
+                      event_id: 'preview',
+                      provider: 'announcements',
+                      provider_event_type: 'announcement_preview',
+                      timestamp: new Date().toISOString(),
+                      payload: {},
+                      normalized: {
+                        'template.title': (campaign as any).integration_settings?.title || (campaign as any).native_config?.title || 'Announcement',
+                        'template.message': (campaign as any).integration_settings?.message || (campaign as any).native_config?.message || '',
+                        'template.icon': (campaign as any).integration_settings?.icon || (campaign as any).integration_settings?.emoji || (campaign as any).native_config?.icon || (campaign as any).native_config?.emoji || '📢',
+                        'template.cta_text': (campaign as any).integration_settings?.cta_text || (campaign as any).native_config?.cta_text || '',
+                        'template.cta_url': (campaign as any).integration_settings?.cta_url || (campaign as any).native_config?.cta_url || '',
+                        'template.image_url': (campaign as any).integration_settings?.image_url || (campaign as any).native_config?.image_url || '',
+                      }
+                    }}
+                    className="scale-75 origin-top-left"
+                  />
+                ) : (
+                  <NotificationPreview
+                    template={{
+                      name: campaign.name,
+                      template_config: {
+                        position: ((campaign as any).settings?.position) || ((campaign as any).integration_settings?.position) || "bottom-right",
+                        animation: ((campaign as any).settings?.animation) || ((campaign as any).integration_settings?.animation) || "slide",
+                        previewData: sampleEvent
                           ? {
                               message: sampleEvent.message_template || "Someone just took action",
                               location: sampleEvent.user_location || "Unknown",
@@ -532,17 +556,17 @@ export default function CampaignDetails() {
                               location: "San Francisco",
                               action: "just signed up",
                               time: "2 minutes ago",
-                            };
-                      })(),
-                    },
-                    style_config: {
-                      accentColor: ((campaign as any).settings?.accentColor) || ((campaign as any).integration_settings?.primary_color) || "#3B82F6",
-                      backgroundColor: ((campaign as any).settings?.backgroundColor) || ((campaign as any).integration_settings?.background_color) || "#ffffff",
-                      textColor: ((campaign as any).settings?.textColor) || ((campaign as any).integration_settings?.text_color) || "#1a1a1a",
-                      borderRadius: ((campaign as any).settings?.borderRadius) || ((campaign as any).integration_settings?.border_radius) || 12,
-                    },
-                  }}
-                />
+                            },
+                      },
+                      style_config: {
+                        accentColor: ((campaign as any).settings?.accentColor) || ((campaign as any).integration_settings?.primary_color) || "#3B82F6",
+                        backgroundColor: ((campaign as any).settings?.backgroundColor) || ((campaign as any).integration_settings?.background_color) || "#ffffff",
+                        textColor: ((campaign as any).settings?.textColor) || ((campaign as any).integration_settings?.text_color) || "#1a1a1a",
+                        borderRadius: ((campaign as any).settings?.borderRadius) || ((campaign as any).integration_settings?.border_radius) || 12,
+                      },
+                    }}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>
@@ -801,15 +825,61 @@ export default function CampaignDetails() {
         </TabsContent>
       </Tabs>
 
-      <CampaignEditor
-        campaignId={id!}
-        open={editMode}
-        onClose={() => setEditMode(false)}
-        onSave={() => {
-          setEditMode(false);
-          fetchCampaign();
-        }}
-      />
+      {isAnnouncementCampaign ? (
+        <Dialog open={editMode} onOpenChange={(open) => {
+          if (!open) {
+            setEditMode(false);
+            setEditingConfig(null);
+          }
+        }}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Announcement</DialogTitle>
+              <CardDescription>Make changes to your announcement configuration</CardDescription>
+            </DialogHeader>
+            <AnnouncementConfig
+              config={editingConfig || campaign.native_config || campaign.integration_settings || {}}
+              onChange={(newConfig) => {
+                setEditingConfig(newConfig);
+              }}
+              selectedTemplate={campaignTemplate}
+              showSaveButton={true}
+              onSave={async () => {
+                try {
+                  const { error } = await supabase
+                    .from('campaigns')
+                    .update({ 
+                      native_config: editingConfig,
+                      integration_settings: editingConfig,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', id);
+                  
+                  if (error) throw error;
+                  
+                  toast.success('Announcement updated successfully');
+                  setEditMode(false);
+                  setEditingConfig(null);
+                  fetchCampaign();
+                } catch (error) {
+                  console.error('Error updating announcement:', error);
+                  toast.error('Failed to update announcement');
+                }
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <CampaignEditor
+          campaignId={id!}
+          open={editMode}
+          onClose={() => setEditMode(false)}
+          onSave={() => {
+            setEditMode(false);
+            fetchCampaign();
+          }}
+        />
+      )}
     </div>
   );
 }

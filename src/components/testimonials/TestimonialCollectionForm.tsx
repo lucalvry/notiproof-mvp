@@ -1,27 +1,23 @@
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Star, Upload, Loader2, CheckCircle2, X, Image as ImageIcon, Video as VideoIcon, Camera } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useParams } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 
-const testimonialSchema = z.object({
-  author_name: z.string().min(2, 'Name must be at least 2 characters'),
-  author_email: z.string().email('Invalid email').optional().or(z.literal('')),
-  rating: z.number().min(1).max(5),
-  message: z.string().min(10, 'Message must be at least 10 characters'),
-  author_company: z.string().optional(),
-  author_position: z.string().optional(),
-});
-
-type TestimonialFormData = z.infer<typeof testimonialSchema>;
+// Import page components
+import { WelcomePage } from './pages/WelcomePage';
+import { RatingPage } from './pages/RatingPage';
+import { NegativeFeedbackPage } from './pages/NegativeFeedbackPage';
+import { MessagePage } from './pages/MessagePage';
+import { QuestionPage } from './pages/QuestionPage';
+import { PrivateFeedbackPage } from './pages/PrivateFeedbackPage';
+import { ConsentPage } from './pages/ConsentPage';
+import { AboutYouPage } from './pages/AboutYouPage';
+import { AboutCompanyPage } from './pages/AboutCompanyPage';
+import { RewardPage } from './pages/RewardPage';
+import { ThankYouPage } from './pages/ThankYouPage';
 
 interface TestimonialCollectionFormProps {
   websiteId: string;
@@ -33,420 +29,656 @@ interface TestimonialCollectionFormProps {
   showCompanyFields?: boolean;
 }
 
+interface FormData {
+  rating: number;
+  negative_feedback: string;
+  message: string;
+  private_feedback: string;
+  consented: boolean;
+  name: string;
+  email: string;
+  company: string;
+  position: string;
+  questions: Record<string, string | number>;
+  avatarFile: File | null;
+  videoFile: File | null;
+  avatarPreview: string | null;
+  videoPreview: string | null;
+}
+
 export function TestimonialCollectionForm({
   websiteId,
   formId,
-  formConfig,
+  formConfig: initialFormConfig,
   welcomeMessage,
   thankYouMessage,
   onSuccess,
   showCompanyFields = false,
 }: TestimonialCollectionFormProps) {
+  const params = useParams();
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [pageSequence, setPageSequence] = useState<string[]>([]);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [formConfig, setFormConfig] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [hoveredRating, setHoveredRating] = useState(0);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoPreview, setVideoPreview] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-
-  const form = useForm<TestimonialFormData>({
-    resolver: zodResolver(testimonialSchema),
-    defaultValues: {
-      author_name: '',
-      author_email: '',
-      rating: 5,
-      message: '',
-      author_company: '',
-      author_position: '',
-    },
+  
+  const [formData, setFormData] = useState<FormData>({
+    rating: 0,
+    negative_feedback: '',
+    message: '',
+    private_feedback: '',
+    consented: false,
+    name: '',
+    email: '',
+    company: '',
+    position: '',
+    questions: {},
+    avatarFile: null,
+    videoFile: null,
+    avatarPreview: null,
+    videoPreview: null,
   });
 
-  const currentRating = form.watch('rating');
+  // Track form view on mount
+  useEffect(() => {
+    const trackView = async () => {
+      const slug = params.slug;
+      console.log('[Form Init] Tracking view for slug:', slug);
+      
+      if (slug) {
+        try {
+          await supabase.rpc('increment_form_views', { form_slug: slug });
+          console.log('[Form Init] View tracked successfully');
+        } catch (error) {
+          console.error('[Form Init] Error tracking form view:', error);
+        }
+      }
+    };
+    trackView();
+  }, [params.slug]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Image must be less than 5MB');
+  // Load form configuration and questions on mount if not provided
+  useEffect(() => {
+    async function loadFormConfig() {
+      console.log('[Form Config] Loading configuration...', {
+        hasInitialConfig: !!initialFormConfig,
+        formId,
+        websiteId
+      });
+
+      // If formConfig is already provided, use it
+      if (initialFormConfig) {
+        console.log('[Form Config] Using provided configuration');
+        setFormConfig(initialFormConfig);
+        
+        // Extract page sequence
+        const pagesConfig = initialFormConfig.pages_config as any;
+        const sequence = pagesConfig?.sequence || [
+          'welcome',
+          'rating',
+          'message',
+          'about_you',
+          'thank_you',
+        ];
+        console.log('[Form Config] Page sequence:', sequence);
+        setPageSequence(sequence);
+        
+        // Load questions if formId is provided
+        if (formId) {
+          console.log('[Form Config] Loading questions for form:', formId);
+          const { data: questionsList, error: questionsError } = await supabase
+            .from('testimonial_form_questions')
+            .select('*')
+            .eq('form_id', formId)
+            .order('sort_order');
+          
+          if (questionsError) {
+            console.error('[Form Config] Error loading questions:', questionsError);
+          } else {
+            console.log('[Form Config] Loaded questions:', questionsList?.length || 0);
+            setQuestions(questionsList || []);
+          }
+        }
+        
+        setLoading(false);
+        console.log('[Form Config] Configuration loaded successfully');
         return;
       }
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error('Video must be less than 10MB');
+      // Otherwise load from database
+      if (!formId) {
+        console.warn('[Form Config] No formId provided, skipping database load');
+        setLoading(false);
         return;
       }
-      setVideoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setVideoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+
+      try {
+        console.log('[Form Config] Loading from database for formId:', formId);
+        
+        // Load form configuration
+        const { data: form, error: formError } = await supabase
+          .from('testimonial_forms')
+          .select('*')
+          .eq('id', formId)
+          .single();
+
+        if (formError) {
+          console.error('[Form Config] Error loading form:', formError);
+          throw formError;
+        }
+
+        console.log('[Form Config] Form loaded:', {
+          name: form.name,
+          isActive: form.is_active,
+          formType: form.form_type
+        });
+
+        // Load questions
+        const { data: questionsList, error: questionsError } = await supabase
+          .from('testimonial_form_questions')
+          .select('*')
+          .eq('form_id', formId)
+          .order('sort_order');
+
+        if (questionsError) {
+          console.error('[Form Config] Error loading questions:', questionsError);
+          throw questionsError;
+        }
+
+        console.log('[Form Config] Questions loaded:', questionsList?.length || 0);
+
+        setFormConfig(form);
+        setQuestions(questionsList || []);
+        
+        // Set page sequence from config or use default
+        const pagesConfig = form.pages_config as any;
+        const sequence = pagesConfig?.sequence || [
+          'welcome',
+          'rating',
+          'message',
+          'about_you',
+          'thank_you',
+        ];
+        console.log('[Form Config] Page sequence:', sequence);
+        setPageSequence(sequence);
+        
+        console.log('[Form Config] Configuration loaded successfully from database');
+      } catch (error) {
+        console.error('[Form Config] Fatal error loading form config:', error);
+        toast.error('Failed to load form configuration');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadFormConfig();
+  }, [formId, initialFormConfig]);
+
+  const currentPageId = pageSequence[currentPageIndex];
+  const totalPages = pageSequence.length;
+  const progress = ((currentPageIndex + 1) / totalPages) * 100;
+
+  const goNext = () => {
+    // Handle conditional branching
+    if (currentPageId === 'rating' && formData.rating < 3 && formConfig?.negative_feedback_enabled) {
+      // Check if negative_feedback page is in sequence
+      const negFeedbackIndex = pageSequence.indexOf('negative_feedback');
+      if (negFeedbackIndex > currentPageIndex) {
+        setCurrentPageIndex(negFeedbackIndex);
+        return;
+      }
+    }
+
+    if (currentPageIndex < pageSequence.length - 1) {
+      setCurrentPageIndex(currentPageIndex + 1);
+    } else {
+      handleSubmit();
     }
   };
 
-  const startRecording = async () => {
+  const goBack = () => {
+    if (currentPageIndex > 0) {
+      setCurrentPageIndex(currentPageIndex - 1);
+    }
+  };
+
+  const uploadFile = async (file: File, type: 'avatar' | 'video', retryCount = 0): Promise<string | null> => {
+    const maxRetries = 2;
+    
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-      const chunks: Blob[] = [];
+      console.log(`[Upload] Starting ${type} upload:`, {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        websiteId,
+        attempt: retryCount + 1
+      });
 
-      recorder.ondataavailable = (e) => chunks.push(e.data);
-      recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' });
-        const file = new File([blob], 'recorded-video.webm', { type: 'video/webm' });
-        setVideoFile(file);
-        setVideoPreview(URL.createObjectURL(blob));
-        stream.getTracks().forEach(track => track.stop());
-      };
+      // Validate file size
+      const maxSize = type === 'avatar' ? 2 * 1024 * 1024 : 10 * 1024 * 1024; // 2MB for avatar, 10MB for video
+      if (file.size > maxSize) {
+        const sizeMB = (maxSize / 1024 / 1024).toFixed(0);
+        throw new Error(`File size exceeds ${sizeMB}MB limit`);
+      }
 
-      recorder.start();
-      setMediaRecorder(recorder);
-      setRecording(true);
-    } catch (error) {
-      toast.error('Failed to access camera. Please check permissions.');
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorder && recording) {
-      mediaRecorder.stop();
-      setRecording(false);
-      setMediaRecorder(null);
-    }
-  };
-
-  const uploadFile = async (file: File, type: 'image' | 'video'): Promise<string | null> => {
-    try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `${websiteId}/${type}s/${fileName}`;
 
-      const { error: uploadError, data } = await supabase.storage
+      console.log(`[Upload] Uploading to path: ${filePath}`);
+
+      const { error: uploadError } = await supabase.storage
         .from('testimonials')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error(`[Upload] Storage error:`, uploadError);
+        throw uploadError;
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from('testimonials')
         .getPublicUrl(filePath);
 
+      console.log(`[Upload] Success! Public URL:`, publicUrl);
       return publicUrl;
     } catch (error) {
-      console.error(`Error uploading ${type}:`, error);
-      toast.error(`Failed to upload ${type}`);
+      console.error(`[Upload] Error uploading ${type} (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
+      
+      // Retry logic for transient errors
+      if (retryCount < maxRetries && error instanceof Error && 
+          (error.message.includes('network') || error.message.includes('timeout'))) {
+        console.log(`[Upload] Retrying ${type} upload...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
+        return uploadFile(file, type, retryCount + 1);
+      }
+
+      // Log error to backend
+      try {
+        await supabase.rpc('log_integration_action', {
+          _integration_type: 'testimonial_submission',
+          _action: 'file_upload',
+          _status: 'error',
+          _error_message: error instanceof Error ? error.message : 'Unknown error',
+          _details: {
+            type,
+            fileName: file.name,
+            fileSize: file.size,
+            websiteId,
+            attempt: retryCount + 1
+          }
+        });
+      } catch (logError) {
+        console.error('[Upload] Failed to log error:', logError);
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to upload ${type}: ${errorMessage}`);
       return null;
     }
   };
 
-  async function onSubmit(data: TestimonialFormData) {
+  const handleSubmit = async () => {
+    console.log('=== TESTIMONIAL SUBMISSION STARTED ===');
+    console.log('[Submit] Form data:', {
+      websiteId,
+      formId,
+      hasAvatar: !!formData.avatarFile,
+      hasVideo: !!formData.videoFile,
+      name: formData.name,
+      email: formData.email,
+      rating: formData.rating,
+      messageLength: formData.message?.length || 0
+    });
+
     setSubmitting(true);
+    
     try {
-      let imageUrl: string | null = null;
+      let avatarUrl: string | null = null;
       let videoUrl: string | null = null;
 
-      // Upload image if present
-      if (imageFile) {
-        imageUrl = await uploadFile(imageFile, 'image');
+      // Phase 1: Upload media files
+      console.log('[Submit] Phase 1: Uploading media files...');
+      
+      if (formData.avatarFile) {
+        console.log('[Submit] Uploading avatar...');
+        avatarUrl = await uploadFile(formData.avatarFile, 'avatar');
+        if (!avatarUrl) {
+          throw new Error('Avatar upload failed');
+        }
+        console.log('[Submit] Avatar uploaded successfully:', avatarUrl);
+      }
+      
+      if (formData.videoFile) {
+        console.log('[Submit] Uploading video...');
+        videoUrl = await uploadFile(formData.videoFile, 'video');
+        if (!videoUrl) {
+          console.warn('[Submit] Video upload failed, but continuing...');
+        } else {
+          console.log('[Submit] Video uploaded successfully:', videoUrl);
+        }
       }
 
-      // Upload video if present
-      if (videoFile) {
-        videoUrl = await uploadFile(videoFile, 'video');
-      }
-
-      const { error } = await supabase.from('testimonials').insert({
+      // Phase 2: Insert testimonial record
+      console.log('[Submit] Phase 2: Inserting testimonial record...');
+      
+      const testimonialData = {
         website_id: websiteId,
-        source: 'form',
-        author_name: data.author_name,
-        author_email: data.author_email || null,
-        rating: data.rating,
-        message: data.message,
-        image_url: imageUrl,
+        form_id: formId || null,
+        source: 'form' as const,
+        author_name: formData.name,
+        author_email: formData.email || null,
+        rating: formData.rating,
+        message: formData.message,
+        author_avatar_url: avatarUrl,
+        image_url: avatarUrl,
         video_url: videoUrl,
         metadata: {
           form_id: formId,
-          company: data.author_company,
-          position: data.author_position,
+          company: formData.company,
+          position: formData.position,
+          private_feedback: formData.private_feedback,
+          negative_feedback: formData.negative_feedback,
+          questions: formData.questions,
+          consented: formData.consented,
         },
-        status: 'pending',
+        status: 'pending' as const,
+      };
+
+      console.log('[Submit] Testimonial data prepared:', {
+        ...testimonialData,
+        metadata: JSON.stringify(testimonialData.metadata)
       });
 
-      if (error) throw error;
+      const { data: testimonial, error } = await supabase
+        .from('testimonials')
+        .insert(testimonialData)
+        .select()
+        .single();
 
-      setSubmitted(true);
+      if (error) {
+        console.error('[Submit] Database insert error:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        
+        // Log to backend
+        try {
+          await supabase.rpc('log_integration_action', {
+            _integration_type: 'testimonial_submission',
+            _action: 'insert_testimonial',
+            _status: 'error',
+            _error_message: error.message,
+            _details: {
+              code: error.code,
+              hint: error.hint,
+              websiteId,
+              formId
+            }
+          });
+        } catch (logError) {
+          console.error('[Submit] Failed to log database error:', logError);
+        }
+
+        throw error;
+      }
+
+      console.log('[Submit] Testimonial inserted successfully:', testimonial?.id);
+
+      // Phase 3: Process submission (rewards, thank you email)
+      if (testimonial && formId) {
+        console.log('[Submit] Phase 3: Processing submission...');
+        
+        try {
+          const { data, error: processError } = await supabase.functions.invoke('process-testimonial-submission', {
+            body: {
+              testimonial_id: testimonial.id,
+              form_id: formId,
+              email: formData.email,
+              name: formData.name,
+              has_video: !!videoUrl,
+            },
+          });
+
+          if (processError) {
+            console.warn('[Submit] Processing error (non-fatal):', processError);
+          } else {
+            console.log('[Submit] Processing completed:', data);
+          }
+        } catch (processError) {
+          console.warn('[Submit] Processing failed (non-fatal):', processError);
+          // Don't fail the submission if processing fails
+        }
+      }
+
+      // Phase 4: Success!
+      console.log('=== TESTIMONIAL SUBMISSION COMPLETED ===');
       toast.success('Thank you for your testimonial!');
+      
+      // Move to reward or thank you page
+      goNext();
       onSuccess?.();
+      
     } catch (error) {
-      console.error('Error submitting testimonial:', error);
-      toast.error('Failed to submit testimonial');
+      console.error('=== TESTIMONIAL SUBMISSION FAILED ===');
+      console.error('[Submit] Error details:', error);
+      
+      // Log critical error to backend
+      try {
+        await supabase.rpc('log_integration_action', {
+          _integration_type: 'testimonial_submission',
+          _action: 'submit_testimonial',
+          _status: 'error',
+          _error_message: error instanceof Error ? error.message : 'Unknown error',
+          _details: {
+            websiteId,
+            formId,
+            hasAvatar: !!formData.avatarFile,
+            hasVideo: !!formData.videoFile,
+            errorType: error instanceof Error ? error.constructor.name : typeof error
+          }
+        });
+      } catch (logError) {
+        console.error('[Submit] Failed to log critical error:', logError);
+      }
+
+      // Show user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      
+      if (errorMessage.includes('violates row-level security policy')) {
+        toast.error('Unable to submit: Form may be inactive or invalid. Please contact support.');
+      } else if (errorMessage.includes('duplicate key')) {
+        toast.error('This testimonial has already been submitted.');
+      } else if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
+        toast.error('Network error. Please check your connection and try again.');
+      } else {
+        toast.error(`Failed to submit: ${errorMessage}`);
+      }
     } finally {
       setSubmitting(false);
     }
-  }
+  };
 
-  if (submitted) {
+  if (loading) {
     return (
       <Card className="p-8 text-center">
-        <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
-        <h3 className="text-2xl font-semibold mb-2">Thank You!</h3>
-        <p className="text-muted-foreground">
-          {thankYouMessage || 'Your testimonial has been submitted and is pending review.'}
-        </p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
       </Card>
     );
   }
 
+  // Render current page
+  const renderPage = () => {
+    // Get question for this page if it's a question page
+    const questionMatch = currentPageId?.match(/^q(\d+)$/);
+    const questionIndex = questionMatch ? parseInt(questionMatch[1]) - 1 : -1;
+    const currentQuestion = questionIndex >= 0 ? questions[questionIndex] : null;
+
+    switch (currentPageId) {
+      case 'welcome':
+        return (
+          <WelcomePage
+            welcomeMessage={welcomeMessage}
+            formTitle={formConfig?.name}
+            onNext={goNext}
+          />
+        );
+
+      case 'rating':
+        return (
+          <RatingPage
+            rating={formData.rating}
+            onChange={(rating) => setFormData({ ...formData, rating })}
+            onNext={goNext}
+            onBack={goBack}
+          />
+        );
+
+      case 'negative_feedback':
+        return (
+          <NegativeFeedbackPage
+            feedback={formData.negative_feedback}
+            onChange={(feedback) => setFormData({ ...formData, negative_feedback: feedback })}
+            onNext={goNext}
+            onBack={goBack}
+          />
+        );
+
+      case 'message':
+        return (
+          <MessagePage
+            message={formData.message}
+            onChange={(message) => setFormData({ ...formData, message })}
+            avatarFile={formData.avatarFile}
+            videoFile={formData.videoFile}
+            avatarPreview={formData.avatarPreview}
+            videoPreview={formData.videoPreview}
+            onAvatarChange={(file, preview) =>
+              setFormData({ ...formData, avatarFile: file, avatarPreview: preview })
+            }
+            onVideoChange={(file, preview) =>
+              setFormData({ ...formData, videoFile: file, videoPreview: preview })
+            }
+            onNext={goNext}
+            onBack={goBack}
+          />
+        );
+
+      case 'private_feedback':
+        return (
+          <PrivateFeedbackPage
+            feedback={formData.private_feedback}
+            onChange={(feedback) => setFormData({ ...formData, private_feedback: feedback })}
+            onNext={goNext}
+            onBack={goBack}
+          />
+        );
+
+      case 'consent':
+        return (
+          <ConsentPage
+            consented={formData.consented}
+            onChange={(consented) => setFormData({ ...formData, consented })}
+            onNext={goNext}
+            onBack={goBack}
+          />
+        );
+
+      case 'about_you':
+        return (
+          <AboutYouPage
+            name={formData.name}
+            email={formData.email}
+            onNameChange={(name) => setFormData({ ...formData, name })}
+            onEmailChange={(email) => setFormData({ ...formData, email })}
+            onNext={goNext}
+            onBack={goBack}
+          />
+        );
+
+      case 'about_company':
+        return (
+          <AboutCompanyPage
+            company={formData.company}
+            position={formData.position}
+            onCompanyChange={(company) => setFormData({ ...formData, company })}
+            onPositionChange={(position) => setFormData({ ...formData, position })}
+            onNext={goNext}
+            onBack={goBack}
+          />
+        );
+
+      case 'reward':
+        return (
+          <RewardPage
+            rewardConfig={formConfig?.reward_config || { enabled: false }}
+            hasVideo={!!formData.videoFile}
+            onNext={goNext}
+          />
+        );
+
+      case 'thank_you':
+        return <ThankYouPage thankYouMessage={thankYouMessage} />;
+
+      default:
+        // Handle custom question pages
+        if (currentQuestion) {
+          return (
+            <QuestionPage
+              question={currentQuestion}
+              answer={formData.questions[currentQuestion.id] || ''}
+              onChange={(answer) =>
+                setFormData({
+                  ...formData,
+                  questions: { ...formData.questions, [currentQuestion.id]: answer },
+                })
+              }
+              onNext={goNext}
+              onBack={goBack}
+            />
+          );
+        }
+
+        return (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">Page not found: {currentPageId}</p>
+            <button onClick={goNext} className="mt-4 underline">
+              Skip
+            </button>
+          </div>
+        );
+    }
+  };
+
   return (
-    <Card className="p-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-2">
-          {formConfig?.title || 'Share Your Experience'}
-        </h2>
-        <p className="text-muted-foreground">
-          {welcomeMessage || "We'd love to hear about your experience with our product"}
-        </p>
-      </div>
+    <div className="space-y-4">
+      {/* Progress bar */}
+      {currentPageId !== 'welcome' && currentPageId !== 'thank_you' && (
+        <div className="space-y-2">
+          <Progress value={progress} className="h-2" />
+          <p className="text-xs text-center text-muted-foreground">
+            Step {currentPageIndex + 1} of {totalPages}
+          </p>
+        </div>
+      )}
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <FormField
-            control={form.control}
-            name="rating"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Rating *</FormLabel>
-                <FormControl>
-                  <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5].map((rating) => (
-                      <button
-                        key={rating}
-                        type="button"
-                        onClick={() => field.onChange(rating)}
-                        onMouseEnter={() => setHoveredRating(rating)}
-                        onMouseLeave={() => setHoveredRating(0)}
-                        className="transition-transform hover:scale-110"
-                      >
-                        <Star
-                          className={`h-8 w-8 ${
-                            rating <= (hoveredRating || currentRating)
-                              ? 'fill-yellow-400 text-yellow-400'
-                              : 'text-muted-foreground'
-                          }`}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="message"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Your Testimonial *</FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="Tell us about your experience..."
-                    className="min-h-[120px]"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="author_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Your Name *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="John Doe" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="author_email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email (Optional)</FormLabel>
-                  <FormControl>
-                    <Input type="email" placeholder="john@example.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+      {/* Current page */}
+      <Card className="p-6">
+        {submitting ? (
+          <div className="text-center py-12">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+            <p className="text-muted-foreground">Submitting your testimonial...</p>
           </div>
-
-          {showCompanyFields && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="author_company"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Company (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Company Name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="author_position"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Position (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="CEO" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          )}
-
-          {/* Media Upload Section */}
-          <div className="space-y-4 border-t pt-6">
-            <h3 className="font-semibold text-sm">Add Media (Optional)</h3>
-            
-            {/* Image Upload */}
-            <div className="space-y-2">
-              <Label htmlFor="image-upload" className="text-sm">Upload Image</Label>
-              {!imagePreview ? (
-                <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer">
-                  <input
-                    id="image-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <label htmlFor="image-upload" className="cursor-pointer">
-                    <ImageIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      Click to upload image (max 5MB)
-                    </p>
-                  </label>
-                </div>
-              ) : (
-                <div className="relative">
-                  <img src={imagePreview} alt="Preview" className="w-full h-48 object-cover rounded-lg" />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={() => {
-                      setImageFile(null);
-                      setImagePreview(null);
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {/* Video Upload */}
-            <div className="space-y-2">
-              <Label className="text-sm">Upload or Record Video</Label>
-              {!videoPreview ? (
-                <div className="space-y-2">
-                  <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer">
-                    <input
-                      id="video-upload"
-                      type="file"
-                      accept="video/*"
-                      onChange={handleVideoUpload}
-                      className="hidden"
-                    />
-                    <label htmlFor="video-upload" className="cursor-pointer">
-                      <VideoIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">
-                        Click to upload video (max 10MB)
-                      </p>
-                    </label>
-                  </div>
-                  <div className="text-center">
-                    <span className="text-xs text-muted-foreground">or</span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={recording ? stopRecording : startRecording}
-                  >
-                    <Camera className="h-4 w-4 mr-2" />
-                    {recording ? 'Stop Recording' : 'Record Video'}
-                  </Button>
-                </div>
-              ) : (
-                <div className="relative">
-                  <video src={videoPreview} controls className="w-full h-48 rounded-lg bg-black" />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={() => {
-                      setVideoFile(null);
-                      setVideoPreview(null);
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Submitting...
-              </>
-            ) : (
-              'Submit Testimonial'
-            )}
-          </Button>
-        </form>
-      </Form>
-    </Card>
+        ) : (
+          renderPage()
+        )}
+      </Card>
+    </div>
   );
 }

@@ -1,8 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Star, MessageSquare, Image, TrendingUp, CheckCircle, Clock, XCircle, BarChart3 } from "lucide-react";
+import { Star, MessageSquare, Image, TrendingUp, CheckCircle, Clock, XCircle, BarChart3, Eye, Video, FileText, Mail, MousePointer } from "lucide-react";
 import { TestimonialAnalytics } from "@/hooks/useTestimonialAnalytics";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend, Funnel, FunnelChart, LabelList } from "recharts";
+
+const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', 'hsl(var(--muted))'];
 
 interface TestimonialAnalyticsDashboardProps {
   analytics: TestimonialAnalytics;
@@ -34,6 +36,21 @@ export function TestimonialAnalyticsDashboard({ analytics, isLoading }: Testimon
     <div className="space-y-6">
       {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium">Form Views</CardTitle>
+              <Eye className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.formViews?.toLocaleString() || 0}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Public collection page visits
+            </p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -137,8 +154,192 @@ export function TestimonialAnalyticsDashboard({ analytics, isLoading }: Testimon
         </CardContent>
       </Card>
 
+      {/* Phase 10: Additional Metrics */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.conversionRate}%</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Views to submissions
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium">Video Submissions</CardTitle>
+              <Video className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.videoSubmissionRate}%</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Include video content
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium">Image Submissions</CardTitle>
+              <Image className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.imageSubmissionRate}%</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Include images
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Email Engagement Metrics */}
+      {analytics.emailsSent > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Email Campaign Performance</CardTitle>
+            <CardDescription>Invitation email engagement metrics</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Sent</p>
+                </div>
+                <p className="text-2xl font-bold">{analytics.emailsSent}</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Opened</p>
+                </div>
+                <p className="text-2xl font-bold">{analytics.emailsOpened}</p>
+                <p className="text-xs text-muted-foreground">{analytics.emailOpenRate}% open rate</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <MousePointer className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Clicked</p>
+                </div>
+                <p className="text-2xl font-bold">{analytics.emailsClicked}</p>
+                <p className="text-xs text-muted-foreground">{analytics.emailClickRate}% click rate</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Conversion</p>
+                </div>
+                <p className="text-2xl font-bold">
+                  {analytics.emailsSent > 0 ? ((analytics.emailsClicked / analytics.emailsSent) * 100).toFixed(1) : 0}%
+                </p>
+                <p className="text-xs text-muted-foreground">Email to submission</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Charts */}
       <div className="grid gap-6 md:grid-cols-2">
+        {/* Conversion Funnel */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Conversion Funnel</CardTitle>
+            <CardDescription>From views to approved submissions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {analytics.conversionFunnel.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart 
+                  data={analytics.conversionFunnel}
+                  layout="vertical"
+                  margin={{ left: 60, right: 20 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" className="text-xs" />
+                  <YAxis 
+                    type="category" 
+                    dataKey="stage" 
+                    className="text-xs"
+                  />
+                  <Tooltip 
+                    formatter={(value: number, name: string, props: any) => [
+                      `${value.toLocaleString()} (${props.payload.percentage.toFixed(1)}%)`,
+                      'Count'
+                    ]}
+                  />
+                  <Bar 
+                    dataKey="count" 
+                    fill="hsl(var(--primary))"
+                    radius={[0, 4, 4, 0]}
+                  >
+                    <LabelList 
+                      dataKey="percentage" 
+                      position="right"
+                      formatter={(value: number) => `${value.toFixed(1)}%`}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                No funnel data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Media Type Breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Media Type Distribution</CardTitle>
+            <CardDescription>Breakdown by content type</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {analytics.mediaTypeBreakdown.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={analytics.mediaTypeBreakdown}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ type, percentage }) => `${type}: ${percentage.toFixed(1)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="count"
+                  >
+                    {analytics.mediaTypeBreakdown.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number, name: string, props: any) => [
+                      `${value} (${props.payload.percentage.toFixed(1)}%)`,
+                      props.payload.type
+                    ]}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                No media breakdown available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Submissions Over Time */}
         <Card>
           <CardHeader>

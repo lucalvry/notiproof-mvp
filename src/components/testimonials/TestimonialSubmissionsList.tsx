@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, Image, Video, CheckCircle, Clock, XCircle } from "lucide-react";
+import { Star, Image, Video, CheckCircle, Clock, XCircle, ClipboardList } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { EmptyState } from "./EmptyState";
 
 interface TestimonialSubmission {
   id: string;
@@ -11,7 +13,7 @@ interface TestimonialSubmission {
   rating: number;
   message: string;
   status: string;
-  image_url?: string;
+  avatar_url?: string;
   video_url?: string;
   created_at: string;
 }
@@ -25,6 +27,7 @@ export function TestimonialSubmissionsList({
   websiteId, 
   limit = 10 
 }: TestimonialSubmissionsListProps) {
+  const navigate = useNavigate();
   const [submissions, setSubmissions] = useState<TestimonialSubmission[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -66,11 +69,13 @@ export function TestimonialSubmissionsList({
 
   if (submissions.length === 0) {
     return (
-      <Card>
-        <CardContent className="p-8 text-center text-muted-foreground">
-          No testimonial submissions yet
-        </CardContent>
-      </Card>
+      <EmptyState
+        icon={ClipboardList}
+        title="No submissions yet"
+        description="When customers submit testimonials through your forms, they'll appear here for review and moderation."
+        actionLabel="View All Forms"
+        onAction={() => navigate("/testimonials")}
+      />
     );
   }
 
@@ -118,9 +123,9 @@ export function TestimonialSubmissionsList({
                 
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <span>
-                    {formatDistanceToNow(new Date(submission.created_at), { addSuffix: true })}
-                  </span>
-                  {submission.image_url && (
+                  {formatDistanceToNow(new Date(submission.created_at), { addSuffix: true })}
+                </span>
+                {submission.avatar_url && (
                     <span className="flex items-center gap-1">
                       <Image className="h-3 w-3" />
                       Photo

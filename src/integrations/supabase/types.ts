@@ -2116,43 +2116,147 @@ export type Database = {
           },
         ]
       }
+      testimonial_email_templates: {
+        Row: {
+          body: string
+          created_at: string | null
+          cta_text: string | null
+          id: string
+          subject: string
+          template_name: string
+          template_type: string
+          updated_at: string | null
+          user_id: string
+          website_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          cta_text?: string | null
+          id?: string
+          subject: string
+          template_name: string
+          template_type: string
+          updated_at?: string | null
+          user_id: string
+          website_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          cta_text?: string | null
+          id?: string
+          subject?: string
+          template_name?: string
+          template_type?: string
+          updated_at?: string | null
+          user_id?: string
+          website_id?: string
+        }
+        Relationships: []
+      }
+      testimonial_form_questions: {
+        Row: {
+          created_at: string | null
+          form_id: string | null
+          id: string
+          is_required: boolean | null
+          options: Json | null
+          question_text: string
+          question_type: string
+          sort_order: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          form_id?: string | null
+          id?: string
+          is_required?: boolean | null
+          options?: Json | null
+          question_text: string
+          question_type: string
+          sort_order?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          form_id?: string | null
+          id?: string
+          is_required?: boolean | null
+          options?: Json | null
+          question_text?: string
+          question_type?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "testimonial_form_questions_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "testimonial_forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       testimonial_forms: {
         Row: {
+          consent_required: boolean | null
           created_at: string
+          email_config: Json | null
           form_config: Json
+          form_type: string | null
           id: string
           is_active: boolean
           name: string
+          negative_feedback_enabled: boolean | null
+          pages_config: Json | null
+          private_feedback_enabled: boolean | null
+          reward_config: Json | null
           slug: string
           thank_you_message: string | null
           updated_at: string
           user_id: string
+          view_count: number | null
           website_id: string
           welcome_message: string | null
         }
         Insert: {
+          consent_required?: boolean | null
           created_at?: string
+          email_config?: Json | null
           form_config?: Json
+          form_type?: string | null
           id?: string
           is_active?: boolean
           name: string
+          negative_feedback_enabled?: boolean | null
+          pages_config?: Json | null
+          private_feedback_enabled?: boolean | null
+          reward_config?: Json | null
           slug: string
           thank_you_message?: string | null
           updated_at?: string
           user_id: string
+          view_count?: number | null
           website_id: string
           welcome_message?: string | null
         }
         Update: {
+          consent_required?: boolean | null
           created_at?: string
+          email_config?: Json | null
           form_config?: Json
+          form_type?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          negative_feedback_enabled?: boolean | null
+          pages_config?: Json | null
+          private_feedback_enabled?: boolean | null
+          reward_config?: Json | null
           slug?: string
           thank_you_message?: string | null
           updated_at?: string
           user_id?: string
+          view_count?: number | null
           website_id?: string
           welcome_message?: string | null
         }
@@ -2162,6 +2266,50 @@ export type Database = {
             columns: ["website_id"]
             isOneToOne: false
             referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      testimonial_invites: {
+        Row: {
+          created_at: string | null
+          email: string
+          form_id: string | null
+          id: string
+          metadata: Json | null
+          opened_at: string | null
+          sent_at: string | null
+          status: string | null
+          submitted_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          form_id?: string | null
+          id?: string
+          metadata?: Json | null
+          opened_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+          submitted_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          form_id?: string | null
+          id?: string
+          metadata?: Json | null
+          opened_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+          submitted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "testimonial_invites_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "testimonial_forms"
             referencedColumns: ["id"]
           },
         ]
@@ -3145,6 +3293,9 @@ export type Database = {
         Args: { _events_count?: number; _user_id: string }
         Returns: Json
       }
+      increment_form_views:
+        | { Args: { form_uuid: string }; Returns: undefined }
+        | { Args: { form_slug: string }; Returns: undefined }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
       log_admin_action: {

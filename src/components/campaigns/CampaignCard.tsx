@@ -37,6 +37,8 @@ interface Campaign {
   total_views?: number;
   total_clicks?: number;
   settings?: any;
+  native_config?: any;
+  integration_settings?: any;
 }
 
 interface CampaignCardProps {
@@ -69,20 +71,30 @@ export function CampaignCard({
   const clicks = campaign.total_clicks || 0;
   const ctr = views > 0 ? ((clicks / views) * 100).toFixed(1) : "0.0";
 
+  // Check if this is an announcement campaign
+  const dataSources = Array.isArray(campaign.data_sources) ? campaign.data_sources : [];
+  const isAnnouncementCampaign = dataSources.some((ds: any) => ds.provider === 'announcements');
+  const announcementData = campaign.native_config || campaign.integration_settings || {};
+
   // Format template for NotificationPreview
   const previewTemplate = {
     name: campaign.name,
     template_config: {
-      previewData: {
+      previewData: isAnnouncementCampaign ? {
+        userName: announcementData.title || campaign.name,
+        message: announcementData.message || campaign.description || "Announcement message",
+        time: announcementData.cta_text || "Just now",
+        location: "",
+      } : {
         userName: "Sarah Johnson",
         location: "New York, US",
         message: campaign.description || "just made a purchase",
         time: "Just now",
       },
-      position: campaign.settings?.position || "bottom-left",
-      animation: campaign.settings?.animation || "slide",
+      position: campaign.display_rules?.position || campaign.settings?.position || "bottom-left",
+      animation: campaign.display_rules?.animation || campaign.settings?.animation || "slide",
     },
-    style_config: campaign.settings || {
+    style_config: campaign.settings || campaign.display_rules || {
       accentColor: "#3B82F6",
       backgroundColor: "#ffffff",
       textColor: "#1a1a1a",

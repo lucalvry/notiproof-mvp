@@ -77,6 +77,20 @@ export function TestimonialTemplateConfig({
     });
   };
 
+  const handleMediaTypeChange = (mediaType: string) => {
+    onChange({
+      ...config,
+      mediaType,
+    });
+  };
+
+  const handleVerifiedOnlyChange = (checked: boolean) => {
+    onChange({
+      ...config,
+      onlyVerified: checked,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -149,6 +163,24 @@ export function TestimonialTemplateConfig({
             </p>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="media-type">Media Type Filter</Label>
+            <Select value={config.mediaType || 'all'} onValueChange={handleMediaTypeChange}>
+              <SelectTrigger id="media-type">
+                <SelectValue placeholder="All types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="text">Text Only</SelectItem>
+                <SelectItem value="image">With Image</SelectItem>
+                <SelectItem value="video">With Video</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Filter testimonials by media type
+            </p>
+          </div>
+
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label htmlFor="approved-only">Only Approved Testimonials</Label>
@@ -160,6 +192,20 @@ export function TestimonialTemplateConfig({
               id="approved-only"
               checked={config.onlyApproved !== false}
               onCheckedChange={handleOnlyApprovedChange}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="verified-only">Verified Purchases Only</Label>
+              <p className="text-xs text-muted-foreground">
+                Show only testimonials from verified purchases
+              </p>
+            </div>
+            <Switch
+              id="verified-only"
+              checked={config.onlyVerified === true}
+              onCheckedChange={handleVerifiedOnlyChange}
             />
           </div>
         </CardContent>

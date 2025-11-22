@@ -10,6 +10,8 @@ interface TestimonialConfig {
   minRating?: number;
   limit?: number;
   onlyApproved?: boolean;
+  mediaType?: 'all' | 'text' | 'image' | 'video';
+  onlyVerified?: boolean;
 }
 
 interface CanonicalEvent {
@@ -107,7 +109,7 @@ export async function fetchTestimonialEvents(
   try {
     console.log('[Testimonial Handler] Fetching testimonials with config:', config);
     
-    const { formId, minRating = 3, limit = 50, onlyApproved = true } = config;
+    const { formId, minRating = 3, limit = 50, onlyApproved = true, mediaType = 'all', onlyVerified = false } = config;
     
     let query = supabase
       .from('testimonials')
@@ -129,6 +131,20 @@ export async function fetchTestimonialEvents(
     // Filter by status if onlyApproved
     if (onlyApproved) {
       query = query.eq('status', 'approved');
+    }
+
+    // Filter by media type
+    if (mediaType === 'text') {
+      query = query.is('image_url', null).is('video_url', null);
+    } else if (mediaType === 'image') {
+      query = query.not('image_url', 'is', null);
+    } else if (mediaType === 'video') {
+      query = query.not('video_url', 'is', null);
+    }
+
+    // Filter by verified status
+    if (onlyVerified) {
+      query = query.eq('metadata->>verified_purchase', 'true');
     }
 
     const { data: testimonials, error } = await query;

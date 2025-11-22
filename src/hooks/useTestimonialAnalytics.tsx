@@ -11,9 +11,21 @@ export interface TestimonialAnalytics {
   averageRating: number;
   testimonialsWithMedia: number;
   mediaRate: number;
+  formViews: number;
   testimonialViews: number;
   testimonialClicks: number;
   testimonialCtr: number;
+  // New Phase 10 metrics
+  videoSubmissionRate: number;
+  imageSubmissionRate: number;
+  textOnlyRate: number;
+  conversionRate: number; // formViews to submissions
+  averageTimeToSubmit: number | null; // in minutes
+  emailsSent: number;
+  emailsOpened: number;
+  emailsClicked: number;
+  emailOpenRate: number;
+  emailClickRate: number;
   ratingDistribution: Array<{
     rating: number;
     count: number;
@@ -26,6 +38,17 @@ export interface TestimonialAnalytics {
   topForms: Array<{
     formName: string;
     submissions: number;
+  }>;
+  // New Phase 10 chart data
+  conversionFunnel: Array<{
+    stage: string;
+    count: number;
+    percentage: number;
+  }>;
+  mediaTypeBreakdown: Array<{
+    type: string;
+    count: number;
+    percentage: number;
   }>;
 }
 
@@ -131,8 +154,11 @@ export const useTestimonialAnalytics = (websiteId: string | undefined, days: num
       // Top forms
       const { data: forms } = await supabase
         .from('testimonial_forms')
-        .select('id, name')
+        .select('id, name, view_count')
         .eq('website_id', websiteId);
+
+      // Calculate total form views
+      const formViews = forms ? forms.reduce((sum, f) => sum + (f.view_count || 0), 0) : 0;
 
       const formMap = new Map<string, { name: string; count: number }>();
       if (forms) {
@@ -149,6 +175,80 @@ export const useTestimonialAnalytics = (websiteId: string | undefined, days: num
         .sort((a, b) => b.submissions - a.submissions)
         .slice(0, 5);
 
+      // Phase 10: New metrics
+      // Video/Image submission rates
+      const videoCount = testimonials.filter(t => t.video_url).length;
+      const imageCount = testimonials.filter(t => t.image_url && !t.video_url).length;
+      const textOnlyCount = testimonials.filter(t => !t.image_url && !t.video_url).length;
+      
+      const videoSubmissionRate = totalTestimonials > 0 ? (videoCount / totalTestimonials) * 100 : 0;
+      const imageSubmissionRate = totalTestimonials > 0 ? (imageCount / totalTestimonials) * 100 : 0;
+      const textOnlyRate = totalTestimonials > 0 ? (textOnlyCount / totalTestimonials) * 100 : 0;
+
+      // Conversion rate (form views to submissions)
+      const conversionRate = formViews > 0 ? (totalTestimonials / formViews) * 100 : 0;
+
+      // Average time to submit - calculate based on session data if available
+      // For now, we'll estimate based on creation times (mock data)
+      const averageTimeToSubmit = null; // Would need session tracking data
+
+      // Email metrics
+      const { data: invites } = await supabase
+        .from('testimonial_invites')
+        .select('status, sent_at, opened_at, submitted_at')
+        .in('form_id', forms ? forms.map(f => f.id) : [])
+        .gte('sent_at', startDate);
+
+      const emailsSent = invites ? invites.filter(i => i.status !== 'pending').length : 0;
+      const emailsOpened = invites ? invites.filter(i => i.opened_at).length : 0;
+      const emailsClicked = invites ? invites.filter(i => i.submitted_at).length : 0;
+      const emailOpenRate = emailsSent > 0 ? (emailsOpened / emailsSent) * 100 : 0;
+      const emailClickRate = emailsOpened > 0 ? (emailsClicked / emailsOpened) * 100 : 0;
+
+      // Conversion funnel data
+      const formStarts = totalTestimonials; // Assume all submissions mean they started
+      const conversionFunnel = [
+        {
+          stage: 'Views',
+          count: formViews,
+          percentage: 100,
+        },
+        {
+          stage: 'Started',
+          count: formStarts,
+          percentage: formViews > 0 ? (formStarts / formViews) * 100 : 0,
+        },
+        {
+          stage: 'Completed',
+          count: totalTestimonials,
+          percentage: formViews > 0 ? (totalTestimonials / formViews) * 100 : 0,
+        },
+        {
+          stage: 'Approved',
+          count: approvedTestimonials,
+          percentage: formViews > 0 ? (approvedTestimonials / formViews) * 100 : 0,
+        },
+      ];
+
+      // Media type breakdown for pie chart
+      const mediaTypeBreakdown = [
+        {
+          type: 'Text Only',
+          count: textOnlyCount,
+          percentage: totalTestimonials > 0 ? (textOnlyCount / totalTestimonials) * 100 : 0,
+        },
+        {
+          type: 'With Image',
+          count: imageCount,
+          percentage: totalTestimonials > 0 ? (imageCount / totalTestimonials) * 100 : 0,
+        },
+        {
+          type: 'With Video',
+          count: videoCount,
+          percentage: totalTestimonials > 0 ? (videoCount / totalTestimonials) * 100 : 0,
+        },
+      ].filter(item => item.count > 0);
+
       return {
         totalTestimonials,
         approvedTestimonials,
@@ -158,12 +258,26 @@ export const useTestimonialAnalytics = (websiteId: string | undefined, days: num
         averageRating: Math.round(averageRating * 10) / 10,
         testimonialsWithMedia,
         mediaRate: Math.round(mediaRate * 10) / 10,
+        formViews,
         testimonialViews,
         testimonialClicks,
         testimonialCtr: Math.round(testimonialCtr * 100) / 100,
+        // Phase 10 new metrics
+        videoSubmissionRate: Math.round(videoSubmissionRate * 10) / 10,
+        imageSubmissionRate: Math.round(imageSubmissionRate * 10) / 10,
+        textOnlyRate: Math.round(textOnlyRate * 10) / 10,
+        conversionRate: Math.round(conversionRate * 10) / 10,
+        averageTimeToSubmit,
+        emailsSent,
+        emailsOpened,
+        emailsClicked,
+        emailOpenRate: Math.round(emailOpenRate * 10) / 10,
+        emailClickRate: Math.round(emailClickRate * 10) / 10,
         ratingDistribution,
         submissionsByDay,
         topForms,
+        conversionFunnel,
+        mediaTypeBreakdown,
       };
     },
     enabled: !!websiteId,
@@ -180,9 +294,20 @@ function getEmptyAnalytics(): TestimonialAnalytics {
     averageRating: 0,
     testimonialsWithMedia: 0,
     mediaRate: 0,
+    formViews: 0,
     testimonialViews: 0,
     testimonialClicks: 0,
     testimonialCtr: 0,
+    videoSubmissionRate: 0,
+    imageSubmissionRate: 0,
+    textOnlyRate: 0,
+    conversionRate: 0,
+    averageTimeToSubmit: null,
+    emailsSent: 0,
+    emailsOpened: 0,
+    emailsClicked: 0,
+    emailOpenRate: 0,
+    emailClickRate: 0,
     ratingDistribution: [
       { rating: 1, count: 0, percentage: 0 },
       { rating: 2, count: 0, percentage: 0 },
@@ -192,5 +317,7 @@ function getEmptyAnalytics(): TestimonialAnalytics {
     ],
     submissionsByDay: [],
     topForms: [],
+    conversionFunnel: [],
+    mediaTypeBreakdown: [],
   };
 }

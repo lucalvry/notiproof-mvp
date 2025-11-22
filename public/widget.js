@@ -6,6 +6,7 @@
   const SUPABASE_URL = 'https://ewymvxhpkswhsirdrjub.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3eW12eGhwa3N3aHNpcmRyanViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTY0NDksImV4cCI6MjA3MDU3MjQ0OX0.ToRbUm37-ZnYkmmCfLW7am38rUGgFAppNxcZ2tar9mc';
   const DEBUG = window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
+  const debugMode = false; // Set to true to enable debug logs
   
   const script = document.currentScript;
   const widgetId = script.getAttribute('data-widget-id');
@@ -503,22 +504,25 @@
   
   function showNotification(event) {
     // CRITICAL STEP 4: Log event received by showNotification
-    console.log('[Widget] STEP 4 - showNotification called with event:', {
-      event_id: event.id,
-      event_type: event.event_type,
-      is_announcement: event.event_type === 'announcement',
-      has_event_data: !!event.event_data,
-      event_data_type: typeof event.event_data,
-      event_data_is_string: typeof event.event_data === 'string',
-      event_data_keys: event.event_data && typeof event.event_data === 'object' ? Object.keys(event.event_data) : 'N/A',
-      raw_event_data: event.event_data
+    if (debugMode) {
+      console.log('[Widget] STEP 4 - showNotification called with event:', {
+        event_id: event.id,
+        event_type: event.event_type,
+        is_announcement: event.event_type === 'announcement',
+        has_event_data: !!event.event_data,
+        event_data_type: typeof event.event_data,
+        event_data_is_string: typeof event.event_data === 'string',
+        event_data_keys: event.event_data && typeof event.event_data === 'object' ? Object.keys(event.event_data) : 'N/A',
+        raw_event_data: event.event_data
+      });
+    }
     });
     
     // FIX: Ensure event_data is parsed if it's a string (double-encoded JSON)
     if (event.event_data && typeof event.event_data === 'string') {
       try {
         event.event_data = JSON.parse(event.event_data);
-        console.log('[Widget] ✅ Parsed event_data from string to object');
+        if (debugMode) console.log('[Widget] ✅ Parsed event_data from string to object');
       } catch (e) {
         console.error('[Widget] ❌ Failed to parse event_data:', e);
       }
@@ -527,17 +531,19 @@
     // DEBUG: Log full event structure for announcements
     if (event.event_type === 'announcement') {
       console.group('🎯 ANNOUNCEMENT DEBUG');
-      console.log('event.event_type:', event.event_type);
-      console.log('event.event_data type:', typeof event.event_data);
-      console.log('event.event_data value:', event.event_data);
-      if (event.event_data && typeof event.event_data === 'object') {
-        console.log('  ✅ event.event_data.title:', event.event_data.title);
-        console.log('  ✅ event.event_data.message:', event.event_data.message);
-        console.log('  ✅ event.event_data.icon:', event.event_data.icon);
-        console.log('  ✅ event.event_data.emoji:', event.event_data.emoji);
-        console.log('  ✅ event.event_data.image_type:', event.event_data.image_type);
-        console.log('  ✅ event.event_data.cta_text:', event.event_data.cta_text);
-        console.log('  ✅ event.event_data.cta_url:', event.event_data.cta_url);
+      if (debugMode) {
+        console.log('event.event_type:', event.event_type);
+        console.log('event.event_data type:', typeof event.event_data);
+        console.log('event.event_data value:', event.event_data);
+        if (event.event_data && typeof event.event_data === 'object') {
+          console.log('  ✅ event.event_data.title:', event.event_data.title);
+          console.log('  ✅ event.event_data.message:', event.event_data.message);
+          console.log('  ✅ event.event_data.icon:', event.event_data.icon);
+          console.log('  ✅ event.event_data.emoji:', event.event_data.emoji);
+          console.log('  ✅ event.event_data.image_type:', event.event_data.image_type);
+          console.log('  ✅ event.event_data.cta_text:', event.event_data.cta_text);
+          console.log('  ✅ event.event_data.cta_url:', event.event_data.cta_url);
+        }
       }
       console.groupEnd();
     }
@@ -603,18 +609,20 @@
     
     // ANNOUNCEMENT-SPECIFIC IMAGE HANDLING
     if (event.event_type === 'announcement') {
-      console.log('🖼️ [Widget] Announcement image data:', {
-        image_type: event.event_data?.image_type,
-        emoji: event.event_data?.emoji,
-        icon: event.event_data?.icon,
-        image_url: event.event_data?.image_url,
-        full_event_data: event.event_data
-      });
+      if (debugMode) {
+        console.log('🖼️ [Widget] Announcement image data:', {
+          image_type: event.event_data?.image_type,
+          emoji: event.event_data?.emoji,
+          icon: event.event_data?.icon,
+          image_url: event.event_data?.image_url,
+          full_event_data: event.event_data
+        });
+      }
 
       const imageType = event.event_data?.image_type;
       
       if (imageType === 'emoji' && event.event_data.emoji) {
-        console.log('🖼️ [Widget] Rendering emoji:', event.event_data.emoji);
+        if (debugMode) console.log('🖼️ [Widget] Rendering emoji:', event.event_data.emoji);
         contentHTML += `<div style="
           width: 48px; height: 48px; border-radius: 8px;
           background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
@@ -622,7 +630,7 @@
           font-size: 28px; flex-shrink: 0;
         ">${event.event_data.emoji}</div>`;
       } else if (imageType === 'icon' && event.event_data.icon) {
-        console.log('🖼️ [Widget] Rendering icon:', event.event_data.icon);
+        if (debugMode) console.log('🖼️ [Widget] Rendering icon:', event.event_data.icon);
         contentHTML += `<div style="
           width: 48px; height: 48px; border-radius: 8px;
           background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
@@ -630,15 +638,19 @@
           font-size: 28px; flex-shrink: 0;
         ">${event.event_data.icon}</div>`;
       } else if (imageType === 'url' && event.event_data.image_url && isValidUrl(event.event_data.image_url)) {
-        console.log('🖼️ [Widget] Rendering image URL:', event.event_data.image_url);
+        if (debugMode) console.log('🖼️ [Widget] Rendering image URL:', event.event_data.image_url);
         contentHTML += `<img src="${escapeHtml(event.event_data.image_url)}" 
           style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;"
           alt="Announcement" onerror="this.style.display='none'" />`;
       } else {
         // Fallback logic: try icon, then emoji, then default
-        console.log('🖼️ [Widget] Using fallback image (imageType:', imageType, ')');
+        if (debugMode) {
+          console.log('🖼️ [Widget] Using fallback image (imageType:', imageType, ')');
+          if (event.event_data?.icon) {
+            console.log('🖼️ [Widget] Fallback to icon:', event.event_data.icon);
+          }
+        }
         if (event.event_data?.icon) {
-          console.log('🖼️ [Widget] Fallback to icon:', event.event_data.icon);
           contentHTML += `<div style="
             width: 48px; height: 48px; border-radius: 8px;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
@@ -646,7 +658,7 @@
             font-size: 28px; flex-shrink: 0;
           ">${event.event_data.icon}</div>`;
         } else if (event.event_data?.emoji) {
-          console.log('🖼️ [Widget] Fallback to emoji:', event.event_data.emoji);
+          if (debugMode) console.log('🖼️ [Widget] Fallback to emoji:', event.event_data.emoji);
           contentHTML += `<div style="
             width: 48px; height: 48px; border-radius: 8px;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
@@ -654,7 +666,7 @@
             font-size: 28px; flex-shrink: 0;
           ">${event.event_data.emoji}</div>`;
         } else {
-          console.log('🖼️ [Widget] Using default 📢 emoji');
+          if (debugMode) console.log('🖼️ [Widget] Using default 📢 emoji');
           contentHTML += `<div style="width: 48px; height: 48px; border-radius: 8px;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             display: flex; align-items: center; justify-content: center;
@@ -697,49 +709,55 @@
     if (false && event.event_data && typeof event.event_data === 'string') {
       try {
         event.event_data = JSON.parse(event.event_data);
-        console.log('[Widget] Parsed event_data from string to object');
+        if (debugMode) console.log('[Widget] Parsed event_data from string to object');
       } catch (e) {
         console.error('[Widget] Failed to parse event_data:', e);
       }
     }
     
     // DIAGNOSTIC: Check announcement rendering condition
-    console.log('[Widget] Event rendering check:', {
-      event_id: event.id,
-      event_type: event.event_type,
-      event_type_is_announcement: event.event_type === 'announcement',
-      has_event_data: !!event.event_data,
+    if (debugMode) {
+      console.log('[Widget] Event rendering check:', {
+        event_id: event.id,
+        event_type: event.event_type,
+        event_type_is_announcement: event.event_type === 'announcement',
+        has_event_data: !!event.event_data,
       event_data_type: typeof event.event_data,
       has_title: !!event.event_data?.title,
       title_value: event.event_data?.title,
       condition_passes: event.event_type === 'announcement' && event.event_data?.title,
       full_event_data: event.event_data
-    });
+      });
+    }
     
     // CRITICAL DIAGNOSTIC: Log BEFORE condition check to see why it might fail
-    console.log('[Widget] CRITICAL STEP 1 - About to check announcement condition:', {
-      event_type: event.event_type,
-      is_announcement: event.event_type === 'announcement',
-      has_event_data: !!event.event_data,
-      has_title: !!event.event_data?.title,
-      title_value: event.event_data?.title,
-      title_type: typeof event.event_data?.title,
-      title_trimmed: event.event_data?.title?.trim(),
-      condition_will_pass: (event.event_type === 'announcement' && !!event.event_data?.title?.trim())
-    });
+    if (debugMode) {
+      console.log('[Widget] CRITICAL STEP 1 - About to check announcement condition:', {
+        event_type: event.event_type,
+        is_announcement: event.event_type === 'announcement',
+        has_event_data: !!event.event_data,
+        has_title: !!event.event_data?.title,
+        title_value: event.event_data?.title,
+        title_type: typeof event.event_data?.title,
+        title_trimmed: event.event_data?.title?.trim(),
+        condition_will_pass: (event.event_type === 'announcement' && !!event.event_data?.title?.trim())
+      });
+    }
     
     // ANNOUNCEMENT-SPECIFIC MESSAGE RENDERING: Separate title and message with different font weights
     if (event.event_type === 'announcement' && event.event_data?.title?.trim()) {
       // STEP 4 FIX: Add comprehensive logging for announcement data
-      console.log('[Widget] STEP 4 - Announcement rendering data:', {
-        has_title: !!event.event_data.title,
-        title_value: event.event_data.title,
-        title_length: event.event_data.title?.length || 0,
-        has_message: !!event.event_data.message,
-        message_value: event.event_data.message,
-        message_length: event.event_data.message?.length || 0,
-        full_event_data: event.event_data
-      });
+      if (debugMode) {
+        console.log('[Widget] STEP 4 - Announcement rendering data:', {
+          has_title: !!event.event_data.title,
+          title_value: event.event_data.title,
+          title_length: event.event_data.title?.length || 0,
+          has_message: !!event.event_data.message,
+          message_value: event.event_data.message,
+          message_length: event.event_data.message?.length || 0,
+          full_event_data: event.event_data
+        });
+      }
       
       // Render announcement header (bold)
       contentHTML += `<div style="font-weight: 600; margin-bottom: 4px; line-height: 1.4;">
@@ -753,7 +771,7 @@
                         event.event_data.message.trim().length > 0;
       
       if (hasMessage) {
-        console.log('[Widget] STEP 4 - Rendering announcement message:', event.event_data.message);
+        if (debugMode) console.log('[Widget] STEP 4 - Rendering announcement message:', event.event_data.message);
         contentHTML += `<div style="font-weight: 400; margin-bottom: 4px; line-height: 1.4; opacity: 0.9;">
           ${escapeHtml(event.event_data.message)}
         </div>`;
@@ -788,8 +806,10 @@
     // CTA Button - check both config.showCTA AND announcement-specific CTA
     // STEP 3 FIX: Add defensive checks and logging for announcement CTA
     if (event.event_type === 'announcement') {
-      console.log('[Widget] Announcement event_data:', event.event_data);
-      console.log('[Widget] CTA check - cta_text:', event.event_data?.cta_text, 'cta_url:', event.event_data?.cta_url);
+      if (debugMode) {
+        console.log('[Widget] Announcement event_data:', event.event_data);
+        console.log('[Widget] CTA check - cta_text:', event.event_data?.cta_text, 'cta_url:', event.event_data?.cta_url);
+      }
     }
     
     // STEP 3 FIX: Ensure CTA values are non-empty strings
@@ -817,13 +837,13 @@
       });
     }
     
-    console.log('[Widget] CTA Button Check - announcementCTA:', announcementCTA, 'showButton:', showButton);
+    if (debugMode) console.log('[Widget] CTA Button Check - announcementCTA:', announcementCTA, 'showButton:', showButton);
     
     if (showButton) {
       const ctaText = announcementCTA ? event.event_data.cta_text : config.ctaText;
       const ctaUrl = announcementCTA ? event.event_data.cta_url : config.ctaUrl;
       
-      console.log('[Widget] Rendering CTA button - Text:', ctaText, 'URL:', ctaUrl);
+      if (debugMode) console.log('[Widget] Rendering CTA button - Text:', ctaText, 'URL:', ctaUrl);
       
       contentHTML += `
         <button style="
@@ -962,7 +982,7 @@
         
         // CRITICAL STEP 3: Log eventQueue population
         const announcementCount = eventQueue.filter(e => e.event_type === 'announcement').length;
-        console.log('[Widget] STEP 3 - Event queue loaded:', {
+        if (debugMode) console.log('[Widget] STEP 3 - Event queue loaded:', {
           total_events: eventQueue.length,
           announcement_events: announcementCount,
           announcement_details: eventQueue
@@ -1228,7 +1248,7 @@
     setTimeout(() => {
       if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused) {
         const event = eventQueue.shift();
-        console.log('[Widget] STEP 4 - About to show notification:', {
+        if (debugMode) console.log('[Widget] STEP 4 - About to show notification:', {
           event_id: event.id,
           event_type: event.event_type,
           is_announcement: event.event_type === 'announcement',
@@ -1242,7 +1262,7 @@
       setInterval(() => {
         if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused) {
           const event = eventQueue.shift();
-          console.log('[Widget] STEP 4 - About to show notification (interval):', {
+          if (debugMode) console.log('[Widget] STEP 4 - About to show notification (interval):', {
             event_id: event.id,
             event_type: event.event_type,
             is_announcement: event.event_type === 'announcement',

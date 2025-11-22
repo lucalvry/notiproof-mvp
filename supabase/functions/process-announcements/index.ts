@@ -74,6 +74,45 @@ serve(async (req) => {
       console.log(`[process-announcements] Found widget ${widget.id} for campaign ${campaign.id}`)
       console.log(`[process-announcements] Native config for campaign ${campaign.id}:`, JSON.stringify(nativeConfig, null, 2))
 
+      // Treat undefined schedule_type as 'instant'
+      const scheduleType = nativeConfig.schedule_type || 'instant'
+      console.log(`[process-announcements] Schedule type for campaign ${campaign.id}: ${scheduleType}`)
+
+      // For 'scheduled' announcements, check if within active time window
+      if (scheduleType === 'scheduled') {
+        if (!shouldShowAnnouncement(nativeConfig)) {
+          console.log(`[process-announcements] Skipping campaign ${campaign.id} - not within scheduled time window`)
+          continue
+        }
+      }
+
+      // Check if an event already exists for this campaign (prevent duplicates)
+      // For instant: check last 24 hours, for recurring: check last hour
+      const lookbackMs = scheduleType === 'instant' ? 86400000 : 3600000 // 24h for instant, 1h for recurring
+      const { data: existingEvents, error: checkError } = await supabase
+        .from('events')
+        .select('id, created_at')
+        .eq('widget_id', widget.id)
+        .eq('event_type', 'announcement')
+        .eq('website_id', campaign.website_id)
+        .gte('created_at', new Date(Date.now() - lookbackMs).toISOString())
+      
+      if (checkError) {
+        console.error(`[process-announcements] Error checking existing events for campaign ${campaign.id}:`, checkError)
+      }
+
+      // For instant announcements (or undefined), don't create duplicates within 24h
+      if ((scheduleType === 'instant' || !nativeConfig.schedule_type) && existingEvents && existingEvents.length > 0) {
+        console.log(`[process-announcements] Skipping - instant announcement already exists for campaign ${campaign.id} (${existingEvents.length} events found in last 24h)`)
+        continue
+      }
+
+      // For recurring, check if we've already created an event in this time window (last hour)
+      if (scheduleType === 'recurring' && existingEvents && existingEvents.length > 0) {
+        console.log(`[process-announcements] Skipping - recurring announcement already created recently for campaign ${campaign.id} (${existingEvents.length} events found in last hour)`)
+        continue
+      }
+
       // STEP 3 FIX: Add defensive checks for CTA data
       const ctaText = nativeConfig.cta_text || nativeConfig.ctaText || '';
       const ctaUrl = nativeConfig.cta_url || nativeConfig.ctaUrl || '';

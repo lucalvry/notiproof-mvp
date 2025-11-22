@@ -41,9 +41,11 @@ interface AnnouncementConfigProps {
   };
   onChange: (config: any) => void;
   selectedTemplate?: TemplateConfig;
+  showSaveButton?: boolean;
+  onSave?: () => void;
 }
 
-export function AnnouncementConfig({ config, onChange, selectedTemplate }: AnnouncementConfigProps) {
+export function AnnouncementConfig({ config, onChange, selectedTemplate, showSaveButton, onSave }: AnnouncementConfigProps) {
   const [showPreview, setShowPreview] = useState(true);
 
   // Create mock event data for live preview
@@ -133,7 +135,11 @@ export function AnnouncementConfig({ config, onChange, selectedTemplate }: Annou
                   onValueChange={(v) => onChange({ ...config, icon: v })}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent 
+                    className="z-[9999] bg-background border shadow-lg"
+                    position="popper"
+                    sideOffset={5}
+                  >
                     <SelectItem value="🛍️">🛍️ Shopping Bag</SelectItem>
                     <SelectItem value="🎉">🎉 Celebration</SelectItem>
                     <SelectItem value="📢">📢 Announcement</SelectItem>
@@ -268,7 +274,7 @@ export function AnnouncementConfig({ config, onChange, selectedTemplate }: Annou
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-50 bg-background">
                     <SelectItem value="daily">Every Day</SelectItem>
                     <SelectItem value="weekly">Specific Days of Week</SelectItem>
                     <SelectItem value="monthly">Monthly</SelectItem>
@@ -335,6 +341,27 @@ export function AnnouncementConfig({ config, onChange, selectedTemplate }: Annou
             Higher priority announcements show first when multiple are active
           </p>
         </div>
+        
+        {/* Save Button for Edit Mode */}
+        {showSaveButton && (
+          <div className="pt-4 border-t flex gap-3">
+            <Button 
+              onClick={() => onSave?.()} 
+              className="flex-1"
+              size="lg"
+            >
+              Update Announcement
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowPreview(!showPreview)}
+              className="lg:hidden"
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              {showPreview ? 'Hide' : 'Show'} Preview
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
 

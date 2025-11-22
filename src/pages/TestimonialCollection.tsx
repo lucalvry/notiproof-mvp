@@ -12,28 +12,45 @@ export default function TestimonialCollection() {
 
   useEffect(() => {
     async function loadForm() {
+      console.log('[Collection Page] Loading form for slug:', slug);
+      
       if (!slug) {
+        console.error('[Collection Page] No slug provided');
         setError(true);
         setLoading(false);
         return;
       }
 
       try {
+        console.log('[Collection Page] Fetching form from database...');
+        
+        // Load form with questions
         const { data, error: fetchError } = await supabase
           .from('testimonial_forms')
-          .select('*')
+          .select(`
+            *,
+            testimonial_form_questions(*)
+          `)
           .eq('slug', slug)
           .eq('is_active', true)
           .single();
 
         if (fetchError || !data) {
-          console.error('Error fetching form:', fetchError);
+          console.error('[Collection Page] Error fetching form:', fetchError);
+          console.error('[Collection Page] Form not found or inactive for slug:', slug);
           setError(true);
         } else {
+          console.log('[Collection Page] Form loaded successfully:', {
+            id: data.id,
+            name: data.name,
+            isActive: data.is_active,
+            websiteId: data.website_id,
+            questionsCount: data.testimonial_form_questions?.length || 0
+          });
           setFormConfig(data);
         }
       } catch (err) {
-        console.error('Error loading form:', err);
+        console.error('[Collection Page] Exception loading form:', err);
         setError(true);
       } finally {
         setLoading(false);
@@ -68,7 +85,16 @@ export default function TestimonialCollection() {
         <TestimonialCollectionForm
           websiteId={formConfig.website_id}
           formId={formConfig.id}
-          formConfig={formConfig.form_config}
+          formConfig={{
+            ...formConfig.form_config,
+            name: formConfig.name,
+            form_type: formConfig.form_type,
+            pages_config: formConfig.pages_config,
+            reward_config: formConfig.reward_config,
+            negative_feedback_enabled: formConfig.negative_feedback_enabled,
+            private_feedback_enabled: formConfig.private_feedback_enabled,
+            consent_required: formConfig.consent_required,
+          }}
           welcomeMessage={formConfig.welcome_message}
           thankYouMessage={formConfig.thank_you_message}
           showCompanyFields={formConfig.form_config?.show_company_fields || false}

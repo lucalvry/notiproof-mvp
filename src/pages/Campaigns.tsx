@@ -117,10 +117,12 @@ export default function Campaigns() {
           origin: { y: 0.6 }
         });
         toast.success("🎉 Campaign activated!", {
-          description: "Your notification is now live and visible to visitors"
+          description: "Refresh your website to see the notification"
         });
       } else {
-        toast.success("Campaign paused");
+        toast.success("Campaign paused", {
+          description: "Refresh your website to stop seeing notifications"
+        });
       }
       
       fetchCampaigns();

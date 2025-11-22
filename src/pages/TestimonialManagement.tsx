@@ -2,13 +2,22 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ClipboardList, MessageSquare, BarChart3 } from "lucide-react";
+import { Plus, ClipboardList, MessageSquare, BarChart3, Mail, Send, Zap } from "lucide-react";
 import { TestimonialFormsManager } from "@/components/testimonials/TestimonialFormsManager";
 import { TestimonialSubmissionsList } from "@/components/testimonials/TestimonialSubmissionsList";
+import { TriggerSelector } from "@/components/testimonials/TriggerSelector";
 import { useNavigate } from "react-router-dom";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { useTestimonialAnalytics } from "@/hooks/useTestimonialAnalytics";
 import { TestimonialAnalyticsDashboard } from "@/components/analytics/TestimonialAnalyticsDashboard";
+import { 
+  Breadcrumb, 
+  BreadcrumbItem, 
+  BreadcrumbLink, 
+  BreadcrumbList, 
+  BreadcrumbPage, 
+  BreadcrumbSeparator 
+} from "@/components/ui/breadcrumb";
 
 export default function TestimonialManagement() {
   const [activeTab, setActiveTab] = useState("forms");
@@ -43,6 +52,19 @@ export default function TestimonialManagement() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
+      {/* Breadcrumbs */}
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink onClick={() => navigate("/dashboard")}>Dashboard</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Testimonials</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Testimonials</h1>
@@ -57,7 +79,7 @@ export default function TestimonialManagement() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+        <TabsList className="grid w-full max-w-4xl grid-cols-5">
           <TabsTrigger value="forms" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Forms
@@ -69,6 +91,14 @@ export default function TestimonialManagement() {
           <TabsTrigger value="analytics" className="gap-2">
             <BarChart3 className="h-4 w-4" />
             Analytics
+          </TabsTrigger>
+          <TabsTrigger value="email" className="gap-2">
+            <Mail className="h-4 w-4" />
+            Email
+          </TabsTrigger>
+          <TabsTrigger value="triggers" className="gap-2">
+            <Zap className="h-4 w-4" />
+            Triggers
           </TabsTrigger>
         </TabsList>
 
@@ -130,16 +160,71 @@ export default function TestimonialManagement() {
                 averageRating: 0,
                 testimonialsWithMedia: 0,
                 mediaRate: 0,
+                formViews: 0,
                 testimonialViews: 0,
                 testimonialClicks: 0,
                 testimonialCtr: 0,
+                videoSubmissionRate: 0,
+                imageSubmissionRate: 0,
+                textOnlyRate: 0,
+                conversionRate: 0,
+                averageTimeToSubmit: null,
+                emailsSent: 0,
+                emailsOpened: 0,
+                emailsClicked: 0,
+                emailOpenRate: 0,
+                emailClickRate: 0,
                 ratingDistribution: [],
                 submissionsByDay: [],
                 topForms: [],
+                conversionFunnel: [],
+                mediaTypeBreakdown: [],
               }}
               isLoading={isLoading}
             />
           </div>
+        </TabsContent>
+
+        <TabsContent value="email" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Email Templates</CardTitle>
+              <CardDescription>
+                Customize your invitation and thank you email templates
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-center py-8">
+                <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Email Templates</h3>
+                <p className="text-muted-foreground mb-4">
+                  Select a form to customize its email templates
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Go to Forms tab → Edit a form → Configure email settings
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="triggers" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Invitation Triggers</CardTitle>
+              <CardDescription>
+                Choose how you want to invite customers to share testimonials
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TriggerSelector 
+                formId={null} 
+                onCsvUpload={async (recipients) => {
+                  console.log('Bulk invite:', recipients);
+                }} 
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
