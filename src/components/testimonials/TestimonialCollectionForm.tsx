@@ -62,6 +62,7 @@ export function TestimonialCollectionForm({
   const [formConfig, setFormConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
   
   const [formData, setFormData] = useState<FormData>({
     rating: 0,
@@ -119,6 +120,7 @@ export function TestimonialCollectionForm({
           'rating',
           'message',
           'about_you',
+          'about_company',
           'thank_you',
         ];
         console.log('[Form Config] Page sequence:', sequence);
@@ -198,6 +200,7 @@ export function TestimonialCollectionForm({
           'rating',
           'message',
           'about_you',
+          'about_company',
           'thank_you',
         ];
         console.log('[Form Config] Page sequence:', sequence);
@@ -230,10 +233,16 @@ export function TestimonialCollectionForm({
       }
     }
 
-    if (currentPageIndex < pageSequence.length - 1) {
-      setCurrentPageIndex(currentPageIndex + 1);
-    } else {
+    // Check if we're moving to the last page
+    const nextPageIndex = currentPageIndex + 1;
+    const nextPageId = pageSequence[nextPageIndex];
+    
+    // If next page is thank_you or reward, trigger submission first
+    if (nextPageId === 'thank_you' || nextPageId === 'reward') {
+      console.log('[Navigation] Moving to final page, triggering submission...');
       handleSubmit();
+    } else if (currentPageIndex < pageSequence.length - 1) {
+      setCurrentPageIndex(nextPageIndex);
     }
   };
 
@@ -323,6 +332,13 @@ export function TestimonialCollectionForm({
   };
 
   const handleSubmit = async () => {
+    // Prevent double submission
+    if (hasSubmitted) {
+      console.log('[Submit] Already submitted, moving to next page...');
+      setCurrentPageIndex(currentPageIndex + 1);
+      return;
+    }
+
     console.log('=== TESTIMONIAL SUBMISSION STARTED ===');
     console.log('[Submit] Form data:', {
       websiteId,
@@ -348,9 +364,13 @@ export function TestimonialCollectionForm({
         console.log('[Submit] Uploading avatar...');
         avatarUrl = await uploadFile(formData.avatarFile, 'avatar');
         if (!avatarUrl) {
-          throw new Error('Avatar upload failed');
+          console.warn('[Submit] Avatar upload failed, continuing without avatar...');
+          toast.error('Avatar upload failed, but submitting your testimonial anyway');
+        } else {
+          console.log('[Submit] Avatar uploaded successfully:', avatarUrl);
         }
-        console.log('[Submit] Avatar uploaded successfully:', avatarUrl);
+      } else {
+        console.log('[Submit] No avatar provided, continuing without avatar');
       }
       
       if (formData.videoFile) {
@@ -366,16 +386,26 @@ export function TestimonialCollectionForm({
       // Phase 2: Insert testimonial record
       console.log('[Submit] Phase 2: Inserting testimonial record...');
       
+      // Validate required fields before submission
+      if (!websiteId) {
+        throw new Error('Website ID is required');
+      }
+      
+      if (!formId) {
+        console.error('[Submit] Missing formId - this should not happen');
+        throw new Error('Form ID is required');
+      }
+
       const testimonialData = {
         website_id: websiteId,
-        form_id: formId || null,
+        form_id: formId,
         source: 'form' as const,
         author_name: formData.name,
         author_email: formData.email || null,
         rating: formData.rating,
         message: formData.message,
-        author_avatar_url: avatarUrl,
-        image_url: avatarUrl,
+        author_avatar_url: avatarUrl, // Author's profile picture
+        image_url: null, // Reserved for testimonial-related images (screenshots, products, etc.)
         video_url: videoUrl,
         metadata: {
           form_id: formId,
@@ -459,15 +489,38 @@ export function TestimonialCollectionForm({
 
       // Phase 4: Success!
       console.log('=== TESTIMONIAL SUBMISSION COMPLETED ===');
+      setHasSubmitted(true);
       toast.success('Thank you for your testimonial!');
       
       // Move to reward or thank you page
-      goNext();
+      setCurrentPageIndex(currentPageIndex + 1);
       onSuccess?.();
       
     } catch (error) {
       console.error('=== TESTIMONIAL SUBMISSION FAILED ===');
       console.error('[Submit] Error details:', error);
+      console.error('[Submit] Error type:', typeof error);
+      console.error('[Submit] Error stringified:', JSON.stringify(error, null, 2));
+      
+      // Extract error message from various error types
+      let errorMessage = 'An unexpected error occurred';
+      let errorCode = 'UNKNOWN';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        errorCode = error.name;
+      } else if (typeof error === 'object' && error !== null) {
+        // Handle Supabase errors
+        const supabaseError = error as any;
+        if (supabaseError.message) errorMessage = supabaseError.message;
+        if (supabaseError.code) errorCode = supabaseError.code;
+        if (supabaseError.details) console.error('[Submit] Error details:', supabaseError.details);
+        if (supabaseError.hint) console.error('[Submit] Error hint:', supabaseError.hint);
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      console.error('[Submit] Processed error:', { errorMessage, errorCode });
       
       // Log critical error to backend
       try {
@@ -475,13 +528,15 @@ export function TestimonialCollectionForm({
           _integration_type: 'testimonial_submission',
           _action: 'submit_testimonial',
           _status: 'error',
-          _error_message: error instanceof Error ? error.message : 'Unknown error',
+          _error_message: errorMessage,
           _details: {
             websiteId,
             formId,
+            errorCode,
             hasAvatar: !!formData.avatarFile,
             hasVideo: !!formData.videoFile,
-            errorType: error instanceof Error ? error.constructor.name : typeof error
+            errorType: typeof error,
+            rawError: JSON.stringify(error)
           }
         });
       } catch (logError) {
@@ -489,14 +544,15 @@ export function TestimonialCollectionForm({
       }
 
       // Show user-friendly error message
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-      
       if (errorMessage.includes('violates row-level security policy')) {
-        toast.error('Unable to submit: Form may be inactive or invalid. Please contact support.');
+        toast.error('Unable to submit: Form may be inactive. Please contact support.');
+        console.error('[Submit] RLS Policy violation - form might not be active or form_id is invalid');
       } else if (errorMessage.includes('duplicate key')) {
         toast.error('This testimonial has already been submitted.');
       } else if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
         toast.error('Network error. Please check your connection and try again.');
+      } else if (!formId) {
+        toast.error('Form configuration error. Please refresh and try again.');
       } else {
         toast.error(`Failed to submit: ${errorMessage}`);
       }

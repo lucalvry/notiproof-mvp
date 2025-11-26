@@ -6,6 +6,8 @@
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 
 interface TestimonialConfig {
+  displayMode?: 'specific' | 'filtered';
+  testimonialIds?: string[];
   formId?: string;
   minRating?: number;
   limit?: number;
@@ -57,6 +59,14 @@ function normalizeTestimonial(testimonial: any): CanonicalEvent {
   const rating = testimonial.rating || 5;
   const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
   
+  // Smart placeholders for missing info
+  const authorName = testimonial.author_name || 'Anonymous Customer';
+  const authorPosition = testimonial.author_position || testimonial.metadata?.position || 'Customer';
+  const authorCompany = testimonial.author_company || testimonial.metadata?.company || 'Happy Customer';
+  const authorAvatar = testimonial.avatar_url || 
+    testimonial.author_avatar_url ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}&background=2563EB&color=fff`;
+  
   return {
     event_id: `testimonial_${testimonial.id}`,
     provider: 'testimonials',
@@ -64,13 +74,15 @@ function normalizeTestimonial(testimonial: any): CanonicalEvent {
     timestamp: createdAt,
     payload: testimonial,
     normalized: {
-      'template.author_name': testimonial.author_name,
-      'template.author_email': testimonial.author_email,
-      'template.author_avatar': testimonial.author_avatar_url,
+      'template.author_name': authorName,
+      'template.author_email': testimonial.author_email || '',
+      'template.author_avatar': authorAvatar,
+      'template.author_position': authorPosition,
+      'template.author_company': authorCompany,
       'template.rating': rating,
       'template.rating_stars': stars,
-      'template.message': testimonial.message,
-      'template.image_url': testimonial.image_url,
+      'template.message': testimonial.message || 'Great experience!',
+      'template.image_url': testimonial.metadata?.product_image_url || null,
       'template.video_url': testimonial.video_url,
       'template.time_ago': timeAgo,
       'template.verified': !!testimonial.metadata?.verified_purchase,
@@ -109,42 +121,53 @@ export async function fetchTestimonialEvents(
   try {
     console.log('[Testimonial Handler] Fetching testimonials with config:', config);
     
-    const { formId, minRating = 3, limit = 50, onlyApproved = true, mediaType = 'all', onlyVerified = false } = config;
+    const { displayMode, testimonialIds, formId, minRating = 3, limit = 50, onlyApproved = true, mediaType = 'all', onlyVerified = false } = config;
     
     let query = supabase
       .from('testimonials')
-      .select('*')
-      .eq('website_id', websiteId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
+      .select('*');
 
-    // Filter by form if specified
-    if (formId) {
-      query = query.eq('form_id', formId);
-    }
+    // NEW: If specific testimonials selected, fetch only those
+    if (displayMode === 'specific' && testimonialIds && testimonialIds.length > 0) {
+      query = query
+        .in('id', testimonialIds)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+    } else {
+      // Existing filter logic for filtered mode
+      query = query
+        .eq('website_id', websiteId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
-    // Filter by rating if specified
-    if (minRating) {
-      query = query.gte('rating', minRating);
-    }
+      // Filter by form if specified
+      if (formId) {
+        query = query.eq('form_id', formId);
+      }
 
-    // Filter by status if onlyApproved
-    if (onlyApproved) {
-      query = query.eq('status', 'approved');
-    }
+      // Filter by rating if specified
+      if (minRating) {
+        query = query.gte('rating', minRating);
+      }
 
-    // Filter by media type
-    if (mediaType === 'text') {
-      query = query.is('image_url', null).is('video_url', null);
-    } else if (mediaType === 'image') {
-      query = query.not('image_url', 'is', null);
-    } else if (mediaType === 'video') {
-      query = query.not('video_url', 'is', null);
-    }
+      // Filter by status if onlyApproved
+      if (onlyApproved) {
+        query = query.eq('status', 'approved');
+      }
 
-    // Filter by verified status
-    if (onlyVerified) {
-      query = query.eq('metadata->>verified_purchase', 'true');
+      // Filter by media type
+      if (mediaType === 'text') {
+        query = query.is('image_url', null).is('video_url', null);
+      } else if (mediaType === 'image') {
+        query = query.not('image_url', 'is', null);
+      } else if (mediaType === 'video') {
+        query = query.not('video_url', 'is', null);
+      }
+
+      // Filter by verified status
+      if (onlyVerified) {
+        query = query.eq('metadata->>verified_purchase', 'true');
+      }
     }
 
     const { data: testimonials, error } = await query;

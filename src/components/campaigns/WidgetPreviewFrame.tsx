@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Monitor, Smartphone, Tablet, Eye, RefreshCw, ExternalLink, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
+import { renderTemplate } from "@/lib/templateEngine";
+import type { CanonicalEvent } from "@/lib/integrations/types";
 
 interface WidgetPreviewFrameProps {
   settings: any;
@@ -13,6 +15,7 @@ interface WidgetPreviewFrameProps {
   websiteDomain?: string;
   position?: string;
   animation?: string;
+  selectedTemplate?: any;
 }
 
 type DeviceType = 'desktop' | 'tablet' | 'mobile';
@@ -23,7 +26,8 @@ export function WidgetPreviewFrame({
   messageTemplate,
   websiteDomain,
   position,
-  animation
+  animation,
+  selectedTemplate
 }: WidgetPreviewFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [device, setDevice] = useState<DeviceType>('desktop');
@@ -75,6 +79,10 @@ export function WidgetPreviewFrame({
       return;
     }
 
+    // Check if this is a testimonial campaign with template
+    const testimonialData = settings.testimonialData;
+    const isTestimonialWithTemplate = !!(testimonialData && selectedTemplate);
+
     // Get integration settings for announcements
     const integrationSettings = settings.integration_settings || {};
     
@@ -125,14 +133,25 @@ export function WidgetPreviewFrame({
           #notiproof-notification {
             position: fixed;
             ${getPositionStyles(position || settings.position || 'bottom-left')}
-            background: ${settings.backgroundColor || '#ffffff'};
-            border-radius: ${settings.borderRadius || 12}px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            padding: 16px;
-            max-width: 350px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
+            ${isTestimonialWithTemplate ? `
+              /* Template handles its own styling */
+              background: transparent;
+              border-radius: 0;
+              box-shadow: none;
+              padding: 0;
+              max-width: 600px;
+              display: block;
+            ` : `
+              /* Standard notification styling */
+              background: ${settings.backgroundColor || '#ffffff'};
+              border-radius: ${settings.borderRadius || 12}px;
+              box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+              padding: 16px;
+              max-width: 350px;
+              display: flex;
+              align-items: center;
+              gap: 12px;
+            `}
             animation: ${getAnimation(animation || settings.animation || 'slide')} 0.3s ease-out;
             z-index: 999999;
             cursor: pointer;
@@ -140,6 +159,138 @@ export function WidgetPreviewFrame({
           }
           #notiproof-notification:hover {
             transform: scale(1.02);
+          }
+          
+          /* Modal Styles */
+          .notiproof-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 9999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+          }
+          .notiproof-modal-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+          }
+          .notiproof-modal-content {
+            position: relative;
+            background: white;
+            border-radius: 16px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+          }
+          .notiproof-modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(0, 0, 0, 0.1);
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+            z-index: 1;
+            transition: all 0.2s ease;
+          }
+          .notiproof-modal-close:hover {
+            background: rgba(0, 0, 0, 0.2);
+            color: #000;
+            transform: rotate(90deg);
+          }
+          .notiproof-modal-body {
+            padding: 24px;
+          }
+          .notiproof-testimonial-modal-card {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+          }
+          .notiproof-modal-media {
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #f5f5f5;
+          }
+          .notiproof-modal-video,
+          .notiproof-modal-image {
+            width: 100%;
+            max-height: 400px;
+            object-fit: cover;
+            display: block;
+          }
+          .notiproof-modal-rating {
+            color: #f59e0b;
+            font-size: 24px;
+            letter-spacing: 2px;
+          }
+          .notiproof-modal-message {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #1a1a1a;
+            font-style: italic;
+          }
+          .notiproof-modal-author {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e7eb;
+          }
+          .notiproof-modal-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+          }
+          .notiproof-modal-author-info {
+            flex: 1;
+          }
+          .notiproof-modal-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #1a1a1a;
+            margin: 0 0 4px 0;
+          }
+          .notiproof-modal-position {
+            font-size: 14px;
+            color: #6b7280;
+            margin: 0;
+          }
+          .notiproof-modal-verified {
+            display: inline-flex;
+            align-items: center;
+            font-size: 13px;
+            color: #2563EB;
+            font-weight: 500;
+            margin-top: 4px;
+          }
+          .notiproof-modal-time {
+            font-size: 13px;
+            color: #9ca3af;
+            text-align: center;
+            margin: 0;
           }
           .notification-avatar {
             flex-shrink: 0;
@@ -207,13 +358,74 @@ export function WidgetPreviewFrame({
         </style>
       </head>
       <body>
-        <div class="preview-content">
-          <h1>Your Website Preview</h1>
-          <p>This is how your notification widget will appear to visitors on your actual website.</p>
-        </div>
-        
         <div id="notiproof-notification">
           ${(() => {
+            const testimonialData = settings.testimonialData;
+            
+            // If testimonial campaign with selected template, render using template engine
+            if (selectedTemplate) {
+              // Build canonical event - use actual data or template preview data
+              const eventData = testimonialData || selectedTemplate.preview_json || {};
+              const canonicalEvent = {
+                event_id: 'preview',
+                provider: 'testimonials',
+                provider_event_type: 'testimonial_submitted',
+                timestamp: new Date().toISOString(),
+                payload: eventData,
+                normalized: testimonialData ? {
+                  'template.author_name': testimonialData.author_name,
+                  'template.author_avatar': testimonialData.author_avatar,
+                  'template.author_position': testimonialData.author_position || '',
+                  'template.author_company': testimonialData.author_company || '',
+                  'template.rating': testimonialData.rating,
+                  'template.rating_stars': testimonialData.rating_stars,
+                  'template.message': testimonialData.message,
+                  'template.video_url': testimonialData.video_url || '',
+                  'template.image_url': testimonialData.image_url || '',
+                  'template.verified': testimonialData.verified || false,
+                  'template.time_ago': 'Just now',
+                } : selectedTemplate.preview_json || {}
+              };
+              
+              try {
+                // Use template engine to render
+                const rendered = renderTemplate(selectedTemplate, canonicalEvent);
+                return rendered;
+              } catch (error) {
+                console.error('[Preview] Template render error:', error);
+                return '<div class="notification-content"><div class="notification-headline">Error rendering template</div></div>';
+              }
+            }
+            
+            // Fallback: If testimonial campaign without template
+            if (testimonialData) {
+              const videoHtml = testimonialData.video_url 
+                ? '<video src="' + escapeHtml(testimonialData.video_url) + '" class="notification-avatar-img" style="max-width:80px;" controls></video>'
+                : testimonialData.image_url
+                  ? '<img src="' + escapeHtml(testimonialData.image_url) + '" class="notification-avatar-img" alt="Testimonial" />'
+                  : testimonialData.author_avatar
+                    ? '<img src="' + escapeHtml(testimonialData.author_avatar) + '" class="notification-avatar-img avatar" alt="' + escapeHtml(testimonialData.author_name) + '" />'
+                    : '<div class="notification-avatar">⭐</div>';
+              
+              return videoHtml + 
+                '<div class="notification-content">' +
+                  '<div class="notification-headline">' +
+                    escapeHtml(testimonialData.author_name) + ' ' +
+                    (testimonialData.verified ? '✓' : '') +
+                  '</div>' +
+                  '<div style="color: #FFD700; font-size: 14px; margin: 4px 0;">' +
+                    testimonialData.rating_stars +
+                  '</div>' +
+                  '<div class="notification-subtext" style="margin-top: 4px;">' +
+                    '"' + escapeHtml(testimonialData.message.substring(0, 80)) + '..."' +
+                  '</div>' +
+                  '<div class="notification-subtext" style="margin-top: 4px; font-size: 11px;">' +
+                    'Just now' +
+                  '</div>' +
+                '</div>';
+            }
+            
+            // Otherwise, check announcement-specific config
             const integrationSettings = settings.integration_settings || {};
             
             // Check announcement-specific image config first
@@ -238,19 +450,142 @@ export function WidgetPreviewFrame({
               return '<div class="notification-avatar">🛍️</div>';
             }
           })()}
-          <div class="notification-content">
-            ${integrationSettings.title 
-              ? `<div class="notification-headline">${escapeHtml(integrationSettings.title)}</div>` 
-              : `<div class="notification-headline">${escapeHtml(settings.headline || displayMessage)}</div>`}
-            ${integrationSettings.message 
-              ? `<div class="notification-subtext" style="margin-bottom: ${integrationSettings.cta_text ? '8px' : '0'};">${escapeHtml(integrationSettings.message)}</div>` 
-              : (settings.subtext ? `<div class="notification-subtext">${escapeHtml(settings.subtext)}</div>` : '')}
-            ${integrationSettings.cta_text && integrationSettings.cta_url 
-              ? `<button style="margin-top: 8px; padding: 6px 12px; background: ${settings.primaryColor || '#2563EB'}; color: white; border: none; border-radius: 4px; font-size: 12px; font-weight: 500; cursor: pointer;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">${escapeHtml(integrationSettings.cta_text)}</button>` 
-              : (!integrationSettings.cta_text && settings.showTimestamp !== false ? '<div class="notification-subtext">Just now</div>' : '')}
-          </div>
-          ${campaignType === 'limited-stock' ? '<div class="notification-badge">Low Stock</div>' : ''}
+          ${(() => {
+            // Only render notification content wrapper if NOT using testimonial template
+            if (selectedTemplate) {
+              return ''; // Template already rendered completely above
+            }
+            
+            const integrationSettings = settings.integration_settings || {};
+            // Render standard notification content for all other campaign types
+            return `
+              <div class="notification-content">
+                ${integrationSettings.title 
+                  ? `<div class="notification-headline">${escapeHtml(integrationSettings.title)}</div>` 
+                  : `<div class="notification-headline">${escapeHtml(settings.headline || displayMessage)}</div>`}
+                ${integrationSettings.message 
+                  ? `<div class="notification-subtext" style="margin-bottom: ${integrationSettings.cta_text ? '8px' : '0'};">${escapeHtml(integrationSettings.message)}</div>` 
+                  : (settings.subtext ? `<div class="notification-subtext">${escapeHtml(settings.subtext)}</div>` : '')}
+                ${integrationSettings.cta_text && integrationSettings.cta_url 
+                  ? `<button style="margin-top: 8px; padding: 6px 12px; background: ${settings.primaryColor || '#2563EB'}; color: white; border: none; border-radius: 4px; font-size: 12px; font-weight: 500; cursor: pointer;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">${escapeHtml(integrationSettings.cta_text)}</button>` 
+                  : (!integrationSettings.cta_text && settings.showTimestamp !== false ? '<div class="notification-subtext">Just now</div>' : '')}
+              </div>
+              ${campaignType === 'limited-stock' ? '<div class="notification-badge">Low Stock</div>' : ''}
+            `;
+          })()}
         </div>
+        <script>
+          // Handle testimonial clicks to show modal
+          (function() {
+            const notification = document.getElementById('notiproof-notification');
+            if (!notification) return;
+            
+            // Check if this is a testimonial notification
+            const isTestimonial = ${selectedTemplate ? 'true' : 'false'};
+            if (!isTestimonial) return;
+            
+            const testimonialData = ${JSON.stringify(settings.testimonialData || selectedTemplate?.preview_json || {})};
+            
+            notification.style.cursor = 'pointer';
+            notification.addEventListener('click', function() {
+              showTestimonialModal(testimonialData);
+            });
+            
+            function showTestimonialModal(data) {
+              const modal = document.createElement('div');
+              modal.className = 'notiproof-modal';
+              modal.innerHTML = \`
+                <div class="notiproof-modal-overlay"></div>
+                <div class="notiproof-modal-content">
+                  <button class="notiproof-modal-close" aria-label="Close">&times;</button>
+                  <div class="notiproof-modal-body">
+                    \${renderFullTestimonial(data)}
+                  </div>
+                </div>
+              \`;
+              
+              document.body.appendChild(modal);
+              document.body.style.overflow = 'hidden';
+              
+              requestAnimationFrame(() => {
+                const overlay = modal.querySelector('.notiproof-modal-overlay');
+                const content = modal.querySelector('.notiproof-modal-content');
+                if (overlay) overlay.style.opacity = '1';
+                if (content) {
+                  content.style.opacity = '1';
+                  content.style.transform = 'scale(1)';
+                }
+              });
+              
+              const closeModal = () => {
+                const overlay = modal.querySelector('.notiproof-modal-overlay');
+                const content = modal.querySelector('.notiproof-modal-content');
+                if (overlay) overlay.style.opacity = '0';
+                if (content) {
+                  content.style.opacity = '0';
+                  content.style.transform = 'scale(0.95)';
+                }
+                setTimeout(() => {
+                  modal.remove();
+                  document.body.style.overflow = '';
+                }, 300);
+              };
+              
+              const closeBtn = modal.querySelector('.notiproof-modal-close');
+              const overlay = modal.querySelector('.notiproof-modal-overlay');
+              if (closeBtn) closeBtn.addEventListener('click', closeModal);
+              if (overlay) overlay.addEventListener('click', closeModal);
+              
+              document.addEventListener('keydown', function handleEsc(e) {
+                if (e.key === 'Escape') {
+                  closeModal();
+                  document.removeEventListener('keydown', handleEsc);
+                }
+              });
+            }
+            
+            function renderFullTestimonial(data) {
+              const name = data.author_name || data['template.author_name'] || 'Anonymous Customer';
+              const avatar = data.author_avatar || data['template.author_avatar'] || \`https://ui-avatars.com/api/?name=\${encodeURIComponent(name)}&background=2563EB&color=fff\`;
+              const position = data.author_position || data['template.author_position'] || 'Customer';
+              const company = data.author_company || data['template.author_company'] || '';
+              const rating = data.rating_stars || data['template.rating_stars'] || '★★★★★';
+              const message = data.message || data['template.message'] || 'Great experience!';
+              const timeAgo = 'Just now';
+              const verified = data.verified || data['template.verified'] || false;
+              const imageUrl = data.image_url || data['template.image_url'];
+              const videoUrl = data.video_url || data['template.video_url'];
+              
+              return \`
+                <div class="notiproof-testimonial-modal-card">
+                  \${videoUrl ? \`
+                    <div class="notiproof-modal-media">
+                      <video src="\${videoUrl}" controls class="notiproof-modal-video" autoplay muted></video>
+                    </div>
+                  \` : imageUrl ? \`
+                    <div class="notiproof-modal-media">
+                      <img src="\${imageUrl}" alt="Testimonial" class="notiproof-modal-image" />
+                    </div>
+                  \` : ''}
+                  
+                  <div class="notiproof-modal-rating">\${rating}</div>
+                  <p class="notiproof-modal-message">"\${message}"</p>
+                  
+                  <div class="notiproof-modal-author">
+                    <img src="\${avatar}" alt="\${name}" class="notiproof-modal-avatar" onerror="this.src='https://ui-avatars.com/api/?name=\${encodeURIComponent(name)}&background=2563EB&color=fff'" />
+                    <div class="notiproof-modal-author-info">
+                      <p class="notiproof-modal-name">\${name}</p>
+                      \${position ? \`<p class="notiproof-modal-position">\${position}\${company ? \` at \${company}\` : ''}</p>\` : ''}
+                      \${verified ? '<p class="notiproof-modal-verified">✓ Verified Customer</p>' : ''}
+                    </div>
+                  </div>
+                  
+                  <p class="notiproof-modal-time">\${timeAgo}</p>
+                </div>
+              \`;
+            }
+          })();
+        </script>
       </body>
       </html>
     `;

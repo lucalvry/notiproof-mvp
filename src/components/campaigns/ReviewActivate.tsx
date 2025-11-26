@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,78 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
   const [saving, setSaving] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdWidget, setCreatedWidget] = useState<{ id: string; campaignId: string } | null>(null);
+  const [previewTestimonial, setPreviewTestimonial] = useState<any>(null);
+  const [templateFromDb, setTemplateFromDb] = useState<any>(null);
+
+  // Fetch preview testimonial and template for live preview
+  useEffect(() => {
+    async function fetchPreviewTestimonial() {
+      const primaryProvider = campaignData.data_sources?.[0]?.provider;
+      if (primaryProvider !== 'testimonials') return;
+
+      const config = campaignData.integration_settings || campaignData.native_config;
+      
+      try {
+        // If specific testimonials selected, fetch the first one
+        if (config?.display_mode === 'specific' && config?.testimonial_ids?.length > 0) {
+          const { data } = await supabase
+            .from('testimonials')
+            .select('*')
+            .in('id', config.testimonial_ids)
+            .eq('status', 'approved')
+            .limit(1)
+            .single();
+          
+          setPreviewTestimonial(data);
+        } else {
+          // Fetch first testimonial matching filters
+          let query = supabase
+            .from('testimonials')
+            .select('*')
+            .eq('website_id', campaignData.website_id)
+            .eq('status', 'approved');
+          
+          if (config?.testimonial_filters?.minRating) {
+            query = query.gte('rating', config.testimonial_filters.minRating);
+          }
+          
+          if (config?.testimonial_filters?.onlyVerified) {
+            query = query.eq('metadata->>verified_purchase', 'true');
+          }
+          
+          const { data } = await query.order('created_at', { ascending: false }).limit(1).single();
+          setPreviewTestimonial(data);
+        }
+      } catch (error) {
+        console.error('Error fetching preview testimonial:', error);
+      }
+    }
+    
+    fetchPreviewTestimonial();
+  }, [campaignData]);
+
+  // Fetch template from database
+  useEffect(() => {
+    async function fetchTemplate() {
+      if (!campaignData.template_id) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('templates')
+          .select('*')
+          .eq('id', campaignData.template_id)
+          .single();
+        
+        if (!error && data) {
+          setTemplateFromDb(data);
+        }
+      } catch (error) {
+        console.error('Error fetching template:', error);
+      }
+    }
+    
+    fetchTemplate();
+  }, [campaignData.template_id]);
 
   const handleSaveDraft = async () => {
     if (!campaignName) {
@@ -689,6 +761,18 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
                     campaignData.native_config?.icon || campaignData.native_config?.emoji,
               cta_text: campaignData.integration_settings?.cta_text || campaignData.native_config?.cta_text,
               cta_url: campaignData.integration_settings?.cta_url || campaignData.native_config?.cta_url,
+              testimonialData: previewTestimonial ? {
+                author_name: previewTestimonial.author_name,
+                author_avatar: previewTestimonial.author_avatar_url,
+                author_position: previewTestimonial.metadata?.position || previewTestimonial.author_position,
+                author_company: previewTestimonial.metadata?.company || previewTestimonial.author_company,
+                rating: previewTestimonial.rating,
+                rating_stars: '★'.repeat(previewTestimonial.rating) + '☆'.repeat(5 - previewTestimonial.rating),
+                message: previewTestimonial.message,
+                verified: previewTestimonial.metadata?.verified_purchase,
+                image_url: previewTestimonial.image_url,
+                video_url: previewTestimonial.video_url,
+              } : null,
             }}
             messageTemplate={
               campaignData.integration_settings?.title || 
@@ -701,6 +785,7 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
             websiteDomain={campaignData.website_id || "your-site.com"}
             position={campaignData.display_rules?.position || "bottom-left"}
             animation={campaignData.display_rules?.animation || "slide"}
+            selectedTemplate={templateFromDb || selectedTemplate}
           />
         </CardContent>
       </Card>

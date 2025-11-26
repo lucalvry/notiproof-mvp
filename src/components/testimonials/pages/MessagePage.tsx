@@ -89,10 +89,6 @@ export function MessagePage({
       toast.error('Please write at least 10 characters');
       return;
     }
-    if (!avatarFile) {
-      toast.error('Please upload your avatar (required)');
-      return;
-    }
     onNext();
   };
 
@@ -119,10 +115,13 @@ export function MessagePage({
       </div>
 
       <div className="space-y-4 border-t pt-6">
-        {/* Avatar Upload - Required */}
+        {/* Avatar Upload - Recommended */}
         <div className="space-y-2">
-          <Label htmlFor="avatar-upload" className="text-sm">Upload Your Avatar *</Label>
-          <p className="text-xs text-muted-foreground">Required • Max 2MB</p>
+          <Label htmlFor="avatar-upload" className="text-sm flex items-center gap-2">
+            Your Photo (appears with your testimonial)
+            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">⭐ Recommended</span>
+          </Label>
+          <p className="text-xs text-muted-foreground">Upload a photo of yourself to add credibility • Max 2MB</p>
           {!avatarPreview ? (
             <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer">
               <input
@@ -198,7 +197,7 @@ export function MessagePage({
         </Button>
         <Button 
           onClick={handleNext} 
-          disabled={message.trim().length < 10 || !avatarFile}
+          disabled={message.trim().length < 10}
         >
           Next
           <ChevronRight className="ml-2 h-4 w-4" />

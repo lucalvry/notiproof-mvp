@@ -23,6 +23,8 @@ interface TestimonialForm {
   created_at: string;
   view_count?: number;
   submission_count?: number;
+  approved_count?: number;
+  pending_count?: number;
 }
 
 interface TestimonialFormsManagerProps {
@@ -43,14 +45,40 @@ export function TestimonialFormsManager({ websiteId }: TestimonialFormsManagerPr
 
   async function loadForms() {
     try {
-      const { data, error } = await supabase
+      // Fetch forms with submission counts
+      const { data: formsData, error: formsError } = await supabase
         .from('testimonial_forms')
         .select('*')
         .eq('website_id', websiteId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setForms(data || []);
+      if (formsError) throw formsError;
+
+      // Fetch submission counts for each form
+      const formsWithCounts = await Promise.all(
+        (formsData || []).map(async (form) => {
+          const { data: submissions, error: submissionError } = await supabase
+            .from('testimonials')
+            .select('id, status', { count: 'exact' })
+            .eq('form_id', form.id);
+
+          if (submissionError) {
+            console.error('Error fetching submissions for form:', form.id, submissionError);
+          }
+
+          const approved = submissions?.filter(s => s.status === 'approved').length || 0;
+          const pending = submissions?.filter(s => s.status === 'pending').length || 0;
+
+          return {
+            ...form,
+            submission_count: submissions?.length || 0,
+            approved_count: approved,
+            pending_count: pending,
+          };
+        })
+      );
+
+      setForms(formsWithCounts);
     } catch (error) {
       console.error('Error loading forms:', error);
       toast({
@@ -165,15 +193,29 @@ export function TestimonialFormsManager({ websiteId }: TestimonialFormsManagerPr
                     </div>
                   </CardHeader>
                    <CardContent className="space-y-3">
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Eye className="h-4 w-4" />
-                        <span>{(form as any).view_count || 0} views</span>
+                    <div className="flex flex-col gap-2 text-sm">
+                      <div className="flex items-center gap-4 text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Eye className="h-4 w-4" />
+                          <span>{form.view_count || 0} views</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <MessageSquare className="h-4 w-4" />
+                          <span>{form.submission_count || 0} submissions</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <MessageSquare className="h-4 w-4" />
-                        <span>{form.submission_count || 0} submissions</span>
-                      </div>
+                      {form.submission_count > 0 && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <Badge variant="default" className="text-xs">
+                            {form.approved_count || 0} approved
+                          </Badge>
+                          {form.pending_count > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {form.pending_count} pending
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex gap-2 flex-wrap">

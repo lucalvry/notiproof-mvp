@@ -494,10 +494,27 @@ export default function TestimonialModeration() {
                       className="mt-1"
                     />
 
+                    {/* Avatar */}
+                    {testimonial.author_avatar_url && (
+                      <img 
+                        src={testimonial.author_avatar_url} 
+                        alt={testimonial.author_name}
+                        className="h-12 w-12 rounded-full object-cover"
+                      />
+                    )}
+
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <div>
                           <h3 className="font-semibold">{testimonial.author_name}</h3>
+                          {(testimonial.metadata?.company || testimonial.metadata?.position) && (
+                            <p className="text-xs text-muted-foreground">
+                              {testimonial.metadata?.position && testimonial.metadata?.company 
+                                ? `${testimonial.metadata.position} at ${testimonial.metadata.company}`
+                                : testimonial.metadata?.company || testimonial.metadata?.position
+                              }
+                            </p>
+                          )}
                           {testimonial.author_email && (
                             <p className="text-xs text-muted-foreground">{testimonial.author_email}</p>
                           )}
@@ -517,6 +534,19 @@ export default function TestimonialModeration() {
                         </Badge>
                       </div>
                       <p className="text-sm mb-3">{testimonial.message}</p>
+                      
+                      {/* Video Player */}
+                      {testimonial.video_url && (
+                        <div className="mt-3 mb-3">
+                          <video 
+                            src={testimonial.video_url} 
+                            controls
+                            className="w-full max-w-md rounded-lg"
+                            style={{ maxHeight: '300px' }}
+                          />
+                        </div>
+                      )}
+                      
                       <p className="text-xs text-muted-foreground">
                         Submitted {new Date(testimonial.created_at).toLocaleDateString()}
                       </p>
@@ -584,25 +614,46 @@ export default function TestimonialModeration() {
               <div className="text-sm">
                 <strong>How this will appear in campaigns:</strong>
               </div>
-              <div 
-                className="bg-muted/30 rounded-lg p-6"
-                dangerouslySetInnerHTML={{
-                  __html: `
-                    <div class="noti-card testimonial">
-                      <div class="noti-header">
-                        ${previewTestimonial.author_avatar_url ? `<img src="${previewTestimonial.author_avatar_url}" class="noti-avatar">` : ''}
-                        <div>
-                          <strong>${previewTestimonial.author_name}</strong>
-                          <div class="noti-rating">${'★'.repeat(previewTestimonial.rating)}${'☆'.repeat(5 - previewTestimonial.rating)}</div>
-                        </div>
-                      </div>
-                      <div class="noti-body">
-                        <p>${previewTestimonial.message}</p>
+              <div className="bg-muted/30 rounded-lg p-6">
+                <div className="flex items-start gap-4">
+                  {previewTestimonial.author_avatar_url && (
+                    <img 
+                      src={previewTestimonial.author_avatar_url} 
+                      alt={previewTestimonial.author_name}
+                      className="h-16 w-16 rounded-full object-cover"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <div className="mb-2">
+                      <h3 className="font-semibold text-lg">{previewTestimonial.author_name}</h3>
+                      {(previewTestimonial.metadata?.company || previewTestimonial.metadata?.position) && (
+                        <p className="text-sm text-muted-foreground">
+                          {previewTestimonial.metadata?.position && previewTestimonial.metadata?.company 
+                            ? `${previewTestimonial.metadata.position} at ${previewTestimonial.metadata.company}`
+                            : previewTestimonial.metadata?.company || previewTestimonial.metadata?.position
+                          }
+                        </p>
+                      )}
+                      <div className="flex mt-1">
+                        {Array.from({ length: previewTestimonial.rating }).map((_, i) => (
+                          <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                        ))}
                       </div>
                     </div>
-                  `
-                }}
-              />
+                    <p className="text-sm mb-3">{previewTestimonial.message}</p>
+                    {previewTestimonial.video_url && (
+                      <div className="mt-4">
+                        <video 
+                          src={previewTestimonial.video_url} 
+                          controls
+                          className="w-full rounded-lg"
+                          style={{ maxHeight: '400px' }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

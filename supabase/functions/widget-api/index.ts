@@ -365,14 +365,22 @@ Deno.serve(async (req) => {
         if (testimonialSource) {
           console.log(`[Widget API] Processing testimonial campaign: ${campaign.id}`);
           
-          // Get testimonial config from native_config
+          // Get testimonial config from native_config or integration_settings
           const nativeConfig = campaign.native_config as any;
+          const integrationSettings = campaign.integration_settings as any;
+          
           const testimonialConfig = {
-            formId: nativeConfig?.formId,
-            minRating: nativeConfig?.minRating || 3,
+            displayMode: nativeConfig?.display_mode || integrationSettings?.display_mode || 'filtered',
+            testimonialIds: nativeConfig?.testimonial_ids || integrationSettings?.testimonial_ids || null,
+            formId: nativeConfig?.formId || integrationSettings?.formId,
+            minRating: nativeConfig?.testimonial_filters?.minRating || integrationSettings?.testimonial_filters?.minRating || 3,
             limit: nativeConfig?.limit || 50,
-            onlyApproved: nativeConfig?.onlyApproved !== false,
+            onlyApproved: true,
+            mediaType: nativeConfig?.testimonial_filters?.mediaFilter || integrationSettings?.testimonial_filters?.mediaFilter || 'all',
+            onlyVerified: nativeConfig?.testimonial_filters?.onlyVerified || integrationSettings?.testimonial_filters?.onlyVerified || false,
           };
+
+          console.log('[Widget API] Testimonial config:', testimonialConfig);
 
           // Fetch template if configured
           let template = null;

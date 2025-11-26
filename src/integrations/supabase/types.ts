@@ -2155,6 +2155,60 @@ export type Database = {
         }
         Relationships: []
       }
+      testimonial_embeds: {
+        Row: {
+          created_at: string | null
+          embed_type: string
+          filters: Json | null
+          id: string
+          is_active: boolean | null
+          name: string
+          style_config: Json | null
+          updated_at: string | null
+          user_id: string
+          website_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          embed_type: string
+          filters?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          style_config?: Json | null
+          updated_at?: string | null
+          user_id: string
+          website_id: string
+        }
+        Update: {
+          created_at?: string | null
+          embed_type?: string
+          filters?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          style_config?: Json | null
+          updated_at?: string | null
+          user_id?: string
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "testimonial_embeds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "testimonial_embeds_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       testimonial_form_questions: {
         Row: {
           created_at: string | null

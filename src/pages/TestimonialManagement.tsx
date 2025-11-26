@@ -6,6 +6,7 @@ import { Plus, ClipboardList, MessageSquare, BarChart3, Mail, Send, Zap } from "
 import { TestimonialFormsManager } from "@/components/testimonials/TestimonialFormsManager";
 import { TestimonialSubmissionsList } from "@/components/testimonials/TestimonialSubmissionsList";
 import { TriggerSelector } from "@/components/testimonials/TriggerSelector";
+import { TestimonialEmailSelector } from "@/components/testimonials/TestimonialEmailSelector";
 import { useNavigate } from "react-router-dom";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { useTestimonialAnalytics } from "@/hooks/useTestimonialAnalytics";
@@ -79,7 +80,7 @@ export default function TestimonialManagement() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-4xl grid-cols-5">
+        <TabsList className="grid w-full max-w-4xl grid-cols-6">
           <TabsTrigger value="forms" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Forms
@@ -99,6 +100,10 @@ export default function TestimonialManagement() {
           <TabsTrigger value="triggers" className="gap-2">
             <Zap className="h-4 w-4" />
             Triggers
+          </TabsTrigger>
+          <TabsTrigger value="embeds" className="gap-2">
+            <Send className="h-4 w-4" />
+            Embeds
           </TabsTrigger>
         </TabsList>
 
@@ -193,17 +198,8 @@ export default function TestimonialManagement() {
                 Customize your invitation and thank you email templates
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-center py-8">
-                <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Email Templates</h3>
-                <p className="text-muted-foreground mb-4">
-                  Select a form to customize its email templates
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Go to Forms tab → Edit a form → Configure email settings
-                </p>
-              </div>
+            <CardContent>
+              <TestimonialEmailSelector websiteId={currentWebsite.id} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -223,6 +219,28 @@ export default function TestimonialManagement() {
                   console.log('Bulk invite:', recipients);
                 }} 
               />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="embeds" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Testimonial Embeds</CardTitle>
+              <CardDescription>
+                Create embeddable widgets to display testimonials on your website
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Testimonial embeds allow you to display your approved testimonials as beautiful widgets on any page of your website. Choose from grid layouts, carousels, walls, and more.
+                </p>
+                <Button onClick={() => navigate("/testimonials/embeds")}>
+                  <Send className="h-4 w-4 mr-2" />
+                  Manage Embeds
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

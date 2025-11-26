@@ -34,6 +34,17 @@ export function TemplateMappingEditor({
     if (Object.keys(mapping).length === 0) {
       const adapterFieldKeys = availableFields.map(f => f.key);
       const autoMapping = buildTemplateMapping(adapterFieldKeys, extracted);
+      
+      // Auto-map template.verified without user input (it's auto-calculated)
+      if (extracted.includes('template.verified')) {
+        autoMapping['template.verified'] = 'template.verified';
+      }
+      
+      // Auto-map template.rating_stars (it's auto-generated from rating)
+      if (extracted.includes('template.rating_stars') && !autoMapping['template.rating_stars']) {
+        autoMapping['template.rating_stars'] = 'template.rating_stars';
+      }
+      
       const mapped = new Set(Object.keys(autoMapping));
       setAutoMapped(mapped);
       onMappingChange(autoMapping);
@@ -51,7 +62,11 @@ export function TemplateMappingEditor({
   };
 
   const getMappingStatus = (placeholder: string) => {
-    const isRequired = requiredFields.includes(placeholder);
+    // Exclude auto-calculated fields from validation
+    const coreRequiredFields = requiredFields.filter(
+      f => !['template.verified', 'template.rating_stars'].includes(f)
+    );
+    const isRequired = coreRequiredFields.includes(placeholder);
     const isMapped = placeholder in mapping && mapping[placeholder];
     
     if (!isMapped && isRequired) return 'error';
@@ -63,7 +78,12 @@ export function TemplateMappingEditor({
     return availableFields.find(f => f.key === key);
   };
 
-  const allRequiredMapped = requiredFields.every(
+  // Exclude auto-calculated fields from required validation
+  const coreRequiredFields = requiredFields.filter(
+    f => !['template.verified', 'template.rating_stars'].includes(f)
+  );
+
+  const allRequiredMapped = coreRequiredFields.every(
     field => field in mapping && mapping[field]
   );
 
@@ -98,9 +118,10 @@ export function TemplateMappingEditor({
         <div className="space-y-3">
           {placeholders.map(placeholder => {
             const status = getMappingStatus(placeholder);
-            const isRequired = requiredFields.includes(placeholder);
+            const isRequired = coreRequiredFields.includes(placeholder);
             const currentMapping = mapping[placeholder];
             const isAutoMapped = autoMapped.has(placeholder);
+            const isAutoCalculated = ['template.verified', 'template.rating_stars'].includes(placeholder);
 
             return (
               <div key={placeholder} className="space-y-2">
@@ -115,6 +136,11 @@ export function TemplateMappingEditor({
                     {isAutoMapped && (
                       <Badge variant="secondary" className="ml-2 text-xs">
                         Auto-mapped
+                      </Badge>
+                    )}
+                    {isAutoCalculated && (
+                      <Badge variant="outline" className="ml-2 text-xs">
+                        Auto-calculated
                       </Badge>
                     )}
                   </Label>
@@ -132,11 +158,16 @@ export function TemplateMappingEditor({
                     const mappedValue = value === '__none__' ? '' : value;
                     handleFieldChange(placeholder, mappedValue);
                   }}
+                  disabled={isAutoCalculated}
                 >
                   <SelectTrigger className={status === 'error' ? 'border-destructive' : ''}>
-                    <SelectValue placeholder="Select a field..." />
+                    <SelectValue placeholder={isAutoCalculated ? 'Auto-calculated' : 'Select a field...'} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent 
+                    position="popper"
+                    className="z-[9999] bg-popover text-popover-foreground border-border shadow-lg max-h-[300px]"
+                    sideOffset={4}
+                  >
                     <SelectItem value="__none__">None</SelectItem>
                     {availableFields.map(field => (
                       <SelectItem key={field.key} value={field.key}>

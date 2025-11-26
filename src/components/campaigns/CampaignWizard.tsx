@@ -14,6 +14,7 @@ import { ReviewActivate } from './ReviewActivate';
 import { AnnouncementConfig } from './native/AnnouncementConfig';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { adapterRegistry } from '@/lib/integrations/AdapterRegistry';
 import type { TemplateConfig } from '@/lib/templateEngine';
 
 interface CampaignWizardProps {
@@ -62,6 +63,10 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     mediaFilter: 'all' as 'all' | 'text_only' | 'with_image' | 'with_video',
     onlyVerified: false,
   });
+  
+  // NEW: Testimonial selection state
+  const [selectedTestimonialIds, setSelectedTestimonialIds] = useState<string[]>([]);
+  const [displayMode, setDisplayMode] = useState<'specific' | 'filtered'>('filtered');
   
   // Step 3: Announcement Config (for native announcement integration)
   const [announcementConfig, setAnnouncementConfig] = useState({
@@ -175,6 +180,8 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
       mediaFilter: 'all',
       onlyVerified: false,
     });
+    setSelectedTestimonialIds([]);
+    setDisplayMode('filtered');
     setAnnouncementConfig({
       title: '',
       message: '',
@@ -276,10 +283,27 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
           return announcementConfig.title.length > 0 && 
                  announcementConfig.message.length > 0;
         }
+        
+        // For testimonials, check if testimonials are selected or filters applied
+        const hasTestimonials = integrations.some(i => i.provider === 'testimonials');
+        if (hasTestimonials) {
+          if (displayMode === 'specific') {
+            return selectedTestimonialIds.length > 0;
+          } else {
+            return true; // Filtered mode always valid
+          }
+        }
+        
         // For other integrations, check if all required fields are mapped
-        return selectedTemplate?.required_fields.every(
+        // Exclude auto-calculated fields like template.verified and template.rating_stars
+        const coreRequiredFields = selectedTemplate?.required_fields.filter(
+          f => !['template.verified', 'template.rating_stars'].includes(f)
+        ) || [];
+        
+        // Strict rule for other providers
+        return coreRequiredFields.every(
           field => field in fieldMapping && fieldMapping[field]
-        ) || false;
+        );
       case 5:
         return true; // Orchestration always allows proceed
       case 6:
@@ -381,6 +405,10 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
             onMappingChange={setFieldMapping}
             testimonialFilters={testimonialFilters}
             onTestimonialFiltersChange={setTestimonialFilters}
+            displayMode={displayMode}
+            onDisplayModeChange={setDisplayMode}
+            selectedTestimonialIds={selectedTestimonialIds}
+            onTestimonialIdsChange={setSelectedTestimonialIds}
           />
         );
       
@@ -429,12 +457,20 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
               native_config: hasOnlyAnnouncements()
                 ? announcementConfig
                 : integrations.some(i => i.provider === 'testimonials')
-                  ? { testimonial_filters: testimonialFilters }
+                  ? { 
+                      display_mode: displayMode,
+                      testimonial_ids: displayMode === 'specific' ? selectedTestimonialIds : null,
+                      testimonial_filters: displayMode === 'filtered' ? testimonialFilters : null
+                    }
                   : {},
               integration_settings: hasOnlyAnnouncements()
                 ? announcementConfig
                 : integrations.some(i => i.provider === 'testimonials')
-                  ? { testimonial_filters: testimonialFilters }
+                  ? { 
+                      display_mode: displayMode,
+                      testimonial_ids: displayMode === 'specific' ? selectedTestimonialIds : null,
+                      testimonial_filters: displayMode === 'filtered' ? testimonialFilters : null
+                    }
                   : {},
             }}
             selectedTemplate={selectedTemplate}

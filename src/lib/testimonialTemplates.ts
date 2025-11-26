@@ -28,7 +28,7 @@ export const FORM_TEMPLATES: Record<string, FormTemplate> = {
     id: 'classic',
     name: 'Classic',
     description: 'Simple rating and message - perfect for getting started',
-    pages: ['rating', 'welcome', 'message', 'about_you', 'thank_you'],
+    pages: ['rating', 'welcome', 'message', 'about_you', 'about_company', 'thank_you'],
     questions: [],
     settings: {
       negative_feedback_enabled: true,
@@ -114,7 +114,7 @@ export const FORM_TEMPLATES: Record<string, FormTemplate> = {
     id: 'course',
     name: 'Course/Training',
     description: 'Collect feedback from students and learners',
-    pages: ['rating', 'welcome', 'q1', 'q2', 'q3', 'q4', 'q5', 'about_you', 'thank_you'],
+    pages: ['rating', 'welcome', 'q1', 'q2', 'q3', 'q4', 'q5', 'about_you', 'about_company', 'thank_you'],
     questions: [
       {
         id: 'q1',

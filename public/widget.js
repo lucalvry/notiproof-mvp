@@ -516,7 +516,6 @@
         raw_event_data: event.event_data
       });
     }
-    });
     
     // FIX: Ensure event_data is parsed if it's a string (double-encoded JSON)
     if (event.event_data && typeof event.event_data === 'string') {
@@ -906,6 +905,13 @@
         log('Notifications paused after click');
       }
       
+      // Check if this is a testimonial event - open modal instead of URL
+      if (event.event_type === 'testimonial' || event.source === 'native') {
+        e.preventDefault();
+        showTestimonialModal(event);
+        return;
+      }
+      
       // Handle announcement CTA click (highest priority)
       const ctaButton = e.target.closest('[data-cta-url]');
       if (ctaButton) {
@@ -966,6 +972,286 @@
     const days = Math.floor(hours / 24);
     return `${days}d ago`;
   }
+  
+  /**
+   * Show full testimonial in modal
+   */
+  function showTestimonialModal(event) {
+    const data = event.event_data || {};
+    
+    // Create modal container
+    const modal = document.createElement('div');
+    modal.className = 'notiproof-modal';
+    modal.innerHTML = `
+      <div class="notiproof-modal-overlay"></div>
+      <div class="notiproof-modal-content">
+        <button class="notiproof-modal-close" aria-label="Close">&times;</button>
+        <div class="notiproof-modal-body">
+          ${renderFullTestimonial(data)}
+        </div>
+      </div>
+    `;
+    
+    // Add modal styles
+    injectModalStyles();
+    
+    // Append to body
+    document.body.appendChild(modal);
+    
+    // Prevent body scroll
+    document.body.style.overflow = 'hidden';
+    
+    // Animate in
+    requestAnimationFrame(() => {
+      const overlay = modal.querySelector('.notiproof-modal-overlay');
+      const content = modal.querySelector('.notiproof-modal-content');
+      if (overlay) overlay.style.opacity = '1';
+      if (content) {
+        content.style.opacity = '1';
+        content.style.transform = 'scale(1)';
+      }
+    });
+    
+    // Close handlers
+    const closeModal = () => {
+      const overlay = modal.querySelector('.notiproof-modal-overlay');
+      const content = modal.querySelector('.notiproof-modal-content');
+      if (overlay) overlay.style.opacity = '0';
+      if (content) {
+        content.style.opacity = '0';
+        content.style.transform = 'scale(0.95)';
+      }
+      setTimeout(() => {
+        modal.remove();
+        document.body.style.overflow = '';
+      }, 300);
+    };
+    
+    const closeBtn = modal.querySelector('.notiproof-modal-close');
+    const overlay = modal.querySelector('.notiproof-modal-overlay');
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (overlay) overlay.addEventListener('click', closeModal);
+    
+    // ESC key to close
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        document.removeEventListener('keydown', handleEsc);
+      }
+    };
+    document.addEventListener('keydown', handleEsc);
+    
+    log('Testimonial modal opened', { eventId: event.id });
+  }
+  
+  /**
+   * Render full testimonial content for modal
+   */
+  function renderFullTestimonial(data) {
+    const name = data['template.author_name'] || data.author_name || 'Anonymous Customer';
+    const avatar = data['template.author_avatar'] || data.author_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=2563EB&color=fff`;
+    const position = data['template.author_position'] || data.author_position || 'Customer';
+    const company = data['template.author_company'] || data.author_company || '';
+    const rating = data['template.rating_stars'] || data.rating_stars || '★★★★★';
+    const message = data['template.message'] || data.message || 'Great experience!';
+    const timeAgo = data['template.time_ago'] || data.time_ago || 'recently';
+    const verified = data['template.verified'] || data.verified || false;
+    const imageUrl = data['template.image_url'] || data.image_url;
+    const videoUrl = data['template.video_url'] || data.video_url;
+    
+    return `
+      <div class="notiproof-testimonial-modal-card">
+        ${videoUrl ? `
+          <div class="notiproof-modal-media">
+            <video src="${videoUrl}" controls class="notiproof-modal-video" autoplay muted></video>
+          </div>
+        ` : imageUrl ? `
+          <div class="notiproof-modal-media">
+            <img src="${imageUrl}" alt="Testimonial" class="notiproof-modal-image" />
+          </div>
+        ` : ''}
+        
+        <div class="notiproof-modal-rating">${rating}</div>
+        <p class="notiproof-modal-message">"${message}"</p>
+        
+        <div class="notiproof-modal-author">
+          <img src="${avatar}" alt="${name}" class="notiproof-modal-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=2563EB&color=fff'" />
+          <div class="notiproof-modal-author-info">
+            <p class="notiproof-modal-name">${name}</p>
+            ${position ? `<p class="notiproof-modal-position">${position}${company ? ` at ${company}` : ''}</p>` : ''}
+            ${verified ? '<p class="notiproof-modal-verified">✓ Verified Customer</p>' : ''}
+          </div>
+        </div>
+        
+        <p class="notiproof-modal-time">${timeAgo}</p>
+      </div>
+    `;
+  }
+  
+  /**
+   * Inject modal styles (once)
+   */
+  let modalStylesInjected = false;
+  function injectModalStyles() {
+    if (modalStylesInjected) return;
+    modalStylesInjected = true;
+    
+    const style = document.createElement('style');
+    style.textContent = `
+      .notiproof-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 9999999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .notiproof-modal-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      .notiproof-modal-content {
+        position: relative;
+        background: white;
+        border-radius: 16px;
+        max-width: 600px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        opacity: 0;
+        transform: scale(0.95);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .notiproof-modal-close {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        background: rgba(0, 0, 0, 0.1);
+        border: none;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        cursor: pointer;
+        color: #666;
+        z-index: 1;
+        transition: all 0.2s ease;
+      }
+      .notiproof-modal-close:hover {
+        background: rgba(0, 0, 0, 0.2);
+        color: #000;
+        transform: rotate(90deg);
+      }
+      .notiproof-modal-body {
+        padding: 24px;
+      }
+      .notiproof-testimonial-modal-card {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .notiproof-modal-media {
+        width: 100%;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #f5f5f5;
+      }
+      .notiproof-modal-video,
+      .notiproof-modal-image {
+        width: 100%;
+        max-height: 400px;
+        object-fit: cover;
+        display: block;
+      }
+      .notiproof-modal-rating {
+        color: #f59e0b;
+        font-size: 24px;
+        letter-spacing: 2px;
+      }
+      .notiproof-modal-message {
+        font-size: 18px;
+        line-height: 1.6;
+        color: #1a1a1a;
+        font-style: italic;
+      }
+      .notiproof-modal-author {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-top: 16px;
+        border-top: 1px solid #e5e7eb;
+      }
+      .notiproof-modal-avatar {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+      }
+      .notiproof-modal-author-info {
+        flex: 1;
+      }
+      .notiproof-modal-name {
+        font-weight: 600;
+        font-size: 16px;
+        color: #1a1a1a;
+        margin: 0 0 4px 0;
+      }
+      .notiproof-modal-position {
+        font-size: 14px;
+        color: #6b7280;
+        margin: 0;
+      }
+      .notiproof-modal-verified {
+        display: inline-flex;
+        align-items: center;
+        font-size: 13px;
+        color: #2563EB;
+        font-weight: 500;
+        margin-top: 4px;
+      }
+      .notiproof-modal-time {
+        font-size: 13px;
+        color: #9ca3af;
+        text-align: center;
+        margin: 0;
+      }
+      
+      @media (max-width: 640px) {
+        .notiproof-modal {
+          padding: 10px;
+        }
+        .notiproof-modal-content {
+          max-height: 95vh;
+          border-radius: 12px;
+        }
+        .notiproof-modal-body {
+          padding: 16px;
+        }
+        .notiproof-modal-message {
+          font-size: 16px;
+        }
+        .notiproof-modal-video,
+        .notiproof-modal-image {
+          max-height: 300px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
   
   async function fetchEvents() {
     try {

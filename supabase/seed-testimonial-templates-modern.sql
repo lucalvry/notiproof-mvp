@@ -497,12 +497,22 @@ INSERT INTO public.templates (
   '["template.author_name", "template.rating", "template.message"]'::jsonb,
   '<div class="noti-split-view">
   <div class="split-container">
-    {{#template.image_url}}
     <div class="split-image">
-      <img src="{{template.image_url}}" alt="Testimonial" />
+      {{#template.video_url}}
+      <video src="{{template.video_url}}" controls class="split-media"></video>
+      {{/template.video_url}}
+      {{^template.video_url}}
+        {{#template.image_url}}
+        <img src="{{template.image_url}}" alt="Product" class="split-media" />
+        {{/template.image_url}}
+        {{^template.image_url}}
+          {{#template.author_avatar}}
+          <img src="{{template.author_avatar}}" alt="{{template.author_name}}" class="split-media" />
+          {{/template.author_avatar}}
+        {{/template.image_url}}
+      {{/template.video_url}}
       <div class="split-overlay"></div>
     </div>
-    {{/template.image_url}}
     <div class="split-content">
       <div class="split-rating">{{template.rating_stars}}</div>
       <p class="split-message">"{{template.message}}"</p>
@@ -529,20 +539,26 @@ INSERT INTO public.templates (
 
 .noti-split-view .split-container {
   display: grid;
-  grid-template-columns: 1fr 1.5fr;
+  grid-template-columns: 0.8fr 2fr;
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
   border-radius: 1.5rem;
   overflow: hidden;
   box-shadow: 0 10px 30px hsl(var(--foreground) / 0.1);
+  max-height: 220px;
 }
 
 .noti-split-view .split-image {
   position: relative;
-  min-height: 250px;
+  min-height: 180px;
+  max-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
-.noti-split-view .split-image img {
+.noti-split-view .split-media {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -552,6 +568,7 @@ INSERT INTO public.templates (
   position: absolute;
   inset: 0;
   background: linear-gradient(135deg, hsl(var(--primary) / 0.2), transparent);
+  pointer-events: none;
 }
 
 .noti-split-view .split-content {

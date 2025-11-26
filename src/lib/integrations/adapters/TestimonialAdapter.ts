@@ -31,6 +31,20 @@ export class TestimonialAdapter extends BaseAdapter {
         example: 'https://...',
       },
       {
+        key: 'template.author_position',
+        label: 'Author Position',
+        type: 'string',
+        description: 'Author job position/title',
+        example: 'Marketing Director',
+      },
+      {
+        key: 'template.author_company',
+        label: 'Author Company',
+        type: 'string',
+        description: 'Author company name',
+        example: 'Acme Corp',
+      },
+      {
         key: 'template.rating',
         label: 'Rating',
         type: 'number',
@@ -71,8 +85,9 @@ export class TestimonialAdapter extends BaseAdapter {
         key: 'template.verified',
         label: 'Verified Purchase',
         type: 'boolean',
-        description: 'Whether purchase is verified',
+        description: 'Whether purchase is verified (auto-calculated)',
         example: true,
+        required: false,
       },
     ];
   }
@@ -88,6 +103,14 @@ export class TestimonialAdapter extends BaseAdapter {
     const rating = testimonial.rating || 5;
     const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
     
+    // Smart placeholders for missing info
+    const authorName = testimonial.author_name || 'Anonymous Customer';
+    const authorPosition = testimonial.author_position || testimonial.metadata?.position || 'Customer';
+    const authorCompany = testimonial.author_company || testimonial.metadata?.company || 'Happy Customer';
+    const authorAvatar = testimonial.author_avatar_url || 
+      testimonial.avatar_url ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}&background=2563EB&color=fff`;
+    
     return {
       event_id: this.generateEventId('testimonial'),
       provider: 'testimonials',
@@ -95,12 +118,14 @@ export class TestimonialAdapter extends BaseAdapter {
       timestamp: createdAt,
       payload: rawEvent,
       normalized: {
-        'template.author_name': testimonial.author_name,
-        'template.author_email': testimonial.author_email,
-        'template.author_avatar': testimonial.author_avatar_url,
+        'template.author_name': authorName,
+        'template.author_email': testimonial.author_email || '',
+        'template.author_avatar': authorAvatar,
+        'template.author_position': authorPosition,
+        'template.author_company': authorCompany,
         'template.rating': rating,
         'template.rating_stars': stars,
-        'template.message': testimonial.message,
+        'template.message': testimonial.message || 'Great experience!',
         'template.image_url': testimonial.image_url,
         'template.video_url': testimonial.video_url,
         'template.time_ago': timeAgo,
