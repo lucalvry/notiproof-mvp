@@ -58,6 +58,7 @@ import TestimonialFormBuilder from "./pages/TestimonialFormBuilder";
 import TestimonialEmbeds from "./pages/TestimonialEmbeds";
 import TestimonialEmbedBuilderPage from "./pages/TestimonialEmbedBuilder";
 import PublicTestimonialEmbed from "./pages/PublicTestimonialEmbed";
+import NotificationWeights from "./pages/NotificationWeights";
 import { OAuthCallback } from "./components/integrations/OAuthCallback";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { inject } from "@vercel/analytics";
@@ -152,6 +153,7 @@ const App = () => (
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/rules" element={<Rules />} />
             <Route path="/events" element={<EventModeration />} />
+            <Route path="/notification-weights" element={<NotificationWeights />} />
             <Route path="/analytics/widget/:id" element={<WidgetAnalytics />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/templates" element={<Templates />} />

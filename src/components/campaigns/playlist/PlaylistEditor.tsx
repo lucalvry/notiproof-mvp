@@ -12,11 +12,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
 import { CampaignDragList } from "./CampaignDragList";
 import { usePlaylist } from "@/hooks/usePlaylist";
+import { useNotificationWeights } from "@/hooks/useNotificationWeights";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronDown, ExternalLink, Sliders } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface Playlist {
   id: string;
@@ -57,8 +61,11 @@ export function PlaylistEditor({
   const [campaignOrder, setCampaignOrder] = useState<string[]>([]);
   const [availableCampaigns, setAvailableCampaigns] = useState<Campaign[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [weightsExpanded, setWeightsExpanded] = useState(false);
 
   const { createPlaylist, updatePlaylist, loading } = usePlaylist();
+  const { weights, loading: weightsLoading, updateWeight } = useNotificationWeights(websiteId);
+  const navigate = useNavigate();
 
   // Load available campaigns
   useEffect(() => {
@@ -269,6 +276,73 @@ export function PlaylistEditor({
               </p>
             </div>
           </div>
+
+          <Separator />
+
+          {/* Notification Weights Quick Config */}
+          <Collapsible open={weightsExpanded} onOpenChange={setWeightsExpanded}>
+            <div className="space-y-3">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-0 hover:bg-transparent">
+                  <div className="flex items-center gap-2">
+                    <Sliders className="h-4 w-4" />
+                    <Label className="cursor-pointer">Notification Weights</Label>
+                    <Badge variant="secondary" className="text-xs">
+                      {weights.length} types configured
+                    </Badge>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${weightsExpanded ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+
+              <CollapsibleContent className="space-y-4 pt-2">
+                {weightsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Control how often each notification type appears. Higher weight = more frequent.
+                    </p>
+                    
+                    {weights.slice(0, 5).map((weight) => (
+                      <div key={weight.event_type} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm capitalize">
+                            {weight.event_type.replace('_', ' ')}
+                          </Label>
+                          <Badge variant="outline" className="text-xs">
+                            Weight: {weight.weight}
+                          </Badge>
+                        </div>
+                        <Slider
+                          value={[weight.weight]}
+                          onValueChange={([value]) => updateWeight(weight.event_type, { weight: value })}
+                          min={1}
+                          max={10}
+                          step={1}
+                          className="w-full"
+                        />
+                      </div>
+                    ))}
+
+                    <Button
+                      variant="outline"
+                      className="w-full mt-4"
+                      onClick={() => {
+                        onOpenChange(false);
+                        navigate('/notification-weights');
+                      }}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open Full Weights Configuration
+                    </Button>
+                  </>
+                )}
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
         </div>
 
         {/* Actions */}

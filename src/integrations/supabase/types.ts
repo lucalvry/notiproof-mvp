@@ -369,6 +369,7 @@ export type Database = {
           data_sources: Json | null
           description: string | null
           display_rules: Json
+          display_weight: number | null
           end_date: string | null
           frequency_cap: Json | null
           id: string
@@ -395,6 +396,7 @@ export type Database = {
           data_sources?: Json | null
           description?: string | null
           display_rules?: Json
+          display_weight?: number | null
           end_date?: string | null
           frequency_cap?: Json | null
           id?: string
@@ -421,6 +423,7 @@ export type Database = {
           data_sources?: Json | null
           description?: string | null
           display_rules?: Json
+          display_weight?: number | null
           end_date?: string | null
           frequency_cap?: Json | null
           id?: string
@@ -1538,6 +1541,47 @@ export type Database = {
           },
           {
             foreignKeyName: "notification_conversions_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_weights: {
+        Row: {
+          created_at: string | null
+          event_type: string
+          id: string
+          max_per_queue: number | null
+          ttl_days: number | null
+          updated_at: string | null
+          website_id: string
+          weight: number
+        }
+        Insert: {
+          created_at?: string | null
+          event_type: string
+          id?: string
+          max_per_queue?: number | null
+          ttl_days?: number | null
+          updated_at?: string | null
+          website_id: string
+          weight?: number
+        }
+        Update: {
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          max_per_queue?: number | null
+          ttl_days?: number | null
+          updated_at?: string | null
+          website_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_weights_website_id_fkey"
             columns: ["website_id"]
             isOneToOne: false
             referencedRelation: "websites"
@@ -3350,6 +3394,10 @@ export type Database = {
       increment_form_views:
         | { Args: { form_uuid: string }; Returns: undefined }
         | { Args: { form_slug: string }; Returns: undefined }
+      initialize_notification_weights: {
+        Args: { _website_id: string }
+        Returns: undefined
+      }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
       log_admin_action: {

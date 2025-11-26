@@ -287,143 +287,47 @@ Deno.serve(async (req) => {
       });
 
       // Filter out demo events if there are active campaigns
-      let allowedSourcesDefault = ['manual', 'connector', 'tracking', 'woocommerce', 'quick_win'];
-      if (!hasActiveCampaigns) {
-        // Only include demo events if no active campaigns exist
-        allowedSourcesDefault.push('demo');
-      }
-
-      // Fetch events for all widgets - use valid DB enum values
-      const { data: eventsData, error: eventsError } = await supabase
-        .from('events')
-        .select('id, event_type, message_template, user_name, user_location, created_at, event_data, widget_id')
-        .in('widget_id', widgetIds)
-        .eq('moderation_status', 'approved')
-        .in('source', allowedSourcesDefault)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (eventsError) throw eventsError;
-
-      let events = eventsData || [];
-
-      // Ensure event_data is an object, not a string
-      if (events) {
-        events.forEach(event => {
-          if (event.event_data && typeof event.event_data === 'string') {
-            try {
-              event.event_data = JSON.parse(event.event_data);
-              console.log('[widget-api] Parsed event_data for event:', event.id);
-            } catch (e) {
-              console.error('[widget-api] Failed to parse event_data for event:', event.id, e);
-            }
-          }
-        });
-      }
-
-      // STEP 5: Log main query results first
-      console.log('[widget-api] STEP 5 - Main query results:', {
-        total_events: events.length,
-        announcement_events_in_main: events.filter(e => e.event_type === 'announcement').length,
-        announcement_details: events
-          .filter(e => e.event_type === 'announcement')
-          .map(e => ({
-            id: e.id,
-            event_type: e.event_type,
-            has_event_data: !!e.event_data,
-            has_title: !!e.event_data?.title,
-            title: e.event_data?.title
-          }))
-      });
-
-
-      // Fetch active campaigns with native integrations
-      const { data: campaigns, error: campaignsError } = await supabase
-        .from('campaigns')
-        .select('id, name, data_sources, native_config, status, integration_settings, template_id')
-        .eq('website_id', website.id)
-        .eq('status', 'active');
-
-      if (campaignsError) {
-        console.error('Failed to fetch campaigns:', campaignsError);
-      }
+      // PHASE 2: Use Queue Orchestration Layer instead of raw event fetching
+      console.log('[widget-api] Calling queue builder for website:', website.id);
       
-      // Filter campaigns with native providers
-      const nativeCampaigns = campaigns?.filter(c => {
-        const sources = c.data_sources as any[];
-        return sources && sources.some(s => 
-          ['instant_capture', 'live_visitors', 'announcements', 'testimonials'].includes(s.provider)
-        );
-      }) || [];
-
-      // Process testimonial campaigns and fetch testimonials
-      const testimonialEvents: any[] = [];
-      for (const campaign of nativeCampaigns) {
-        const sources = campaign.data_sources as any[];
-        const testimonialSource = sources?.find(s => s.provider === 'testimonials');
-        
-        if (testimonialSource) {
-          console.log(`[Widget API] Processing testimonial campaign: ${campaign.id}`);
-          
-          // Get testimonial config from native_config or integration_settings
-          const nativeConfig = campaign.native_config as any;
-          const integrationSettings = campaign.integration_settings as any;
-          
-          const testimonialConfig = {
-            displayMode: nativeConfig?.display_mode || integrationSettings?.display_mode || 'filtered',
-            testimonialIds: nativeConfig?.testimonial_ids || integrationSettings?.testimonial_ids || null,
-            formId: nativeConfig?.formId || integrationSettings?.formId,
-            minRating: nativeConfig?.testimonial_filters?.minRating || integrationSettings?.testimonial_filters?.minRating || 3,
-            limit: nativeConfig?.limit || 50,
-            onlyApproved: true,
-            mediaType: nativeConfig?.testimonial_filters?.mediaFilter || integrationSettings?.testimonial_filters?.mediaFilter || 'all',
-            onlyVerified: nativeConfig?.testimonial_filters?.onlyVerified || integrationSettings?.testimonial_filters?.onlyVerified || false,
-          };
-
-          console.log('[Widget API] Testimonial config:', testimonialConfig);
-
-          // Fetch template if configured
-          let template = null;
-          if (campaign.template_id) {
-            const { data: templateData } = await supabase
-              .from('templates')
-              .select('*')
-              .eq('id', campaign.template_id)
-              .single();
-            
-            template = templateData;
-          }
-
-          // Fetch testimonial events
-          const events = await fetchTestimonialEvents(
-            supabase,
-            website.id,
-            testimonialConfig,
-            template
-          );
-
-          // Associate events with the correct widget
-          const campaignWidget = widgets?.find(w => w.campaign_id === campaign.id);
-          if (campaignWidget) {
-            events.forEach(e => {
-              e.widget_id = campaignWidget.id;
-            });
-            testimonialEvents.push(...events);
+      const { data: queueResponse, error: queueError } = await supabase.functions.invoke(
+        'build-notification-queue',
+        {
+          body: {
+            websiteId: website.id,
+            widgetIds: widgetIds,
+            targetQueueSize: 15
           }
         }
-      }
+      );
 
-      // Merge testimonial events with regular events
-      const allEvents = [...(events || []), ...testimonialEvents];
+      let allEvents: any[] = [];
+      let queueMetadata: any = {};
+
+      if (queueError) {
+        console.error('[widget-api] Queue builder error:', queueError);
+        // Fallback to empty events with error metadata
+        queueMetadata = { error: 'Queue builder failed' };
+      } else {
+        allEvents = queueResponse?.events || [];
+        queueMetadata = queueResponse?.queue_metadata || {};
+
+        console.log('[widget-api] Queue built successfully:', {
+          total_events: allEvents.length,
+          distribution: queueMetadata.distribution,
+          weights_applied: queueMetadata.weights_applied
+        });
+      }
 
       return new Response(JSON.stringify({
         widgets: widgets || [],
         events: allEvents || [],
-        campaigns: campaigns || [], // Native integration campaigns
+        campaigns: [], // Will be provided by queue builder
         display_settings: displaySettings,
         visitor_country: visitorCountry,
         white_label: whiteLabelSettings,
-        subscription: subscriptionInfo
+        subscription: subscriptionInfo,
+        queue_metadata: queueMetadata
       }), {
         headers: { 
           ...corsHeaders, 

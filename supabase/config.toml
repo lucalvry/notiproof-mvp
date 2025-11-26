@@ -3,6 +3,12 @@ project_id = "ewymvxhpkswhsirdrjub"
 [functions.widget-api]
 verify_jwt = false
 
+[functions.build-notification-queue]
+verify_jwt = false
+
+[functions.cleanup-events]
+verify_jwt = false
+
 [functions.test-integration]
 verify_jwt = true
 
