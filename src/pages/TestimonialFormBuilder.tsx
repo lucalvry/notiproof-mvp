@@ -5,10 +5,12 @@ import { FormTemplateSelector } from '@/components/testimonials/builder/FormTemp
 import { supabase } from '@/integrations/supabase/client';
 import { FORM_TEMPLATES } from '@/lib/testimonialTemplates';
 import { toast } from 'sonner';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
 
 export default function TestimonialFormBuilder() {
   const { formId } = useParams();
   const navigate = useNavigate();
+  const { currentWebsite } = useWebsiteContext();
   const [formData, setFormData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
@@ -80,15 +82,9 @@ export default function TestimonialFormBuilder() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Get first website
-      const { data: websites } = await supabase
-        .from('websites')
-        .select('id')
-        .eq('user_id', user.id)
-        .limit(1);
-
-      if (!websites || websites.length === 0) {
-        toast.error('Please create a website first');
+      // Use currently selected website from context
+      if (!currentWebsite) {
+        toast.error('Please select a website first');
         navigate('/websites');
         return;
       }
@@ -100,7 +96,7 @@ export default function TestimonialFormBuilder() {
           name: `${template.name} Form`,
           slug: `${templateId}-${Date.now()}`,
           user_id: user.id,
-          website_id: websites[0].id,
+          website_id: currentWebsite.id,
           form_type: templateId,
           pages_config: { sequence: template.pages },
           negative_feedback_enabled: template.settings.negative_feedback_enabled,

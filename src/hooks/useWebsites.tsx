@@ -83,29 +83,36 @@ export const useWebsites = (userId: string | undefined) => {
         throw new Error("You must be logged in to add a website");
       }
 
+      // Check if user is super admin
+      const { data: isAdmin } = await supabase
+        .rpc('is_superadmin', { _user_id: user.id });
+
       // Get current website count
       const { count: currentCount } = await supabase
         .from('websites')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id);
 
-      // Allow first website without subscription check (for onboarding)
-      if (currentCount !== null && currentCount > 0) {
-        // Get user's subscription to check limits for additional websites
-        const { data: subscription } = await supabase
-          .from('user_subscriptions')
-          .select(`
-            *,
-            plan:subscription_plans(max_websites)
-          `)
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .single();
+      // Super admins bypass all limits
+      if (!isAdmin) {
+        // Allow first website without subscription check (for onboarding)
+        if (currentCount !== null && currentCount > 0) {
+          // Get user's subscription to check limits for additional websites
+          const { data: subscription } = await supabase
+            .from('user_subscriptions')
+            .select(`
+              *,
+              plan:subscription_plans(max_websites)
+            `)
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .single();
 
-        const maxWebsites = subscription?.plan?.max_websites ?? 1;
-        
-        if (currentCount >= maxWebsites) {
-          throw new Error(`You've reached your plan limit of ${maxWebsites} website${maxWebsites !== 1 ? 's' : ''}. Please upgrade to add more.`);
+          const maxWebsites = subscription?.plan?.max_websites ?? 1;
+          
+          if (currentCount >= maxWebsites) {
+            throw new Error(`You've reached your plan limit of ${maxWebsites} website${maxWebsites !== 1 ? 's' : ''}. Please upgrade to add more.`);
+          }
         }
       }
 

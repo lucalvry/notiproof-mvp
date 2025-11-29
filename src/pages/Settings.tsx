@@ -422,7 +422,7 @@ export default function Settings() {
               <div className="space-y-2">
                 <Label>Installation Code</Label>
                 <div className="bg-muted p-4 rounded-md font-mono text-xs overflow-x-auto">
-                  {`<script src="https://cdn.notiproof.com/widget.js" data-website="${websiteId}"></script>`}
+                  {`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-website="${websiteId}"></script>`}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Paste this code before the closing &lt;/body&gt; tag on your website
@@ -431,7 +431,7 @@ export default function Settings() {
                   variant="outline" 
                   size="sm"
                   onClick={() => {
-                    navigator.clipboard.writeText(`<script src="https://cdn.notiproof.com/widget.js" data-website="${websiteId}"></script>`);
+                    navigator.clipboard.writeText(`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-website="${websiteId}"></script>`);
                     toast.success("Code copied to clipboard!");
                   }}
                 >

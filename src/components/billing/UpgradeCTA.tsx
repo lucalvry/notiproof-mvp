@@ -1,7 +1,10 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Zap } from "lucide-react";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UpgradeCTAProps {
   title?: string;
@@ -21,8 +24,17 @@ export function UpgradeCTA({
   maxAllowed,
 }: UpgradeCTAProps) {
   const navigate = useNavigate();
+  const [userId, setUserId] = useState<string | undefined>();
+  const { isSuperAdmin } = useSuperAdmin(userId);
 
-  const defaultTitle = limitType === "websites" 
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUserId(user?.id));
+  }, []);
+
+  // Hide for super admins
+  if (isSuperAdmin) return null;
+
+  const defaultTitle = limitType === "websites"
     ? "Website Limit Reached"
     : "Event Limit Approaching";
 

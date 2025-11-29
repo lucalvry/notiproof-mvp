@@ -1,10 +1,13 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Sparkles } from "lucide-react";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
+import { supabase } from "@/integrations/supabase/client";
 
 interface FreeTrialLimitBannerProps {
-  type: "websites" | "events" | "integrations" | "templates";
+  type: "websites" | "events" | "storage" | "video";
   current: number;
   limit: number;
   planName?: string;
@@ -12,6 +15,15 @@ interface FreeTrialLimitBannerProps {
 
 export function FreeTrialLimitBanner({ type, current, limit, planName = "Free" }: FreeTrialLimitBannerProps) {
   const navigate = useNavigate();
+  const [userId, setUserId] = useState<string | undefined>();
+  const { isSuperAdmin } = useSuperAdmin(userId);
+  
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUserId(user?.id));
+  }, []);
+  
+  // Hide for super admins
+  if (isSuperAdmin) return null;
   
   const isAtLimit = current >= limit;
   const isNearLimit = current >= limit * 0.8;
@@ -31,17 +43,15 @@ export function FreeTrialLimitBanner({ type, current, limit, planName = "Free" }
         ? `You've reached your ${planName} plan limit of ${limit.toLocaleString()} monthly views. Upgrade for more capacity.`
         : `You're using ${current.toLocaleString()} of ${limit.toLocaleString()} monthly views.`
     },
-    integrations: {
-      title: isAtLimit ? "Integration Limit Reached" : "Integration Limit Approaching",
+    storage: {
+      title: isAtLimit ? "Storage Limit Reached" : "Storage Limit Approaching",
       description: isAtLimit
-        ? `You've reached your ${planName} plan limit of ${limit} integration${limit !== 1 ? 's' : ''}. Upgrade to connect more platforms.`
-        : `You're using ${current} of ${limit} integration${limit !== 1 ? 's' : ''}. Upgrade to connect more.`
+        ? `You've reached your ${planName} plan storage limit. Upgrade or purchase additional storage.`
+        : `You're approaching your storage limit. Consider upgrading or adding more storage.`
     },
-    templates: {
-      title: isAtLimit ? "Template Limit Reached" : "Template Limit Approaching",
-      description: isAtLimit
-        ? `You've reached your ${planName} plan limit of ${limit} campaign template${limit !== 1 ? 's' : ''}. Upgrade for unlimited templates.`
-        : `You're using ${current} of ${limit} campaign template${limit !== 1 ? 's' : ''}. Upgrade for more.`
+    video: {
+      title: "Video Recording Limit",
+      description: `Your ${planName} plan allows videos up to ${Math.floor(limit / 60)} minute${Math.floor(limit / 60) !== 1 ? 's' : ''}. Upgrade for longer videos.`
     }
   };
 

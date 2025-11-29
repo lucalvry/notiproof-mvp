@@ -9,6 +9,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
+import { useBunnyUpload } from "@/hooks/useBunnyUpload";
 import { Upload, Palette, Globe, Sparkles, Crown } from "lucide-react";
 
 interface WhiteLabelSettingsProps {
@@ -29,8 +31,11 @@ interface WhiteLabelConfig {
 }
 
 export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettingsProps) {
+  const { isSuperAdmin } = useSuperAdmin(userId);
+  const { uploadToBunny } = useBunnyUpload();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [config, setConfig] = useState<WhiteLabelConfig>({
     enabled: false,
     hide_branding: false,
@@ -81,7 +86,7 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
   };
 
   const handleSave = async () => {
-    if (!isPro) {
+    if (!isPro && !isSuperAdmin) {
       toast.error("White-label features require a Pro+ plan");
       return;
     }
@@ -122,17 +127,19 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
     }
 
     try {
-      // For now, we'll use a data URL. In production, upload to Supabase Storage
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        setConfig({ ...config, custom_logo_url: dataUrl });
-        toast.success("Logo uploaded successfully");
-      };
-      reader.readAsDataURL(file);
+      setUploading(true);
+      const result = await uploadToBunny(file, 'white-label-logos');
+      
+      if (result.success && result.url) {
+        setConfig({ ...config, custom_logo_url: result.url });
+      } else {
+        throw new Error(result.error || 'Upload failed');
+      }
     } catch (error) {
       console.error("Error uploading logo:", error);
       toast.error("Failed to upload logo");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -148,9 +155,11 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
     );
   }
 
+  const hasAccess = isPro || isSuperAdmin;
+
   return (
     <div className="space-y-6">
-      {!isPro && (
+      {!hasAccess && (
         <Alert>
           <Crown className="h-4 w-4" />
           <AlertDescription>
@@ -175,7 +184,7 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
                 Remove NotiProof branding and customize the widget appearance
               </CardDescription>
             </div>
-            {isPro && <Badge variant="default">Pro+</Badge>}
+            {hasAccess && <Badge variant="default">{isSuperAdmin ? "Enterprise" : "Pro+"}</Badge>}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -191,7 +200,7 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
               onCheckedChange={(checked) =>
                 setConfig({ ...config, enabled: checked })
               }
-              disabled={!isPro}
+              disabled={!hasAccess}
             />
           </div>
 
@@ -209,7 +218,7 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
               onCheckedChange={(checked) =>
                 setConfig({ ...config, hide_branding: checked })
               }
-              disabled={!isPro || !config.enabled}
+              disabled={!hasAccess || !config.enabled}
             />
           </div>
         </CardContent>
@@ -240,8 +249,11 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
                 type="file"
                 accept="image/*"
                 onChange={handleLogoUpload}
-                disabled={!isPro || !config.enabled}
+                disabled={!hasAccess || !config.enabled || uploading}
               />
+              {uploading && (
+                <p className="text-xs text-muted-foreground">Uploading to CDN...</p>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
               Recommended: PNG or SVG, max 2MB, transparent background
@@ -257,7 +269,7 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
               onChange={(e) =>
                 setConfig({ ...config, custom_brand_name: e.target.value })
               }
-              disabled={!isPro || !config.enabled}
+              disabled={!hasAccess || !config.enabled}
             />
           </div>
         </CardContent>
@@ -292,7 +304,7 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
                       },
                     })
                   }
-                  disabled={!isPro || !config.enabled}
+                  disabled={!hasAccess || !config.enabled}
                   className="w-16 h-10"
                 />
                 <Input
@@ -306,7 +318,7 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
                       },
                     })
                   }
-                  disabled={!isPro || !config.enabled}
+                  disabled={!hasAccess || !config.enabled}
                 />
               </div>
             </div>
@@ -327,7 +339,7 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
                       },
                     })
                   }
-                  disabled={!isPro || !config.enabled}
+                  disabled={!hasAccess || !config.enabled}
                   className="w-16 h-10"
                 />
                 <Input
@@ -341,7 +353,7 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
                       },
                     })
                   }
-                  disabled={!isPro || !config.enabled}
+                  disabled={!hasAccess || !config.enabled}
                 />
               </div>
             </div>
@@ -370,7 +382,7 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
               onChange={(e) =>
                 setConfig({ ...config, custom_domain: e.target.value })
               }
-              disabled={!isPro || !config.enabled}
+              disabled={!hasAccess || !config.enabled}
             />
             <p className="text-xs text-muted-foreground">
               Contact support to set up CNAME records for your custom domain
@@ -381,7 +393,7 @@ export default function WhiteLabelSettings({ userId, isPro }: WhiteLabelSettings
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={!isPro || saving}>
+        <Button onClick={handleSave} disabled={!hasAccess || saving}>
           {saving ? "Saving..." : "Save White-Label Settings"}
         </Button>
       </div>

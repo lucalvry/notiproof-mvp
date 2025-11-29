@@ -50,8 +50,11 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const pathParts = url.pathname.split('/').filter(Boolean);
     
-    // Remove 'widget-api' from path if present (for Supabase function URLs)
-    const adjustedParts = pathParts[0] === 'widget-api' ? pathParts.slice(1) : pathParts;
+    // Find 'widget-api' in the path and get everything after it
+    const widgetApiIndex = pathParts.indexOf('widget-api');
+    const adjustedParts = widgetApiIndex !== -1 
+      ? pathParts.slice(widgetApiIndex + 1) 
+      : pathParts;
     
     const [resource, identifier, action] = adjustedParts;
     
@@ -241,10 +244,16 @@ Deno.serve(async (req) => {
         .in('status', ['active', 'trialing'])
         .single();
       
-      if (subscription?.subscription_plans && Array.isArray(subscription.subscription_plans) && subscription.subscription_plans.length > 0) {
-        subscriptionInfo = {
-          plan_name: subscription.subscription_plans[0].name,
-        };
+      // subscription_plans is a single object from the !inner join, NOT an array
+      if (subscription?.subscription_plans) {
+        const plans = subscription.subscription_plans as { name: string } | { name: string }[];
+        // Handle both single object and array cases
+        const planName = Array.isArray(plans) ? plans[0]?.name : plans.name;
+        if (planName) {
+          subscriptionInfo = {
+            plan_name: planName,
+          };
+        }
       }
 
       // Get all active widgets for this website
@@ -451,59 +460,79 @@ Deno.serve(async (req) => {
       });
     }
 
-    // GET /verify - Website verification endpoint
+    // GET /verify - Website verification endpoint with improved error handling
     if (req.method === 'GET' && resource === 'verify') {
       const token = url.searchParams.get('token');
       
       if (!token) {
+        console.log('[verify] No token provided');
         return new Response('/* NotiProof verification script */', {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/javascript' },
         });
       }
 
-      // Find website by verification token
-      const { data: website, error: websiteError } = await supabase
+      console.log('[verify] Looking up website for token:', token);
+
+      // Add timeout for database query
+      const queryPromise = supabase
         .from('websites')
         .select('id, domain, is_verified')
         .eq('verification_token', token)
         .single();
 
-      if (websiteError || !website) {
-        console.log('Website not found for token:', token);
-        return new Response('/* NotiProof: Invalid verification token */', {
-          status: 404,
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database query timeout')), 8000)
+      );
+
+      try {
+        const { data: website, error: websiteError } = await Promise.race([
+          queryPromise,
+          timeoutPromise
+        ]) as any;
+
+        if (websiteError || !website) {
+          console.log('[verify] Website not found for token:', token, websiteError);
+          return new Response('/* NotiProof: Invalid verification token */', {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/javascript' },
+          });
+        }
+
+        // Mark website as verified if not already
+        if (!website.is_verified) {
+          const { error: updateError } = await supabase
+            .from('websites')
+            .update({ 
+              is_verified: true,
+              last_verification_at: new Date().toISOString()
+            })
+            .eq('id', website.id);
+
+          if (updateError) {
+            console.error('[verify] Failed to verify website:', updateError);
+          } else {
+            console.log('[verify] Website verified successfully:', website.domain);
+          }
+        }
+
+        // Return a simple verification script
+        const script = `
+          /* NotiProof Website Verification Script */
+          console.log('NotiProof: Website verified successfully for ${website.domain}');
+          window.NotiProofVerified = true;
+        `;
+
+        return new Response(script, {
+          headers: { ...corsHeaders, 'Content-Type': 'application/javascript' },
+        });
+      } catch (timeoutError) {
+        console.error('[verify] Request timeout or error:', timeoutError);
+        return new Response('/* NotiProof: Verification timeout - please try again */', {
+          status: 504,
           headers: { ...corsHeaders, 'Content-Type': 'application/javascript' },
         });
       }
-
-      // Mark website as verified if not already
-      if (!website.is_verified) {
-        const { error: updateError } = await supabase
-          .from('websites')
-          .update({ 
-            is_verified: true,
-            last_verification_at: new Date().toISOString()
-          })
-          .eq('id', website.id);
-
-        if (updateError) {
-          console.error('Failed to verify website:', updateError);
-        } else {
-          console.log('Website verified successfully:', website.domain);
-        }
-      }
-
-      // Return a simple verification script
-      const script = `
-        /* NotiProof Website Verification Script */
-        console.log('NotiProof: Website verified successfully for ${website.domain}');
-        window.NotiProofVerified = true;
-      `;
-
-      return new Response(script, {
-        headers: { ...corsHeaders, 'Content-Type': 'application/javascript' },
-      });
     }
 
     // GET /verify/:widgetId - Verify widget exists and is active
@@ -596,7 +625,21 @@ Deno.serve(async (req) => {
         throw error;
       }
 
-      return new Response(JSON.stringify({ success: true }), {
+      // Generate visitor ID from IP and user agent
+      const visitorId = clientIp 
+        ? `${clientIp}-${user_agent?.substring(0, 50) || 'unknown'}`.replace(/[^a-zA-Z0-9-]/g, '-')
+        : session_id;
+
+      // Extract domain from page_url
+      const domain = page_url ? new URL(page_url).hostname : 'unknown';
+
+      return new Response(JSON.stringify({ 
+        success: true,
+        sessionId: session_id,
+        visitorId: visitorId,
+        domain: domain,
+        timestamp: Date.now()
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

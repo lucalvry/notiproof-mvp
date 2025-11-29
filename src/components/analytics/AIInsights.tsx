@@ -1,8 +1,11 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sparkles, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Insight {
   type: 'success' | 'warning' | 'info';
@@ -18,8 +21,14 @@ interface AIInsightsProps {
 
 export function AIInsights({ insights, isProPlan, isLoading = false }: AIInsightsProps) {
   const navigate = useNavigate();
+  const [userId, setUserId] = useState<string | undefined>();
+  const { isSuperAdmin } = useSuperAdmin(userId);
 
-  if (!isProPlan) {
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUserId(user?.id));
+  }, []);
+
+  if (!isProPlan && !isSuperAdmin) {
     return (
       <Card>
         <CardHeader>

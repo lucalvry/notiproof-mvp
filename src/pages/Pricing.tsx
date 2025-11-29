@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Check, X, Zap, TrendingUp, Users, Target, Sparkles } from "lucide-react";
+import { Check, X, Zap, TrendingUp, Users, Target, Sparkles, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Plan {
   id: string;
@@ -16,15 +17,57 @@ interface Plan {
   price_monthly: number;
   price_yearly: number;
   max_websites: number;
-  max_events_per_month: number;
-  features: string[];
+  max_events_per_month: number | null;
+  storage_limit_bytes: number;
+  video_max_duration_seconds: number;
+  can_remove_branding?: boolean;
+  custom_domain_enabled?: boolean;
+  has_white_label?: boolean;
+  has_api?: boolean;
 }
+
+const formatStorage = (bytes: number): string => {
+  if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(0)}GB storage`;
+  return `${(bytes / 1048576).toFixed(0)}MB storage`;
+};
+
+const formatVideoDuration = (seconds: number): string => {
+  if (seconds >= 60) return `${Math.floor(seconds / 60)}min video recording`;
+  return `${seconds}sec video recording`;
+};
+
+const generatePlanFeatures = (plan: Plan): string[] => {
+  const features: string[] = [];
+  
+  // Limits (the differentiators)
+  features.push(`${plan.max_websites} website${plan.max_websites > 1 ? 's' : ''}`);
+  features.push(plan.max_events_per_month 
+    ? `${(plan.max_events_per_month / 1000).toFixed(0)}K views/month`
+    : 'Unlimited views');
+  features.push(formatStorage(plan.storage_limit_bytes));
+  features.push(formatVideoDuration(plan.video_max_duration_seconds));
+  
+  // Global features (all plans)
+  features.push("All 38+ integrations");
+  features.push("All campaign templates");
+  features.push("Unlimited testimonials & forms");
+  features.push("Wall of Testimonials builder");
+  features.push("AI analysis & insights");
+  
+  // Premium features based on plan
+  if (plan.can_remove_branding) features.push("Remove NotiProof branding");
+  if (plan.custom_domain_enabled) features.push("Custom domain for forms");
+  if (plan.has_api) features.push("API & Webhook access");
+  if (plan.has_white_label) features.push("White label mode");
+  
+  return features;
+};
 
 export default function Pricing() {
   const navigate = useNavigate();
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
 
-  const { data: plans = [], isLoading } = useQuery({
+  const { data: allPlans = [], isLoading } = useQuery({
     queryKey: ['pricing-plans'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -38,94 +81,47 @@ export default function Pricing() {
     },
   });
 
-  // Free tier (not in database)
-  const freePlan = {
-    name: "Free",
-    price_monthly: 0,
-    price_yearly: 0,
-    max_websites: 1,
-    max_events_per_month: 1000,
-    features: [
-      "1 website",
-      "1,000 views/month",
-      "3 campaign templates",
-      "2 integrations (GA4 + 1 more)",
-      "Basic analytics",
-      "Community support"
-    ]
-  };
-
-  const allPlans = [freePlan, ...plans];
-
+  // Feature comparison table with new structure
   const featureComparison = [
     {
-      category: "Core Features",
+      category: "Usage Limits (The Differentiators)",
       features: [
-        { name: "Websites", free: "1", starter: "1", standard: "3", pro: "10", business: "20" },
+        { name: "Websites", free: "1", starter: "3", standard: "5", pro: "10", business: "20" },
         { name: "Monthly Views", free: "1K", starter: "10K", standard: "45K", pro: "100K", business: "Unlimited" },
-        { name: "Campaign Templates", free: "3", starter: "10", standard: "20", pro: "Unlimited", business: "Unlimited" },
-        { name: "Integrations", free: "2", starter: "5", standard: "15", pro: "38+", business: "38+" },
+        { name: "Storage", free: "100MB", starter: "1GB", standard: "5GB", pro: "20GB", business: "100GB" },
+        { name: "Video Recording", free: "30sec", starter: "3min", standard: "3min", pro: "5min", business: "5min" },
       ]
     },
     {
-      category: "Advanced Features",
+      category: "Global Features (Available to ALL Plans)",
       features: [
-        { name: "A/B Testing", free: false, starter: false, standard: false, pro: true, business: true },
-        { name: "Team Collaboration", free: false, starter: false, standard: "3 members", pro: "10 members", business: "Unlimited" },
-        { name: "White Label", free: false, starter: false, standard: false, pro: false, business: true },
-        { name: "Custom Branding", free: false, starter: false, standard: false, pro: true, business: true },
-        { name: "API Access", free: false, starter: false, standard: false, pro: false, business: true },
-        { name: "Advanced Analytics", free: false, starter: "Basic", standard: "Standard", pro: "Advanced", business: "Advanced + AI" },
-        { name: "Priority Support", free: false, starter: false, standard: true, pro: true, business: "24/7" },
+        { name: "All 38+ Integrations", all: true, tooltip: "Stripe, Shopify, GA4, WooCommerce, and 34+ more" },
+        { name: "All Campaign Templates", all: true, tooltip: "Every template unlocked from day one" },
+        { name: "Unlimited Testimonials", all: true, tooltip: "Collect as many testimonials as you need" },
+        { name: "Unlimited Forms", all: true, tooltip: "Create unlimited testimonial collection forms" },
+        { name: "Wall of Testimonials Builder", all: true, tooltip: "Beautiful testimonial showcase pages" },
+        { name: "AI Testimonial Analysis", all: true, tooltip: "Automatic sentiment analysis and insights" },
+        { name: "Testimonial Tags & Search", all: true, tooltip: "Organize and find testimonials easily" },
+        { name: "Testimonial Widgets", all: true, tooltip: "Embed testimonials anywhere on your site" },
       ]
-    }
-  ];
-
-  const competitors = [
-    {
-      name: "Fomo",
-      pricing: "$19-199/mo",
-      integrations: "20+",
-      abTesting: true,
-      teamFeatures: "Pro+",
-      websiteLimit: "1-10",
-      highlight: false
     },
     {
-      name: "Proof",
-      pricing: "$79-299/mo",
-      integrations: "30+",
-      abTesting: false,
-      teamFeatures: "Limited",
-      websiteLimit: "5-25",
-      highlight: false
+      category: "Premium Features",
+      features: [
+        { name: "Remove NotiProof Branding", free: false, starter: true, standard: true, pro: true, business: true },
+        { name: "Custom Domain for Forms", free: false, starter: true, standard: true, pro: true, business: true },
+        { name: "API Access", free: false, starter: false, standard: true, pro: true, business: true },
+        { name: "Webhooks", free: false, starter: false, standard: true, pro: true, business: true },
+        { name: "White Label", free: false, starter: false, standard: "Partial", pro: "Full", business: "Full" },
+        { name: "A/B Testing", free: false, starter: false, standard: false, pro: true, business: true },
+      ]
     },
     {
-      name: "NotiProof",
-      pricing: "$0-380/mo",
-      integrations: "38+",
-      abTesting: true,
-      teamFeatures: "All Plans",
-      websiteLimit: "1-20",
-      highlight: true
-    },
-    {
-      name: "TrustPulse",
-      pricing: "$29-239/mo",
-      integrations: "15+",
-      abTesting: false,
-      teamFeatures: "Pro+",
-      websiteLimit: "1-5",
-      highlight: false
-    },
-    {
-      name: "Nudgify",
-      pricing: "$9-149/mo",
-      integrations: "10+",
-      abTesting: false,
-      teamFeatures: "Limited",
-      websiteLimit: "1-3",
-      highlight: false
+      category: "Team & Support",
+      features: [
+        { name: "Team Seats", free: "1", starter: "1 + buy more", standard: "1 + buy more", pro: "1 + buy more", business: "1 + buy more", tooltip: "$3/month per additional seat" },
+        { name: "Support Level", free: "Basic Email", starter: "Standard", standard: "Priority", pro: "Priority + Chat", business: "24/7 + Manager" },
+      ]
     }
   ];
 
@@ -142,12 +138,12 @@ export default function Pricing() {
       {/* Hero Section */}
       <div className="border-b bg-background/95 backdrop-blur">
         <div className="container max-w-7xl mx-auto px-4 py-16 text-center">
-          <Badge className="mb-4">Transparent Pricing</Badge>
+          <Badge className="mb-4">Simple, Transparent Pricing</Badge>
           <h1 className="text-5xl font-bold mb-4">
-            Plans That Grow With Your Business
+            Everything You Need to Build Trust
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-            Start free. Scale as you grow. No hidden fees.
+            All plans include unlimited integrations, templates, and testimonials. Upgrade for more capacity and advanced features.
           </p>
 
           {/* Billing Toggle */}
@@ -174,10 +170,11 @@ export default function Pricing() {
             const price = billingPeriod === 'monthly' ? plan.price_monthly : plan.price_yearly;
             const isPopular = plan.name === 'Pro';
             const isFree = plan.name === 'Free';
+            const features = generatePlanFeatures(plan);
 
             return (
               <Card 
-                key={index} 
+                key={plan.id} 
                 className={`relative ${isPopular ? 'border-primary shadow-lg scale-105' : ''} ${isFree ? 'border-accent' : ''}`}
               >
                 {isPopular && (
@@ -203,7 +200,7 @@ export default function Pricing() {
 
                 <CardContent className="space-y-4">
                   <ul className="space-y-2 min-h-[200px]">
-                    {plan.features.map((feature: string, idx: number) => (
+                    {features.slice(0, 8).map((feature: string, idx: number) => (
                       <li key={idx} className="flex items-start gap-2 text-sm">
                         <Check className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
                         <span>{feature}</span>
@@ -224,23 +221,26 @@ export default function Pricing() {
           })}
         </div>
 
-        {/* Unique Advantages */}
+        {/* What Makes Us Different */}
         <div className="mb-16">
           <div className="text-center mb-8">
             <Badge className="mb-4" variant="outline">
               <Sparkles className="h-3 w-3 mr-1" />
               Why NotiProof?
             </Badge>
-            <h2 className="text-3xl font-bold">What Makes Us Different</h2>
+            <h2 className="text-3xl font-bold">No Feature Paywalls on Core Functionality</h2>
+            <p className="text-muted-foreground mt-2">
+              Every plan gets full access to integrations, templates, and testimonial features
+            </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
             <Card>
               <CardHeader>
                 <Zap className="h-8 w-8 text-primary mb-2" />
-                <CardTitle>38+ Integrations</CardTitle>
+                <CardTitle>All 38+ Integrations</CardTitle>
                 <CardDescription>
-                  More integrations than any competitor. Connect to Stripe, Shopify, GA4, WooCommerce, and 34+ more platforms.
+                  Free plan included. Connect to Stripe, Shopify, GA4, WooCommerce, and 34+ more platforms from day one.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -248,9 +248,9 @@ export default function Pricing() {
             <Card>
               <CardHeader>
                 <Target className="h-8 w-8 text-primary mb-2" />
-                <CardTitle>Built-in A/B Testing</CardTitle>
+                <CardTitle>All Campaign Templates</CardTitle>
                 <CardDescription>
-                  Optimize conversion rates with powerful A/B testing included in Pro and Business plans. No extra tools needed.
+                  Every template unlocked. No artificial limits on creativity. Build beautiful campaigns on any plan.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -258,9 +258,9 @@ export default function Pricing() {
             <Card>
               <CardHeader>
                 <Users className="h-8 w-8 text-primary mb-2" />
-                <CardTitle>Team Collaboration</CardTitle>
+                <CardTitle>Unlimited Testimonials</CardTitle>
                 <CardDescription>
-                  Invite team members, manage permissions, and collaborate seamlessly across all your campaigns.
+                  Collect unlimited testimonials and create unlimited forms. AI analysis included for everyone.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -278,131 +278,147 @@ export default function Pricing() {
 
           <Card>
             <CardContent className="p-6">
-              {featureComparison.map((section, sectionIdx) => (
-                <div key={sectionIdx} className="mb-8 last:mb-0">
-                  <h3 className="text-lg font-semibold mb-4">{section.category}</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-3 px-4 font-medium">Feature</th>
-                          <th className="text-center py-3 px-4 font-medium">Free</th>
-                          <th className="text-center py-3 px-4 font-medium">Starter</th>
-                          <th className="text-center py-3 px-4 font-medium">Standard</th>
-                          <th className="text-center py-3 px-4 font-medium bg-primary/5">Pro</th>
-                          <th className="text-center py-3 px-4 font-medium">Business</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {section.features.map((feature, idx) => (
-                          <tr key={idx} className="border-b last:border-0">
-                            <td className="py-3 px-4">{feature.name}</td>
-                            <td className="text-center py-3 px-4">
-                              {typeof feature.free === 'boolean' ? (
-                                feature.free ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
-                              ) : (
-                                feature.free
-                              )}
-                            </td>
-                            <td className="text-center py-3 px-4">
-                              {typeof feature.starter === 'boolean' ? (
-                                feature.starter ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
-                              ) : (
-                                feature.starter
-                              )}
-                            </td>
-                            <td className="text-center py-3 px-4">
-                              {typeof feature.standard === 'boolean' ? (
-                                feature.standard ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
-                              ) : (
-                                feature.standard
-                              )}
-                            </td>
-                            <td className="text-center py-3 px-4 bg-primary/5">
-                              {typeof feature.pro === 'boolean' ? (
-                                feature.pro ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
-                              ) : (
-                                <span className="font-semibold">{feature.pro}</span>
-                              )}
-                            </td>
-                            <td className="text-center py-3 px-4">
-                              {typeof feature.business === 'boolean' ? (
-                                feature.business ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
-                              ) : (
-                                feature.business
-                              )}
-                            </td>
+              <TooltipProvider>
+                {featureComparison.map((section, sectionIdx) => (
+                  <div key={sectionIdx} className="mb-8 last:mb-0">
+                    <h3 className="text-lg font-semibold mb-4">{section.category}</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-3 px-4 font-medium">Feature</th>
+                            <th className="text-center py-3 px-4 font-medium">Free</th>
+                            <th className="text-center py-3 px-4 font-medium">Starter</th>
+                            <th className="text-center py-3 px-4 font-medium">Standard</th>
+                            <th className="text-center py-3 px-4 font-medium bg-primary/5">Pro</th>
+                            <th className="text-center py-3 px-4 font-medium">Business</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {section.features.map((feature: any, idx) => (
+                            <tr key={idx} className="border-b last:border-0">
+                              <td className="py-3 px-4 flex items-center gap-2">
+                                {feature.name}
+                                {feature.tooltip && (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Info className="h-3 w-3 text-muted-foreground" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="text-xs max-w-xs">{feature.tooltip}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </td>
+                              {feature.all ? (
+                                <td colSpan={5} className="text-center py-3 px-4">
+                                  <Check className="h-5 w-5 text-success mx-auto" />
+                                </td>
+                              ) : (
+                                <>
+                                  <td className="text-center py-3 px-4">
+                                    {typeof feature.free === 'boolean' ? (
+                                      feature.free ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
+                                    ) : (
+                                      feature.free
+                                    )}
+                                  </td>
+                                  <td className="text-center py-3 px-4">
+                                    {typeof feature.starter === 'boolean' ? (
+                                      feature.starter ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
+                                    ) : (
+                                      feature.starter
+                                    )}
+                                  </td>
+                                  <td className="text-center py-3 px-4">
+                                    {typeof feature.standard === 'boolean' ? (
+                                      feature.standard ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
+                                    ) : (
+                                      feature.standard
+                                    )}
+                                  </td>
+                                  <td className="text-center py-3 px-4 bg-primary/5">
+                                    {typeof feature.pro === 'boolean' ? (
+                                      feature.pro ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
+                                    ) : (
+                                      <span className="font-semibold">{feature.pro}</span>
+                                    )}
+                                  </td>
+                                  <td className="text-center py-3 px-4">
+                                    {typeof feature.business === 'boolean' ? (
+                                      feature.business ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
+                                    ) : (
+                                      feature.business
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {sectionIdx < featureComparison.length - 1 && <Separator className="mt-6" />}
                   </div>
-                  {sectionIdx < featureComparison.length - 1 && <Separator className="mt-6" />}
-                </div>
-              ))}
+                ))}
+              </TooltipProvider>
             </CardContent>
           </Card>
         </div>
 
-        {/* Competitor Comparison */}
+        {/* Add-ons Section */}
         <div className="mb-16">
           <div className="text-center mb-8">
-            <Badge className="mb-4" variant="outline">
-              <TrendingUp className="h-3 w-3 mr-1" />
-              Market Comparison
-            </Badge>
-            <h2 className="text-3xl font-bold mb-2">How We Stack Up</h2>
+            <h2 className="text-3xl font-bold mb-2">Flexible Add-ons</h2>
             <p className="text-muted-foreground">
-              See how NotiProof compares to the competition
+              Need more? Add extra capacity to any plan
             </p>
           </div>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-4 font-medium">Platform</th>
-                      <th className="text-center py-3 px-4 font-medium">Pricing</th>
-                      <th className="text-center py-3 px-4 font-medium">Integrations</th>
-                      <th className="text-center py-3 px-4 font-medium">A/B Testing</th>
-                      <th className="text-center py-3 px-4 font-medium">Team Features</th>
-                      <th className="text-center py-3 px-4 font-medium">Websites</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {competitors.map((competitor, idx) => (
-                      <tr 
-                        key={idx} 
-                        className={`border-b last:border-0 ${competitor.highlight ? 'bg-primary/5' : ''}`}
-                      >
-                        <td className="py-3 px-4 font-semibold">
-                          {competitor.highlight && <Badge className="mr-2" variant="default">Us</Badge>}
-                          {competitor.name}
-                        </td>
-                        <td className="text-center py-3 px-4">{competitor.pricing}</td>
-                        <td className="text-center py-3 px-4">
-                          <span className={competitor.highlight ? 'font-semibold text-primary' : ''}>
-                            {competitor.integrations}
-                          </span>
-                        </td>
-                        <td className="text-center py-3 px-4">
-                          {competitor.abTesting ? (
-                            <Check className="h-4 w-4 text-success mx-auto" />
-                          ) : (
-                            <X className="h-4 w-4 text-muted-foreground mx-auto" />
-                          )}
-                        </td>
-                        <td className="text-center py-3 px-4">{competitor.teamFeatures}</td>
-                        <td className="text-center py-3 px-4">{competitor.websiteLimit}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Extra Team Seats</CardTitle>
+                <CardDescription>Add collaborators to your account</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-2 mb-4">
+                  <span className="text-3xl font-bold">$3</span>
+                  <span className="text-muted-foreground">/seat/month</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  or $30/seat/year (save 17%)
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Extra Storage</CardTitle>
+                <CardDescription>Add more space for videos and images</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  <li className="flex justify-between text-sm">
+                    <span>+5GB storage</span>
+                    <span className="font-semibold">$3/mo</span>
+                  </li>
+                  <li className="flex justify-between text-sm">
+                    <span>+20GB storage</span>
+                    <span className="font-semibold">$7/mo</span>
+                  </li>
+                  <li className="flex justify-between text-sm">
+                    <span>+50GB storage</span>
+                    <span className="font-semibold">$12/mo</span>
+                  </li>
+                  <li className="flex justify-between text-sm">
+                    <span>+100GB storage</span>
+                    <span className="font-semibold">$19/mo</span>
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* CTA Section */}
@@ -411,7 +427,7 @@ export default function Pricing() {
             <Sparkles className="h-12 w-12 text-primary mx-auto mb-4" />
             <h2 className="text-3xl font-bold mb-4">Ready to Boost Your Conversions?</h2>
             <p className="text-lg text-muted-foreground mb-6 max-w-2xl mx-auto">
-              Join thousands of businesses using NotiProof to build trust and increase sales with social proof.
+              Start with everything included. Upgrade as you grow. No hidden limits on features.
             </p>
             <div className="flex gap-4 justify-center">
               <Button size="lg" onClick={() => navigate('/register')}>

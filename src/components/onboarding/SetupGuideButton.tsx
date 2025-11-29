@@ -17,6 +17,9 @@ export function SetupGuideButton({ userId, onOpenWizard }: SetupGuideButtonProps
   const completionPercentage = progress.completion_percentage || 0;
   const isComplete = completionPercentage === 100;
 
+  // Hide the button entirely when setup is complete
+  if (isComplete) return null;
+
   const milestones = [
     { key: 'websites_added', label: 'Add website', completed: progress.websites_added },
     { key: 'campaigns_created', label: 'Create campaign', completed: progress.campaigns_created },

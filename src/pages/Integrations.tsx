@@ -17,7 +17,6 @@ import { SocialProofConnectors } from "@/components/integrations/SocialProofConn
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { getIntegrationMetadata } from "@/lib/integrationMetadata";
 import { useSubscription } from "@/hooks/useSubscription";
-import { FreeTrialLimitBanner } from "@/components/billing/FreeTrialLimitBanner";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 interface Integration {
@@ -53,7 +52,7 @@ export default function Integrations() {
   const [authTypeFilter, setAuthTypeFilter] = useState<"all" | "oauth" | "webhook">("all");
   const [sortBy, setSortBy] = useState<"name" | "popularity">("popularity");
   
-  const { maxIntegrations, planName } = useSubscription(currentUserId);
+  const { planName } = useSubscription(currentUserId);
 
   // Fetch pending event counts per integration
   const { data: pendingCounts = {} } = useQuery({
@@ -383,14 +382,6 @@ export default function Integrations() {
           Import CSV
         </Button>
       </div>
-
-      {/* Show upgrade banner when approaching integration limit */}
-      <FreeTrialLimitBanner
-        type="integrations"
-        current={integrations.filter(i => i.status === 'connected').length}
-        limit={maxIntegrations}
-        planName={planName}
-      />
 
       {/* Search and Filters */}
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">

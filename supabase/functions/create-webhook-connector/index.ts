@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isSuperAdmin } from "../_shared/super-admin.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,35 +75,42 @@ serve(async (req) => {
       });
     }
 
-    // Check user's plan quota
-    const { data: subscription } = await supabase
-      .from('user_subscriptions')
-      .select('*, subscription_plans(*)')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .maybeSingle();
+    // Check if user is super admin (bypass quota)
+    const isAdmin = await isSuperAdmin(user.id);
 
-    const userPlan = subscription?.subscription_plans?.name?.toLowerCase() || 'free';
-    const quotaConfig = config.config?.quota_per_plan || { free: 1, pro: 5, business: 20 };
-    const quota = quotaConfig[userPlan as keyof typeof quotaConfig] || 1;
+    // Check user's plan quota (skip for super admins)
+    if (!isAdmin) {
+      const { data: subscription } = await supabase
+        .from('user_subscriptions')
+        .select('*, subscription_plans(*)')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle();
 
-    // Check existing connectors
-    const { data: existingConnectors } = await supabase
-      .from('integration_connectors')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('integration_type', integration_type);
+      const userPlan = subscription?.subscription_plans?.name?.toLowerCase() || 'free';
+      const quotaConfig = config.config?.quota_per_plan || { free: 1, pro: 5, business: 20 };
+      const quota = quotaConfig[userPlan as keyof typeof quotaConfig] || 1;
 
-    if (existingConnectors && existingConnectors.length >= quota) {
-      return new Response(JSON.stringify({ 
-        error: 'Quota exceeded',
-        message: `Your ${userPlan} plan allows ${quota} ${integration_type} connector(s). Upgrade to add more.`,
-        current_count: existingConnectors.length,
-        max_allowed: quota
-      }), { 
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      // Check existing connectors
+      const { data: existingConnectors } = await supabase
+        .from('integration_connectors')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('integration_type', integration_type);
+
+      if (existingConnectors && existingConnectors.length >= quota) {
+        return new Response(JSON.stringify({ 
+          error: 'Quota exceeded',
+          message: `Your ${userPlan} plan allows ${quota} ${integration_type} connector(s). Upgrade to add more.`,
+          current_count: existingConnectors.length,
+          max_allowed: quota
+        }), { 
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    } else {
+      console.log('Super admin detected - bypassing connector quota check');
     }
 
     // Generate secure token server-side using crypto API

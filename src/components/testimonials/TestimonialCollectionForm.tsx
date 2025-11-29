@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { useBunnyUpload } from '@/hooks/useBunnyUpload';
 
 // Import page components
 import { WelcomePage } from './pages/WelcomePage';
@@ -56,6 +57,7 @@ export function TestimonialCollectionForm({
   showCompanyFields = false,
 }: TestimonialCollectionFormProps) {
   const params = useParams();
+  const { uploadToBunny, uploadVideoWithThumbnail } = useBunnyUpload();
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [pageSequence, setPageSequence] = useState<string[]>([]);
   const [questions, setQuestions] = useState<any[]>([]);
@@ -256,7 +258,7 @@ export function TestimonialCollectionForm({
     const maxRetries = 2;
     
     try {
-      console.log(`[Upload] Starting ${type} upload:`, {
+      console.log(`[Upload] Starting ${type} upload to Bunny CDN:`, {
         fileName: file.name,
         fileSize: file.size,
         fileType: file.type,
@@ -271,36 +273,28 @@ export function TestimonialCollectionForm({
         throw new Error(`File size exceeds ${sizeMB}MB limit`);
       }
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `${websiteId}/${type}s/${fileName}`;
+      // Upload to Bunny CDN with organized path structure
+      const uploadPath = type === 'avatar' 
+        ? `testimonial-avatars/${websiteId}` 
+        : `testimonial-videos/${websiteId}`;
 
-      console.log(`[Upload] Uploading to path: ${filePath}`);
+      console.log(`[Upload] Uploading to Bunny CDN path: ${uploadPath}`);
 
-      const { error: uploadError } = await supabase.storage
-        .from('testimonials')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+      const result = await uploadToBunny(file, uploadPath);
 
-      if (uploadError) {
-        console.error(`[Upload] Storage error:`, uploadError);
-        throw uploadError;
+      if (!result.success || !result.url) {
+        console.error(`[Upload] Bunny CDN error:`, result.error);
+        throw new Error(result.error || 'Upload failed');
       }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('testimonials')
-        .getPublicUrl(filePath);
-
-      console.log(`[Upload] Success! Public URL:`, publicUrl);
-      return publicUrl;
+      console.log(`[Upload] Success! Bunny CDN URL:`, result.url);
+      return result.url;
     } catch (error) {
       console.error(`[Upload] Error uploading ${type} (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
       
       // Retry logic for transient errors
       if (retryCount < maxRetries && error instanceof Error && 
-          (error.message.includes('network') || error.message.includes('timeout'))) {
+          (error.message.includes('network') || error.message.includes('timeout') || error.message.includes('fetch'))) {
         console.log(`[Upload] Retrying ${type} upload...`);
         await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
         return uploadFile(file, type, retryCount + 1);
@@ -310,7 +304,7 @@ export function TestimonialCollectionForm({
       try {
         await supabase.rpc('log_integration_action', {
           _integration_type: 'testimonial_submission',
-          _action: 'file_upload',
+          _action: 'bunny_upload',
           _status: 'error',
           _error_message: error instanceof Error ? error.message : 'Unknown error',
           _details: {
@@ -373,13 +367,30 @@ export function TestimonialCollectionForm({
         console.log('[Submit] No avatar provided, continuing without avatar');
       }
       
+      let thumbnailUrl: string | null = null;
+      
       if (formData.videoFile) {
-        console.log('[Submit] Uploading video...');
-        videoUrl = await uploadFile(formData.videoFile, 'video');
-        if (!videoUrl) {
-          console.warn('[Submit] Video upload failed, but continuing...');
-        } else {
-          console.log('[Submit] Video uploaded successfully:', videoUrl);
+        console.log('[Submit] Uploading video with thumbnail extraction...');
+        try {
+          const videoResult = await uploadVideoWithThumbnail(formData.videoFile, {
+            path: `testimonial-videos/${websiteId}`,
+            websiteId,
+          });
+          
+          if (videoResult.video.success && videoResult.video.url) {
+            videoUrl = videoResult.video.url;
+            console.log('[Submit] Video uploaded successfully:', videoUrl);
+            
+            if (videoResult.thumbnail?.success && videoResult.thumbnail?.url) {
+              thumbnailUrl = videoResult.thumbnail.url;
+              console.log('[Submit] Thumbnail extracted and uploaded:', thumbnailUrl);
+            }
+          } else {
+            console.warn('[Submit] Video upload failed:', videoResult.video.error);
+          }
+        } catch (videoError) {
+          console.error('[Submit] Video upload error:', videoError);
+          toast.error('Video upload failed');
         }
       }
 
@@ -415,6 +426,7 @@ export function TestimonialCollectionForm({
           negative_feedback: formData.negative_feedback,
           questions: formData.questions,
           consented: formData.consented,
+          thumbnail_url: thumbnailUrl,
         },
         status: 'pending' as const,
       };
@@ -424,11 +436,28 @@ export function TestimonialCollectionForm({
         metadata: JSON.stringify(testimonialData.metadata)
       });
 
-      const { data: testimonial, error } = await supabase
-        .from('testimonials')
-        .insert(testimonialData)
-        .select()
-        .single();
+      const { data: rpcResult, error } = await supabase.rpc('submit_public_testimonial', {
+        _website_id: websiteId,
+        _form_id: formId,
+        _author_name: formData.name,
+        _message: formData.message,
+        _author_email: formData.email || null,
+        _rating: formData.rating || null,
+        _author_avatar_url: avatarUrl,
+        _video_url: videoUrl,
+        _metadata: {
+          form_id: formId,
+          company: formData.company,
+          position: formData.position,
+          private_feedback: formData.private_feedback,
+          negative_feedback: formData.negative_feedback,
+          questions: formData.questions,
+          consented: formData.consented,
+          thumbnail_url: thumbnailUrl,
+        },
+      });
+
+      const testimonial = rpcResult ? { id: (rpcResult as any).id } : null;
 
       if (error) {
         console.error('[Submit] Database insert error:', {

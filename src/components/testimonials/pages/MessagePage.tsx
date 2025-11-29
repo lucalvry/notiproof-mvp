@@ -4,6 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ChevronRight, X, Image as ImageIcon, Video as VideoIcon, Camera } from 'lucide-react';
 import { toast } from 'sonner';
+import { useBunnyUpload } from '@/hooks/useBunnyUpload';
 
 interface MessagePageProps {
   message: string;
@@ -31,24 +32,45 @@ export function MessagePage({
   onBack,
 }: MessagePageProps) {
   const [recording, setRecording] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const { uploadToBunny } = useBunnyUpload();
 
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error('Avatar must be less than 2MB');
-        return;
-      }
-      if (!file.type.startsWith('image/')) {
-        toast.error('Please upload an image file');
-        return;
-      }
+    if (!file) return;
+    
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Avatar must be less than 2MB');
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+    
+    try {
+      setUploading(true);
+      
+      // Create local preview first
       const reader = new FileReader();
       reader.onloadend = () => {
         onAvatarChange(file, reader.result as string);
       };
       reader.readAsDataURL(file);
+      
+      // Upload to Bunny CDN in background
+      const result = await uploadToBunny(file, 'testimonial-avatars');
+      
+      if (result.success && result.url) {
+        // Update with CDN URL
+        onAvatarChange(file, result.url);
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload avatar');
+    } finally {
+      setUploading(false);
     }
   };
 

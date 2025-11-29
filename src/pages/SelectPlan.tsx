@@ -4,16 +4,60 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Check, Sparkles, AlertCircle, RefreshCw } from "lucide-react";
+import { Check, Sparkles, AlertCircle, RefreshCw, ChevronDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import logoImage from "@/assets/NotiProof_Logo.png";
 
 interface UserData {
   fullName: string;
   email: string;
 }
+
+interface Plan {
+  id: string;
+  name: string;
+  price_monthly: number;
+  price_yearly: number;
+  max_websites: number;
+  max_events_per_month: number | null;
+  storage_limit_bytes: number;
+  video_max_duration_seconds: number;
+  can_remove_branding?: boolean;
+  custom_domain_enabled?: boolean;
+  has_white_label?: boolean;
+  has_api?: boolean;
+}
+
+const formatStorage = (bytes: number): string => {
+  if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(0)}GB`;
+  return `${(bytes / 1048576).toFixed(0)}MB`;
+};
+
+const formatVideoDuration = (seconds: number): string => {
+  if (seconds >= 60) return `${Math.floor(seconds / 60)}min`;
+  return `${seconds}sec`;
+};
+
+const generatePlanFeatures = (plan: Plan): string[] => {
+  const features: string[] = [];
+  
+  // Limits (the differentiators)
+  features.push(`${plan.max_websites} website${plan.max_websites > 1 ? 's' : ''}`);
+  features.push(plan.max_events_per_month 
+    ? `${(plan.max_events_per_month / 1000).toFixed(0)}K views/mo`
+    : 'Unlimited views'
+  );
+  
+  // Global features (all plans)
+  features.push("All 38+ integrations");
+  features.push("All templates");
+  features.push("Unlimited testimonials");
+  
+  return features;
+};
 
 export default function SelectPlan() {
   const navigate = useNavigate();
@@ -45,12 +89,12 @@ export default function SelectPlan() {
 
       setUser(session.user);
 
-      // Load plans (excluding Free plan which is now deleted)
+      // Load plans
       const { data, error } = await supabase
         .from('subscription_plans')
         .select('*')
         .eq('is_active', true)
-        .order('price_monthly');
+        .order('price_monthly') as { data: Plan[] | null; error: any };
 
       if (error) {
         toast.error('Failed to load plans');
@@ -270,6 +314,8 @@ export default function SelectPlan() {
               {plans.map((plan) => {
             const price = billingPeriod === 'monthly' ? plan.price_monthly : plan.price_yearly;
             const isPopular = plan.name === 'Pro';
+            const isFree = plan.name === 'Free';
+            const features = generatePlanFeatures(plan);
 
             return (
               <Card key={plan.id} className={`relative p-6 ${isPopular ? 'border-primary' : ''}`}>
@@ -281,9 +327,11 @@ export default function SelectPlan() {
                   </div>
                 )}
 
-                <div className="bg-success/10 text-success text-xs font-semibold px-3 py-1 rounded-full inline-block mb-4">
-                  ✨ 14-Day Free Trial
-                </div>
+                {!isFree && (
+                  <div className="bg-success/10 text-success text-xs font-semibold px-3 py-1 rounded-full inline-block mb-4">
+                    ✨ 14-Day Free Trial
+                  </div>
+                )}
 
                 <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
 
@@ -294,24 +342,11 @@ export default function SelectPlan() {
                       /{billingPeriod === 'monthly' ? 'mo' : 'yr'}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">after trial ends</p>
+                  {!isFree && <p className="text-xs text-muted-foreground">after trial ends</p>}
                 </div>
 
                 <ul className="space-y-2 mb-6">
-                  <li className="flex items-start gap-2 text-sm">
-                    <Check className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
-                    <span>{plan.max_websites} website{plan.max_websites > 1 ? 's' : ''}</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-sm">
-                    <Check className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
-                    <span>
-                      {plan.max_events_per_month 
-                        ? `${(plan.max_events_per_month / 1000).toFixed(0)}K views/mo`
-                        : 'Unlimited views'
-                      }
-                    </span>
-                  </li>
-                  {plan.features?.slice(0, 3).map((feature: string, idx: number) => (
+                  {features.map((feature, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-sm">
                       <Check className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
                       <span>{feature}</span>
@@ -331,13 +366,109 @@ export default function SelectPlan() {
                       Processing...
                     </span>
                   ) : (
-                    'Start Free Trial'
+                    isFree ? 'Get Started' : 'Start Free Trial'
                   )}
                 </Button>
               </Card>
             );
               })}
             </div>
+
+            {/* Compare All Features Section */}
+            <Collapsible className="mt-12">
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" className="w-full">
+                  <ChevronDown className="h-4 w-4 mr-2" />
+                  Compare All Features
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-6">
+                <Card className="p-6">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-3 px-4 font-semibold">Feature</th>
+                          {plans.map(plan => (
+                            <th key={plan.id} className="text-center py-3 px-4 font-semibold">{plan.name}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b bg-muted/30">
+                          <td className="py-3 px-4 font-medium" colSpan={plans.length + 1}>Limits</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-3 px-4">Websites</td>
+                          {plans.map(plan => (
+                            <td key={plan.id} className="text-center py-3 px-4">{plan.max_websites}</td>
+                          ))}
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-3 px-4">Monthly Views</td>
+                          {plans.map(plan => (
+                            <td key={plan.id} className="text-center py-3 px-4">
+                              {plan.max_events_per_month 
+                                ? `${(plan.max_events_per_month / 1000).toFixed(0)}K`
+                                : 'Unlimited'
+                              }
+                            </td>
+                          ))}
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-3 px-4">Storage</td>
+                          {plans.map(plan => (
+                            <td key={plan.id} className="text-center py-3 px-4">{formatStorage(plan.storage_limit_bytes)}</td>
+                          ))}
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-3 px-4">Video Recording</td>
+                          {plans.map(plan => (
+                            <td key={plan.id} className="text-center py-3 px-4">{formatVideoDuration(plan.video_max_duration_seconds)}</td>
+                          ))}
+                        </tr>
+                        
+                        <tr className="border-b bg-muted/30">
+                          <td className="py-3 px-4 font-medium" colSpan={plans.length + 1}>Premium Features</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-3 px-4">Remove Branding</td>
+                          {plans.map(plan => (
+                            <td key={plan.id} className="text-center py-3 px-4">
+                              {plan.can_remove_branding ? <Check className="h-4 w-4 text-success mx-auto" /> : '—'}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-3 px-4">Custom Domain</td>
+                          {plans.map(plan => (
+                            <td key={plan.id} className="text-center py-3 px-4">
+                              {plan.custom_domain_enabled ? <Check className="h-4 w-4 text-success mx-auto" /> : '—'}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-3 px-4">API & Webhooks</td>
+                          {plans.map(plan => (
+                            <td key={plan.id} className="text-center py-3 px-4">
+                              {plan.has_api ? <Check className="h-4 w-4 text-success mx-auto" /> : '—'}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-3 px-4">White Label</td>
+                          {plans.map(plan => (
+                            <td key={plan.id} className="text-center py-3 px-4">
+                              {plan.has_white_label ? <Check className="h-4 w-4 text-success mx-auto" /> : '—'}
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </CollapsibleContent>
+            </Collapsible>
           </>
         )}
       </div>

@@ -2,11 +2,14 @@
   'use strict';
   
   const WIDGET_VERSION = 3; // Current widget version - FORCE CACHE BUST
+  const BUILD_TIMESTAMP = '2025-11-28T07:15:00Z'; // Build timestamp for version tracking
+  console.log('[NotiProof] Widget loaded - Version:', WIDGET_VERSION, '- Built:', BUILD_TIMESTAMP);
+  
   const API_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
   const SUPABASE_URL = 'https://ewymvxhpkswhsirdrjub.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3eW12eGhwa3N3aHNpcmRyanViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTY0NDksImV4cCI6MjA3MDU3MjQ0OX0.ToRbUm37-ZnYkmmCfLW7am38rUGgFAppNxcZ2tar9mc';
   const DEBUG = window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
-  const debugMode = false; // Set to true to enable debug logs
+  const debugMode = window.location.search.includes('notiproof_debug=1'); // Enable with ?notiproof_debug=1
   
   const script = document.currentScript;
   const widgetId = script.getAttribute('data-widget-id');
@@ -164,14 +167,27 @@
   async function autoVerifyWebsite() {
     if (siteToken) {
       try {
-        log('Auto-verifying website with token', siteToken);
-        const response = await fetch(`${API_BASE}/verify?token=${siteToken}`);
+        console.log('[NotiProof] Auto-verifying website with token:', siteToken);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        const response = await fetch(`${API_BASE}/verify?token=${siteToken}`, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
         if (response.ok) {
-          log('Website auto-verified successfully');
+          console.log('[NotiProof] ✅ Website auto-verified successfully');
           return true;
+        } else {
+          console.warn('[NotiProof] ⚠️ Verify endpoint returned:', response.status);
         }
       } catch (err) {
-        log('Auto-verification failed', err);
+        if (err.name === 'AbortError') {
+          console.error('[NotiProof] ❌ Verification timeout after 10s');
+        } else {
+          console.error('[NotiProof] ❌ Auto-verification failed:', err);
+        }
       }
     }
     return false;
@@ -503,6 +519,8 @@
   
   
   function showNotification(event) {
+    console.log('[NotiProof] showNotification called for:', event.event_type, event.id);
+    
     // CRITICAL STEP 4: Log event received by showNotification
     if (debugMode) {
       console.log('[Widget] STEP 4 - showNotification called with event:', {
@@ -527,6 +545,10 @@
       }
     }
     
+    // Define product image variables for later use
+    const showProductImages = config.showProductImages;
+    const hasProductImage = event.event_data?.product_image && isValidUrl(event.event_data.product_image);
+    
     // DEBUG: Log full event structure for announcements
     if (event.event_type === 'announcement') {
       console.group('🎯 ANNOUNCEMENT DEBUG');
@@ -548,24 +570,29 @@
     }
     
     if (isPaused) {
-      log('Notifications paused');
+      console.log('[NotiProof] ⏸️ Notification SKIPPED - Widget is paused');
       return;
     }
     
     if (!checkFrequencyLimits()) {
-      log('Frequency limits reached');
+      console.log('[NotiProof] ⏸️ Notification SKIPPED - Frequency limit reached', {
+        pageImpressions: getPageImpressions(),
+        maxPerPage,
+        sessionImpressions: getSessionImpressions(),
+        maxPerSession
+      });
       return;
     }
     
     // Apply URL targeting rules
     if (!shouldShowOnCurrentUrl()) {
-      log('Event filtered by URL rules');
+      console.log('[NotiProof] ⏸️ Notification SKIPPED - URL rules filtered', window.location.pathname);
       return;
     }
     
     // Apply geo-targeting rules
     if (!shouldShowForCountry()) {
-      log('Event filtered by geo-targeting rules');
+      console.log('[NotiProof] ⏸️ Notification SKIPPED - Geo-targeting filtered', visitorCountry);
       return;
     }
     
@@ -671,6 +698,43 @@
             display: flex; align-items: center; justify-content: center;
             font-size: 28px; flex-shrink: 0;">📢</div>`;
         }
+      }
+    } else if (event.event_type === 'testimonial') {
+      // TESTIMONIAL-SPECIFIC IMAGE HANDLING
+      const data = event.event_data || {};
+      const videoUrl = data['template.video_url'];
+      const imageUrl = data['template.image_url'];
+      const avatar = data['template.author_avatar'];
+      const name = data['template.author_name'] || 'Anonymous';
+      
+      if (videoUrl) {
+        // Video thumbnail with play indicator
+        contentHTML += `<div style="
+          width: 48px; height: 48px; border-radius: 8px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0; position: relative;
+        ">
+          <span style="font-size: 20px; color: white;">▶</span>
+        </div>`;
+      } else if (imageUrl && isValidUrl(imageUrl)) {
+        contentHTML += `<img src="${escapeHtml(imageUrl)}" style="
+          width: 48px; height: 48px; border-radius: 8px;
+          object-fit: cover; flex-shrink: 0;
+        " onerror="this.style.display='none'" />`;
+      } else if (avatar && isValidUrl(avatar)) {
+        contentHTML += `<img src="${escapeHtml(avatar)}" style="
+          width: 48px; height: 48px; border-radius: 50%;
+          object-fit: cover; flex-shrink: 0;
+        " onerror="this.outerHTML='<div style=\\"width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;\\">${escapeHtml(name[0])}</div>'" />`;
+      } else {
+        // Default testimonial icon
+        contentHTML += `<div style="
+          width: 48px; height: 48px; border-radius: 8px;
+          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 28px; flex-shrink: 0;
+        ">💬</div>`;
       }
     } else if (showProductImages && hasProductImage) {
       // EXISTING PRODUCT IMAGE LOGIC
@@ -781,6 +845,48 @@
           message_value: event.event_data.message
         });
       }
+    } else if (event.event_type === 'testimonial') {
+      // TESTIMONIAL-SPECIFIC MESSAGE RENDERING
+      const data = event.event_data || {};
+      
+      // Debug logging for testimonial processing
+      if (debugMode) {
+        console.log('[NotiProof] Processing testimonial:', {
+          id: event.id,
+          has_event_data: !!event.event_data,
+          author: data['template.author_name'],
+          message: data['template.message']?.substring(0, 50),
+          rating: data['template.rating'],
+          all_keys: Object.keys(data)
+        });
+      }
+      
+      const name = data['template.author_name'] || 'Anonymous Customer';
+      const rating = data['template.rating_stars'] || '★★★★★';
+      const message = data['template.message'] || 'Great experience!';
+      const position = data['template.author_position'] || '';
+      const company = data['template.author_company'] || '';
+      const verified = data['template.verified'] || false;
+      
+      // Rating stars
+      contentHTML += `<div style="color: #f59e0b; font-size: 14px; margin-bottom: 4px;">${rating}</div>`;
+      
+      // Message (truncated for notification)
+      const truncatedMessage = message.length > 80 ? message.substring(0, 77) + '...' : message;
+      contentHTML += `<div style="font-style: italic; color: #374151; margin-bottom: 6px; line-height: 1.4;">
+        "${escapeHtml(truncatedMessage)}"
+      </div>`;
+      
+      // Author info
+      contentHTML += `<div style="font-weight: 600; font-size: 13px;">${escapeHtml(name)}</div>`;
+      if (position || company) {
+        contentHTML += `<div style="font-size: 12px; color: #6b7280;">
+          ${escapeHtml(position)}${position && company ? ' at ' : ''}${escapeHtml(company)}
+        </div>`;
+      }
+      if (verified) {
+        contentHTML += `<div style="font-size: 11px; color: #2563eb; margin-top: 2px;">✓ Verified Customer</div>`;
+      }
     } else {
       // Regular event - existing logic with product linkification
       const linkedMessage = linkifyMessage(event.message_template || 'New activity', event.event_data);
@@ -885,11 +991,25 @@
       notification.style.transform = 'translateY(0) scale(1)';
     }, 10);
     
-    log('Displaying notification', { eventId: event.id, message: event.message_template });
+    console.log('[NotiProof] ✅ Notification DISPLAYED successfully:', {
+      eventId: event.id,
+      event_type: event.event_type,
+      message: event.message_template?.substring(0, 50) + '...'
+    });
+    
+    // Testimonial-specific success log
+    if (event.event_type === 'testimonial') {
+      console.log('[NotiProof] ✅ TESTIMONIAL rendered on page');
+    }
     
     trackView(event.id);
     incrementPageImpressions();
     incrementSessionImpressions();
+    
+    // Add branding footer after first notification (only once)
+    if (!document.querySelector('[data-notiproof-branding]')) {
+      createBrandingFooter();
+    }
     
     // Click handling
     notification.addEventListener('click', (e) => {
@@ -1257,7 +1377,7 @@
     try {
       if (mode === 'site') {
         // Fetch all widgets and events for the site
-        log('Fetching all widgets and events for site', siteToken);
+        console.log('[NotiProof] 🔄 Fetching events for site:', siteToken);
         const response = await fetch(`${API_BASE}/site/${siteToken}`);
         if (!response.ok) {
           const errorText = await response.text();
@@ -1265,6 +1385,19 @@
         }
         const data = await response.json();
         eventQueue = data.events || [];
+        
+        // UNCONDITIONAL LOG: Show event breakdown by type
+        const eventsByType = {};
+        eventQueue.forEach(e => {
+          eventsByType[e.event_type] = (eventsByType[e.event_type] || 0) + 1;
+        });
+        console.log('[NotiProof] ✅ Events fetched:', {
+          total: eventQueue.length,
+          by_type: eventsByType,
+          testimonials: eventQueue.filter(e => e.event_type === 'testimonial').length,
+          announcements: eventQueue.filter(e => e.event_type === 'announcement').length,
+          purchases: eventQueue.filter(e => e.event_type === 'purchase').length
+        });
         
         // CRITICAL STEP 3: Log eventQueue population
         const announcementCount = eventQueue.filter(e => e.event_type === 'announcement').length;
@@ -1528,6 +1661,16 @@
   }
   
   function startDisplayLoop() {
+    console.log('[NotiProof] Starting display loop with', eventQueue.length, 'events');
+    console.log('[NotiProof] Event types in queue:', eventQueue.map(e => e.event_type));
+    console.log('[NotiProof] Config:', { 
+      initialDelay: config.initialDelay, 
+      interval: config.interval,
+      maxPerPage: maxPerPage,
+      maxPerSession: maxPerSession,
+      pageImpressions: pageImpressions,
+      sessionImpressions: sessionImpressions
+    });
     log('Starting display loop', { interval: config.interval });
     
     // Initial delay before first notification
@@ -1721,7 +1864,169 @@
     }
   }
   
+  // ========== DEBUG PANEL ==========
+  function createDebugPanel() {
+    const panel = document.createElement('div');
+    panel.id = 'notiproof-debug-panel';
+    panel.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 350px;
+      background: rgba(0, 0, 0, 0.95);
+      color: #00ff00;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      padding: 15px;
+      border-radius: 8px;
+      z-index: 999999;
+      box-shadow: 0 4px 20px rgba(0, 255, 0, 0.3);
+      border: 2px solid #00ff00;
+      max-height: 600px;
+      overflow-y: auto;
+    `;
+    
+    panel.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #00ff00; padding-bottom: 8px;">
+        <strong style="color: #00ff00; font-size: 14px;">🐛 NotiProof Debug</strong>
+        <button id="notiproof-debug-toggle" style="background: none; border: 1px solid #00ff00; color: #00ff00; cursor: pointer; padding: 2px 8px; border-radius: 3px; font-size: 10px;">Hide</button>
+      </div>
+      <div id="notiproof-debug-content"></div>
+    `;
+    
+    document.body.appendChild(panel);
+    
+    // Toggle functionality
+    const toggleBtn = panel.querySelector('#notiproof-debug-toggle');
+    const content = panel.querySelector('#notiproof-debug-content');
+    let collapsed = false;
+    
+    toggleBtn.addEventListener('click', () => {
+      collapsed = !collapsed;
+      content.style.display = collapsed ? 'none' : 'block';
+      toggleBtn.textContent = collapsed ? 'Show' : 'Hide';
+      panel.style.height = collapsed ? 'auto' : '';
+    });
+    
+    // Make draggable
+    let isDragging = false;
+    let currentX;
+    let currentY;
+    let initialX;
+    let initialY;
+    
+    panel.addEventListener('mousedown', (e) => {
+      if (e.target === panel || e.target.tagName === 'STRONG') {
+        isDragging = true;
+        initialX = e.clientX - panel.offsetLeft;
+        initialY = e.clientY - panel.offsetTop;
+      }
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        e.preventDefault();
+        currentX = e.clientX - initialX;
+        currentY = e.clientY - initialY;
+        panel.style.left = currentX + 'px';
+        panel.style.top = currentY + 'px';
+        panel.style.bottom = 'auto';
+        panel.style.right = 'auto';
+      }
+    });
+    
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+    
+    return content;
+  }
+  
+  function updateDebugPanel(contentElement) {
+    if (!contentElement) return;
+    
+    const sessionImpressions = getSessionImpressions();
+    const pageImpressions = getPageImpressions();
+    const frequencyCap = config.frequency_cap || { session: 20, page: 5 };
+    
+    // Count events by type
+    const eventsByType = {};
+    eventQueue.forEach(event => {
+      const type = event.event_type || 'unknown';
+      eventsByType[type] = (eventsByType[type] || 0) + 1;
+    });
+    
+    // Calculate next notification time
+    const nextNotificationIn = nextNotificationTime ? Math.max(0, Math.ceil((nextNotificationTime - Date.now()) / 1000)) : 0;
+    
+    // Status indicator
+    const isActive = eventQueue.length > 0 && !isPaused;
+    const statusColor = isActive ? '#00ff00' : '#ffaa00';
+    const statusText = isPaused ? '⏸️ PAUSED' : (eventQueue.length === 0 ? '⚠️ EMPTY QUEUE' : '✅ ACTIVE');
+    
+    contentElement.innerHTML = `
+      <div style="margin-bottom: 12px;">
+        <div style="color: ${statusColor}; font-weight: bold; margin-bottom: 5px;">${statusText}</div>
+        <div style="color: #00ff00; opacity: 0.7;">Visitor Country: ${visitorCountry || 'Detecting...'}</div>
+      </div>
+      
+      <div style="margin-bottom: 12px;">
+        <div style="color: #ffaa00; font-weight: bold; margin-bottom: 5px;">📊 Queue Status</div>
+        <div style="padding-left: 10px;">
+          <div>Total Events: <span style="color: #00ff00; font-weight: bold;">${eventQueue.length}</span></div>
+          ${Object.keys(eventsByType).length > 0 ? Object.entries(eventsByType).map(([type, count]) => 
+            `<div style="padding-left: 10px; color: #aaffaa;">• ${type}: ${count}</div>`
+          ).join('') : '<div style="padding-left: 10px; color: #ff6666;">No events in queue</div>'}
+        </div>
+      </div>
+      
+      <div style="margin-bottom: 12px;">
+        <div style="color: #ffaa00; font-weight: bold; margin-bottom: 5px;">🔢 Frequency Limits</div>
+        <div style="padding-left: 10px;">
+          <div>Page: <span style="color: ${pageImpressions >= frequencyCap.page ? '#ff6666' : '#00ff00'};">${pageImpressions} / ${frequencyCap.page}</span></div>
+          <div>Session: <span style="color: ${sessionImpressions >= frequencyCap.session ? '#ff6666' : '#00ff00'};">${sessionImpressions} / ${frequencyCap.session}</span></div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom: 12px;">
+        <div style="color: #ffaa00; font-weight: bold; margin-bottom: 5px;">⏱️ Next Notification</div>
+        <div style="padding-left: 10px;">
+          ${nextNotificationIn > 0 
+            ? `In <span style="color: #00ff00; font-weight: bold;">${nextNotificationIn}s</span>` 
+            : `<span style="color: #aaffaa;">Ready to show</span>`
+          }
+        </div>
+      </div>
+      
+      <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #00ff00; opacity: 0.5; font-size: 10px;">
+        Mode: ${mode || 'unknown'} | ${config.auto_repeat ? 'Auto-repeat ON' : 'Single pass'}
+      </div>
+    `;
+  }
+  
   async function init() {
+    // Debug mode: Reset frequency limits on page load when ?notiproof_debug=1 is present
+    if (debugMode) {
+      try {
+        localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem(PAGE_KEY);
+        console.log('[NotiProof DEBUG] ✅ Cleared all frequency limits');
+      } catch (e) {
+        console.error('[NotiProof DEBUG] ❌ Failed to clear frequency limits:', e);
+      }
+      
+      // Create debug panel
+      const debugContent = createDebugPanel();
+      
+      // Update debug panel every second
+      updateDebugPanel(debugContent);
+      setInterval(() => {
+        updateDebugPanel(debugContent);
+      }, 1000);
+      
+      console.log('[NotiProof DEBUG] 🐛 Debug panel initialized');
+    }
+    
     log('Initializing NotiProof widget with config:', config);
     await autoVerifyWebsite();
     await fetchEvents();
@@ -1734,13 +2039,14 @@
     startDisplayLoop();
     
     // Initialize native integrations if in site mode
+    let nativeCampaignsData = null;
     if (mode === 'site' && siteToken) {
       try {
         const response = await fetch(`${API_BASE}/site/${siteToken}`);
         if (response.ok) {
-          const data = await response.json();
-          if (data.campaigns) {
-            await initNativeCampaigns(data.campaigns, data.website_id);
+          nativeCampaignsData = await response.json();
+          if (nativeCampaignsData.campaigns) {
+            await initNativeCampaigns(nativeCampaignsData.campaigns, nativeCampaignsData.website_id);
           }
         }
       } catch (err) {
@@ -1749,13 +2055,12 @@
     }
     
     // Start active visitor tracking (legacy GA4) - Only if explicitly enabled AND live_visitors campaign exists
-    if (config.showActiveVisitors && data.campaigns?.some(c => c.data_source === 'live_visitors')) {
+    if (config.showActiveVisitors && nativeCampaignsData?.campaigns?.some(c => c.data_source === 'live_visitors')) {
       fetchActiveVisitorCount(); // Initial fetch
       activeVisitorInterval = setInterval(fetchActiveVisitorCount, 15000); // Update every 15 seconds
     }
     
-    // Add branding footer after first notification
-    setTimeout(createBrandingFooter, config.initialDelay + 1000);
+    // Branding footer is now added after first notification displays (see showNotification function)
     
     // Refresh events every minute
     setInterval(fetchEvents, 60000);

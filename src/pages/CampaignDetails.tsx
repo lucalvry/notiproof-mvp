@@ -674,7 +674,7 @@ export default function CampaignDetails() {
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          const code = `<script src="${window.location.origin}/widget.js" data-widget-id="${widget.id}"></script>`;
+                          const code = `<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-widget-id="${widget.id}"></script>`;
                           navigator.clipboard.writeText(code);
                           toast.success("Widget code copied!");
                         }}
@@ -685,7 +685,7 @@ export default function CampaignDetails() {
                     </div>
                     <div className="rounded-lg bg-muted p-4">
                       <code className="text-sm break-all font-mono">
-                        {`<script src="${window.location.origin}/widget.js" data-widget-id="${widget.id}"></script>`}
+                        {`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-widget-id="${widget.id}"></script>`}
                       </code>
                     </div>
                   </div>

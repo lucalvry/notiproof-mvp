@@ -1415,6 +1415,53 @@ export type Database = {
         }
         Relationships: []
       }
+      media: {
+        Row: {
+          cdn_url: string
+          created_at: string | null
+          duration_seconds: number | null
+          file_size: number
+          id: string
+          mime_type: string | null
+          original_filename: string | null
+          type: string
+          user_id: string
+          website_id: string | null
+        }
+        Insert: {
+          cdn_url: string
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_size: number
+          id?: string
+          mime_type?: string | null
+          original_filename?: string | null
+          type: string
+          user_id: string
+          website_id?: string | null
+        }
+        Update: {
+          cdn_url?: string
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_size?: number
+          id?: string
+          mime_type?: string | null
+          original_filename?: string | null
+          type?: string
+          user_id?: string
+          website_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       migration_log: {
         Row: {
           batch_number: number | null
@@ -1790,10 +1837,55 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_addons: {
+        Row: {
+          addon_type: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          price_monthly: number | null
+          price_yearly: number | null
+          quantity: number | null
+          stripe_subscription_item_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          addon_type: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          price_monthly?: number | null
+          price_yearly?: number | null
+          quantity?: number | null
+          stripe_subscription_item_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          addon_type?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          price_monthly?: number | null
+          price_yearly?: number | null
+          quantity?: number | null
+          stripe_subscription_item_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       subscription_plans: {
         Row: {
+          analytics_level: string | null
+          can_remove_branding: boolean | null
           created_at: string | null
+          custom_domain_enabled: boolean | null
           features: Json | null
+          form_limit: number | null
+          has_api: boolean | null
+          has_white_label: boolean | null
           id: string
           is_active: boolean | null
           max_events_per_month: number | null
@@ -1802,15 +1894,24 @@ export type Database = {
           polling_limits: Json | null
           price_monthly: number | null
           price_yearly: number | null
+          storage_limit_bytes: number | null
           stripe_price_id_monthly: string | null
           stripe_price_id_yearly: string | null
           stripe_product_id: string | null
+          testimonial_limit: number | null
           trial_period_days: number | null
           updated_at: string | null
+          video_max_duration_seconds: number | null
         }
         Insert: {
+          analytics_level?: string | null
+          can_remove_branding?: boolean | null
           created_at?: string | null
+          custom_domain_enabled?: boolean | null
           features?: Json | null
+          form_limit?: number | null
+          has_api?: boolean | null
+          has_white_label?: boolean | null
           id?: string
           is_active?: boolean | null
           max_events_per_month?: number | null
@@ -1819,15 +1920,24 @@ export type Database = {
           polling_limits?: Json | null
           price_monthly?: number | null
           price_yearly?: number | null
+          storage_limit_bytes?: number | null
           stripe_price_id_monthly?: string | null
           stripe_price_id_yearly?: string | null
           stripe_product_id?: string | null
+          testimonial_limit?: number | null
           trial_period_days?: number | null
           updated_at?: string | null
+          video_max_duration_seconds?: number | null
         }
         Update: {
+          analytics_level?: string | null
+          can_remove_branding?: boolean | null
           created_at?: string | null
+          custom_domain_enabled?: boolean | null
           features?: Json | null
+          form_limit?: number | null
+          has_api?: boolean | null
+          has_white_label?: boolean | null
           id?: string
           is_active?: boolean | null
           max_events_per_month?: number | null
@@ -1836,11 +1946,14 @@ export type Database = {
           polling_limits?: Json | null
           price_monthly?: number | null
           price_yearly?: number | null
+          storage_limit_bytes?: number | null
           stripe_price_id_monthly?: string | null
           stripe_price_id_yearly?: string | null
           stripe_product_id?: string | null
+          testimonial_limit?: number | null
           trial_period_days?: number | null
           updated_at?: string | null
+          video_max_duration_seconds?: number | null
         }
         Relationships: []
       }
@@ -3325,6 +3438,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      get_active_visitor_count: {
+        Args: { _widget_id: string }
+        Returns: number
+      }
+      get_active_visitor_count_for_site: {
+        Args: { _website_id: string }
+        Returns: number
+      }
       get_campaigns_due_for_polling: {
         Args: never
         Returns: {
@@ -3353,6 +3474,7 @@ export type Database = {
       }
       get_user_event_usage: { Args: { _user_id: string }; Returns: Json }
       get_user_primary_website: { Args: { _user_id: string }; Returns: string }
+      get_user_storage_used: { Args: { p_user_id: string }; Returns: number }
       get_user_team_memberships: {
         Args: { _user_id: string }
         Returns: {
@@ -3442,6 +3564,20 @@ export type Database = {
       refresh_revenue_stats: {
         Args: { _campaign_id: string; _period_type?: string }
         Returns: undefined
+      }
+      submit_public_testimonial: {
+        Args: {
+          _author_avatar_url?: string
+          _author_email?: string
+          _author_name: string
+          _form_id: string
+          _message: string
+          _metadata?: Json
+          _rating?: number
+          _video_url?: string
+          _website_id: string
+        }
+        Returns: Json
       }
       update_article_helpful_count: {
         Args: { article_uuid: string }

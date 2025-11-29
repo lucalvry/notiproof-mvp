@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { refreshGA4Token, isTokenExpired } from '../_shared/ga4-token-refresh.ts';
+import { isSuperAdmin } from '../_shared/super-admin.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -51,33 +52,43 @@ Deno.serve(async (req) => {
     const pollingConfig = campaign.polling_config || {};
     const maxEventsPerFetch = pollingConfig.max_events_per_fetch || 10;
 
-    // Check user's event quota BEFORE fetching from GA4
-    const { data: quotaCheck, error: quotaError } = await supabase
-      .rpc('check_event_quota', { 
-        _user_id: user_id,
-        _events_to_add: maxEventsPerFetch 
-      });
+    // Check if user is super admin (bypass quota)
+    const isAdmin = await isSuperAdmin(user_id);
 
-    if (quotaError) {
-      console.error('Error checking quota:', quotaError);
-      throw new Error('Failed to check event quota');
+    // Check user's event quota BEFORE fetching from GA4 (skip for super admins)
+    let quotaCheck: any = null;
+    if (!isAdmin) {
+      const { data: quotaData, error: quotaError } = await supabase
+        .rpc('check_event_quota', { 
+          _user_id: user_id,
+          _events_to_add: maxEventsPerFetch 
+        });
+
+      if (quotaError) {
+        console.error('Error checking quota:', quotaError);
+        throw new Error('Failed to check event quota');
+      }
+
+      quotaCheck = quotaData;
+      
+      if (!quotaCheck.allowed) {
+        console.log('Quota exceeded for user:', user_id, quotaCheck);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            reason: quotaCheck.reason,
+            quota_remaining: quotaCheck.quota_remaining,
+            quota_limit: quotaCheck.quota_limit,
+            events_used: quotaCheck.events_used,
+          }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('Quota check passed. Remaining:', quotaCheck.quota_remaining);
+    } else {
+      console.log('Super admin detected - bypassing quota check');
     }
-
-    if (!quotaCheck.allowed) {
-      console.log('Quota exceeded for user:', user_id, quotaCheck);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          reason: quotaCheck.reason,
-          quota_remaining: quotaCheck.quota_remaining,
-          quota_limit: quotaCheck.quota_limit,
-          events_used: quotaCheck.events_used,
-        }),
-        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('Quota check passed. Remaining:', quotaCheck.quota_remaining);
 
     // Get GA4 connector
     const { data: connector, error: connectorError } = await supabase
@@ -335,15 +346,17 @@ Deno.serve(async (req) => {
         insertedCount = events.length;
         console.log('Successfully inserted', insertedCount, 'events');
 
-        // Increment usage counter
-        const { error: usageError } = await supabase
-          .rpc('increment_event_usage', {
-            _user_id: user_id,
-            _events_count: insertedCount
-          });
+        // Increment usage counter (skip for super admins)
+        if (!isAdmin) {
+          const { error: usageError } = await supabase
+            .rpc('increment_event_usage', {
+              _user_id: user_id,
+              _events_count: insertedCount
+            });
 
-        if (usageError) {
-          console.error('Error incrementing usage:', usageError);
+          if (usageError) {
+            console.error('Error incrementing usage:', usageError);
+          }
         }
       }
     }
@@ -363,7 +376,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         events_synced: insertedCount,
-        quota_remaining: quotaCheck.quota_remaining - insertedCount,
+        quota_remaining: quotaCheck ? quotaCheck.quota_remaining - insertedCount : null,
         next_poll_available: new Date(Date.now() + (pollingConfig.interval_minutes || 5) * 60000).toISOString(),
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

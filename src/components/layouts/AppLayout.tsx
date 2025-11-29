@@ -4,6 +4,7 @@ import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, G
 import { supabase } from "@/integrations/supabase/client";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -58,6 +59,7 @@ export function AppLayout() {
   // Real data from contexts and hooks
   const { currentWebsite, setCurrentWebsite, websites, isLoading: websitesLoading } = useWebsiteContext();
   const { sitesAllowed, planName, isBusinessPlan, isLoading: subscriptionLoading } = useSubscription(user?.id);
+  const { isSuperAdmin } = useSuperAdmin(user?.id);
   const sitesUsed = websites.length;
 
   useEffect(() => {
@@ -312,7 +314,7 @@ export function AppLayout() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                {websites.length === 0 ? (
+                {!websitesLoading && websites.length === 0 ? (
                   <DropdownMenuItem onClick={() => handleNavigation("/websites")}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Your First Website
@@ -359,7 +361,7 @@ export function AppLayout() {
                   </span>
                   <span className="text-xs text-muted-foreground">({planName})</span>
                 </Button>
-                {(!isBusinessPlan || sitesUsed >= sitesAllowed * 0.8) && (
+                {!isSuperAdmin && (!isBusinessPlan || sitesUsed >= sitesAllowed * 0.8) && (
                   <Button size="sm" variant="default" onClick={() => handleNavigation("/billing")}>
                     Upgrade
                   </Button>

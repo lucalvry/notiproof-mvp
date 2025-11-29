@@ -7,6 +7,8 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CardSkeleton } from "@/components/ui/loading-skeletons";
+import { BunnyCDNTools } from "@/components/admin/BunnyCDNTools";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Activity,
   Database,
@@ -15,6 +17,7 @@ import {
   TrendingUp,
   AlertCircle,
   RefreshCw,
+  Cloud,
 } from "lucide-react";
 
 interface SystemMetric {
@@ -162,9 +165,22 @@ export default function AdminSystem() {
         </Button>
       </div>
 
-      {loading && <div className="grid gap-4 md:grid-cols-2"><CardSkeleton /><CardSkeleton /></div>}
+      <Tabs defaultValue="health" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="health" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Health
+          </TabsTrigger>
+          <TabsTrigger value="cdn" className="flex items-center gap-2">
+            <Cloud className="h-4 w-4" />
+            Bunny CDN
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Overall Status */}
+        <TabsContent value="health" className="space-y-6">
+          {loading && <div className="grid gap-4 md:grid-cols-2"><CardSkeleton /><CardSkeleton /></div>}
+
+          {/* Overall Status */}
       <Card className="border-l-4 border-l-primary">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -307,21 +323,27 @@ export default function AdminSystem() {
         </CardContent>
       </Card>
 
-      {/* Alerts & Warnings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5" />
-            Recent Alerts
-          </CardTitle>
-          <CardDescription>System warnings and notifications</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex h-[150px] items-center justify-center text-muted-foreground">
-            <p>No active alerts</p>
-          </div>
-        </CardContent>
-      </Card>
+          {/* Alerts & Warnings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5" />
+                Recent Alerts
+              </CardTitle>
+              <CardDescription>System warnings and notifications</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex h-[150px] items-center justify-center text-muted-foreground">
+                <p>No active alerts</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="cdn">
+          <BunnyCDNTools />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -9,7 +9,6 @@ import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CampaignGridSkeleton } from "@/components/ui/campaign-skeleton";
 import { useNavigate } from "react-router-dom";
 import { useSubscription } from "@/hooks/useSubscription";
-import { FreeTrialLimitBanner } from "@/components/billing/FreeTrialLimitBanner";
 import confetti from "canvas-confetti";
 
 // Using database schema types
@@ -42,7 +41,7 @@ export default function Campaigns() {
   const [userId, setUserId] = useState<string>();
   const navigate = useNavigate();
   
-  const { maxCampaignTemplates, planName } = useSubscription(userId);
+  const { planName } = useSubscription(userId);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -236,14 +235,6 @@ export default function Campaigns() {
           </Button>
         </div>
       </div>
-
-      {/* Show upgrade banner when approaching campaign template limit */}
-      <FreeTrialLimitBanner
-        type="templates"
-        current={campaigns.length}
-        limit={maxCampaignTemplates}
-        planName={planName}
-      />
 
       {campaigns.length === 0 ? (
         <Card className="border-dashed">

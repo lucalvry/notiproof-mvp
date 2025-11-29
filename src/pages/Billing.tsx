@@ -7,6 +7,7 @@ import { Check, CreditCard, Sparkles, AlertTriangle, Download, ExternalLink, Rec
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
@@ -63,14 +64,17 @@ export default function Billing() {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | undefined>();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const { isSuperAdmin } = useSuperAdmin(userId);
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUserId(user?.id));
     loadBillingData();
     
     // Check for checkout success/cancel in URL
@@ -556,7 +560,50 @@ export default function Billing() {
       })()}
 
       {/* Current Plan */}
-      {currentSubscription ? (
+      {isSuperAdmin ? (
+        <Card className="border-primary bg-gradient-to-br from-primary/5 to-accent/5">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  Enterprise (Unlimited)
+                </CardTitle>
+                <CardDescription>
+                  Super Admin Access - Unlimited Features
+                </CardDescription>
+              </div>
+              <Badge className="bg-primary">SUPER ADMIN</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Websites</p>
+                <p className="text-2xl font-bold">Unlimited</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Events/Month</p>
+                <p className="text-2xl font-bold">Unlimited</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Integrations</p>
+                <p className="text-2xl font-bold">Unlimited</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Templates</p>
+                <p className="text-2xl font-bold">Unlimited</p>
+              </div>
+            </div>
+            <Alert>
+              <Sparkles className="h-4 w-4" />
+              <AlertDescription>
+                All premium features unlocked with no restrictions.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      ) : currentSubscription ? (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -629,7 +676,8 @@ export default function Billing() {
         </Card>
       )}
 
-      {/* Plans Grid */}
+      {/* Plans Grid - Hidden for super admins */}
+      {!isSuperAdmin && (
       <div>
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold">Available Plans</h2>
@@ -717,6 +765,7 @@ export default function Billing() {
           })}
         </div>
       </div>
+      )}
 
       {/* Billing History */}
       {currentSubscription && (

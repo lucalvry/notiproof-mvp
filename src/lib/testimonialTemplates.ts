@@ -42,7 +42,7 @@ export const FORM_TEMPLATES: Record<string, FormTemplate> = {
     id: 'saas',
     name: 'SaaS Product',
     description: 'Collect detailed product feedback from users',
-    pages: ['rating', 'welcome', 'q1', 'q2', 'q3', 'q4', 'about_you', 'about_company', 'thank_you'],
+    pages: ['rating', 'welcome', 'q1', 'q2', 'q3', 'q4', 'message', 'about_you', 'about_company', 'thank_you'],
     questions: [
       {
         id: 'q1',
@@ -81,7 +81,7 @@ export const FORM_TEMPLATES: Record<string, FormTemplate> = {
     id: 'sponsor',
     name: 'Event Sponsor',
     description: 'Get feedback from event sponsors and partners',
-    pages: ['rating', 'welcome', 'q1', 'q2', 'q3', 'about_you', 'about_company', 'thank_you'],
+    pages: ['rating', 'welcome', 'q1', 'q2', 'q3', 'message', 'about_you', 'about_company', 'thank_you'],
     questions: [
       {
         id: 'q1',
@@ -114,7 +114,7 @@ export const FORM_TEMPLATES: Record<string, FormTemplate> = {
     id: 'course',
     name: 'Course/Training',
     description: 'Collect feedback from students and learners',
-    pages: ['rating', 'welcome', 'q1', 'q2', 'q3', 'q4', 'q5', 'about_you', 'about_company', 'thank_you'],
+    pages: ['rating', 'welcome', 'q1', 'q2', 'q3', 'q4', 'q5', 'message', 'about_you', 'about_company', 'thank_you'],
     questions: [
       {
         id: 'q1',

@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useNavigate } from "react-router-dom";
 import { useEventUsage } from "@/hooks/useEventUsage";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   TrendingUp, 
@@ -28,6 +29,7 @@ export function UsageDashboard({ userId, showUpgradePrompts = true }: UsageDashb
   const navigate = useNavigate();
   const { data: usage, isLoading: usageLoading } = useEventUsage(userId);
   const { plan, planName, isLoading: planLoading } = useSubscription(userId);
+  const { isSuperAdmin, isLoading: adminLoading } = useSuperAdmin(userId);
   const [hasShownPrompt, setHasShownPrompt] = useState<Record<string, boolean>>({});
 
   const usagePercentage = usage?.usage_percentage || 0;
@@ -46,9 +48,9 @@ export function UsageDashboard({ userId, showUpgradePrompts = true }: UsageDashb
   const status = getUsageStatus();
   const StatusIcon = status.icon;
 
-  // Show upgrade prompts at thresholds
+  // Show upgrade prompts at thresholds (skip for super admins)
   useEffect(() => {
-    if (!showUpgradePrompts || usageLoading || planLoading) return;
+    if (!showUpgradePrompts || usageLoading || planLoading || adminLoading || isSuperAdmin) return;
 
     const promptKey = `usage_${status.level}_${new Date().getMonth()}`;
     
@@ -81,9 +83,9 @@ export function UsageDashboard({ userId, showUpgradePrompts = true }: UsageDashb
       });
       setHasShownPrompt(prev => ({ ...prev, [promptKey]: true }));
     }
-  }, [usagePercentage, status.level, showUpgradePrompts, usageLoading, planLoading, hasShownPrompt, navigate]);
+  }, [usagePercentage, status.level, showUpgradePrompts, usageLoading, planLoading, adminLoading, isSuperAdmin, hasShownPrompt, navigate]);
 
-  if (usageLoading || planLoading) {
+  if (usageLoading || planLoading || adminLoading) {
     return (
       <Card>
         <CardHeader>
@@ -169,8 +171,8 @@ export function UsageDashboard({ userId, showUpgradePrompts = true }: UsageDashb
             </div>
           </div>
 
-          {/* Warning Messages */}
-          {usagePercentage >= 100 && (
+          {/* Warning Messages (hidden for super admins) */}
+          {!isSuperAdmin && usagePercentage >= 100 && (
             <Alert variant="destructive">
               <XCircle className="h-4 w-4" />
               <AlertDescription>
@@ -180,7 +182,7 @@ export function UsageDashboard({ userId, showUpgradePrompts = true }: UsageDashb
             </Alert>
           )}
 
-          {usagePercentage >= 80 && usagePercentage < 100 && (
+          {!isSuperAdmin && usagePercentage >= 80 && usagePercentage < 100 && (
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
@@ -190,8 +192,8 @@ export function UsageDashboard({ userId, showUpgradePrompts = true }: UsageDashb
             </Alert>
           )}
 
-          {/* Upgrade CTA */}
-          {usagePercentage >= 50 && (
+          {/* Upgrade CTA (hidden for super admins) */}
+          {!isSuperAdmin && usagePercentage >= 50 && (
             <Button 
               className="w-full" 
               onClick={() => navigate("/billing")}

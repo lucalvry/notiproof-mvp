@@ -405,6 +405,120 @@ export const integrationSetupGuides: Record<string, IntegrationSetupGuide> = {
       developerPortal: 'https://zapier.com',
     },
   },
+
+  bunny_cdn: {
+    integrationType: 'bunny_cdn',
+    category: 'infrastructure',
+    setupType: 'api_poll',
+    requiresAdminSetup: true,
+    estimatedTotalTime: '20 minutes',
+    complexity: 'medium',
+    adminSteps: [
+      {
+        title: 'Create Bunny.net Account',
+        description: 'Sign up at bunny.net with company details',
+        required: true,
+        estimatedTime: '5 min',
+        difficulty: 'easy',
+      },
+      {
+        title: 'Create Storage Zone',
+        description: 'Create storage zone for NotiProof assets (notiproof-storage)',
+        required: true,
+        estimatedTime: '3 min',
+        difficulty: 'easy',
+      },
+      {
+        title: 'Create Pull Zone (CDN)',
+        description: 'Create CDN pull zone linked to storage zone',
+        required: true,
+        estimatedTime: '5 min',
+        difficulty: 'medium',
+      },
+      {
+        title: 'Configure Edge Function Secrets',
+        description: 'Add Bunny API credentials to Supabase secrets',
+        required: true,
+        estimatedTime: '5 min',
+        difficulty: 'medium',
+      },
+      {
+        title: 'Set Up Custom Domain (Optional)',
+        description: 'Configure DNS CNAME for cdn.notiproof.com',
+        required: false,
+        estimatedTime: '10 min',
+        difficulty: 'medium',
+      },
+    ],
+    userSteps: [
+      {
+        title: 'Assets Automatically Use CDN',
+        description: 'All uploads now automatically use Bunny CDN',
+        required: false,
+        estimatedTime: '0 min',
+        difficulty: 'easy',
+      },
+    ],
+    credentials: [
+      {
+        name: 'BUNNY_API_KEY',
+        description: 'Bunny.net account API key',
+        where: 'Account Settings → API in Bunny dashboard',
+        required: true,
+      },
+      {
+        name: 'BUNNY_STORAGE_PASSWORD',
+        description: 'Storage zone access password',
+        where: 'Storage → Zone → Password in Bunny dashboard',
+        required: true,
+      },
+      {
+        name: 'BUNNY_STORAGE_ZONE',
+        description: 'Storage zone name (e.g., notiproof-storage)',
+        where: 'Storage → Zone name in Bunny dashboard',
+        required: true,
+      },
+      {
+        name: 'BUNNY_CDN_HOSTNAME',
+        description: 'CDN pull zone hostname',
+        where: 'Pull Zone → Hostnames in Bunny dashboard',
+        required: true,
+      },
+    ],
+    commonIssues: [
+      {
+        error: 'Upload fails with 401/403',
+        cause: 'Incorrect storage password or zone name',
+        solution: 'Verify BUNNY_STORAGE_PASSWORD and BUNNY_STORAGE_ZONE are correct',
+      },
+      {
+        error: 'Files upload but don\'t display',
+        cause: 'Incorrect CDN hostname or DNS not configured',
+        solution: 'Check BUNNY_CDN_HOSTNAME matches pull zone hostname',
+      },
+      {
+        error: 'Slow upload speed',
+        cause: 'Edge function timeout or large file size',
+        solution: 'Check file size limits and edge function logs',
+      },
+    ],
+    testingSteps: [
+      'Upload test image in campaign editor',
+      'Verify CDN URL is returned (cdn.notiproof.com)',
+      'Check image displays correctly in preview',
+      'Monitor Bunny dashboard for storage/bandwidth usage',
+    ],
+    rateLimit: {
+      limit: 'No API rate limit',
+      quota: 'Usage-based billing',
+      notes: 'Pay only for bandwidth and storage used',
+    },
+    externalLinks: {
+      documentation: 'https://docs.bunny.net',
+      developerPortal: 'https://panel.bunny.net',
+      supportContact: 'support@bunny.net',
+    },
+  },
 };
 
 /**

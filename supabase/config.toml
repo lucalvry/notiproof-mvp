@@ -3,6 +3,9 @@ project_id = "ewymvxhpkswhsirdrjub"
 [functions.widget-api]
 verify_jwt = false
 
+[functions.widget-script]
+verify_jwt = false
+
 [functions.build-notification-queue]
 verify_jwt = false
 
@@ -167,3 +170,18 @@ verify_jwt = false
 
 [functions.process-announcements]
 verify_jwt = false
+
+[functions.process-testimonial-submission]
+verify_jwt = false
+
+[functions.bunny-upload]
+verify_jwt = true
+
+[functions.bunny-presign]
+verify_jwt = true
+
+[functions.migrate-to-bunny]
+verify_jwt = true
+
+[functions.deploy-widget-to-bunny]
+verify_jwt = true

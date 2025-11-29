@@ -34,6 +34,47 @@ const DEFAULT_WEIGHTS: Record<string, NotificationWeight> = {
 };
 
 /**
+ * Get relative time string from timestamp
+ */
+function getRelativeTime(timestamp: string): string {
+  const now = new Date();
+  const then = new Date(timestamp);
+  const diffMs = now.getTime() - then.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+  
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays <= 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffWeeks <= 4) return `${diffWeeks} week${diffWeeks > 1 ? 's' : ''} ago`;
+  
+  return then.toLocaleDateString();
+}
+
+/**
+ * Render Mustache template with event data
+ */
+function renderTemplate(template: string, data: Record<string, any>): string {
+  let rendered = template;
+  
+  // Simple Mustache-like rendering
+  // Replace {{key}} with data[key]
+  rendered = rendered.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+    const trimmedKey = key.trim();
+    const value = data[trimmedKey];
+    return value !== undefined && value !== null ? String(value) : '';
+  });
+  
+  return rendered;
+}
+
+/**
  * Fetch events grouped by type with per-type limits and TTL
  */
 async function fetchGroupedEvents(
@@ -45,26 +86,109 @@ async function fetchGroupedEvents(
   
   console.log('[Queue Builder] Fetching events for', config.widgetIds.length, 'widgets');
   
+  // Fetch testimonial template for rendering
+  const { data: testimonialTemplate } = await supabase
+    .from('templates')
+    .select('*')
+    .eq('provider', 'testimonials')
+    .eq('template_key', 'testimonial_split_view')
+    .single();
+  
   for (const [eventType, weightConfig] of Object.entries(weights)) {
     const ttlDate = new Date(Date.now() - weightConfig.ttl_days * 86400000).toISOString();
     
-    const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .in('widget_id', config.widgetIds)
-      .eq('event_type', eventType)
-      .eq('moderation_status', 'approved')
-      .eq('status', 'approved')
-      .gte('created_at', ttlDate)
-      .order('created_at', { ascending: false })
-      .limit(weightConfig.max_per_queue);
-    
-    if (error) {
-      console.error(`[Queue Builder] Error fetching ${eventType}:`, error);
-      grouped[eventType] = [];
+    // Special handling for testimonials - fetch from testimonials table
+    if (eventType === 'testimonial') {
+      const { data: testimonials, error } = await supabase
+        .from('testimonials')
+        .select('*')
+        .eq('website_id', config.websiteId)
+        .eq('status', 'approved')
+        .gte('created_at', ttlDate)
+        .order('created_at', { ascending: false })
+        .limit(weightConfig.max_per_queue);
+      
+      if (error) {
+        console.error(`[Queue Builder] Error fetching testimonials:`, error);
+        grouped[eventType] = [];
+      } else {
+        // Transform testimonials to event format
+        grouped[eventType] = (testimonials || []).map((t: any) => {
+          const createdAt = t.created_at || new Date().toISOString();
+          const timeAgo = getRelativeTime(createdAt);
+          const rating = t.rating || 5;
+          const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
+          const authorName = t.author_name || 'Anonymous Customer';
+          const authorPosition = t.author_position || t.metadata?.position || 'Customer';
+          const authorCompany = t.author_company || t.metadata?.company || 'Happy Customer';
+          const authorAvatar = t.avatar_url || 
+            t.author_avatar_url ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}&background=2563EB&color=fff`;
+          
+          // Prepare normalized data
+          const normalized = {
+            'template.author_name': authorName,
+            'template.author_email': t.author_email || '',
+            'template.author_avatar': authorAvatar,
+            'template.author_position': authorPosition,
+            'template.author_company': authorCompany,
+            'template.rating': rating,
+            'template.rating_stars': stars,
+            'template.message': t.message || 'Great experience!',
+            'template.image_url': t.metadata?.product_image_url || null,
+            'template.video_url': t.video_url,
+            'template.time_ago': timeAgo,
+            'template.verified': !!t.metadata?.verified_purchase,
+          };
+          
+          // Render template
+          let messageTemplate = '';
+          if (testimonialTemplate?.html_template) {
+            messageTemplate = renderTemplate(testimonialTemplate.html_template, normalized);
+          } else {
+            // Fallback template
+            messageTemplate = `<div class="testimonial-event">
+              <strong>${authorName}</strong> ${stars}<br>
+              "${normalized['template.message']}"<br>
+              <small>${timeAgo}</small>
+            </div>`;
+          }
+          
+          return {
+            id: `testimonial_${t.id}`,
+            event_type: 'testimonial',
+            message_template: messageTemplate,
+            user_name: authorName,
+            user_location: null,
+            created_at: createdAt,
+            event_data: normalized,
+            widget_id: config.widgetIds[0] || null,
+            moderation_status: 'approved',
+            status: 'approved',
+          };
+        });
+        console.log(`[Queue Builder] Fetched ${testimonials?.length || 0} testimonial events`);
+      }
     } else {
-      grouped[eventType] = data || [];
-      console.log(`[Queue Builder] Fetched ${data?.length || 0} ${eventType} events`);
+      // Fetch from events table for other event types
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .in('widget_id', config.widgetIds)
+        .eq('event_type', eventType)
+        .eq('moderation_status', 'approved')
+        .eq('status', 'approved')
+        .gte('created_at', ttlDate)
+        .order('created_at', { ascending: false })
+        .limit(weightConfig.max_per_queue);
+      
+      if (error) {
+        console.error(`[Queue Builder] Error fetching ${eventType}:`, error);
+        grouped[eventType] = [];
+      } else {
+        grouped[eventType] = data || [];
+        console.log(`[Queue Builder] Fetched ${data?.length || 0} ${eventType} events`);
+      }
     }
   }
   

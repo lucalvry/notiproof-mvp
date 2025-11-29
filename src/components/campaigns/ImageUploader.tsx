@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, X } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useBunnyUpload } from '@/hooks/useBunnyUpload';
 
 interface ImageUploaderProps {
   value?: string;
@@ -12,6 +12,7 @@ interface ImageUploaderProps {
 
 export function ImageUploader({ value, onChange, bucket = 'campaign-assets' }: ImageUploaderProps) {
   const [uploading, setUploading] = useState(false);
+  const { uploadToBunny } = useBunnyUpload();
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -32,22 +33,13 @@ export function ImageUploader({ value, onChange, bucket = 'campaign-assets' }: I
     try {
       setUploading(true);
       
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(filePath);
-
-      onChange(publicUrl);
-      toast.success('Image uploaded successfully!');
+      const result = await uploadToBunny(file, bucket);
+      
+      if (result.success && result.url) {
+        onChange(result.url);
+      } else {
+        throw new Error(result.error || 'Upload failed');
+      }
     } catch (error) {
       console.error('Upload error:', error);
       toast.error('Failed to upload image');
