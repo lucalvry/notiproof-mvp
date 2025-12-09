@@ -555,7 +555,7 @@ export default function Websites() {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      const code = `<script src="${window.location.origin}/widget.js" data-site-token="${selectedWebsite?.verification_token}"></script>`;
+                      const code = `<script src="https://app.notiproof.com/widget.js" data-site-token="${selectedWebsite?.verification_token}"></script>`;
                       navigator.clipboard.writeText(code);
                       toast.success("Code copied to clipboard!");
                     }}
@@ -566,7 +566,7 @@ export default function Websites() {
               </div>
               <div className="rounded-lg bg-muted p-4">
                 <code className="text-sm break-all font-mono">
-                  {`<script src="${window.location.origin}/widget.js" data-site-token="${selectedWebsite?.verification_token || 'TOKEN'}"></script>`}
+                  {`<script src="https://app.notiproof.com/widget.js" data-site-token="${selectedWebsite?.verification_token || 'TOKEN'}"></script>`}
                 </code>
               </div>
               <p className="text-sm text-muted-foreground">

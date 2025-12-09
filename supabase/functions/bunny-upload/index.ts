@@ -9,6 +9,7 @@ const corsHeaders = {
 // File type constraints - comprehensive validation
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm'];
+const ALLOWED_ASSET_TYPES = ['application/javascript', 'text/javascript']; // For widget.js and other assets
 const AVATAR_MAX_SIZE = 2 * 1024 * 1024; // 2MB (fixed limit regardless of plan)
 
 // Free tier defaults (when no subscription exists)
@@ -123,7 +124,7 @@ Deno.serve(async (req) => {
 
     // ===== Phase 3: Parse Form Data =====
     console.log('📦 Parsing form data...');
-    let formData, file, path, zone, durationStr, websiteIdParam;
+    let formData, file, path, zone, durationStr, websiteIdParam, migrationMode, exactPath;
     try {
       formData = await req.formData();
       file = formData.get('file') as File;
@@ -131,6 +132,8 @@ Deno.serve(async (req) => {
       zone = (formData.get('zone') as string) || 'media';
       durationStr = formData.get('duration') as string | null;
       websiteIdParam = formData.get('website_id') as string | null;
+      migrationMode = formData.get('migration_mode') === 'true';
+      exactPath = formData.get('exact_path') === 'true';
       
       if (websiteIdParam) {
         websiteId = websiteIdParam;
@@ -155,16 +158,25 @@ Deno.serve(async (req) => {
     console.log('🔍 Validating file type...');
     const isImage = ALLOWED_IMAGE_TYPES.includes(mimeType);
     const isVideo = ALLOWED_VIDEO_TYPES.includes(mimeType);
+    const isAsset = ALLOWED_ASSET_TYPES.includes(mimeType);
 
-    if (!isImage && !isVideo) {
-      console.error(`❌ Invalid file type: ${mimeType}`);
+    // Allow assets only in assets zone
+    if (zone === 'assets' && !isAsset && !isImage && !isVideo) {
+      console.error(`❌ Invalid asset file type: ${mimeType}`);
       return errorResponse(
         'INVALID_FILE_TYPE',
-        `File type ${mimeType} not allowed. Supported: ${[...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES].join(', ')}`,
+        `File type ${mimeType} not allowed in assets zone. Supported: ${[...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_ASSET_TYPES].join(', ')}`,
+        400
+      );
+    } else if (zone === 'media' && !isImage && !isVideo) {
+      console.error(`❌ Invalid media file type: ${mimeType}`);
+      return errorResponse(
+        'INVALID_FILE_TYPE',
+        `File type ${mimeType} not allowed in media zone. Supported: ${[...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES].join(', ')}`,
         400
       );
     }
-    console.log(`✅ File type validated: ${isVideo ? 'video' : 'image'}`);
+    console.log(`✅ File type validated: ${isVideo ? 'video' : isImage ? 'image' : 'asset'}`);
 
     // Avatar size check (2MB limit regardless of plan)
     if (path.includes('avatar') && fileSize > AVATAR_MAX_SIZE) {
@@ -179,7 +191,7 @@ Deno.serve(async (req) => {
 
     // ===== Phase 5: Video Duration Validation =====
     let duration: number | null = null;
-    if (isVideo) {
+    if (isVideo && !migrationMode) {
       console.log('🎥 Validating video duration...');
       if (!durationStr) {
         console.error('❌ No duration parameter provided for video');
@@ -210,6 +222,8 @@ Deno.serve(async (req) => {
         );
       }
       console.log(`✅ Video duration validated: ${duration}s`);
+    } else if (isVideo && migrationMode) {
+      console.log('🎥 Migration mode: Skipping video duration validation');
     }
 
     // ===== Phase 6: Storage Quota Check =====
@@ -276,8 +290,8 @@ Deno.serve(async (req) => {
     }
 
     const ext = originalFilename.split('.').pop();
-    const filename = `${crypto.randomUUID()}.${ext}`;
-    const fullPath = path ? `${path}/${filename}` : filename;
+    const filename = exactPath ? originalFilename : `${crypto.randomUUID()}.${ext}`;
+    const fullPath = exactPath ? path : (path ? `${path}/${filename}` : filename);
     const uploadUrl = `https://storage.bunnycdn.com/${storageZone}/${fullPath}`;
 
     console.log(`🚀 Uploading to Bunny: ${uploadUrl}`);
@@ -309,7 +323,7 @@ Deno.serve(async (req) => {
 
     // ===== Phase 8: Media Tracking =====
     console.log('📝 Tracking media in database...');
-    const mediaType = isVideo ? 'video' : path.includes('avatar') ? 'avatar' : 'testimonial-image';
+    const mediaType = isVideo ? 'video' : path.includes('avatar') ? 'avatar' : isAsset ? 'asset' : 'testimonial-image';
 
     try {
       const { error: mediaError } = await supabase

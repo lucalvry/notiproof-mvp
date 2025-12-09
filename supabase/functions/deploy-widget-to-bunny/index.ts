@@ -8,11 +8,14 @@ const corsHeaders = {
 interface DeployResult {
   success: boolean;
   url?: string;
+  storage_url?: string;
   error?: string;
   details?: {
     file_size: number;
     upload_time_ms: number;
-    cdn_url: string;
+    cdn_url?: string;
+    storage_url: string;
+    source: string;
   };
 }
 
@@ -46,89 +49,159 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if user is admin or superadmin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
+    // Check if user is admin or superadmin using RPC
+    console.log('[Deploy Widget] Checking admin status for user:', user.id);
+    const { data: isAdmin, error: roleError } = await supabase
+      .rpc('is_admin', { _user_id: user.id });
 
-    if (!profile || !['admin', 'superadmin'].includes(profile.role)) {
-      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+    if (roleError) {
+      console.error('[Deploy Widget] Role check error:', roleError);
+      return new Response(JSON.stringify({ error: 'Authorization check failed', details: roleError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!isAdmin) {
+      return new Response(JSON.stringify({ 
+        error: 'Admin access required',
+        hint: 'Please ensure your user has an admin or superadmin role'
+      }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('[Deploy Widget] Starting widget.js deployment to Bunny CDN');
+    console.log('[Deploy Widget] Admin access granted');
     const startTime = Date.now();
 
-    // Fetch widget.js from the project
-    const widgetJsUrl = 'https://af3e5dd6-226a-43be-b235-8448934d9210.lovableproject.com/widget.js';
-    console.log('[Deploy Widget] Fetching widget.js from:', widgetJsUrl);
+    // Check if request has file upload (multipart form)
+    const contentType = req.headers.get('content-type') || '';
+    let widgetContent: string;
     
-    const widgetResponse = await fetch(widgetJsUrl);
-    
-    if (!widgetResponse.ok) {
-      throw new Error(`Failed to fetch widget.js: HTTP ${widgetResponse.status}`);
-    }
-
-    const widgetBlob = await widgetResponse.blob();
-    console.log('[Deploy Widget] Widget.js fetched, size:', widgetBlob.size, 'bytes');
-
-    // Convert to File object
-    const widgetFile = new File([widgetBlob], 'widget.js', { type: 'application/javascript' });
-
-    // Upload to Bunny CDN via bunny-upload function (assets zone)
-    const formData = new FormData();
-    formData.append('file', widgetFile);
-    formData.append('path', 'widget/widget.js');
-    formData.append('zone', 'assets'); // Use assets zone for static files
-
-    console.log('[Deploy Widget] Uploading to Bunny CDN...');
-    const uploadResponse = await fetch(
-      `${supabaseUrl}/functions/v1/bunny-upload`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': authHeader,
-        },
-        body: formData,
+    if (contentType.includes('multipart/form-data')) {
+      // Handle direct file upload
+      const formData = await req.formData();
+      const file = formData.get('file') as File;
+      
+      if (!file) {
+        return new Response(JSON.stringify({ error: 'No file provided' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
-    );
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      throw new Error(`Bunny CDN upload failed (HTTP ${uploadResponse.status}): ${errorText}`);
+      
+      widgetContent = await file.text();
+      console.log('[Deploy Widget] Received file upload, size:', widgetContent.length, 'bytes');
+    } else {
+      // Try to get content from request body (JSON)
+      try {
+        const body = await req.json();
+        if (body.content) {
+          widgetContent = body.content;
+          console.log('[Deploy Widget] Received content from JSON body, size:', widgetContent.length, 'bytes');
+        } else {
+          return new Response(JSON.stringify({ error: 'No content provided. Send file via multipart or content in JSON body.' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      } catch {
+        return new Response(JSON.stringify({ error: 'Invalid request. Send file via multipart form or JSON with content field.' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
-    const uploadResult = await uploadResponse.json();
+    // Validate widget content
+    if (!widgetContent.includes('NotiProof') || widgetContent.includes('<!DOCTYPE')) {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid widget content',
+        hint: 'The file does not appear to be valid NotiProof widget JavaScript'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Upload to Supabase Storage (primary source)
+    console.log('[Deploy Widget] Uploading to Supabase Storage...');
+    const widgetBlob = new Blob([widgetContent], { type: 'application/javascript' });
     
-    if (!uploadResult.success || !uploadResult.url) {
-      throw new Error(`Bunny CDN upload failed: ${uploadResult.error || 'Unknown error'}`);
+    const { error: uploadError } = await supabase.storage
+      .from('widget-assets')
+      .upload('widget.js', widgetBlob, {
+        cacheControl: '300',
+        upsert: true,
+        contentType: 'application/javascript',
+      });
+
+    if (uploadError) {
+      console.error('[Deploy Widget] Storage upload failed:', uploadError);
+      return new Response(JSON.stringify({ 
+        error: 'Storage upload failed',
+        details: uploadError.message
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const storageUrl = `${supabaseUrl}/storage/v1/object/public/widget-assets/widget.js`;
+    console.log('[Deploy Widget] Successfully uploaded to Storage:', storageUrl);
+
+    // Also try to upload to Bunny CDN if configured
+    let cdnUrl: string | undefined;
+    try {
+      const widgetFile = new File([widgetBlob], 'widget.js', { type: 'application/javascript' });
+      const formData = new FormData();
+      formData.append('file', widgetFile);
+      formData.append('path', 'widget.js');
+      formData.append('zone', 'assets');
+      formData.append('exact_path', 'true');
+
+      console.log('[Deploy Widget] Uploading to Bunny CDN...');
+      const uploadResponse = await fetch(
+        `${supabaseUrl}/functions/v1/bunny-upload`,
+        {
+          method: 'POST',
+          headers: { 'Authorization': authHeader },
+          body: formData,
+        }
+      );
+
+      if (uploadResponse.ok) {
+        const uploadResult = await uploadResponse.json();
+        if (uploadResult.success && uploadResult.url) {
+          cdnUrl = uploadResult.url;
+          console.log('[Deploy Widget] Successfully uploaded to Bunny CDN:', cdnUrl);
+        }
+      }
+    } catch (cdnError) {
+      console.warn('[Deploy Widget] Bunny CDN upload failed (non-critical):', cdnError);
     }
 
     const uploadTime = Date.now() - startTime;
-    console.log('[Deploy Widget] Successfully deployed widget.js to Bunny CDN:', uploadResult.url);
-    console.log('[Deploy Widget] Upload took:', uploadTime, 'ms');
 
     const result: DeployResult = {
       success: true,
-      url: uploadResult.url,
+      url: cdnUrl || storageUrl,
+      storage_url: storageUrl,
       details: {
-        file_size: widgetBlob.size,
+        file_size: widgetContent.length,
         upload_time_ms: uploadTime,
-        cdn_url: uploadResult.url,
+        cdn_url: cdnUrl,
+        storage_url: storageUrl,
+        source: 'admin-upload',
       },
     };
 
-    return new Response(
-      JSON.stringify(result),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
   } catch (error) {
     console.error('[Deploy Widget] Fatal error:', error);
     return new Response(

@@ -60,19 +60,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if user is admin or superadmin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
+    // Check if user is admin or superadmin using RPC
+    console.log('[Migration] Checking admin status for user:', user.id);
+    const { data: isAdmin, error: roleError } = await supabase
+      .rpc('is_admin', { _user_id: user.id });
 
-    if (!profile || !['admin', 'superadmin'].includes(profile.role)) {
-      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+    console.log('[Migration] Admin check result:', { isAdmin, roleError });
+
+    if (roleError) {
+      console.error('[Migration] Role check error:', roleError);
+      return new Response(JSON.stringify({ error: 'Authorization check failed', details: roleError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!isAdmin) {
+      console.log('[Migration] User does not have admin role');
+      return new Response(JSON.stringify({ 
+        error: 'Admin access required',
+        hint: 'Please ensure your user has an admin or superadmin role in the user_roles table'
+      }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    console.log('[Migration] Admin access granted');
 
     const { dryRun = false } = await req.json().catch(() => ({ dryRun: false }));
 
@@ -256,6 +270,7 @@ async function migrateFile(
   const formData = new FormData();
   formData.append('file', file);
   formData.append('path', targetPath);
+  formData.append('migration_mode', 'true');
 
   const uploadResponse = await fetch(
     `${supabaseUrl}/functions/v1/bunny-upload`,

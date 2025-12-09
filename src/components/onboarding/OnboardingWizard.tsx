@@ -390,12 +390,7 @@ export function OnboardingWizard({ open, onComplete, planName, userId }: Onboard
               <CardContent className="space-y-4">
                 <div className="relative">
                   <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                    <code>{`<script src="https://cdn.notiproof.com/widget.js"></script>
-<script>
-  NotiProof.init({
-    websiteId: "${createdWebsite?.id || 'your-website-id'}"
-  });
-</script>`}</code>
+                    <code>{`<script src="https://app.notiproof.com/widget.js" data-site-token="${createdWebsite?.verification_token || 'your-verification-token'}"></script>`}</code>
                   </pre>
                   <Button
                     variant="outline"
@@ -403,7 +398,7 @@ export function OnboardingWizard({ open, onComplete, planName, userId }: Onboard
                     className="absolute top-2 right-2"
                     onClick={() => {
                       navigator.clipboard.writeText(
-                        `<script src="https://cdn.notiproof.com/widget.js"></script>\n<script>\n  NotiProof.init({\n    websiteId: "${createdWebsite?.id || 'your-website-id'}"\n  });\n</script>`
+                        `<script src="https://app.notiproof.com/widget.js" data-site-token="${createdWebsite?.verification_token || 'your-verification-token'}"></script>`
                       );
                       toast.success("Code copied to clipboard!");
                     }}

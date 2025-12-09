@@ -1,8 +1,8 @@
 (function() {
   'use strict';
   
-  const WIDGET_VERSION = 3; // Current widget version - FORCE CACHE BUST
-  const BUILD_TIMESTAMP = '2025-11-28T07:15:00Z'; // Build timestamp for version tracking
+  const WIDGET_VERSION = 4; // Current widget version - FORCE CACHE BUST
+  const BUILD_TIMESTAMP = '2025-12-09T03:20:00Z'; // Build timestamp for version tracking
   console.log('[NotiProof] Widget loaded - Version:', WIDGET_VERSION, '- Built:', BUILD_TIMESTAMP);
   
   const API_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
@@ -1668,8 +1668,8 @@
       interval: config.interval,
       maxPerPage: maxPerPage,
       maxPerSession: maxPerSession,
-      pageImpressions: pageImpressions,
-      sessionImpressions: sessionImpressions
+      pageImpressions: getPageImpressions(),
+      sessionImpressions: getSessionImpressions()
     });
     log('Starting display loop', { interval: config.interval });
     

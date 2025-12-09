@@ -1,17 +1,15 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Content-Type': 'application/javascript; charset=utf-8',
-  'Cache-Control': 'no-cache, no-store, must-revalidate',
-  'Pragma': 'no-cache',
-  'Expires': '0',
+  'Cache-Control': 'public, max-age=300, s-maxage=300',
   'X-Content-Type-Options': 'nosniff',
 };
 
-const WIDGET_VERSION = Date.now().toString(); // Dynamic timestamp for cache busting
-const BUNNY_CDN_HOSTNAME = Deno.env.get('BUNNY_CDN_HOSTNAME');
-const PROJECT_URL = 'https://af3e5dd6-226a-43be-b235-8448934d9210.lovableproject.com/widget.js';
+const WIDGET_VERSION = '5';
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -22,56 +20,74 @@ Deno.serve(async (req) => {
   try {
     console.log('[widget-script] Starting widget.js fetch, version:', WIDGET_VERSION);
     
-    // Try Bunny CDN first if configured
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    // Try to fetch from Supabase Storage first (most reliable)
+    console.log('[widget-script] Attempting to fetch from Supabase Storage...');
+    
+    const { data: storageData, error: storageError } = await supabase.storage
+      .from('widget-assets')
+      .download('widget.js');
+    
+    if (storageData && !storageError) {
+      const script = await storageData.text();
+      console.log('[widget-script] Successfully fetched from Storage, size:', script.length, 'bytes');
+      
+      // Validate it's actual JavaScript
+      if (script.includes('NotiProof') && !script.includes('<!DOCTYPE')) {
+        return new Response(script, {
+          status: 200,
+          headers: corsHeaders,
+        });
+      }
+      console.warn('[widget-script] Storage content invalid, falling back...');
+    } else {
+      console.warn('[widget-script] Storage fetch failed:', storageError?.message || 'Unknown error');
+    }
+    
+    // Fallback: Try Bunny CDN if configured
+    const BUNNY_CDN_HOSTNAME = Deno.env.get('BUNNY_CDN_HOSTNAME');
     if (BUNNY_CDN_HOSTNAME) {
-      const bunnyUrl = `https://${BUNNY_CDN_HOSTNAME}/widget/widget.js?v=${WIDGET_VERSION}`;
+      const bunnyUrl = `https://${BUNNY_CDN_HOSTNAME}/widget.js?v=${WIDGET_VERSION}`;
       console.log('[widget-script] Attempting Bunny CDN fetch:', bunnyUrl);
       
       try {
         const bunnyResponse = await fetch(bunnyUrl, {
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
+          headers: { 'Cache-Control': 'no-cache' },
         });
         
         if (bunnyResponse.ok) {
           const script = await bunnyResponse.text();
-          console.log('[widget-script] Successfully fetched from Bunny CDN, size:', script.length, 'bytes');
-          return new Response(script, {
-            status: 200,
-            headers: corsHeaders,
-          });
+          if (script.includes('NotiProof') && !script.includes('<!DOCTYPE')) {
+            console.log('[widget-script] Successfully fetched from Bunny CDN, size:', script.length, 'bytes');
+            return new Response(script, {
+              status: 200,
+              headers: corsHeaders,
+            });
+          }
         }
-        console.warn('[widget-script] Bunny CDN returned', bunnyResponse.status, '- falling back to project URL');
+        console.warn('[widget-script] Bunny CDN returned invalid content or', bunnyResponse.status);
       } catch (bunnyError) {
-        console.warn('[widget-script] Bunny CDN fetch failed:', bunnyError, '- falling back to project URL');
+        console.warn('[widget-script] Bunny CDN fetch failed:', bunnyError);
       }
     }
     
-    // Fall back to project URL (always fresh from Lovable)
-    console.log('[widget-script] Fetching from project URL:', PROJECT_URL);
-    const response = await fetch(PROJECT_URL, {
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-      },
-    });
+    // Final fallback: Return a minimal loader that shows an error
+    console.error('[widget-script] All sources failed, returning error script');
+    const errorScript = `
+(function() {
+  console.error('[NotiProof] Widget failed to load from all sources. Please contact support.');
+  console.error('[NotiProof] To fix: Upload widget.js to Supabase Storage bucket "widget-assets"');
+})();
+`;
     
-    if (!response.ok) {
-      console.error('[widget-script] Failed to fetch widget.js from project:', response.status);
-      return new Response(`console.error('NotiProof: Failed to load widget - HTTP ${response.status}');`, {
-        status: 500,
-        headers: corsHeaders,
-      });
-    }
-    
-    const script = await response.text();
-    console.log('[widget-script] Successfully fetched from project, size:', script.length, 'bytes');
-    
-    return new Response(script, {
-      status: 200,
+    return new Response(errorScript, {
+      status: 200, // Return 200 so script tag doesn't break
       headers: corsHeaders,
     });
+    
   } catch (error) {
     console.error('[widget-script] Error serving widget:', error);
     return new Response(
