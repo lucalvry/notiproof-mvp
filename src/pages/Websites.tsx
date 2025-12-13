@@ -460,7 +460,7 @@ export default function Websites() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    const code = `<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`;
+                    const code = `<script src="https://app.notiproof.com/widget.js" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`;
                     navigator.clipboard.writeText(code);
                     toast.success("Code copied to clipboard!");
                   }}
@@ -471,7 +471,7 @@ export default function Websites() {
               </div>
               <div className="rounded-lg bg-muted p-4">
                 <code className="text-sm break-all font-mono">
-                  {`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`}
+                  {`<script src="https://app.notiproof.com/widget.js" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`}
                 </code>
               </div>
               <p className="text-sm text-muted-foreground">
