@@ -13,8 +13,9 @@ import { useSubscription } from "@/hooks/useSubscription";
 import WhiteLabelSettings from "@/components/settings/WhiteLabelSettings";
 import { 
   Globe, Bell, Palette, User, Code, Clock, 
-  MapPin, Sliders, MousePointer, Wrench 
+  MapPin, Sliders, MousePointer, Wrench, Link 
 } from "lucide-react";
+import { AnalyticsAttributionSettings } from "@/components/settings/AnalyticsAttributionSettings";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -358,7 +359,7 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="installation" className="space-y-4">
-        <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-1">
+        <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-1">
           <TabsTrigger value="installation" className="gap-1 text-xs">
             <Code className="h-3 w-3" />
             <span className="hidden sm:inline">Installation</span>
@@ -378,6 +379,10 @@ export default function Settings() {
           <TabsTrigger value="actions" className="gap-1 text-xs">
             <MousePointer className="h-3 w-3" />
             <span className="hidden sm:inline">Actions</span>
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="gap-1 text-xs">
+            <Link className="h-3 w-3" />
+            <span className="hidden sm:inline">Analytics</span>
           </TabsTrigger>
           <TabsTrigger value="theme" className="gap-1 text-xs">
             <Palette className="h-3 w-3" />
@@ -656,9 +661,13 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
+        {/* Analytics Tab */}
+        <TabsContent value="analytics" className="space-y-4">
+          {websiteId && <AnalyticsAttributionSettings websiteId={websiteId} />}
+        </TabsContent>
+
         {/* Theme Tab */}
         <TabsContent value="theme" className="space-y-4">
-
           <Card>
             <CardHeader>
               <CardTitle>Theme & Styling</CardTitle>

@@ -1,8 +1,8 @@
 (function() {
   'use strict';
   
-  const WIDGET_VERSION = 10; // Current widget version - PRODUCTION READY
-  const BUILD_TIMESTAMP = '2025-12-11T22:30:00Z'; // Build timestamp for version tracking
+  const WIDGET_VERSION = 11; // Current widget version - PRODUCTION READY
+  const BUILD_TIMESTAMP = '2025-12-13T03:00:00Z'; // Build timestamp for version tracking
   // Version logging moved to debug mode only
   
   const API_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
@@ -10,6 +10,132 @@
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3eW12eGhwa3N3aHNpcmRyanViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTY0NDksImV4cCI6MjA3MDU3MjQ0OX0.ToRbUm37-ZnYkmmCfLW7am38rUGgFAppNxcZ2tar9mc';
   const DEBUG = window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
   const debugMode = window.location.search.includes('notiproof_debug=1'); // Enable with ?notiproof_debug=1
+  
+  // Impact Board: Store notification interactions for attribution
+  const INTERACTION_KEY = 'notiproof_last_interaction';
+  const CONVERSIONS_KEY = 'notiproof_conversions';
+  let utmConfig = null;
+  let impactGoals = [];
+  let currentWebsiteId = null;
+  
+  function storeInteraction(notificationId, campaignId, interactionType) {
+    try {
+      const interaction = {
+        notification_id: notificationId,
+        campaign_id: campaignId,
+        interaction_type: interactionType,
+        timestamp: Date.now(),
+        visitor_id: sessionId
+      };
+      localStorage.setItem(INTERACTION_KEY, JSON.stringify(interaction));
+      log('Stored interaction:', interaction);
+    } catch (e) {
+      log('Failed to store interaction:', e);
+    }
+  }
+  
+  function buildUrlWithUtm(url, campaignName, notificationType) {
+    if (!utmConfig?.utm_enabled) return url;
+    
+    try {
+      const urlObj = new URL(url, window.location.origin);
+      
+      // Don't override existing UTMs unless configured
+      if (!utmConfig.utm_override_existing && urlObj.searchParams.has('utm_source')) {
+        return url;
+      }
+      
+      urlObj.searchParams.set('utm_source', utmConfig.utm_source || 'notiproof');
+      urlObj.searchParams.set('utm_medium', utmConfig.utm_medium || 'notification');
+      
+      // Template replacement for campaign
+      const campaign = (utmConfig.utm_campaign_template || '{{campaign_name}}')
+        .replace('{{campaign_name}}', campaignName || 'notification');
+      urlObj.searchParams.set('utm_campaign', campaign);
+      
+      if (utmConfig.utm_content_template) {
+        const content = utmConfig.utm_content_template
+          .replace('{{notification_type}}', notificationType || 'default');
+        urlObj.searchParams.set('utm_content', content);
+      }
+      
+      return urlObj.toString();
+    } catch (e) {
+      log('Failed to build URL with UTM:', e);
+      return url;
+    }
+  }
+  
+  async function checkGoalsOnPageLoad() {
+    try {
+      const stored = localStorage.getItem(INTERACTION_KEY);
+      if (!stored || !currentWebsiteId) return;
+      
+      const interaction = JSON.parse(stored);
+      const { notification_id, campaign_id, interaction_type, timestamp, visitor_id } = interaction;
+      
+      // Fetch active goals
+      const goalsRes = await fetch(`${SUPABASE_URL}/functions/v1/impact-goals?website_id=${currentWebsiteId}`);
+      if (!goalsRes.ok) return;
+      
+      const { goals } = await goalsRes.json();
+      if (!goals || goals.length === 0) return;
+      
+      const currentPath = window.location.pathname;
+      const conversions = JSON.parse(localStorage.getItem(CONVERSIONS_KEY) || '[]');
+      
+      for (const goal of goals) {
+        // Check URL match
+        const matches = goal.match_type === 'exact' 
+          ? currentPath === goal.match_value
+          : currentPath.includes(goal.match_value);
+        
+        if (!matches) continue;
+        
+        // Check interaction type
+        const validInteraction = 
+          goal.interaction_type === 'click_or_hover' ||
+          goal.interaction_type === interaction_type;
+        
+        if (!validInteraction) continue;
+        
+        // Check conversion window
+        const windowMs = goal.conversion_window_days * 24 * 60 * 60 * 1000;
+        if (Date.now() - timestamp > windowMs) continue;
+        
+        // Generate dedup key
+        const dedupKey = `${notification_id}_${goal.id}`;
+        
+        // Check if already converted
+        if (conversions.includes(dedupKey)) continue;
+        
+        // Record conversion
+        log('Recording impact conversion for goal:', goal.name);
+        await fetch(`${SUPABASE_URL}/functions/v1/record-impact-conversion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            website_id: currentWebsiteId,
+            goal_id: goal.id,
+            notification_id,
+            campaign_id,
+            visitor_id,
+            interaction_type,
+            interaction_timestamp: new Date(timestamp).toISOString(),
+            page_url: window.location.href,
+            monetary_value: goal.monetary_value,
+            dedup_key: dedupKey
+          })
+        });
+        
+        // Cache to prevent duplicate
+        conversions.push(dedupKey);
+        localStorage.setItem(CONVERSIONS_KEY, JSON.stringify(conversions));
+      }
+    } catch (e) {
+      log('Goal check error:', e);
+    }
+  }
   
   const script = document.currentScript;
   const widgetId = script.getAttribute('data-widget-id');

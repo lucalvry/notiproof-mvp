@@ -203,3 +203,9 @@ verify_jwt = false
 
 [functions.send-winback-emails]
 verify_jwt = false
+
+[functions.impact-goals]
+verify_jwt = false
+
+[functions.record-impact-conversion]
+verify_jwt = false

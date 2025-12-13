@@ -63,6 +63,7 @@ import PublicTestimonialEmbed from "./pages/PublicTestimonialEmbed";
 import NotificationWeights from "./pages/NotificationWeights";
 import FormCaptures from "./pages/FormCaptures";
 import VisitorsPulse from "./pages/VisitorsPulse";
+import ImpactBoard from "./pages/ImpactBoard";
 import { OAuthCallback } from "./components/integrations/OAuthCallback";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { inject } from "@vercel/analytics";
@@ -157,6 +158,7 @@ const App = () => (
             <Route path="/playlists" element={<Playlists />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/impact-board" element={<ImpactBoard />} />
             <Route path="/rules" element={<Rules />} />
             <Route path="/events" element={<EventModeration />} />
             <Route path="/notification-weights" element={<NotificationWeights />} />

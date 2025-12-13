@@ -1176,6 +1176,132 @@ export type Database = {
         }
         Relationships: []
       }
+      impact_conversions: {
+        Row: {
+          campaign_id: string | null
+          conversion_timestamp: string | null
+          created_at: string | null
+          dedup_key: string | null
+          goal_id: string
+          id: string
+          interaction_timestamp: string
+          interaction_type: string
+          monetary_value: number | null
+          notification_id: string
+          page_url: string | null
+          user_id: string
+          visitor_id: string
+          website_id: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          conversion_timestamp?: string | null
+          created_at?: string | null
+          dedup_key?: string | null
+          goal_id: string
+          id?: string
+          interaction_timestamp: string
+          interaction_type: string
+          monetary_value?: number | null
+          notification_id: string
+          page_url?: string | null
+          user_id: string
+          visitor_id: string
+          website_id: string
+        }
+        Update: {
+          campaign_id?: string | null
+          conversion_timestamp?: string | null
+          created_at?: string | null
+          dedup_key?: string | null
+          goal_id?: string
+          id?: string
+          interaction_timestamp?: string
+          interaction_type?: string
+          monetary_value?: number | null
+          notification_id?: string
+          page_url?: string | null
+          user_id?: string
+          visitor_id?: string
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impact_conversions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impact_conversions_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "impact_goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impact_conversions_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      impact_goals: {
+        Row: {
+          conversion_window_days: number
+          created_at: string | null
+          id: string
+          interaction_type: string
+          is_active: boolean | null
+          match_type: string
+          match_value: string
+          monetary_value: number | null
+          name: string
+          updated_at: string | null
+          user_id: string
+          website_id: string
+        }
+        Insert: {
+          conversion_window_days?: number
+          created_at?: string | null
+          id?: string
+          interaction_type: string
+          is_active?: boolean | null
+          match_type: string
+          match_value: string
+          monetary_value?: number | null
+          name: string
+          updated_at?: string | null
+          user_id: string
+          website_id: string
+        }
+        Update: {
+          conversion_window_days?: number
+          created_at?: string | null
+          id?: string
+          interaction_type?: string
+          is_active?: boolean | null
+          match_type?: string
+          match_value?: string
+          monetary_value?: number | null
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impact_goals_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_connectors: {
         Row: {
           auto_sync_enabled: boolean | null
@@ -3132,6 +3258,12 @@ export type Database = {
           position: string | null
           sound_effects: boolean | null
           updated_at: string | null
+          utm_campaign_template: string | null
+          utm_content_template: string | null
+          utm_enabled: boolean | null
+          utm_medium: string | null
+          utm_override_existing: boolean | null
+          utm_source: string | null
           website_id: string
         }
         Insert: {
@@ -3157,6 +3289,12 @@ export type Database = {
           position?: string | null
           sound_effects?: boolean | null
           updated_at?: string | null
+          utm_campaign_template?: string | null
+          utm_content_template?: string | null
+          utm_enabled?: boolean | null
+          utm_medium?: string | null
+          utm_override_existing?: boolean | null
+          utm_source?: string | null
           website_id: string
         }
         Update: {
@@ -3182,6 +3320,12 @@ export type Database = {
           position?: string | null
           sound_effects?: boolean | null
           updated_at?: string | null
+          utm_campaign_template?: string | null
+          utm_content_template?: string | null
+          utm_enabled?: boolean | null
+          utm_medium?: string | null
+          utm_override_existing?: boolean | null
+          utm_source?: string | null
           website_id?: string
         }
         Relationships: [
