@@ -13,7 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface LiveVisitorConfigProps {
   config: {
-    mode: 'real' | 'simulated' | 'blended';
+    mode: 'real' | 'simulated';
     scope: 'site' | 'page';
     min_count: number;
     max_count: number;
@@ -25,14 +25,14 @@ interface LiveVisitorConfigProps {
 }
 
 export function LiveVisitorConfig({ config, onChange }: LiveVisitorConfigProps) {
-  // Add safe defaults to prevent TypeError
+  // Add safe defaults to prevent TypeError - default to 'real' for actual visitor tracking
   const safeConfig = {
-    mode: config.mode || 'simulated',
+    mode: config.mode || 'real',
     scope: config.scope || 'site',
-    min_count: config.min_count ?? 10,
-    max_count: config.max_count ?? 30,
+    min_count: config.min_count ?? 5,
+    max_count: config.max_count ?? 50,
     variance_percent: config.variance_percent ?? 30,
-    update_interval_seconds: config.update_interval_seconds ?? 10,
+    update_interval_seconds: config.update_interval_seconds ?? 30,
     target_pages: config.target_pages || [],
   };
   
@@ -44,10 +44,13 @@ export function LiveVisitorConfig({ config, onChange }: LiveVisitorConfigProps) 
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Users className="h-5 w-5" />
-          Active Visitors Setup
+          Visitors Pulse Setup
         </CardTitle>
         <CardDescription>
-          Show how many people are viewing your site right now
+          Show how many people are viewing your site right now.
+          {safeConfig.mode === 'real' && (
+            <Badge variant="outline" className="ml-2 text-xs">Real-time tracking enabled</Badge>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -164,26 +167,37 @@ export function LiveVisitorConfig({ config, onChange }: LiveVisitorConfigProps) 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="simulated">
-                    <div className="space-y-1">
-                      <div className="font-medium">Simulated (Recommended)</div>
-                      <div className="text-xs text-muted-foreground">Shows realistic visitor counts</div>
-                    </div>
-                  </SelectItem>
                   <SelectItem value="real">
                     <div className="space-y-1">
-                      <div className="font-medium">Real Analytics</div>
-                      <div className="text-xs text-muted-foreground">Requires GA4 integration</div>
+                      <div className="font-medium flex items-center gap-2">
+                        Real Tracking
+                        <Badge variant="secondary" className="text-[10px]">Recommended</Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Counts actual visitors on your site (±30s accuracy)
+                      </div>
                     </div>
                   </SelectItem>
-                  <SelectItem value="blended">
+                  <SelectItem value="simulated">
                     <div className="space-y-1">
-                      <div className="font-medium">Blended (Real + Boost)</div>
-                      <div className="text-xs text-muted-foreground">Real count + small increase</div>
+                      <div className="font-medium">Simulated</div>
+                      <div className="text-xs text-muted-foreground">
+                        Shows random counts within your configured range
+                      </div>
                     </div>
                   </SelectItem>
                 </SelectContent>
               </Select>
+              
+              {safeConfig.mode === 'real' && (
+                <Alert className="mt-2 py-2">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    Real tracking uses actual visitor sessions. Min/max values act as bounds - 
+                    if real count is below minimum, minimum is shown for better UX.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
             
             {/* Update Frequency */}
@@ -197,9 +211,9 @@ export function LiveVisitorConfig({ config, onChange }: LiveVisitorConfigProps) 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="5">Every 5 seconds (most dynamic)</SelectItem>
-                  <SelectItem value="10">Every 10 seconds (recommended)</SelectItem>
-                  <SelectItem value="30">Every 30 seconds (subtle)</SelectItem>
+                  <SelectItem value="15">Every 15 seconds (more dynamic)</SelectItem>
+                  <SelectItem value="30">Every 30 seconds (recommended)</SelectItem>
+                  <SelectItem value="45">Every 45 seconds (balanced)</SelectItem>
                   <SelectItem value="60">Every 60 seconds (conservative)</SelectItem>
                 </SelectContent>
               </Select>

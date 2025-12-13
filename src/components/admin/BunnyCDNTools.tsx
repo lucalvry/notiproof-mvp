@@ -101,14 +101,31 @@ export function BunnyCDNTools() {
     setDeployResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('deploy-widget-to-bunny');
+      // Fetch widget.js content from public folder
+      const widgetResponse = await fetch('/widget.js');
+      if (!widgetResponse.ok) {
+        throw new Error('Failed to fetch widget.js from public folder');
+      }
+      const widgetContent = await widgetResponse.text();
+      
+      // Validate it's the widget file
+      if (!widgetContent.includes('NotiProof') || widgetContent.includes('<!DOCTYPE')) {
+        throw new Error('Invalid widget content - file does not appear to be widget.js');
+      }
+
+      console.log('[Deploy Widget] Fetched widget.js, size:', widgetContent.length, 'bytes');
+
+      // Send to edge function with content
+      const { data, error } = await supabase.functions.invoke('deploy-widget-to-bunny', {
+        body: { content: widgetContent },
+      });
 
       if (error) throw error;
 
       setDeployResult(data);
       
       if (data.success) {
-        toast.success(`Widget deployed to Bunny CDN: ${data.url}`);
+        toast.success(`Widget deployed successfully: ${data.url}`);
       } else {
         toast.error(data.error || 'Widget deployment failed');
       }

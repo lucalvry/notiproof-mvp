@@ -37,6 +37,7 @@ import AdminHelpArticles from "./pages/admin/HelpArticles";
 import AdminTeams from "./pages/admin/Teams";
 import AdminManagement from "./pages/admin/AdminManagement";
 import AdminOnboarding from "./pages/admin/Onboarding";
+import AdminEmailTemplates from "./pages/admin/EmailTemplates";
 import AcceptInvite from "./pages/AcceptInvite";
 import WidgetAnalytics from "./pages/WidgetAnalytics";
 import Templates from "./pages/Templates";
@@ -44,6 +45,7 @@ import SelectPlan from "./pages/SelectPlan";
 import Team from "./pages/Team";
 import DataMigration from "./pages/admin/DataMigration";
 import FeatureFlags from "./pages/admin/FeatureFlags";
+import MediaManagement from "./pages/admin/MediaManagement";
 import ABTesting from "./pages/ABTesting";
 import GA4PropertySelection from "./pages/GA4PropertySelection";
 import EventModeration from "./pages/EventModeration";
@@ -59,6 +61,8 @@ import TestimonialEmbeds from "./pages/TestimonialEmbeds";
 import TestimonialEmbedBuilderPage from "./pages/TestimonialEmbedBuilder";
 import PublicTestimonialEmbed from "./pages/PublicTestimonialEmbed";
 import NotificationWeights from "./pages/NotificationWeights";
+import FormCaptures from "./pages/FormCaptures";
+import VisitorsPulse from "./pages/VisitorsPulse";
 import { OAuthCallback } from "./components/integrations/OAuthCallback";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { inject } from "@vercel/analytics";
@@ -134,10 +138,12 @@ const App = () => (
             <Route path="billing" element={<AdminBilling />} />
             <Route path="admin-management" element={<AdminManagement />} />
             <Route path="onboarding" element={<AdminOnboarding />} />
+            <Route path="email-templates" element={<AdminEmailTemplates />} />
             <Route path="logs" element={<AdminLogs />} />
             <Route path="system" element={<AdminSystem />} />
             <Route path="migration" element={<DataMigration />} />
             <Route path="feature-flags" element={<FeatureFlags />} />
+            <Route path="media" element={<MediaManagement />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="help-articles" element={<AdminHelpArticles />} />
           </Route>
@@ -154,6 +160,8 @@ const App = () => (
             <Route path="/rules" element={<Rules />} />
             <Route path="/events" element={<EventModeration />} />
             <Route path="/notification-weights" element={<NotificationWeights />} />
+            <Route path="/form-captures" element={<FormCaptures />} />
+            <Route path="/visitors-pulse" element={<VisitorsPulse />} />
             <Route path="/analytics/widget/:id" element={<WidgetAnalytics />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/templates" element={<Templates />} />

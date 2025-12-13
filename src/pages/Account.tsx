@@ -31,7 +31,6 @@ export default function Account() {
   const [company, setCompany] = useState("");
   
   // Password fields
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   
@@ -151,7 +150,6 @@ export default function Account() {
 
       if (error) throw error;
 
-      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       toast.success("Password changed successfully!");
@@ -266,16 +264,6 @@ export default function Account() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="current-password">Current Password</Label>
-            <Input 
-              id="current-password" 
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="Enter current password"
-            />
-          </div>
           <div className="space-y-2">
             <Label htmlFor="new-password">New Password</Label>
             <Input 

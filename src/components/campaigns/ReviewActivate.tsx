@@ -633,8 +633,8 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Campaign Name</CardTitle>
-          <CardDescription>Give your campaign a memorable name</CardDescription>
+          <CardTitle>Notification Name</CardTitle>
+          <CardDescription>Give your notification a memorable name</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">

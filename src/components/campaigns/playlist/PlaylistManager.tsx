@@ -99,7 +99,7 @@ export function PlaylistManager({
           <ListOrdered className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-semibold mb-2">No playlists yet</h3>
           <p className="text-muted-foreground mb-4">
-            Create your first playlist to orchestrate multiple campaigns
+            Create your first playlist to orchestrate multiple notifications
           </p>
         </CardContent>
       </Card>

@@ -310,11 +310,10 @@ export default function SelectPlan() {
               </Label>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {plans.map((plan) => {
+            <div className="grid md:grid-cols-3 gap-6">
+              {plans.filter(p => p.name !== 'Free').map((plan) => {
             const price = billingPeriod === 'monthly' ? plan.price_monthly : plan.price_yearly;
             const isPopular = plan.name === 'Pro';
-            const isFree = plan.name === 'Free';
             const features = generatePlanFeatures(plan);
 
             return (
@@ -327,11 +326,9 @@ export default function SelectPlan() {
                   </div>
                 )}
 
-                {!isFree && (
-                  <div className="bg-success/10 text-success text-xs font-semibold px-3 py-1 rounded-full inline-block mb-4">
-                    ✨ 14-Day Free Trial
-                  </div>
-                )}
+                <div className="bg-success/10 text-success text-xs font-semibold px-3 py-1 rounded-full inline-block mb-4">
+                  ✨ 14-Day Free Trial
+                </div>
 
                 <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
 
@@ -342,7 +339,7 @@ export default function SelectPlan() {
                       /{billingPeriod === 'monthly' ? 'mo' : 'yr'}
                     </span>
                   </div>
-                  {!isFree && <p className="text-xs text-muted-foreground">after trial ends</p>}
+                  <p className="text-xs text-muted-foreground">after trial ends</p>
                 </div>
 
                 <ul className="space-y-2 mb-6">
@@ -366,7 +363,7 @@ export default function SelectPlan() {
                       Processing...
                     </span>
                   ) : (
-                    isFree ? 'Get Started' : 'Start Free Trial'
+                    'Start Free Trial'
                   )}
                 </Button>
               </Card>
@@ -389,7 +386,7 @@ export default function SelectPlan() {
                       <thead>
                         <tr className="border-b">
                           <th className="text-left py-3 px-4 font-semibold">Feature</th>
-                          {plans.map(plan => (
+                          {plans.filter(p => p.name !== 'Free').map(plan => (
                             <th key={plan.id} className="text-center py-3 px-4 font-semibold">{plan.name}</th>
                           ))}
                         </tr>
@@ -400,13 +397,13 @@ export default function SelectPlan() {
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">Websites</td>
-                          {plans.map(plan => (
+                          {plans.filter(p => p.name !== 'Free').map(plan => (
                             <td key={plan.id} className="text-center py-3 px-4">{plan.max_websites}</td>
                           ))}
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">Monthly Views</td>
-                          {plans.map(plan => (
+                          {plans.filter(p => p.name !== 'Free').map(plan => (
                             <td key={plan.id} className="text-center py-3 px-4">
                               {plan.max_events_per_month 
                                 ? `${(plan.max_events_per_month / 1000).toFixed(0)}K`
@@ -417,13 +414,13 @@ export default function SelectPlan() {
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">Storage</td>
-                          {plans.map(plan => (
+                          {plans.filter(p => p.name !== 'Free').map(plan => (
                             <td key={plan.id} className="text-center py-3 px-4">{formatStorage(plan.storage_limit_bytes)}</td>
                           ))}
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">Video Recording</td>
-                          {plans.map(plan => (
+                          {plans.filter(p => p.name !== 'Free').map(plan => (
                             <td key={plan.id} className="text-center py-3 px-4">{formatVideoDuration(plan.video_max_duration_seconds)}</td>
                           ))}
                         </tr>
@@ -433,7 +430,7 @@ export default function SelectPlan() {
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">Remove Branding</td>
-                          {plans.map(plan => (
+                          {plans.filter(p => p.name !== 'Free').map(plan => (
                             <td key={plan.id} className="text-center py-3 px-4">
                               {plan.can_remove_branding ? <Check className="h-4 w-4 text-success mx-auto" /> : '—'}
                             </td>
@@ -441,7 +438,7 @@ export default function SelectPlan() {
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">Custom Domain</td>
-                          {plans.map(plan => (
+                          {plans.filter(p => p.name !== 'Free').map(plan => (
                             <td key={plan.id} className="text-center py-3 px-4">
                               {plan.custom_domain_enabled ? <Check className="h-4 w-4 text-success mx-auto" /> : '—'}
                             </td>
@@ -449,7 +446,7 @@ export default function SelectPlan() {
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">API & Webhooks</td>
-                          {plans.map(plan => (
+                          {plans.filter(p => p.name !== 'Free').map(plan => (
                             <td key={plan.id} className="text-center py-3 px-4">
                               {plan.has_api ? <Check className="h-4 w-4 text-success mx-auto" /> : '—'}
                             </td>
@@ -457,7 +454,7 @@ export default function SelectPlan() {
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">White Label</td>
-                          {plans.map(plan => (
+                          {plans.filter(p => p.name !== 'Free').map(plan => (
                             <td key={plan.id} className="text-center py-3 px-4">
                               {plan.has_white_label ? <Check className="h-4 w-4 text-success mx-auto" /> : '—'}
                             </td>

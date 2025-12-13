@@ -21,7 +21,7 @@ export function URLRulesCard({ includeUrls, excludeUrls, onChange }: URLRulesCar
           </div>
         </div>
         <CardDescription>
-          Control which pages display this campaign
+          Control which pages display this notification
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

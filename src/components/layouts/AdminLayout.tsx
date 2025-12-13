@@ -16,6 +16,7 @@ import {
   Shield,
   UserCog,
   GraduationCap,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +51,7 @@ const navItems: NavItem[] = [
   { label: "Teams", icon: Users, path: "/admin/teams" },
   { label: "Billing & Plans", icon: CreditCard, path: "/admin/billing" },
   { label: "Integrations", icon: Plug, path: "/admin/integrations" },
+  { label: "Email Templates", icon: Mail, path: "/admin/email-templates" },
   { label: "Onboarding Analytics", icon: GraduationCap, path: "/admin/onboarding" },
   { label: "Admin Management", icon: Shield, path: "/admin/admin-management", adminOnly: true },
   { label: "Logs", icon: FileText, path: "/admin/logs" },

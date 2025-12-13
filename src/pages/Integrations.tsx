@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, Upload, Search, TrendingUp, Star, Zap as ZapIcon, Home } from "lucide-react";
+import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, Upload, Search, TrendingUp, Star, Zap as ZapIcon, Home, Globe } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import { SocialProofConnectors } from "@/components/integrations/SocialProofConn
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { getIntegrationMetadata } from "@/lib/integrationMetadata";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 interface Integration {
@@ -34,12 +35,12 @@ interface Integration {
 
 export default function Integrations() {
   const navigate = useNavigate();
+  const { currentWebsite, isLoading: websiteLoading } = useWebsiteContext();
   const [loading, setLoading] = useState(true);
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [csvDialogOpen, setCSVDialogOpen] = useState(false);
-  const [currentWebsiteId, setCurrentWebsiteId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [integrationQuotas, setIntegrationQuotas] = useState<Record<string, { quota: number; used: number }>>({});
   const [moderationDialog, setModerationDialog] = useState<{ open: boolean; type: string; name: string }>({ 
@@ -82,42 +83,33 @@ export default function Integrations() {
     enabled: !!currentUserId,
   });
 
+  // Get current user ID on mount
   useEffect(() => {
-    fetchIntegrations();
-  }, []);
-
-  const fetchIntegrations = async () => {
-    try {
-      setLoading(true);
+    const getUserId = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate("/login");
         return;
       }
-
       setCurrentUserId(user.id);
+    };
+    getUserId();
+  }, [navigate]);
 
-      // Get user's primary website
-      const { data: websites } = await supabase
-        .from("websites")
-        .select("id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true })
-        .limit(1);
+  const fetchIntegrations = useCallback(async () => {
+    if (!currentWebsite?.id || !currentUserId) {
+      setLoading(false);
+      return;
+    }
 
-      const websiteId = websites?.[0]?.id;
-      setCurrentWebsiteId(websiteId);
-
-      if (!websiteId) {
-        toast.error("Please create a website first");
-        return;
-      }
+    try {
+      setLoading(true);
 
       // Get user's subscription plan
       const { data: subscription } = await supabase
         .from('user_subscriptions')
         .select('plan:subscription_plans(*)')
-        .eq('user_id', user.id)
+        .eq('user_id', currentUserId)
         .eq('status', 'active')
         .maybeSingle();
 
@@ -133,7 +125,7 @@ export default function Integrations() {
       const { data: connectors, error: connectorsError } = await supabase
         .from("integration_connectors")
         .select("*")
-        .eq("website_id", websiteId);
+        .eq("website_id", currentWebsite.id);
 
       if (connectorsError) throw connectorsError;
 
@@ -141,8 +133,8 @@ export default function Integrations() {
       const { data: nativeIntegrations, error: nativeError } = await supabase
         .from("integrations")
         .select("*")
-        .eq("website_id", websiteId)
-        .eq("user_id", user.id);
+        .eq("website_id", currentWebsite.id)
+        .eq("user_id", currentUserId);
 
       if (nativeError) throw nativeError;
 
@@ -153,11 +145,24 @@ export default function Integrations() {
         isNative?: boolean;
       }> = [];
 
-      // Add native integrations (testimonials, announcements, live_visitors, instant_capture)
-      const nativeIntegrationTypes = ['testimonials', 'announcements', 'live_visitors', 'instant_capture'];
+      // Add native integrations (testimonials, announcements, live_visitors, form_hook)
+      const nativeIntegrationTypes = ['testimonials', 'announcements', 'live_visitors', 'form_hook'];
+      
+      // Provider aliases to handle database inconsistencies
+      const getProviderAliases = (type: string): string[] => {
+        const aliases: Record<string, string[]> = {
+          form_hook: ['form_hook', 'instant_capture'],
+          live_visitors: ['live_visitors', 'active_visitors'],
+        };
+        return aliases[type] || [type];
+      };
+      
       nativeIntegrationTypes.forEach(integrationType => {
         const metadata = getIntegrationMetadata(integrationType);
-        const nativeConnection = nativeIntegrations?.find(ni => ni.provider === integrationType);
+        const aliases = getProviderAliases(integrationType);
+        const nativeConnection = nativeIntegrations?.find(ni => 
+          aliases.includes(ni.provider)
+        );
         
         mappedIntegrations.push({
           id: integrationType,
@@ -176,29 +181,32 @@ export default function Integrations() {
       });
 
       // Build integrations list dynamically from database configs (webhook/oauth integrations)
+      // Filter out native integration types to avoid duplicates
       if (configs && configs.length > 0) {
-        configs.forEach(config => {
-          const metadata = getIntegrationMetadata(config.integration_type);
-          const connector = connectors?.find(c => c.integration_type === config.integration_type);
-          const configData = config.config as any;
-          const quota = configData?.quota_per_plan?.[userPlan] || 1;
-          const used = connectors?.filter(c => c.integration_type === config.integration_type).length || 0;
-          
-          mappedIntegrations.push({
-            id: config.integration_type,
-            name: metadata.displayName,
-            type: metadata.type,
-            description: metadata.description,
-            icon: metadata.icon,
-            status: connector ? (connector.status === "active" ? "connected" : "error") : "disconnected",
-            lastSync: connector?.last_sync || undefined,
-            connector: connector || undefined,
-            popularityScore: metadata.popularityScore || 50,
-            isTrending: metadata.isTrending || false,
-            connectorType: metadata.connectorType,
-            isNative: false,
+        configs
+          .filter(config => !nativeIntegrationTypes.includes(config.integration_type))
+          .forEach(config => {
+            const metadata = getIntegrationMetadata(config.integration_type);
+            const connector = connectors?.find(c => c.integration_type === config.integration_type);
+            const configData = config.config as any;
+            const quota = configData?.quota_per_plan?.[userPlan] || 1;
+            const used = connectors?.filter(c => c.integration_type === config.integration_type).length || 0;
+            
+            mappedIntegrations.push({
+              id: config.integration_type,
+              name: metadata.displayName,
+              type: metadata.type,
+              description: metadata.description,
+              icon: metadata.icon,
+              status: connector ? (connector.status === "active" ? "connected" : "error") : "disconnected",
+              lastSync: connector?.last_sync || undefined,
+              connector: connector || undefined,
+              popularityScore: metadata.popularityScore || 50,
+              isTrending: metadata.isTrending || false,
+              connectorType: metadata.connectorType,
+              isNative: false,
+            });
           });
-        });
       }
 
       // Calculate quotas for each integration
@@ -226,11 +234,46 @@ export default function Integrations() {
     } finally {
       setLoading(false);
     }
+  }, [currentWebsite?.id, currentUserId]);
+
+  // Refetch integrations when website changes
+  useEffect(() => {
+    if (currentWebsite?.id && currentUserId) {
+      fetchIntegrations();
+    }
+  }, [currentWebsite?.id, currentUserId, fetchIntegrations]);
+
+  // Get management route for native integrations
+  const getManageRoute = (integrationType: string): string | null => {
+    const routes: Record<string, string> = {
+      testimonials: '/testimonials',
+      form_hook: '/form-captures',
+      instant_capture: '/form-captures',
+      announcements: '/campaigns?type=announcement',
+      live_visitors: '/visitors-pulse',
+    };
+    return routes[integrationType] || null;
+  };
+
+  const handleManage = (integration: Integration) => {
+    const route = getManageRoute(integration.id);
+    if (route) {
+      navigate(route);
+    }
   };
 
   const handleConnect = (integration: Integration) => {
     setSelectedIntegration(integration);
     setDialogOpen(true);
+  };
+
+  // Handle settings click - for connected native integrations, navigate to management page
+  const handleSettings = (integration: Integration) => {
+    if (integration.isNative && integration.status === 'connected') {
+      handleManage(integration);
+    } else {
+      handleConnect(integration);
+    }
   };
 
   const handleSync = async (integration: Integration) => {
@@ -327,11 +370,12 @@ export default function Integrations() {
     return filtered;
   };
 
-  if (loading) {
+  // Show loading state while website context is loading
+  if (websiteLoading || loading) {
     return <div className="flex items-center justify-center h-full">Loading...</div>;
   }
 
-  if (!currentWebsiteId) {
+  if (!currentWebsite?.id) {
     return (
       <div className="flex flex-col items-center justify-center h-full space-y-4">
         <p className="text-lg text-muted-foreground">Please create a website first to use integrations</p>
@@ -362,6 +406,11 @@ export default function Integrations() {
           <p className="text-muted-foreground">
             Connect 35+ tools to automatically create social proof notifications
           </p>
+          {/* Website indicator */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+            <Globe className="h-4 w-4" />
+            <span>Showing integrations for: <strong className="text-foreground">{currentWebsite?.domain}</strong></span>
+          </div>
           <div className="flex gap-3 mt-2">
             <Badge variant="outline" className="gap-1">
               <Plug className="h-3 w-3" />
@@ -449,12 +498,18 @@ export default function Integrations() {
                 <IntegrationCard
                   key={integration.id}
                   integration={integration}
+                  websiteDomain={currentWebsite?.domain}
                   onConnect={() => handleConnect(integration)}
                   onSync={() => handleSync(integration)}
-                  onSettings={() => handleConnect(integration)}
+                  onSettings={() => handleSettings(integration)}
                   onDisconnect={() => handleDisconnect(integration)}
+                  onManage={
+                    integration.isNative && getManageRoute(integration.id)
+                      ? () => handleManage(integration)
+                      : undefined
+                  }
                   onModerate={
-                    integration.status === "connected"
+                    integration.status === "connected" && !integration.isNative
                       ? () => setModerationDialog({ 
                           open: true, 
                           type: integration.id, 
@@ -481,12 +536,18 @@ export default function Integrations() {
                 <IntegrationCard
                   key={integration.id}
                   integration={integration}
+                  websiteDomain={currentWebsite?.domain}
                   onConnect={() => handleConnect(integration)}
                   onSync={() => handleSync(integration)}
-                  onSettings={() => handleConnect(integration)}
+                  onSettings={() => handleSettings(integration)}
                   onDisconnect={() => handleDisconnect(integration)}
+                  onManage={
+                    integration.isNative && getManageRoute(integration.id)
+                      ? () => handleManage(integration)
+                      : undefined
+                  }
                   onModerate={
-                    integration.status === "connected"
+                    integration.status === "connected" && !integration.isNative
                       ? () => setModerationDialog({ 
                           open: true, 
                           type: integration.id, 
@@ -513,10 +574,16 @@ export default function Integrations() {
                 <IntegrationCard
                   key={integration.id}
                   integration={integration}
+                  websiteDomain={currentWebsite?.domain}
                   onConnect={() => handleConnect(integration)}
                   onSync={() => handleSync(integration)}
-                  onSettings={() => handleConnect(integration)}
+                  onSettings={() => handleSettings(integration)}
                   onDisconnect={() => handleDisconnect(integration)}
+                  onManage={
+                    integration.isNative && getManageRoute(integration.id)
+                      ? () => handleManage(integration)
+                      : undefined
+                  }
                   quota={integrationQuotas[integration.id]}
                 />
               ))}
@@ -535,10 +602,16 @@ export default function Integrations() {
                 <IntegrationCard
                   key={integration.id}
                   integration={integration}
+                  websiteDomain={currentWebsite?.domain}
                   onConnect={() => handleConnect(integration)}
                   onSync={() => handleSync(integration)}
-                  onSettings={() => handleConnect(integration)}
+                  onSettings={() => handleSettings(integration)}
                   onDisconnect={() => handleDisconnect(integration)}
+                  onManage={
+                    integration.isNative && getManageRoute(integration.id)
+                      ? () => handleManage(integration)
+                      : undefined
+                  }
                   quota={integrationQuotas[integration.id]}
                 />
               ))}
@@ -557,10 +630,16 @@ export default function Integrations() {
                 <IntegrationCard
                   key={integration.id}
                   integration={integration}
+                  websiteDomain={currentWebsite?.domain}
                   onConnect={() => handleConnect(integration)}
                   onSync={() => handleSync(integration)}
-                  onSettings={() => handleConnect(integration)}
+                  onSettings={() => handleSettings(integration)}
                   onDisconnect={() => handleDisconnect(integration)}
+                  onManage={
+                    integration.isNative && getManageRoute(integration.id)
+                      ? () => handleManage(integration)
+                      : undefined
+                  }
                   quota={integrationQuotas[integration.id]}
                 />
               ))}
@@ -579,10 +658,16 @@ export default function Integrations() {
                 <IntegrationCard
                   key={integration.id}
                   integration={integration}
+                  websiteDomain={currentWebsite?.domain}
                   onConnect={() => handleConnect(integration)}
                   onSync={() => handleSync(integration)}
-                  onSettings={() => handleConnect(integration)}
+                  onSettings={() => handleSettings(integration)}
                   onDisconnect={() => handleDisconnect(integration)}
+                  onManage={
+                    integration.isNative && getManageRoute(integration.id)
+                      ? () => handleManage(integration)
+                      : undefined
+                  }
                   quota={integrationQuotas[integration.id]}
                 />
               ))}
@@ -601,10 +686,16 @@ export default function Integrations() {
                 <IntegrationCard
                   key={integration.id}
                   integration={integration}
+                  websiteDomain={currentWebsite?.domain}
                   onConnect={() => handleConnect(integration)}
                   onSync={() => handleSync(integration)}
-                  onSettings={() => handleConnect(integration)}
+                  onSettings={() => handleSettings(integration)}
                   onDisconnect={() => handleDisconnect(integration)}
+                  onManage={
+                    integration.isNative && getManageRoute(integration.id)
+                      ? () => handleManage(integration)
+                      : undefined
+                  }
                   quota={integrationQuotas[integration.id]}
                 />
               ))}
@@ -619,7 +710,7 @@ export default function Integrations() {
           integration={selectedIntegration}
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          websiteId={currentWebsiteId}
+          websiteId={currentWebsite?.id || null}
           onSuccess={fetchIntegrations}
         />
       )}
@@ -627,7 +718,7 @@ export default function Integrations() {
       <CSVUploadDialog
         open={csvDialogOpen}
         onOpenChange={setCSVDialogOpen}
-        websiteId={currentWebsiteId || ''}
+        websiteId={currentWebsite?.id || ''}
         onSuccess={fetchIntegrations}
       />
 

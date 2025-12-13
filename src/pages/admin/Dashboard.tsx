@@ -9,6 +9,9 @@ import { DashboardSkeleton } from "@/components/ui/loading-skeletons";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CheckoutMetricsWidget } from "@/components/admin/CheckoutMetricsWidget";
+import { SubscriptionMetricsWidget } from "@/components/admin/SubscriptionMetricsWidget";
+import { TrialExpirationsWidget } from "@/components/admin/TrialExpirationsWidget";
+import { EmailAnalyticsWidget } from "@/components/admin/EmailAnalyticsWidget";
 
 interface Stats {
   totalUsers: number;
@@ -229,8 +232,17 @@ export default function AdminDashboard() {
         })}
       </div>
 
+      {/* Subscription Health Metrics */}
+      <SubscriptionMetricsWidget />
+
+      {/* Trial Expirations Widget */}
+      <TrialExpirationsWidget />
+
       {/* Phase 4: Checkout Metrics Widget */}
       <CheckoutMetricsWidget />
+
+      {/* Email Analytics */}
+      <EmailAnalyticsWidget />
 
       {/* Alerts Section */}
       <Card>

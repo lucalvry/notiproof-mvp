@@ -1,9 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getIntegrationMetadata } from '@/lib/integrationMetadata';
+import { toast } from 'sonner';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
 
 interface NativeIntegrationFlowProps {
   integration: any;
@@ -16,6 +19,8 @@ export function NativeIntegrationFlow({
   websiteId,
   onSuccess,
 }: NativeIntegrationFlowProps) {
+  const navigate = useNavigate();
+  const { currentWebsite } = useWebsiteContext();
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -23,7 +28,27 @@ export function NativeIntegrationFlow({
   const metadata = getIntegrationMetadata(integration.id);
   const Icon = metadata?.icon;
 
+  // Use websiteId from props, fallback to context
+  const effectiveWebsiteId = websiteId || currentWebsite?.id;
+
+  // Get management route for native integrations
+  const getManageRoute = (integrationType: string): string | null => {
+    const routes: Record<string, string> = {
+      testimonials: '/testimonials',
+      form_hook: '/form-captures',
+      instant_capture: '/form-captures',
+      announcements: '/campaigns?type=announcement',
+      live_visitors: '/campaigns?type=live_visitors',
+    };
+    return routes[integrationType] || null;
+  };
+
   const handleConnect = async () => {
+    if (!effectiveWebsiteId) {
+      setError('No website selected. Please select a website first.');
+      return;
+    }
+
     setConnecting(true);
     setError(null);
 
@@ -36,7 +61,7 @@ export function NativeIntegrationFlow({
       const { data, error } = await supabase.functions.invoke('connect-native-integration', {
         body: {
           provider: integration.id,
-          websiteId,
+          websiteId: effectiveWebsiteId,
           name: integration.name,
         },
       });
@@ -48,8 +73,15 @@ export function NativeIntegrationFlow({
       }
 
       setSuccess(true);
+      toast.success(`${metadata?.displayName} enabled successfully!`);
+      
+      // Navigate to the management page after a short delay
+      const route = getManageRoute(integration.id);
       setTimeout(() => {
         onSuccess();
+        if (route) {
+          navigate(route);
+        }
       }, 1000);
 
     } catch (err: any) {
@@ -73,7 +105,7 @@ export function NativeIntegrationFlow({
             {metadata?.displayName} Connected!
           </h3>
           <p className="text-sm text-muted-foreground">
-            You can now use this integration in your campaigns
+            You can now use this integration in your notifications
           </p>
         </div>
       </div>
@@ -98,6 +130,11 @@ export function NativeIntegrationFlow({
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
             {metadata?.description}
           </p>
+          {currentWebsite && (
+            <p className="text-xs text-muted-foreground mt-2">
+              This will be enabled for: <strong>{currentWebsite.domain}</strong>
+            </p>
+          )}
         </div>
       </div>
 
@@ -153,7 +190,7 @@ export function NativeIntegrationFlow({
               </li>
             </>
           )}
-          {integration.id === 'instant_capture' && (
+          {(integration.id === 'instant_capture' || integration.id === 'form_hook') && (
             <>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
@@ -184,7 +221,7 @@ export function NativeIntegrationFlow({
       <div className="flex justify-center pt-2">
         <Button
           onClick={handleConnect}
-          disabled={connecting}
+          disabled={connecting || !effectiveWebsiteId}
           size="lg"
           className="min-w-[200px]"
         >

@@ -4,23 +4,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Users, UserPlus, Lock, Shield } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Users, UserPlus, Lock, Shield, Building2, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTeamMembers, useUserOrganizations, hasPermission } from "@/hooks/useTeamPermissions";
 import { TeamInviteDialog } from "@/components/team/TeamInviteDialog";
 import { TeamMembersTable } from "@/components/team/TeamMembersTable";
 import { TeamActivityLog } from "@/components/team/TeamActivityLog";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 export default function Team() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string>();
   const [selectedOrgId, setSelectedOrgId] = useState<string>();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [accountType, setAccountType] = useState<string | null>(null);
+  const [convertingToOrg, setConvertingToOrg] = useState(false);
+  const [newOrgName, setNewOrgName] = useState("");
+  const [isConverting, setIsConverting] = useState(false);
 
   const { subscription } = useSubscription(userId);
-  const { data: organizations } = useUserOrganizations(userId);
+  const { isSuperAdmin } = useSuperAdmin(userId);
+  const { data: organizations, refetch: refetchOrgs } = useUserOrganizations(userId);
   const { data: members, refetch: refetchMembers } = useTeamMembers(selectedOrgId);
 
   const isProPlan = subscription?.plan?.name?.toLowerCase().includes('pro') || false;
@@ -33,13 +42,55 @@ export default function Team() {
     });
   }, []);
 
+  // Fetch account type from profile
+  useEffect(() => {
+    if (userId) {
+      supabase
+        .from('profiles')
+        .select('account_type')
+        .eq('id', userId)
+        .single()
+        .then(({ data }) => {
+          setAccountType(data?.account_type || 'individual');
+        });
+    }
+  }, [userId]);
+
   useEffect(() => {
     if (organizations && organizations.length > 0 && !selectedOrgId) {
       setSelectedOrgId(organizations[0].organization_id);
     }
   }, [organizations, selectedOrgId]);
 
-  if (!isProPlan) {
+  const handleConvertToOrganization = async () => {
+    if (!newOrgName.trim()) {
+      toast.error("Please enter an organization name");
+      return;
+    }
+
+    setIsConverting(true);
+    try {
+      const { data, error } = await supabase.rpc('convert_to_organization', {
+        _user_id: userId,
+        _organization_name: newOrgName.trim()
+      });
+
+      if (error) throw error;
+
+      toast.success("Successfully converted to organization account!");
+      setAccountType('organization');
+      setConvertingToOrg(false);
+      refetchOrgs();
+    } catch (error: any) {
+      console.error("Error converting to organization:", error);
+      toast.error(error.message || "Failed to convert account");
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
+  // Show upgrade prompt for non-Pro users
+  if (!isProPlan && !isSuperAdmin) {
     return (
       <div className="mx-auto max-w-7xl space-y-6">
         <div>
@@ -68,6 +119,72 @@ export default function Team() {
     );
   }
 
+  // Show convert to organization prompt for individual accounts
+  if (accountType === 'individual') {
+    return (
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Team Collaboration</h1>
+          <p className="text-muted-foreground">
+            Invite team members and manage permissions
+          </p>
+        </div>
+
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12 gap-6">
+            <Building2 className="h-16 w-16 text-muted-foreground" />
+            <div className="text-center space-y-2">
+              <h3 className="text-xl font-semibold">Individual Account</h3>
+              <p className="text-muted-foreground max-w-md">
+                Team collaboration is available for organization accounts. Convert your account to unlock
+                team features and invite collaborators.
+              </p>
+            </div>
+
+            {!convertingToOrg ? (
+              <Button onClick={() => setConvertingToOrg(true)} size="lg">
+                <Building2 className="h-4 w-4 mr-2" />
+                Convert to Organization Account
+              </Button>
+            ) : (
+              <div className="w-full max-w-sm space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="orgName">Organization Name</Label>
+                  <Input
+                    id="orgName"
+                    placeholder="Enter your organization name"
+                    value={newOrgName}
+                    onChange={(e) => setNewOrgName(e.target.value)}
+                    disabled={isConverting}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setConvertingToOrg(false)}
+                    disabled={isConverting}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleConvertToOrganization}
+                    disabled={isConverting || !newOrgName.trim()}
+                    className="flex-1"
+                  >
+                    {isConverting ? "Converting..." : "Convert"}
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Organization account but no organizations yet (edge case)
   if (!organizations || organizations.length === 0) {
     return (
       <div className="mx-auto max-w-7xl space-y-6">
@@ -80,7 +197,7 @@ export default function Team() {
 
         <Alert>
           <AlertDescription>
-            You need to create an organization first to manage team members.
+            Setting up your organization... Please refresh the page if this persists.
           </AlertDescription>
         </Alert>
       </div>

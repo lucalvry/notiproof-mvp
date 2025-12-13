@@ -63,9 +63,14 @@ function normalizeTestimonial(testimonial: any): CanonicalEvent {
   const authorName = testimonial.author_name || 'Anonymous Customer';
   const authorPosition = testimonial.author_position || testimonial.metadata?.position || 'Customer';
   const authorCompany = testimonial.author_company || testimonial.metadata?.company || 'Happy Customer';
-  const authorAvatar = testimonial.avatar_url || 
-    testimonial.author_avatar_url ||
+  
+  // Prioritize author_avatar_url (where form submissions store avatars)
+  const authorAvatar = testimonial.author_avatar_url || 
+    testimonial.avatar_url ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}&background=2563EB&color=fff`;
+  
+  // Generate initials for fallback
+  const authorInitials = authorName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
   
   return {
     event_id: `testimonial_${testimonial.id}`,
@@ -77,13 +82,17 @@ function normalizeTestimonial(testimonial: any): CanonicalEvent {
       'template.author_name': authorName,
       'template.author_email': testimonial.author_email || '',
       'template.author_avatar': authorAvatar,
+      'template.author_initials': authorInitials,
       'template.author_position': authorPosition,
       'template.author_company': authorCompany,
       'template.rating': rating,
       'template.rating_stars': stars,
       'template.message': testimonial.message || 'Great experience!',
-      'template.image_url': testimonial.metadata?.product_image_url || null,
-      'template.video_url': testimonial.video_url,
+      // image_url: check direct field first, then metadata
+      'template.image_url': testimonial.image_url || testimonial.metadata?.product_image_url || null,
+      'template.video_url': testimonial.video_url || null,
+      // video_thumbnail: for video testimonials, use avatar as thumbnail
+      'template.video_thumbnail': testimonial.video_url ? (testimonial.author_avatar_url || testimonial.avatar_url || authorAvatar) : null,
       'template.time_ago': timeAgo,
       'template.verified': !!testimonial.metadata?.verified_purchase,
       'meta.source': testimonial.source || 'form',
@@ -93,14 +102,35 @@ function normalizeTestimonial(testimonial: any): CanonicalEvent {
 }
 
 /**
- * Render Mustache template with event data
+ * Render Mustache template with event data (supports conditionals)
  */
 function renderTemplate(template: string, data: Record<string, any>): string {
   let rendered = template;
   
-  // Simple Mustache-like rendering
-  // Replace {{key}} with data[key]
-  rendered = rendered.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+  // Step 1: Handle section blocks {{#key}}...{{/key}} (show if truthy)
+  rendered = rendered.replace(/\{\{#([^}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (match, key, content) => {
+    const trimmedKey = key.trim();
+    const value = data[trimmedKey];
+    // Show content if value is truthy (not null, undefined, false, empty string, or 0)
+    if (value !== undefined && value !== null && value !== '' && value !== false) {
+      return content;
+    }
+    return '';
+  });
+  
+  // Step 2: Handle inverted blocks {{^key}}...{{/key}} (show if falsy)
+  rendered = rendered.replace(/\{\{\^([^}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (match, key, content) => {
+    const trimmedKey = key.trim();
+    const value = data[trimmedKey];
+    // Show content if value is falsy
+    if (value === undefined || value === null || value === '' || value === false) {
+      return content;
+    }
+    return '';
+  });
+  
+  // Step 3: Handle simple substitutions {{key}}
+  rendered = rendered.replace(/\{\{([^#^/][^}]*)\}\}/g, (match, key) => {
     const trimmedKey = key.trim();
     const value = data[trimmedKey];
     return value !== undefined && value !== null ? String(value) : '';

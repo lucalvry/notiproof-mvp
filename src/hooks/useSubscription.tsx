@@ -30,13 +30,21 @@ interface UserSubscription {
   plan: SubscriptionPlan;
 }
 
+export type BlockReason = 
+  | 'no_subscription' 
+  | 'trial_expired' 
+  | 'payment_failed' 
+  | 'subscription_cancelled';
+
 export const useSubscription = (userId: string | undefined) => {
   const { isSuperAdmin } = useSuperAdmin(userId);
+  
   const { data: subscription, isLoading } = useQuery({
     queryKey: ['subscription', userId],
     queryFn: async (): Promise<UserSubscription | null> => {
       if (!userId) return null;
 
+      // Fetch all subscriptions (not just active) to determine block reason
       const { data, error } = await supabase
         .from('user_subscriptions')
         .select(`
@@ -44,11 +52,12 @@ export const useSubscription = (userId: string | undefined) => {
           plan:subscription_plans(*)
         `)
         .eq('user_id', userId)
-        .in('status', ['active', 'trialing', 'past_due'])
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single();
 
       if (error) {
-        // User doesn't have an active subscription
+        // User doesn't have any subscription
         if (error.code === 'PGRST116') {
           return null;
         }
@@ -89,27 +98,97 @@ export const useSubscription = (userId: string | undefined) => {
       isTrialing: false,
       trialEndsAt: null,
       trialDaysLeft: null,
+      // Access control
+      isBlocked: false,
+      hasNoSubscription: false,
+      isExpired: false,
+      isPaymentFailed: false,
+      blockReason: null as BlockReason | null,
       isLoading,
     };
   }
 
   const plan = subscription?.plan;
+  const status = subscription?.status;
   
-  // Free tier defaults (no subscription in database)
-  const isFree = !subscription;
-  const sitesAllowed = plan?.max_websites ?? (isFree ? 1 : 0);
-  const eventsAllowed = plan?.max_events_per_month ?? (isFree ? 1000 : 0);
-  const planName = plan?.name ?? (isFree ? "Free" : "No Subscription");
+  // Determine if user is blocked
+  const hasNoSubscription = !subscription;
+  
+  // Check trial expiration
+  const trialEndsAt = subscription?.trial_end;
+  const isTrialExpired = status === 'trialing' && trialEndsAt && new Date(trialEndsAt) < new Date();
+  
+  // Check subscription status
+  const isPaymentFailed = status === 'past_due';
+  const isCancelled = status === 'cancelled';
+  const isExpired = isTrialExpired || isCancelled;
+  
+  // User is blocked if no subscription, expired, or payment failed
+  const isBlocked = hasNoSubscription || isExpired || isPaymentFailed;
+  
+  // Determine block reason
+  let blockReason: BlockReason | null = null;
+  if (hasNoSubscription) {
+    blockReason = 'no_subscription';
+  } else if (isTrialExpired) {
+    blockReason = 'trial_expired';
+  } else if (isPaymentFailed) {
+    blockReason = 'payment_failed';
+  } else if (isCancelled) {
+    blockReason = 'subscription_cancelled';
+  }
+
+  // If blocked, return with zero access
+  if (isBlocked) {
+    return {
+      subscription,
+      plan,
+      sitesAllowed: 0,
+      eventsAllowed: 0,
+      planName: hasNoSubscription ? "No Subscription" : plan?.name ?? "Expired",
+      isBusinessPlan: false,
+      isProPlan: false,
+      isStandard: false,
+      isStarter: false,
+      isFree: false,
+      // All features blocked
+      maxIntegrations: 0,
+      maxCampaignTemplates: 0,
+      testimonialLimit: 0,
+      formLimit: 0,
+      storageLimitBytes: 0,
+      videoMaxDurationSeconds: 0,
+      canRemoveBranding: false,
+      customDomainEnabled: false,
+      analyticsLevel: 'none',
+      hasWhiteLabel: false,
+      hasApi: false,
+      isTrialing: false,
+      trialEndsAt,
+      trialDaysLeft: null,
+      // Access control flags
+      isBlocked: true,
+      hasNoSubscription,
+      isExpired,
+      isPaymentFailed,
+      blockReason,
+      isLoading,
+    };
+  }
+
+  // User has valid subscription
+  const sitesAllowed = plan?.max_websites ?? 0;
+  const eventsAllowed = plan?.max_events_per_month ?? 0;
+  const planName = plan?.name ?? "Unknown";
   const isBusinessPlan = planName === "Business";
   const isProPlan = planName === "Pro";
   const isStandard = planName === "Standard";
   const isStarter = planName === "Starter";
   
   // Trial information
-  const isTrialing = subscription?.status === 'trialing';
-  const trialEndsAt = subscription?.trial_end;
+  const isTrialing = status === 'trialing';
   const trialDaysLeft = trialEndsAt 
-    ? Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : null;
 
   return {
@@ -122,15 +201,15 @@ export const useSubscription = (userId: string | undefined) => {
     isProPlan,
     isStandard,
     isStarter,
-    isFree,
+    isFree: false, // No more free plan
     // Global features (ALL PLANS get these - no limits!)
     maxIntegrations: 999,  // All 38+ integrations for all plans
     maxCampaignTemplates: 999,  // All templates for all plans
     testimonialLimit: null,  // Unlimited testimonials for all plans
     formLimit: null,  // Unlimited forms for all plans
     // Plan-specific differentiators (THE ONLY THINGS THAT CHANGE)
-    storageLimitBytes: plan?.storage_limit_bytes ?? (isFree ? 104857600 : 0), // 100MB for free
-    videoMaxDurationSeconds: plan?.video_max_duration_seconds ?? (isFree ? 30 : 0), // 30s for free
+    storageLimitBytes: plan?.storage_limit_bytes ?? 0,
+    videoMaxDurationSeconds: plan?.video_max_duration_seconds ?? 0,
     canRemoveBranding: plan?.can_remove_branding ?? false,
     customDomainEnabled: plan?.custom_domain_enabled ?? false,
     analyticsLevel: plan?.analytics_level ?? 'basic',
@@ -139,6 +218,12 @@ export const useSubscription = (userId: string | undefined) => {
     isTrialing,
     trialEndsAt,
     trialDaysLeft,
+    // Access control flags
+    isBlocked: false,
+    hasNoSubscription: false,
+    isExpired: false,
+    isPaymentFailed: false,
+    blockReason: null as BlockReason | null,
     isLoading,
   };
 };

@@ -185,3 +185,21 @@ verify_jwt = true
 
 [functions.deploy-widget-to-bunny]
 verify_jwt = true
+
+[functions.bunny-delete]
+verify_jwt = true
+
+[functions.cleanup-media]
+verify_jwt = false
+
+[functions.bunny-upload-public]
+verify_jwt = false
+
+[functions.send-trial-notifications]
+verify_jwt = false
+
+[functions.email-tracking]
+verify_jwt = false
+
+[functions.send-winback-emails]
+verify_jwt = false

@@ -73,7 +73,7 @@ export function WebsiteGate({ selectedWebsiteId, onWebsiteSelect }: WebsiteGateP
           <Globe className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold mb-2">No Websites Added</h3>
           <p className="text-sm text-muted-foreground mb-6">
-            Add your first website to create campaigns
+            Add your first website to create notifications
           </p>
           <Button onClick={handleAddWebsite}>
             <Plus className="h-4 w-4 mr-2" />
@@ -89,7 +89,7 @@ export function WebsiteGate({ selectedWebsiteId, onWebsiteSelect }: WebsiteGateP
       <div>
         <h3 className="text-lg font-semibold mb-2">Select Website</h3>
         <p className="text-sm text-muted-foreground">
-          Choose which website this campaign will run on
+          Choose which website this notification will run on
         </p>
       </div>
 

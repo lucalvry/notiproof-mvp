@@ -232,28 +232,73 @@ Deno.serve(async (req) => {
         custom_brand_name: ""
       };
 
-      // Fetch user's subscription plan
+      // Fetch user's subscription and check if blocked
       let subscriptionInfo = null;
+      let isBlocked = false;
+      let blockReason = null;
+      
       const { data: subscription } = await supabase
         .from('user_subscriptions')
         .select(`
           plan_id,
+          status,
+          trial_end,
           subscription_plans!inner(name)
         `)
         .eq('user_id', website.user_id)
-        .in('status', ['active', 'trialing'])
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single();
       
-      // subscription_plans is a single object from the !inner join, NOT an array
-      if (subscription?.subscription_plans) {
-        const plans = subscription.subscription_plans as { name: string } | { name: string }[];
-        // Handle both single object and array cases
-        const planName = Array.isArray(plans) ? plans[0]?.name : plans.name;
-        if (planName) {
-          subscriptionInfo = {
-            plan_name: planName,
-          };
+      // Check subscription status
+      if (!subscription) {
+        // No subscription = blocked
+        isBlocked = true;
+        blockReason = 'no_subscription';
+      } else {
+        const status = subscription.status;
+        const trialEnd = subscription.trial_end;
+        
+        // Check if trial expired
+        if (status === 'trialing' && trialEnd && new Date(trialEnd) < new Date()) {
+          isBlocked = true;
+          blockReason = 'trial_expired';
+        } else if (status === 'past_due') {
+          isBlocked = true;
+          blockReason = 'payment_failed';
+        } else if (status === 'cancelled') {
+          isBlocked = true;
+          blockReason = 'subscription_cancelled';
+        } else if (status === 'active' || status === 'trialing') {
+          // Valid subscription
+          const plans = subscription.subscription_plans as { name: string } | { name: string }[];
+          const planName = Array.isArray(plans) ? plans[0]?.name : plans.name;
+          if (planName) {
+            subscriptionInfo = {
+              plan_name: planName,
+            };
+          }
+        } else {
+          // Unknown status = blocked
+          isBlocked = true;
+          blockReason = 'no_subscription';
         }
+      }
+      
+      // If blocked, return empty response with block info
+      if (isBlocked) {
+        console.log('[widget-api] User blocked:', { user_id: website.user_id, blockReason });
+        return new Response(JSON.stringify({
+          blocked: true,
+          block_reason: blockReason,
+          widgets: [],
+          events: [],
+          campaigns: [],
+          display_settings: null,
+          message: 'Subscription inactive. Please update your subscription to display notifications.',
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
 
       // Get all active widgets for this website
@@ -295,6 +340,20 @@ Deno.serve(async (req) => {
         );
       });
 
+      // Fetch form_hook integrations from integration_connectors
+      const { data: formHookIntegrations, error: integrationsError } = await supabase
+        .from('integration_connectors')
+        .select('id, config, status')
+        .eq('website_id', website.id)
+        .eq('integration_type', 'form_hook')
+        .eq('status', 'active');
+      
+      if (integrationsError) {
+        console.error('[widget-api] Error fetching form hook integrations:', integrationsError);
+      } else {
+        console.log('[widget-api] Found form hook integrations:', formHookIntegrations?.length || 0);
+      }
+
       // Filter out demo events if there are active campaigns
       // PHASE 2: Use Queue Orchestration Layer instead of raw event fetching
       console.log('[widget-api] Calling queue builder for website:', website.id);
@@ -332,6 +391,8 @@ Deno.serve(async (req) => {
         widgets: widgets || [],
         events: allEvents || [],
         campaigns: [], // Will be provided by queue builder
+        native_integrations: formHookIntegrations || [], // Form capture integrations
+        website_id: website.id, // Needed for form tracking
         display_settings: displaySettings,
         visitor_country: visitorCountry,
         white_label: whiteLabelSettings,

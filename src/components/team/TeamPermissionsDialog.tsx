@@ -126,7 +126,7 @@ export function TeamPermissionsDialog({ open, onOpenChange, member, onSuccess }:
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="campaigns-create">Create Campaigns</Label>
+                  <Label htmlFor="campaigns-create">Create Notifications</Label>
                   <Switch
                     id="campaigns-create"
                     checked={permissions.campaigns.create}
@@ -134,7 +134,7 @@ export function TeamPermissionsDialog({ open, onOpenChange, member, onSuccess }:
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="campaigns-edit">Edit Campaigns</Label>
+                  <Label htmlFor="campaigns-edit">Edit Notifications</Label>
                   <Switch
                     id="campaigns-edit"
                     checked={permissions.campaigns.edit}
@@ -142,7 +142,7 @@ export function TeamPermissionsDialog({ open, onOpenChange, member, onSuccess }:
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="campaigns-delete">Delete Campaigns</Label>
+                  <Label htmlFor="campaigns-delete">Delete Notifications</Label>
                   <Switch
                     id="campaigns-delete"
                     checked={permissions.campaigns.delete}

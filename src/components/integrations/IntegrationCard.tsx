@@ -1,26 +1,30 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, TrendingUp, Star, Zap, List } from "lucide-react";
+import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, TrendingUp, Star, Zap, List, ExternalLink, Globe } from "lucide-react";
 
 interface IntegrationCardProps {
   integration: any;
+  websiteDomain?: string;
   onConnect: () => void;
   onSync: () => void;
   onSettings: () => void;
   onDisconnect: () => void;
   onModerate?: () => void;
+  onManage?: () => void;
   quota?: { quota: number; used: number };
   pendingCount?: number;
 }
 
 export function IntegrationCard({
   integration,
+  websiteDomain,
   onConnect,
   onSync,
   onSettings,
   onDisconnect,
   onModerate,
+  onManage,
   quota,
   pendingCount = 0,
 }: IntegrationCardProps) {
@@ -71,6 +75,13 @@ export function IntegrationCard({
                     Native
                   </Badge>
                 )}
+                {/* Website badge for connected integrations */}
+                {isConnected && websiteDomain && (
+                  <Badge variant="secondary" className="text-xs">
+                    <Globe className="h-3 w-3 mr-1" />
+                    {websiteDomain}
+                  </Badge>
+                )}
                 {!isConnected && integration.connectorType === 'oauth' && integration.configured && (
                   <Badge variant="outline" className="bg-success/10 text-success border-success/20">
                     <CheckCircle className="h-3 w-3 mr-1" />
@@ -104,8 +115,16 @@ export function IntegrationCard({
           {integration.description}
         </p>
 
+        {/* Native integration helper text */}
+        {!isConnected && integration.isNative && (
+          <div className="flex items-center gap-2 text-xs text-primary bg-primary/5 rounded-md px-2 py-1.5">
+            <Zap className="h-3 w-3" />
+            <span>Enable to get started — no external account needed</span>
+          </div>
+        )}
+
         {/* Popularity indicator */}
-        {!isConnected && popularityScore > 80 && (
+        {!isConnected && !integration.isNative && popularityScore > 80 && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
             <span>Popular choice ({Math.round(popularityScore)}% adoption)</span>
@@ -136,10 +155,19 @@ export function IntegrationCard({
             </Button>
           ) : (
             <>
-              <Button variant="outline" className="flex-1" onClick={onSync}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Sync
-              </Button>
+              {/* Manage button for native integrations */}
+              {onManage && (
+                <Button className="flex-1" onClick={onManage}>
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Manage
+                </Button>
+              )}
+              {!onManage && (
+                <Button variant="outline" className="flex-1" onClick={onSync}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Sync
+                </Button>
+              )}
               {onModerate && (
                 <Button variant="outline" onClick={onModerate}>
                   <List className="h-4 w-4 mr-2" />

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle2, AlertCircle, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { adapterRegistry } from '@/lib/integrations/AdapterRegistry';
+import { adapterRegistry, resolveProviderAlias } from '@/lib/integrations/AdapterRegistry';
 import type { IntegrationAdapter } from '@/lib/integrations/types';
 import { IntegrationConnectionDialog } from '@/components/integrations/IntegrationConnectionDialog';
 import { getIntegrationMetadata } from '@/lib/integrationMetadata';
@@ -47,28 +47,67 @@ export function IntegrationSelectionStep({
   async function fetchIntegrations() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch from integrations table (external integrations)
+      const { data: externalData, error: externalError } = await supabase
         .from('integrations')
         .select('*')
         .eq('website_id', websiteId)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (externalError) throw externalError;
 
-      // Enrich with adapter data
-      const enriched: IntegrationWithStatus[] = (data || [])
+      // Fetch from integration_connectors table (native integrations like form_hook)
+      const { data: nativeData, error: nativeError } = await supabase
+        .from('integration_connectors')
+        .select('id, integration_type, config, status, last_sync, name')
+        .eq('website_id', websiteId)
+        .eq('status', 'active');
+
+      if (nativeError) throw nativeError;
+
+      // Enrich external integrations with adapter data, resolving aliases
+      const enrichedExternal: IntegrationWithStatus[] = (externalData || [])
         .map(integration => {
-          const adapter = adapterRegistry.get(integration.provider);
+          const canonicalProvider = resolveProviderAlias(integration.provider);
+          const adapter = adapterRegistry.get(canonicalProvider);
           if (!adapter) return null;
           return {
             ...integration,
+            provider: canonicalProvider, // Use canonical provider name
             adapter,
           };
         })
         .filter(Boolean) as IntegrationWithStatus[];
 
-      setIntegrations(enriched);
+      // Map native integrations to same shape (integration_type -> provider)
+      const enrichedNative: IntegrationWithStatus[] = (nativeData || [])
+        .map(native => {
+          const canonicalProvider = resolveProviderAlias(native.integration_type);
+          const adapter = adapterRegistry.get(canonicalProvider);
+          if (!adapter) return null;
+          return {
+            id: native.id,
+            provider: canonicalProvider, // Use canonical provider name
+            name: native.name || adapter.displayName,
+            is_active: native.status === 'active',
+            last_sync_at: native.last_sync,
+            adapter,
+          };
+        })
+        .filter(Boolean) as IntegrationWithStatus[];
+
+      // Combine both sources and deduplicate by provider
+      const allIntegrations = [...enrichedExternal, ...enrichedNative];
+      const deduplicatedMap = new Map<string, IntegrationWithStatus>();
+      allIntegrations.forEach(integration => {
+        const existing = deduplicatedMap.get(integration.provider);
+        // Keep the most recently active one
+        if (!existing || (integration.is_active && !existing.is_active)) {
+          deduplicatedMap.set(integration.provider, integration);
+        }
+      });
+      setIntegrations(Array.from(deduplicatedMap.values()));
     } catch (error) {
       console.error('Error fetching integrations:', error);
     } finally {
@@ -89,7 +128,7 @@ export function IntegrationSelectionStep({
   };
 
   const unconnectedProviders = availableProviders.filter(
-    adapter => !integrations.some(i => i.provider === adapter.provider)
+    adapter => !integrations.some(i => resolveProviderAlias(i.provider) === adapter.provider)
   );
 
   const handleConnectClick = (provider: string) => {
@@ -115,7 +154,7 @@ export function IntegrationSelectionStep({
       <div>
         <h3 className="text-lg font-semibold mb-2">Select Data Sources</h3>
         <p className="text-sm text-muted-foreground">
-          Choose one or more integrations to power your campaign. You can combine multiple sources.
+          Choose one or more integrations to power your notification. You can combine multiple sources.
         </p>
       </div>
 

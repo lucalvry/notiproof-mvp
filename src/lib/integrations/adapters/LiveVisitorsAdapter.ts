@@ -2,12 +2,12 @@ import { BaseAdapter } from '../BaseAdapter';
 import { CanonicalEvent, NormalizedField } from '../types';
 
 /**
- * Live Visitors Adapter
+ * Visitors Pulse Adapter
  * Native integration for showing real-time visitor counts
  */
 export class LiveVisitorsAdapter extends BaseAdapter {
   provider = 'live_visitors';
-  displayName = 'Live Visitor Count';
+  displayName = 'Visitors Pulse';
   
   /**
    * Available fields this adapter can provide

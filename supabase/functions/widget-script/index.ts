@@ -5,11 +5,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Content-Type': 'application/javascript; charset=utf-8',
-  'Cache-Control': 'public, max-age=300, s-maxage=300',
+  'Cache-Control': 'public, max-age=60, s-maxage=60',
   'X-Content-Type-Options': 'nosniff',
 };
 
-const WIDGET_VERSION = '5';
+const WIDGET_VERSION = '6';
 
 Deno.serve(async (req) => {
   // Handle CORS preflight

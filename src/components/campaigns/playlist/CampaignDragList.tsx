@@ -159,8 +159,8 @@ export function CampaignDragList({
 
       {selectedCampaigns.length === 0 && unselectedCampaigns.length === 0 && (
         <div className="text-center py-8 text-muted-foreground">
-          <p>No active campaigns available</p>
-          <p className="text-sm mt-1">Create some campaigns first</p>
+          <p>No active notifications available</p>
+          <p className="text-sm mt-1">Create some notifications first</p>
         </div>
       )}
     </div>

@@ -88,7 +88,7 @@ export function SuccessModal({
             </div>
           </div>
           <DialogTitle className="text-center text-2xl">
-            🎉 Your First Notification is Live!
+            🎉 Your Notification is Live!
           </DialogTitle>
           <DialogDescription className="text-center text-base">
             <strong className="text-foreground">{campaignName}</strong> is now active and showing on your website
@@ -177,7 +177,7 @@ export function SuccessModal({
           </div>
 
           <p className="text-xs text-center text-muted-foreground">
-            💡 Tip: Customize colors, position, and timing in the campaign settings
+            💡 Tip: Customize colors, position, and timing in the notification settings
           </p>
         </div>
       </DialogContent>

@@ -130,6 +130,51 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_email_templates: {
+        Row: {
+          body_html: string
+          body_preview: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          placeholders: Json | null
+          subject: string
+          template_key: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          body_html: string
+          body_preview?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          placeholders?: Json | null
+          subject: string
+          template_key: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          body_html?: string
+          body_preview?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          placeholders?: Json | null
+          subject?: string
+          template_key?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       alerts: {
         Row: {
           context: Json | null
@@ -1419,11 +1464,13 @@ export type Database = {
         Row: {
           cdn_url: string
           created_at: string | null
+          deleted_at: string | null
           duration_seconds: number | null
           file_size: number
           id: string
           mime_type: string | null
           original_filename: string | null
+          testimonial_id: string | null
           type: string
           user_id: string
           website_id: string | null
@@ -1431,11 +1478,13 @@ export type Database = {
         Insert: {
           cdn_url: string
           created_at?: string | null
+          deleted_at?: string | null
           duration_seconds?: number | null
           file_size: number
           id?: string
           mime_type?: string | null
           original_filename?: string | null
+          testimonial_id?: string | null
           type: string
           user_id: string
           website_id?: string | null
@@ -1443,16 +1492,25 @@ export type Database = {
         Update: {
           cdn_url?: string
           created_at?: string | null
+          deleted_at?: string | null
           duration_seconds?: number | null
           file_size?: number
           id?: string
           mime_type?: string | null
           original_filename?: string | null
+          testimonial_id?: string | null
           type?: string
           user_id?: string
           website_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "media_testimonial_id_fkey"
+            columns: ["testimonial_id"]
+            isOneToOne: false
+            referencedRelation: "testimonials"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "media_website_id_fkey"
             columns: ["website_id"]
@@ -1668,34 +1726,40 @@ export type Database = {
       }
       profiles: {
         Row: {
+          account_type: string | null
           business_type: Database["public"]["Enums"]["business_type"] | null
           created_at: string | null
           demo_mode_enabled: boolean
           id: string
           name: string
           onboarding_progress: Json | null
+          organization_name: string | null
           role: Database["public"]["Enums"]["app_role"]
           status: string
           white_label_settings: Json | null
         }
         Insert: {
+          account_type?: string | null
           business_type?: Database["public"]["Enums"]["business_type"] | null
           created_at?: string | null
           demo_mode_enabled?: boolean
           id: string
           name: string
           onboarding_progress?: Json | null
+          organization_name?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
           white_label_settings?: Json | null
         }
         Update: {
+          account_type?: string | null
           business_type?: Database["public"]["Enums"]["business_type"] | null
           created_at?: string | null
           demo_mode_enabled?: boolean
           id?: string
           name?: string
           onboarding_progress?: Json | null
+          organization_name?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
           white_label_settings?: Json | null
@@ -2354,6 +2418,13 @@ export type Database = {
             foreignKeyName: "testimonial_embeds_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "onboarding_analytics"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "testimonial_embeds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2544,7 +2615,7 @@ export type Database = {
           status: string | null
           updated_at: string | null
           video_url: string | null
-          website_id: string
+          website_id: string | null
         }
         Insert: {
           author_avatar_url?: string | null
@@ -2564,7 +2635,7 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
           video_url?: string | null
-          website_id: string
+          website_id?: string | null
         }
         Update: {
           author_avatar_url?: string | null
@@ -2584,7 +2655,7 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
           video_url?: string | null
-          website_id?: string
+          website_id?: string | null
         }
         Relationships: [
           {
@@ -2654,6 +2725,62 @@ export type Database = {
           },
         ]
       }
+      trial_email_notifications: {
+        Row: {
+          click_count: number | null
+          clicked_at: string | null
+          created_at: string | null
+          email_type: string
+          error_message: string | null
+          id: string
+          open_count: number | null
+          opened_at: string | null
+          sent_at: string | null
+          status: string
+          subscription_id: string
+          tracking_id: string | null
+          user_id: string
+        }
+        Insert: {
+          click_count?: number | null
+          clicked_at?: string | null
+          created_at?: string | null
+          email_type: string
+          error_message?: string | null
+          id?: string
+          open_count?: number | null
+          opened_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subscription_id: string
+          tracking_id?: string | null
+          user_id: string
+        }
+        Update: {
+          click_count?: number | null
+          clicked_at?: string | null
+          created_at?: string | null
+          email_type?: string
+          error_message?: string | null
+          id?: string
+          open_count?: number | null
+          opened_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subscription_id?: string
+          tracking_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trial_email_notifications_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "user_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_quick_wins: {
         Row: {
           created_at: string
@@ -2695,6 +2822,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "quick_win_templates"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_quick_wins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_analytics"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "user_quick_wins_user_id_fkey"
@@ -2791,6 +2925,13 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans_public"
             referencedColumns: ["id"]
           },
         ]
@@ -3101,6 +3242,7 @@ export type Database = {
         Row: {
           business_type: Database["public"]["Enums"]["business_type"]
           created_at: string
+          deleted_at: string | null
           domain: string
           favicon_url: string | null
           id: string
@@ -3117,6 +3259,7 @@ export type Database = {
         Insert: {
           business_type?: Database["public"]["Enums"]["business_type"]
           created_at?: string
+          deleted_at?: string | null
           domain: string
           favicon_url?: string | null
           id?: string
@@ -3133,6 +3276,7 @@ export type Database = {
         Update: {
           business_type?: Database["public"]["Enums"]["business_type"]
           created_at?: string
+          deleted_at?: string | null
           domain?: string
           favicon_url?: string | null
           id?: string
@@ -3377,6 +3521,13 @@ export type Database = {
             foreignKeyName: "widgets_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "onboarding_analytics"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "widgets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3389,18 +3540,188 @@ export type Database = {
           },
         ]
       }
+      winback_email_campaigns: {
+        Row: {
+          campaign_type: string
+          clicked_at: string | null
+          converted_at: string | null
+          created_at: string | null
+          email: string
+          email_sequence: number | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          opened_at: string | null
+          sent_at: string | null
+          status: string | null
+          subscription_id: string
+          template_key: string
+          tracking_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          campaign_type: string
+          clicked_at?: string | null
+          converted_at?: string | null
+          created_at?: string | null
+          email: string
+          email_sequence?: number | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          opened_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+          subscription_id: string
+          template_key: string
+          tracking_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          campaign_type?: string
+          clicked_at?: string | null
+          converted_at?: string | null
+          created_at?: string | null
+          email?: string
+          email_sequence?: number | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          opened_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+          subscription_id?: string
+          template_key?: string
+          tracking_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       onboarding_analytics: {
         Row: {
-          average_completion: number | null
-          stuck_at_campaign: number | null
-          stuck_at_conversion: number | null
-          stuck_at_installation: number | null
-          stuck_at_website: number | null
-          users_completed: number | null
-          users_in_progress: number | null
-          users_not_started: number | null
+          business_type: Database["public"]["Enums"]["business_type"] | null
+          campaign_created: boolean | null
+          completion_percentage: number | null
+          dismissed: boolean | null
+          first_conversion: boolean | null
+          first_testimonial_collected: boolean | null
+          integration_connected: boolean | null
+          onboarding_completed_at: string | null
+          onboarding_started_at: string | null
+          playlist_created: boolean | null
+          selected_path: string | null
+          team_member_invited: boolean | null
+          template_customized: boolean | null
+          testimonial_form_created: boolean | null
+          user_created_at: string | null
+          user_id: string | null
+          website_added: boolean | null
+          widget_installed: boolean | null
+        }
+        Insert: {
+          business_type?: Database["public"]["Enums"]["business_type"] | null
+          campaign_created?: never
+          completion_percentage?: never
+          dismissed?: never
+          first_conversion?: never
+          first_testimonial_collected?: never
+          integration_connected?: never
+          onboarding_completed_at?: never
+          onboarding_started_at?: never
+          playlist_created?: never
+          selected_path?: never
+          team_member_invited?: never
+          template_customized?: never
+          testimonial_form_created?: never
+          user_created_at?: string | null
+          user_id?: string | null
+          website_added?: never
+          widget_installed?: never
+        }
+        Update: {
+          business_type?: Database["public"]["Enums"]["business_type"] | null
+          campaign_created?: never
+          completion_percentage?: never
+          dismissed?: never
+          first_conversion?: never
+          first_testimonial_collected?: never
+          integration_connected?: never
+          onboarding_completed_at?: never
+          onboarding_started_at?: never
+          playlist_created?: never
+          selected_path?: never
+          team_member_invited?: never
+          template_customized?: never
+          testimonial_form_created?: never
+          user_created_at?: string | null
+          user_id?: string | null
+          website_added?: never
+          widget_installed?: never
+        }
+        Relationships: []
+      }
+      subscription_plans_public: {
+        Row: {
+          analytics_level: string | null
+          can_remove_branding: boolean | null
+          features: Json | null
+          form_limit: number | null
+          has_api: boolean | null
+          has_white_label: boolean | null
+          id: string | null
+          is_active: boolean | null
+          max_events_per_month: number | null
+          max_websites: number | null
+          name: string | null
+          price_monthly: number | null
+          price_yearly: number | null
+          storage_limit_bytes: number | null
+          testimonial_limit: number | null
+          trial_period_days: number | null
+          video_max_duration_seconds: number | null
+        }
+        Insert: {
+          analytics_level?: string | null
+          can_remove_branding?: boolean | null
+          features?: Json | null
+          form_limit?: number | null
+          has_api?: boolean | null
+          has_white_label?: boolean | null
+          id?: string | null
+          is_active?: boolean | null
+          max_events_per_month?: number | null
+          max_websites?: number | null
+          name?: string | null
+          price_monthly?: number | null
+          price_yearly?: number | null
+          storage_limit_bytes?: number | null
+          testimonial_limit?: number | null
+          trial_period_days?: number | null
+          video_max_duration_seconds?: number | null
+        }
+        Update: {
+          analytics_level?: string | null
+          can_remove_branding?: boolean | null
+          features?: Json | null
+          form_limit?: number | null
+          has_api?: boolean | null
+          has_white_label?: boolean | null
+          id?: string | null
+          is_active?: boolean | null
+          max_events_per_month?: number | null
+          max_websites?: number | null
+          name?: string | null
+          price_monthly?: number | null
+          price_yearly?: number | null
+          storage_limit_bytes?: number | null
+          testimonial_limit?: number | null
+          trial_period_days?: number | null
+          video_max_duration_seconds?: number | null
         }
         Relationships: []
       }
@@ -3431,6 +3752,10 @@ export type Database = {
       cleanup_webhook_dedup: { Args: never; Returns: undefined }
       clear_demo_events: { Args: { _user_id: string }; Returns: undefined }
       clear_manual_events: { Args: { _user_id: string }; Returns: undefined }
+      convert_to_organization: {
+        Args: { _organization_name: string; _user_id: string }
+        Returns: string
+      }
       generate_demo_events: {
         Args: {
           _business_type: Database["public"]["Enums"]["business_type"]
@@ -3472,6 +3797,28 @@ export type Database = {
         Args: { _types?: string[]; _user_id: string }
         Returns: number
       }
+      get_media_pending_cleanup: {
+        Args: { _days_threshold?: number }
+        Returns: {
+          cdn_url: string
+          deleted_at: string
+          file_size: number
+          id: string
+          user_id: string
+          website_id: string
+        }[]
+      }
+      get_orphaned_media: {
+        Args: never
+        Returns: {
+          cdn_url: string
+          created_at: string
+          file_size: number
+          id: string
+          type: string
+          user_id: string
+        }[]
+      }
       get_user_event_usage: { Args: { _user_id: string }; Returns: Json }
       get_user_primary_website: { Args: { _user_id: string }; Returns: string }
       get_user_storage_used: { Args: { p_user_id: string }; Returns: number }
@@ -3492,8 +3839,23 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_website_deletion_impact: {
+        Args: { _website_id: string }
+        Returns: Json
+      }
+      get_website_media: {
+        Args: { _website_id: string }
+        Returns: {
+          cdn_url: string
+          created_at: string
+          file_size: number
+          id: string
+          testimonial_id: string
+          type: string
+        }[]
+      }
+      get_website_media_impact: { Args: { _website_id: string }; Returns: Json }
       has_role:
-        | { Args: { _role: string; _user_id: string }; Returns: boolean }
         | {
             Args: {
               _role: Database["public"]["Enums"]["app_role"]
@@ -3501,6 +3863,7 @@ export type Database = {
             }
             Returns: boolean
           }
+        | { Args: { _role: string; _user_id: string }; Returns: boolean }
       increment_article_view_count: {
         Args: { article_uuid: string }
         Returns: undefined
@@ -3514,8 +3877,8 @@ export type Database = {
         Returns: Json
       }
       increment_form_views:
-        | { Args: { form_uuid: string }; Returns: undefined }
         | { Args: { form_slug: string }; Returns: undefined }
+        | { Args: { form_uuid: string }; Returns: undefined }
       initialize_notification_weights: {
         Args: { _website_id: string }
         Returns: undefined
@@ -3545,11 +3908,17 @@ export type Database = {
         }
         Returns: string
       }
+      mark_website_media_for_deletion: {
+        Args: { _website_id: string }
+        Returns: number
+      }
       migrate_integration_connectors_to_integrations: {
         Args: never
         Returns: undefined
       }
       poll_active_campaigns: { Args: never; Returns: undefined }
+      purge_deleted_media: { Args: { _media_ids: string[] }; Returns: number }
+      purge_old_deleted_websites: { Args: never; Returns: number }
       record_conversion: {
         Args: {
           _conversion_data?: Json
@@ -3565,6 +3934,8 @@ export type Database = {
         Args: { _campaign_id: string; _period_type?: string }
         Returns: undefined
       }
+      restore_website: { Args: { _website_id: string }; Returns: boolean }
+      soft_delete_website: { Args: { _website_id: string }; Returns: boolean }
       submit_public_testimonial: {
         Args: {
           _author_avatar_url?: string

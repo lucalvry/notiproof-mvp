@@ -57,7 +57,7 @@ export function TestimonialCollectionForm({
   showCompanyFields = false,
 }: TestimonialCollectionFormProps) {
   const params = useParams();
-  const { uploadToBunny, uploadVideoWithThumbnail } = useBunnyUpload();
+  const { uploadPublic } = useBunnyUpload();
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [pageSequence, setPageSequence] = useState<string[]>([]);
   const [questions, setQuestions] = useState<any[]>([]);
@@ -258,7 +258,7 @@ export function TestimonialCollectionForm({
     const maxRetries = 2;
     
     try {
-      console.log(`[Upload] Starting ${type} upload to Bunny CDN:`, {
+      console.log(`[Upload] Starting PUBLIC ${type} upload to Bunny CDN:`, {
         fileName: file.name,
         fileSize: file.size,
         fileType: file.type,
@@ -266,21 +266,15 @@ export function TestimonialCollectionForm({
         attempt: retryCount + 1
       });
 
-      // Validate file size
-      const maxSize = type === 'avatar' ? 2 * 1024 * 1024 : 10 * 1024 * 1024; // 2MB for avatar, 10MB for video
+      // Validate file size (client-side pre-check)
+      const maxSize = type === 'avatar' ? 2 * 1024 * 1024 : 50 * 1024 * 1024; // 2MB for avatar, 50MB for video
       if (file.size > maxSize) {
         const sizeMB = (maxSize / 1024 / 1024).toFixed(0);
         throw new Error(`File size exceeds ${sizeMB}MB limit`);
       }
 
-      // Upload to Bunny CDN with organized path structure
-      const uploadPath = type === 'avatar' 
-        ? `testimonial-avatars/${websiteId}` 
-        : `testimonial-videos/${websiteId}`;
-
-      console.log(`[Upload] Uploading to Bunny CDN path: ${uploadPath}`);
-
-      const result = await uploadToBunny(file, uploadPath);
+      // Use public upload endpoint (no auth required)
+      const result = await uploadPublic(file, websiteId, type);
 
       if (!result.success || !result.url) {
         console.error(`[Upload] Bunny CDN error:`, result.error);
@@ -300,11 +294,11 @@ export function TestimonialCollectionForm({
         return uploadFile(file, type, retryCount + 1);
       }
 
-      // Log error to backend
+      // Log error to backend (best effort)
       try {
         await supabase.rpc('log_integration_action', {
           _integration_type: 'testimonial_submission',
-          _action: 'bunny_upload',
+          _action: 'bunny_upload_public',
           _status: 'error',
           _error_message: error instanceof Error ? error.message : 'Unknown error',
           _details: {
@@ -367,26 +361,15 @@ export function TestimonialCollectionForm({
         console.log('[Submit] No avatar provided, continuing without avatar');
       }
       
-      let thumbnailUrl: string | null = null;
-      
       if (formData.videoFile) {
-        console.log('[Submit] Uploading video with thumbnail extraction...');
+        console.log('[Submit] Uploading video...');
         try {
-          const videoResult = await uploadVideoWithThumbnail(formData.videoFile, {
-            path: `testimonial-videos/${websiteId}`,
-            websiteId,
-          });
-          
-          if (videoResult.video.success && videoResult.video.url) {
-            videoUrl = videoResult.video.url;
+          videoUrl = await uploadFile(formData.videoFile, 'video');
+          if (videoUrl) {
             console.log('[Submit] Video uploaded successfully:', videoUrl);
-            
-            if (videoResult.thumbnail?.success && videoResult.thumbnail?.url) {
-              thumbnailUrl = videoResult.thumbnail.url;
-              console.log('[Submit] Thumbnail extracted and uploaded:', thumbnailUrl);
-            }
           } else {
-            console.warn('[Submit] Video upload failed:', videoResult.video.error);
+            console.warn('[Submit] Video upload failed, continuing without video...');
+            toast.error('Video upload failed, but submitting your testimonial anyway');
           }
         } catch (videoError) {
           console.error('[Submit] Video upload error:', videoError);
@@ -426,7 +409,6 @@ export function TestimonialCollectionForm({
           negative_feedback: formData.negative_feedback,
           questions: formData.questions,
           consented: formData.consented,
-          thumbnail_url: thumbnailUrl,
         },
         status: 'pending' as const,
       };
@@ -453,7 +435,6 @@ export function TestimonialCollectionForm({
           negative_feedback: formData.negative_feedback,
           questions: formData.questions,
           consented: formData.consented,
-          thumbnail_url: thumbnailUrl,
         },
       });
 

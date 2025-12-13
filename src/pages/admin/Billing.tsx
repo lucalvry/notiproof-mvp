@@ -58,23 +58,31 @@ export default function AdminBilling() {
 
   const fetchBillingStats = async () => {
     try {
-      // Load available plans from database
+      // Load ALL plans (including inactive) for historical data
       const { data: plansData } = await supabase
         .from("subscription_plans")
         .select("*")
-        .eq("is_active", true)
         .order("price_monthly", { ascending: true });
 
-      // Get active subscriptions
-      const { data: subscriptions } = await supabase
+      // Get ALL subscriptions for complete picture
+      const { data: allSubscriptions } = await supabase
         .from("user_subscriptions")
-        .select("*, subscription_plans(*)")
-        .eq("status", "active");
+        .select("*, subscription_plans(*)");
 
-      // Calculate MRR
-      const mrr = subscriptions?.reduce((sum, sub: any) => {
+      // Filter active subscriptions for MRR calculation
+      const activeSubscriptions = allSubscriptions?.filter((s: any) => s.status === 'active') || [];
+      const trialingSubscriptions = allSubscriptions?.filter((s: any) => s.status === 'trialing') || [];
+      const pastDueSubscriptions = allSubscriptions?.filter((s: any) => s.status === 'past_due') || [];
+
+      // Calculate MRR from active subscriptions only
+      const mrr = activeSubscriptions.reduce((sum, sub: any) => {
         return sum + (sub.subscription_plans?.price_monthly || 0);
-      }, 0) || 0;
+      }, 0);
+
+      // Calculate MRR at risk (past due + trialing expiring soon)
+      const mrrAtRisk = pastDueSubscriptions.reduce((sum, sub: any) => {
+        return sum + (sub.subscription_plans?.price_monthly || 0);
+      }, 0);
 
       // Calculate churn (cancelled in last 30 days)
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -84,8 +92,9 @@ export default function AdminBilling() {
         .eq("status", "cancelled")
         .gte("updated_at", thirtyDaysAgo.toISOString());
 
-      const churnRate = subscriptions?.length 
-        ? ((churnedCount || 0) / subscriptions.length) * 100 
+      const totalActiveAndTrialing = activeSubscriptions.length + trialingSubscriptions.length;
+      const churnRate = totalActiveAndTrialing > 0
+        ? ((churnedCount || 0) / totalActiveAndTrialing) * 100 
         : 0;
 
       // Calculate total revenue (sum of all paid subscriptions)
@@ -102,21 +111,36 @@ export default function AdminBilling() {
         return sum + (sub.subscription_plans?.price_monthly || 0) * monthsActive;
       }, 0) || 0;
 
-      // Count active users per plan
+      // Count users per plan (including all statuses)
       const plansWithUsers = await Promise.all(
-        (plansData || []).map(async (plan) => {
-          const { count } = await supabase
+        (plansData || []).map(async (plan: any) => {
+          const { count: activeCount } = await supabase
             .from("user_subscriptions")
             .select("*", { count: "exact", head: true })
             .eq("plan_id", plan.id)
             .eq("status", "active");
+
+          const { count: trialingCount } = await supabase
+            .from("user_subscriptions")
+            .select("*", { count: "exact", head: true })
+            .eq("plan_id", plan.id)
+            .eq("status", "trialing");
+
+          const { count: pastDueCount } = await supabase
+            .from("user_subscriptions")
+            .select("*", { count: "exact", head: true })
+            .eq("plan_id", plan.id)
+            .eq("status", "past_due");
           
           return {
             id: plan.id,
             name: plan.name,
             price: plan.price_monthly,
             features: Array.isArray(plan.features) ? plan.features as string[] : [],
-            activeUsers: count || 0,
+            activeUsers: activeCount || 0,
+            trialingUsers: trialingCount || 0,
+            pastDueUsers: pastDueCount || 0,
+            isActive: plan.is_active,
           };
         })
       );
@@ -124,7 +148,7 @@ export default function AdminBilling() {
       setPlans(plansWithUsers);
       setStats({
         totalRevenue,
-        activeSubscriptions: subscriptions?.length || 0,
+        activeSubscriptions: activeSubscriptions.length,
         churnRate,
         mrr,
       });

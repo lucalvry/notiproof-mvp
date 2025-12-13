@@ -22,6 +22,8 @@ import { PerformanceGraph } from "@/components/analytics/PerformanceGraph";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDistanceToNow } from "date-fns";
 import { AnnouncementConfig } from "@/components/campaigns/native/AnnouncementConfig";
+import { FormCaptureEditor } from "@/components/campaigns/FormCaptureEditor";
+import { TestimonialCampaignEditor } from "@/components/campaigns/TestimonialCampaignEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function CampaignDetails() {
@@ -34,6 +36,7 @@ export default function CampaignDetails() {
   const [syncing, setSyncing] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [sampleEvent, setSampleEvent] = useState<any>(null);
+  const [sampleTestimonial, setSampleTestimonial] = useState<any>(null);
   const [dateRange, setDateRange] = useState(30);
   const [campaignTemplate, setCampaignTemplate] = useState<any>(null);
   const [editingConfig, setEditingConfig] = useState<any>(null);
@@ -42,6 +45,8 @@ export default function CampaignDetails() {
   const dataSources = Array.isArray(campaign?.data_sources) ? campaign.data_sources : [];
   const hasGA4 = dataSources.some((ds: any) => ds.provider === 'ga4');
   const isAnnouncementCampaign = dataSources.some((ds: any) => ds.provider === 'announcements');
+  const isFormCaptureCampaign = dataSources.some((ds: any) => ds.provider === 'form_hook');
+  const isTestimonialCampaign = dataSources.some((ds: any) => ds.provider === 'testimonials');
   const [settingsForm, setSettingsForm] = useState({
     name: "",
     status: "draft",
@@ -57,7 +62,60 @@ export default function CampaignDetails() {
   useEffect(() => {
     fetchCampaign();
     fetchEvents();
+    fetchPreviewData();
   }, [id]);
+
+  // Simple Mustache-style template renderer
+  const renderTemplate = (template: string, data: Record<string, any>): string => {
+    return template.replace(/\{\{(\w+)\}\}/g, (_, key) => data[key] || '');
+  };
+
+  // Fetch campaign-type-specific preview data
+  const fetchPreviewData = async () => {
+    if (!campaign?.website_id) return;
+    
+    const dataSources = Array.isArray(campaign?.data_sources) ? campaign.data_sources : [];
+    const provider = dataSources[0]?.provider;
+    
+    if (provider === 'testimonials') {
+      try {
+        // Build query with filters from integration_settings
+        const filters = campaign?.integration_settings?.testimonial_filters || {};
+        let query = supabase
+          .from('testimonials')
+          .select('*')
+          .eq('website_id', campaign.website_id)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        // Apply filters
+        if (filters.minRating) {
+          query = query.gte('rating', filters.minRating);
+        }
+        if (filters.mediaFilter === 'video') {
+          query = query.not('video_url', 'is', null);
+        } else if (filters.mediaFilter === 'image') {
+          query = query.not('image_url', 'is', null);
+        }
+        
+        const { data, error } = await query;
+        
+        if (!error && data && data.length > 0) {
+          setSampleTestimonial(data[0]);
+        }
+      } catch (error) {
+        console.error('Error fetching testimonial for preview:', error);
+      }
+    }
+  };
+
+  // Re-fetch preview data when campaign changes
+  useEffect(() => {
+    if (campaign) {
+      fetchPreviewData();
+    }
+  }, [campaign?.id, campaign?.website_id]);
 
   useEffect(() => {
     if (!id) return;
@@ -545,18 +603,62 @@ export default function CampaignDetails() {
                       template_config: {
                         position: ((campaign as any).settings?.position) || ((campaign as any).integration_settings?.position) || "bottom-right",
                         animation: ((campaign as any).settings?.animation) || ((campaign as any).integration_settings?.animation) || "slide",
-                        previewData: sampleEvent
-                          ? {
+                        previewData: (() => {
+                          // Testimonial campaigns - show actual testimonial data
+                          if (isTestimonialCampaign && sampleTestimonial) {
+                            return {
+                              userName: sampleTestimonial.author_name,
+                              userAvatar: sampleTestimonial.author_avatar_url,
+                              message: `"${sampleTestimonial.message?.substring(0, 100)}${sampleTestimonial.message?.length > 100 ? '...' : ''}"`,
+                              rating: sampleTestimonial.rating,
+                              time: formatDistanceToNow(new Date(sampleTestimonial.created_at), { addSuffix: true }),
+                            };
+                          }
+                          // Testimonial campaigns - fallback when no data
+                          if (isTestimonialCampaign) {
+                            return {
+                              userName: "Happy Customer",
+                              message: '"Great product! Highly recommended."',
+                              rating: 5,
+                              time: "Just now",
+                            };
+                          }
+                          // Form capture campaigns - show actual form data
+                          if (isFormCaptureCampaign && sampleEvent) {
+                            const formData = sampleEvent.event_data?.flattened_fields || sampleEvent.event_data || {};
+                            const renderedMessage = renderTemplate(
+                              sampleEvent.message_template || '{{name}} just signed up',
+                              formData
+                            );
+                            return {
+                              userName: formData.name || formData.firstName || 'Someone',
+                              message: renderedMessage,
+                              time: formatDistanceToNow(new Date(sampleEvent.created_at), { addSuffix: true }),
+                            };
+                          }
+                          // Form capture campaigns - fallback when no data
+                          if (isFormCaptureCampaign) {
+                            return {
+                              userName: "New Signup",
+                              message: "just signed up",
+                              time: "Just now",
+                            };
+                          }
+                          // Default fallback for other campaign types
+                          if (sampleEvent) {
+                            return {
                               message: sampleEvent.message_template || "Someone just took action",
                               location: sampleEvent.user_location || "Unknown",
                               time: formatDistanceToNow(new Date(sampleEvent.created_at), { addSuffix: true }),
-                            }
-                          : {
-                              userName: "Sarah M.",
-                              location: "San Francisco",
-                              action: "just signed up",
-                              time: "2 minutes ago",
-                            },
+                            };
+                          }
+                          return {
+                            userName: "Sarah M.",
+                            location: "San Francisco",
+                            action: "just signed up",
+                            time: "2 minutes ago",
+                          };
+                        })(),
                       },
                       style_config: {
                         accentColor: ((campaign as any).settings?.accentColor) || ((campaign as any).integration_settings?.primary_color) || "#3B82F6",
@@ -575,8 +677,6 @@ export default function CampaignDetails() {
         <TabsContent value="analytics">
           <PerformanceGraph
             dailyStats={dailyStats}
-            dateRange={dateRange}
-            onDateRangeChange={setDateRange}
             isLoading={analyticsLoading}
           />
         </TabsContent>
@@ -705,15 +805,15 @@ export default function CampaignDetails() {
           
           <Card>
             <CardHeader>
-              <CardTitle>Campaign Settings</CardTitle>
-              <CardDescription>Edit campaign configuration</CardDescription>
+              <CardTitle>Notification Settings</CardTitle>
+              <CardDescription>Edit notification configuration</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Basic Settings */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold">Basic Settings</h3>
                 <div className="space-y-2">
-                  <Label htmlFor="campaign-name">Campaign Name</Label>
+                  <Label htmlFor="campaign-name">Notification Name</Label>
                   <Input
                     id="campaign-name"
                     value={settingsForm.name}
@@ -869,6 +969,30 @@ export default function CampaignDetails() {
             />
           </DialogContent>
         </Dialog>
+      ) : isFormCaptureCampaign ? (
+        <FormCaptureEditor
+          campaignId={id!}
+          websiteId={campaign.website_id}
+          open={editMode}
+          onClose={() => setEditMode(false)}
+          onSave={() => {
+            setEditMode(false);
+            fetchCampaign();
+          }}
+          integrationSettings={campaign.integration_settings || campaign.native_config || {}}
+        />
+      ) : isTestimonialCampaign ? (
+        <TestimonialCampaignEditor
+          campaignId={id!}
+          websiteId={campaign.website_id}
+          open={editMode}
+          onClose={() => setEditMode(false)}
+          onSave={() => {
+            setEditMode(false);
+            fetchCampaign();
+          }}
+          integrationSettings={campaign.integration_settings || campaign.native_config || {}}
+        />
       ) : (
         <CampaignEditor
           campaignId={id!}

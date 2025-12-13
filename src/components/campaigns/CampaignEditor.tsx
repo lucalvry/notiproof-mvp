@@ -145,21 +145,21 @@ export function CampaignEditor({ campaignId, open, onClose, onSave }: CampaignEd
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Campaign</DialogTitle>
+          <DialogTitle>Edit Notification</DialogTitle>
           <DialogDescription>
-            Update your campaign settings - Step {step} of {steps.length}
+            Update your notification settings - Step {step} of {steps.length}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
           {step === steps.length && (
             <div className="space-y-2">
-              <Label htmlFor="campaign-name">Campaign Name</Label>
+              <Label htmlFor="campaign-name">Notification Name</Label>
               <Input
                 id="campaign-name"
                 value={campaignName}
                 onChange={(e) => setCampaignName(e.target.value)}
-                placeholder="e.g., Holiday Sales Campaign"
+                placeholder="e.g., Holiday Sales Notification"
               />
             </div>
           )}

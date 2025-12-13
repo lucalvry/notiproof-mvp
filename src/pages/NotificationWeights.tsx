@@ -37,7 +37,7 @@ const EVENT_TYPE_CONFIG = {
     color: 'text-orange-600'
   },
   live_visitors: {
-    label: 'Live Visitors',
+    label: 'Visitors Pulse',
     icon: Users,
     description: 'Active visitors on your site',
     color: 'text-pink-600'

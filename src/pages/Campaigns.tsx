@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Plus, Plug, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +8,9 @@ import { CampaignWizard } from "@/components/campaigns/CampaignWizard";
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CampaignGridSkeleton } from "@/components/ui/campaign-skeleton";
 import { useNavigate } from "react-router-dom";
-import { useSubscription } from "@/hooks/useSubscription";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import confetti from "canvas-confetti";
 
-// Using database schema types
 interface Campaign {
   id: string;
   name: string;
@@ -35,30 +34,19 @@ interface Campaign {
 }
 
 export default function Campaigns() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [userId, setUserId] = useState<string>();
   const navigate = useNavigate();
-  
-  const { planName } = useSubscription(userId);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUserId(user?.id);
-    });
-  }, []);
-
-  const fetchCampaigns = async () => {
-    try {
+  // Single query for campaigns with caching
+  const { data: campaigns = [], isLoading: loading } = useQuery({
+    queryKey: ['campaigns'],
+    queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        toast.error("Please log in to view campaigns");
-        setLoading(false);
-        return;
+        throw new Error("Please log in to view campaigns");
       }
 
-      // Fetch campaigns with optional widgets and events (left join)
       const { data, error } = await supabase
         .from("campaigns")
         .select(`
@@ -74,7 +62,7 @@ export default function Campaigns() {
       if (error) throw error;
       
       // Calculate totals for each campaign
-      const campaignsWithStats = (data || []).map(campaign => {
+      return (data || []).map(campaign => {
         const allEvents = campaign.widgets?.flatMap(w => w.events || []) || [];
         const total_views = allEvents.reduce((sum: number, e: any) => sum + (e.views || 0), 0);
         const total_clicks = allEvents.reduce((sum: number, e: any) => sum + (e.clicks || 0), 0);
@@ -84,20 +72,15 @@ export default function Campaigns() {
           total_views,
           total_clicks,
         };
-      });
-      
-      setCampaigns(campaignsWithStats);
-    } catch (error) {
-      console.error("Error fetching campaigns:", error);
-      toast.error("Failed to load campaigns");
-    } finally {
-      setLoading(false);
-    }
-  };
+      }) as Campaign[];
+    },
+    staleTime: 30000, // Cache for 30 seconds
+    retry: 1,
+  });
 
-  useEffect(() => {
-    fetchCampaigns();
-  }, []);
+  const refetchCampaigns = () => {
+    queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+  };
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
@@ -108,7 +91,6 @@ export default function Campaigns() {
 
       if (error) throw error;
       
-      // Celebrate activation with confetti
       if (newStatus === "active") {
         confetti({
           particleCount: 100,
@@ -124,7 +106,7 @@ export default function Campaigns() {
         });
       }
       
-      fetchCampaigns();
+      refetchCampaigns();
     } catch (error) {
       console.error("Error updating campaign:", error);
       toast.error("Failed to update campaign");
@@ -159,7 +141,7 @@ export default function Campaigns() {
       toast.success("✨ Campaign duplicated!", {
         description: "Edit the copy to customize it for your needs"
       });
-      fetchCampaigns();
+      refetchCampaigns();
     } catch (error) {
       console.error("Error duplicating campaign:", error);
       toast.error("Failed to duplicate campaign");
@@ -168,7 +150,6 @@ export default function Campaigns() {
 
   const handleDelete = async (id: string) => {
     try {
-      // First delete all widgets associated with this campaign
       const { error: widgetsError } = await supabase
         .from("widgets")
         .delete()
@@ -176,7 +157,6 @@ export default function Campaigns() {
       
       if (widgetsError) throw widgetsError;
       
-      // Then delete the campaign
       const { error: campaignError } = await supabase
         .from("campaigns")
         .delete()
@@ -185,16 +165,11 @@ export default function Campaigns() {
       if (campaignError) throw campaignError;
       
       toast.success("Campaign deleted");
-      fetchCampaigns();
+      refetchCampaigns();
     } catch (error) {
       console.error("Error deleting campaign:", error);
       toast.error("Failed to delete campaign");
     }
-  };
-
-  const calculateCTR = (impressions: number, clicks: number) => {
-    if (impressions === 0) return "0.00";
-    return ((clicks / impressions) * 100).toFixed(2);
   };
 
   if (loading) {
@@ -296,7 +271,6 @@ export default function Campaigns() {
         open={wizardOpen}
         onClose={() => setWizardOpen(false)}
         onComplete={() => {
-          // Celebrate first campaign creation
           if (campaigns.length === 0) {
             confetti({
               particleCount: 150,
@@ -305,7 +279,7 @@ export default function Campaigns() {
             });
           }
           setWizardOpen(false);
-          fetchCampaigns();
+          refetchCampaigns();
         }}
       />
     </div>

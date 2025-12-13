@@ -4,8 +4,35 @@ import { StripeAdapter } from './adapters/StripeAdapter';
 import { WooCommerceAdapter } from './adapters/WooCommerceAdapter';
 import { TestimonialAdapter } from './adapters/TestimonialAdapter';
 import { AnnouncementAdapter } from './adapters/AnnouncementAdapter';
-import { InstantCaptureAdapter } from './adapters/InstantCaptureAdapter';
 import { LiveVisitorsAdapter } from './adapters/LiveVisitorsAdapter';
+import { FormHookAdapter } from './adapters/FormHookAdapter';
+
+/**
+ * Provider aliases to handle database inconsistencies
+ * Maps legacy/alternate provider names to canonical names
+ */
+const PROVIDER_ALIASES: Record<string, string> = {
+  instant_capture: 'form_hook',
+  active_visitors: 'live_visitors',
+};
+
+/**
+ * Get the canonical provider name, resolving any aliases
+ */
+export function resolveProviderAlias(provider: string): string {
+  return PROVIDER_ALIASES[provider] || provider;
+}
+
+/**
+ * Get all aliases for a provider (including the canonical name)
+ */
+export function getProviderAliases(provider: string): string[] {
+  const canonical = resolveProviderAlias(provider);
+  const aliases = Object.entries(PROVIDER_ALIASES)
+    .filter(([_, value]) => value === canonical)
+    .map(([key]) => key);
+  return [canonical, ...aliases];
+}
 
 /**
  * Central registry for all integration adapters
@@ -21,8 +48,8 @@ class AdapterRegistry {
     this.register(new WooCommerceAdapter());
     this.register(new TestimonialAdapter());
     this.register(new AnnouncementAdapter());
-    this.register(new InstantCaptureAdapter());
     this.register(new LiveVisitorsAdapter());
+    this.register(new FormHookAdapter());
   }
   
   /**
@@ -37,12 +64,18 @@ class AdapterRegistry {
   }
   
   /**
-   * Get adapter by provider ID
+   * Get adapter by provider ID, resolving aliases
    */
   get(provider: string): IntegrationAdapter | undefined {
-    const adapter = this.adapters.get(provider);
+    // First try direct lookup
+    let adapter = this.adapters.get(provider);
+    if (adapter) return adapter;
+    
+    // Try resolving alias
+    const canonical = resolveProviderAlias(provider);
+    adapter = this.adapters.get(canonical);
     if (!adapter) {
-      console.warn(`[AdapterRegistry] Adapter not found: ${provider}`);
+      console.warn(`[AdapterRegistry] Adapter not found: ${provider} (tried alias: ${canonical})`);
     }
     return adapter;
   }
@@ -66,10 +99,12 @@ class AdapterRegistry {
   }
   
   /**
-   * Check if provider has registered adapter
+   * Check if provider has registered adapter (resolves aliases)
    */
   has(provider: string): boolean {
-    return this.adapters.has(provider);
+    if (this.adapters.has(provider)) return true;
+    const canonical = resolveProviderAlias(provider);
+    return this.adapters.has(canonical);
   }
   
   /**
@@ -83,7 +118,7 @@ class AdapterRegistry {
     const categoryMap: Record<string, string[]> = {
       ecommerce: ['shopify', 'woocommerce', 'stripe'],
       testimonial: ['testimonials'],
-      native: ['announcements', 'live_visitors', 'instant_capture'],
+      native: ['announcements', 'live_visitors', 'form_hook'],
       social: ['instagram', 'twitter'],
     };
     

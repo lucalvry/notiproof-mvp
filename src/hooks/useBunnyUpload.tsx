@@ -325,11 +325,80 @@ export function useBunnyUpload() {
     return { video: videoResult };
   };
 
+  /**
+   * Public upload for anonymous testimonial submissions
+   * Does not require authentication - validates via website_id
+   */
+  const uploadPublic = async (
+    file: File,
+    websiteId: string,
+    type: 'avatar' | 'video',
+    duration?: number
+  ): Promise<BunnyUploadResponse> => {
+    try {
+      console.log(`📤 Public upload starting for ${type}...`);
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('website_id', websiteId);
+      formData.append('type', type);
+      if (duration) formData.append('duration', duration.toString());
+
+      const response = await fetch(
+        `https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/bunny-upload-public`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        const errorMsg = data.error || 'Upload failed';
+        const errorCode = data.code;
+
+        // User-friendly error messages
+        if (errorCode === 'RATE_LIMIT') {
+          toast.error('Too many uploads. Please wait a moment.');
+        } else if (errorCode === 'FILE_TOO_LARGE') {
+          toast.error(type === 'avatar' ? 'Avatar must be under 2MB' : 'Video must be under 50MB');
+        } else if (errorCode === 'VIDEO_DURATION_LIMIT') {
+          toast.error(`Video too long. Maximum allowed: ${data.details?.limit}s`);
+        } else if (errorCode === 'INVALID_FILE_TYPE') {
+          toast.error('Invalid file type. Please use JPG, PNG, WebP for images or MP4, WebM for videos.');
+        } else {
+          toast.error(errorMsg);
+        }
+
+        return {
+          success: false,
+          error: errorMsg,
+          code: errorCode,
+          details: data.details,
+        };
+      }
+
+      console.log(`✅ Public upload successful: ${data.url}`);
+      return {
+        success: true,
+        url: data.url,
+        path: data.path,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Upload failed';
+      console.error('Public upload exception:', error);
+      toast.error(message);
+      return { success: false, error: message };
+    }
+  };
+
   return { 
     uploadToBunny, 
     extractVideoThumbnail,
     uploadVideoWithThumbnail,
     uploadWithPresignedUrl,
     uploadViaProxy,
+    uploadPublic,
   };
 }

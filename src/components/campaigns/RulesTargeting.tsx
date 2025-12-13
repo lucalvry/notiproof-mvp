@@ -73,9 +73,9 @@ export function RulesTargeting({
       <div className="flex items-center gap-2 mb-4">
         <Settings2 className="h-6 w-6 text-primary" />
         <div>
-          <h3 className="text-lg font-semibold">Campaign Targeting & Rules</h3>
+          <h3 className="text-lg font-semibold">Notification Targeting & Rules</h3>
           <p className="text-sm text-muted-foreground">
-            Configure when, where, and to whom your campaign will be displayed
+            Configure when, where, and to whom your notification will be displayed
           </p>
         </div>
       </div>

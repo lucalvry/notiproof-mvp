@@ -16,6 +16,7 @@ export interface NotificationWeight {
 export const DEFAULT_WEIGHTS: Record<string, Omit<NotificationWeight, 'id' | 'website_id' | 'created_at' | 'updated_at'>> = {
   purchase: { event_type: 'purchase', weight: 10, max_per_queue: 20, ttl_days: 7 },
   testimonial: { event_type: 'testimonial', weight: 8, max_per_queue: 15, ttl_days: 180 },
+  form_capture: { event_type: 'form_capture', weight: 7, max_per_queue: 20, ttl_days: 14 },
   signup: { event_type: 'signup', weight: 6, max_per_queue: 20, ttl_days: 14 },
   announcement: { event_type: 'announcement', weight: 4, max_per_queue: 5, ttl_days: 30 },
   live_visitors: { event_type: 'live_visitors', weight: 2, max_per_queue: 3, ttl_days: 1 },

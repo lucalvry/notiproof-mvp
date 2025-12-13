@@ -10,6 +10,7 @@ import { OAuthFlow } from "./OAuthFlow";
 import { WebhookFlow } from "./WebhookFlow";
 import { APIKeyFlow } from "./APIKeyFlow";
 import { NativeIntegrationFlow } from "./NativeIntegrationFlow";
+import { useWebsiteContext } from "@/contexts/WebsiteContext";
 
 interface IntegrationConnectionDialogProps {
   integration: any;
@@ -26,8 +27,12 @@ export function IntegrationConnectionDialog({
   websiteId,
   onSuccess,
 }: IntegrationConnectionDialogProps) {
+  const { currentWebsite } = useWebsiteContext();
   const metadata = getIntegrationMetadata(integration.id);
   const authFlow = getAuthFlowType({ metadata });
+
+  // Use prop websiteId, fallback to context
+  const effectiveWebsiteId = websiteId || currentWebsite?.id || null;
 
   const handleSuccess = () => {
     onSuccess();
@@ -35,7 +40,7 @@ export function IntegrationConnectionDialog({
   };
 
   const renderAuthFlow = () => {
-    if (!websiteId) {
+    if (!effectiveWebsiteId) {
       return (
         <div className="p-8 text-center text-muted-foreground">
           <p className="text-lg font-medium mb-2">Website Required</p>
@@ -50,7 +55,7 @@ export function IntegrationConnectionDialog({
         return (
           <OAuthFlow 
             integration={integration} 
-            websiteId={websiteId}
+            websiteId={effectiveWebsiteId}
             onSuccess={handleSuccess}
           />
         );
@@ -59,7 +64,7 @@ export function IntegrationConnectionDialog({
         return (
           <NativeIntegrationFlow
             integration={integration}
-            websiteId={websiteId}
+            websiteId={effectiveWebsiteId}
             onSuccess={handleSuccess}
           />
         );
@@ -68,7 +73,7 @@ export function IntegrationConnectionDialog({
         return (
           <WebhookFlow 
             integration={integration} 
-            websiteId={websiteId}
+            websiteId={effectiveWebsiteId}
             onSuccess={handleSuccess}
           />
         );
@@ -77,7 +82,7 @@ export function IntegrationConnectionDialog({
         return (
           <APIKeyFlow 
             integration={integration} 
-            websiteId={websiteId}
+            websiteId={effectiveWebsiteId}
             onSuccess={handleSuccess}
           />
         );
@@ -98,7 +103,7 @@ export function IntegrationConnectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" style={{ zIndex: 10000 }}>
         <DialogHeader>
           <DialogTitle className="sr-only">
             Connect {integration?.name || 'Integration'}

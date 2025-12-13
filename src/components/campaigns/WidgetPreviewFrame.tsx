@@ -428,6 +428,17 @@ export function WidgetPreviewFrame({
             // Otherwise, check announcement-specific config
             const integrationSettings = settings.integration_settings || {};
             
+            // Check if this is a form capture campaign
+            const isFormCapture = !!(integrationSettings.message_template && integrationSettings.form_type);
+            if (isFormCapture) {
+              const avatar = integrationSettings.avatar || '✅';
+              // Render avatar - emoji or image URL
+              if (avatar.startsWith('http')) {
+                return `<img src="${avatar}" class="notification-avatar-img avatar" alt="Avatar" onerror="this.style.display='none'" />`;
+              }
+              return `<div class="notification-avatar">${avatar}</div>`;
+            }
+            
             // Check announcement-specific image config first
             if (integrationSettings.image_type === 'emoji' && integrationSettings.emoji) {
               return `<div class="notification-avatar">${integrationSettings.emoji}</div>`;
@@ -457,6 +468,25 @@ export function WidgetPreviewFrame({
             }
             
             const integrationSettings = settings.integration_settings || {};
+            
+            // Check if this is a form capture campaign
+            const isFormCapture = !!(integrationSettings.message_template && integrationSettings.form_type);
+            if (isFormCapture) {
+              // Replace template variables with sample data
+              const sampleData = { name: 'Sarah', email: 'sarah@example.com', company: 'Acme Inc', location: 'New York', phone: '+1 555-0123' };
+              let previewMessage = integrationSettings.message_template || '{{name}} signed up';
+              Object.entries(sampleData).forEach(([key, value]) => {
+                previewMessage = previewMessage.replace(new RegExp('\\\\{\\\\{' + key + '\\\\}\\\\}', 'g'), value);
+              });
+              
+              return `
+                <div class="notification-content">
+                  <div class="notification-headline">${previewMessage}</div>
+                  <div class="notification-subtext">Just now</div>
+                </div>
+              `;
+            }
+            
             // Render standard notification content for all other campaign types
             return `
               <div class="notification-content">

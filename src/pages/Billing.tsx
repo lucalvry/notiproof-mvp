@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UsageDashboard } from "@/components/billing/UsageDashboard";
 
 interface Plan {
   id: string;
@@ -511,6 +512,11 @@ export default function Billing() {
           Manage your subscription and billing information
         </p>
       </div>
+
+      {/* Usage Dashboard */}
+      {userId && (
+        <UsageDashboard userId={userId} showUpgradePrompts={false} />
+      )}
 
       {/* Trial Status Banner */}
       {currentSubscription && currentSubscription.status === 'trialing' && currentSubscription.trial_end && (

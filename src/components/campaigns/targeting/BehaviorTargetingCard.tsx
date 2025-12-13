@@ -44,7 +44,7 @@ export function BehaviorTargetingCard({ behavior, onChange }: BehaviorTargetingC
             placeholder="0"
           />
           <p className="text-xs text-muted-foreground">
-            Wait this many seconds before showing the campaign (0 = show immediately)
+            Wait this many seconds before showing the notification (0 = show immediately)
           </p>
         </div>
 

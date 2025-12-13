@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Globe, Megaphone, Code, TrendingUp, ArrowRight, X } from "lucide-react";
-import { useOnboardingState } from "@/hooks/useOnboardingState";
+import { useOnboardingState } from "@/hooks/useOnboarding";
 import { useNavigate } from "react-router-dom";
 
 interface OnboardingPromptsProps {
@@ -11,25 +11,17 @@ interface OnboardingPromptsProps {
 
 export function OnboardingPrompts({ userId }: OnboardingPromptsProps) {
   const navigate = useNavigate();
-  const { 
-    progress, 
-    websiteCount, 
-    campaignCount, 
-    hasActivity,
-    dismissOnboarding,
-    isLoading 
-  } = useOnboardingState(userId);
+  const { progress, isLoading } = useOnboardingState(userId);
 
-  if (isLoading || !progress || progress.dismissed || progress.completion_percentage === 100) {
+  if (isLoading || progress.dismissed || progress.completion_percentage === 100) {
     return null;
   }
 
-  const handleDismiss = async () => {
-    await dismissOnboarding();
-  };
+  const websiteCount = progress.website_added ? 1 : 0;
+  const campaignCount = progress.campaign_created ? 1 : 0;
 
   // Priority 1: No websites
-  if (websiteCount === 0) {
+  if (!progress.website_added) {
     return (
       <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
         <CardHeader className="pb-3">
@@ -43,9 +35,6 @@ export function OnboardingPrompts({ userId }: OnboardingPromptsProps) {
                 <CardDescription>Start showing social proof to your visitors</CardDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={handleDismiss} className="h-6 w-6">
-              <X className="h-4 w-4" />
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -65,7 +54,7 @@ export function OnboardingPrompts({ userId }: OnboardingPromptsProps) {
   }
 
   // Priority 2: Has website but no campaigns
-  if (websiteCount > 0 && campaignCount === 0) {
+  if (progress.website_added && !progress.campaign_created) {
     return (
       <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
         <CardHeader className="pb-3">
@@ -75,23 +64,20 @@ export function OnboardingPrompts({ userId }: OnboardingPromptsProps) {
                 <Megaphone className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-base">Create Your First Campaign</CardTitle>
+                <CardTitle className="text-base">Create Your First Notification</CardTitle>
                 <CardDescription>Choose from proven templates</CardDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={handleDismiss} className="h-6 w-6">
-              <X className="h-4 w-4" />
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Great! Your website is connected. Now create a campaign to start showing notifications to your visitors.
+              Great! Your website is connected. Now create a notification to start showing activity to your visitors.
             </p>
             <Button onClick={() => navigate('/campaigns')} className="gap-2">
               <Megaphone className="h-4 w-4" />
-              Create Campaign
+              Create Notification
               <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
@@ -101,7 +87,7 @@ export function OnboardingPrompts({ userId }: OnboardingPromptsProps) {
   }
 
   // Priority 3: Has campaign but no widget installation
-  if (campaignCount > 0 && !progress.widget_installed) {
+  if (progress.campaign_created && !progress.widget_installed) {
     return (
       <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
         <CardHeader className="pb-3">
@@ -115,60 +101,21 @@ export function OnboardingPrompts({ userId }: OnboardingPromptsProps) {
                 <CardDescription>Just one snippet away from going live</CardDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={handleDismiss} className="h-6 w-6">
-              <X className="h-4 w-4" />
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Your campaign is ready! Install the widget code on your website to start displaying notifications.
+              Your notification is ready! Install the widget code on your website to start displaying it.
             </p>
-            <div className="flex gap-2">
-              <Button onClick={() => navigate('/websites')} className="gap-2 flex-1">
-                <Code className="h-4 w-4" />
-                View Installation Code
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-              <Button 
-                onClick={() => window.open('https://docs.notiproof.com/installation', '_blank')} 
-                variant="outline"
-              >
-                See Guide
-              </Button>
-            </div>
+            <Button onClick={() => navigate('/websites')} className="gap-2">
+              <Code className="h-4 w-4" />
+              View Installation Code
+              <ArrowRight className="h-4 w-4" />
+            </Button>
           </div>
         </CardContent>
       </Card>
-    );
-  }
-
-  // Priority 4: Widget installed but no conversions
-  if (progress.widget_installed && !hasActivity) {
-    return (
-      <Alert className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
-        <TrendingUp className="h-4 w-4 text-primary" />
-        <div className="flex items-start justify-between w-full">
-          <div className="flex-1">
-            <AlertDescription>
-              <div className="space-y-2">
-                <p className="font-semibold">Waiting for Your First Conversion</p>
-                <p className="text-sm text-muted-foreground">
-                  Your widget is installed! Visit your website to see notifications in action.
-                </p>
-                <Button size="sm" variant="outline" onClick={() => navigate('/analytics')} className="gap-2 mt-2">
-                  <TrendingUp className="h-4 w-4" />
-                  View Analytics
-                </Button>
-              </div>
-            </AlertDescription>
-          </div>
-          <Button variant="ghost" size="icon" onClick={handleDismiss} className="h-6 w-6 ml-2">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </Alert>
     );
   }
 

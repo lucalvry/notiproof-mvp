@@ -71,26 +71,52 @@ export function CampaignCard({
   const clicks = campaign.total_clicks || 0;
   const ctr = views > 0 ? ((clicks / views) * 100).toFixed(1) : "0.0";
 
-  // Check if this is an announcement campaign
+  // Check campaign type
   const dataSources = Array.isArray(campaign.data_sources) ? campaign.data_sources : [];
   const isAnnouncementCampaign = dataSources.some((ds: any) => ds.provider === 'announcements');
+  const isTestimonialCampaign = dataSources.some((ds: any) => ds.provider === 'testimonials');
+  const isFormCaptureCampaign = dataSources.some((ds: any) => ds.provider === 'form_hook');
   const announcementData = campaign.native_config || campaign.integration_settings || {};
+
+  // Generate campaign-type-specific preview data
+  const getPreviewData = () => {
+    if (isAnnouncementCampaign) {
+      return {
+        userName: announcementData.title || campaign.name,
+        message: announcementData.message || campaign.description || "Announcement message",
+        time: announcementData.cta_text || "Just now",
+        location: "",
+      };
+    }
+    if (isTestimonialCampaign) {
+      return {
+        userName: "Happy Customer",
+        message: '"Great product! Highly recommended."',
+        rating: 5,
+        time: "Just now",
+      };
+    }
+    if (isFormCaptureCampaign) {
+      return {
+        userName: "New Signup",
+        message: "just signed up",
+        time: "Just now",
+      };
+    }
+    // Default for other campaign types
+    return {
+      userName: "Sarah Johnson",
+      location: "New York, US",
+      message: campaign.description || "just made a purchase",
+      time: "Just now",
+    };
+  };
 
   // Format template for NotificationPreview
   const previewTemplate = {
     name: campaign.name,
     template_config: {
-      previewData: isAnnouncementCampaign ? {
-        userName: announcementData.title || campaign.name,
-        message: announcementData.message || campaign.description || "Announcement message",
-        time: announcementData.cta_text || "Just now",
-        location: "",
-      } : {
-        userName: "Sarah Johnson",
-        location: "New York, US",
-        message: campaign.description || "just made a purchase",
-        time: "Just now",
-      },
+      previewData: getPreviewData(),
       position: campaign.display_rules?.position || campaign.settings?.position || "bottom-left",
       animation: campaign.display_rules?.animation || campaign.settings?.animation || "slide",
     },

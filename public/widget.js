@@ -1,9 +1,9 @@
 (function() {
   'use strict';
   
-  const WIDGET_VERSION = 4; // Current widget version - FORCE CACHE BUST
-  const BUILD_TIMESTAMP = '2025-12-09T03:20:00Z'; // Build timestamp for version tracking
-  console.log('[NotiProof] Widget loaded - Version:', WIDGET_VERSION, '- Built:', BUILD_TIMESTAMP);
+  const WIDGET_VERSION = 10; // Current widget version - PRODUCTION READY
+  const BUILD_TIMESTAMP = '2025-12-11T22:30:00Z'; // Build timestamp for version tracking
+  // Version logging moved to debug mode only
   
   const API_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
   const SUPABASE_URL = 'https://ewymvxhpkswhsirdrjub.supabase.co';
@@ -148,8 +148,8 @@
   }
   
   function log(...args) {
-    const debugMode = script.getAttribute('data-debug-mode') === 'true';
-    if (DEBUG || debugMode) {
+    const isDebugMode = DEBUG || debugMode || script.getAttribute('data-debug-mode') === 'true';
+    if (isDebugMode) {
       console.log('[NotiProof]', ...args);
     }
   }
@@ -167,7 +167,7 @@
   async function autoVerifyWebsite() {
     if (siteToken) {
       try {
-        console.log('[NotiProof] Auto-verifying website with token:', siteToken);
+        log('Auto-verifying website with token:', siteToken);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
         
@@ -177,16 +177,16 @@
         clearTimeout(timeoutId);
         
         if (response.ok) {
-          console.log('[NotiProof] ✅ Website auto-verified successfully');
+          log('Website auto-verified successfully');
           return true;
         } else {
-          console.warn('[NotiProof] ⚠️ Verify endpoint returned:', response.status);
+          log('Verify endpoint returned:', response.status);
         }
       } catch (err) {
         if (err.name === 'AbortError') {
-          console.error('[NotiProof] ❌ Verification timeout after 10s');
+          error('Verification timeout after 10s');
         } else {
-          console.error('[NotiProof] ❌ Auto-verification failed:', err);
+          error('Auto-verification failed:', err);
         }
       }
     }
@@ -299,19 +299,19 @@
         left: '50%',
         transform: 'translateX(-50%)',
         width: 'calc(100% - 20px)',
-        maxWidth: '350px',
+        maxWidth: '383px',
         zIndex: '999999'
       };
     }
     
-    // Position mappings
+    // Position mappings - Desktop: 420px, Mobile: 383px
     const positions = {
-      'bottom-left': { bottom: '20px', left: '20px', maxWidth: '350px' },
-      'bottom-right': { bottom: '20px', right: '20px', maxWidth: '350px' },
-      'bottom-center': { bottom: '20px', left: '50%', transform: 'translateX(-50%)', maxWidth: '350px' },
-      'top-left': { top: '20px', left: '20px', maxWidth: '350px' },
-      'top-right': { top: '20px', right: '20px', maxWidth: '350px' },
-      'top-center': { top: '20px', left: '50%', transform: 'translateX(-50%)', maxWidth: '350px' }
+      'bottom-left': { bottom: '20px', left: '20px', maxWidth: '420px' },
+      'bottom-right': { bottom: '20px', right: '20px', maxWidth: '420px' },
+      'bottom-center': { bottom: '20px', left: '50%', transform: 'translateX(-50%)', maxWidth: '420px' },
+      'top-left': { top: '20px', left: '20px', maxWidth: '420px' },
+      'top-right': { top: '20px', right: '20px', maxWidth: '420px' },
+      'top-center': { top: '20px', left: '50%', transform: 'translateX(-50%)', maxWidth: '420px' }
     };
     
     return { position: 'fixed', zIndex: '999999', ...positions[layout] } || positions['bottom-left'];
@@ -519,19 +519,15 @@
   
   
   function showNotification(event) {
-    console.log('[NotiProof] showNotification called for:', event.event_type, event.id);
+    log('showNotification called for:', event.event_type, event.id);
     
-    // CRITICAL STEP 4: Log event received by showNotification
+    // Debug logging for event data
     if (debugMode) {
-      console.log('[Widget] STEP 4 - showNotification called with event:', {
+      log('Event data:', {
         event_id: event.id,
         event_type: event.event_type,
-        is_announcement: event.event_type === 'announcement',
         has_event_data: !!event.event_data,
-        event_data_type: typeof event.event_data,
-        event_data_is_string: typeof event.event_data === 'string',
-        event_data_keys: event.event_data && typeof event.event_data === 'object' ? Object.keys(event.event_data) : 'N/A',
-        raw_event_data: event.event_data
+        event_data_type: typeof event.event_data
       });
     }
     
@@ -539,9 +535,9 @@
     if (event.event_data && typeof event.event_data === 'string') {
       try {
         event.event_data = JSON.parse(event.event_data);
-        if (debugMode) console.log('[Widget] ✅ Parsed event_data from string to object');
+        if (debugMode) log('Parsed event_data from string to object');
       } catch (e) {
-        console.error('[Widget] ❌ Failed to parse event_data:', e);
+        error('Failed to parse event_data:', e);
       }
     }
     
@@ -549,50 +545,30 @@
     const showProductImages = config.showProductImages;
     const hasProductImage = event.event_data?.product_image && isValidUrl(event.event_data.product_image);
     
-    // DEBUG: Log full event structure for announcements
-    if (event.event_type === 'announcement') {
-      console.group('🎯 ANNOUNCEMENT DEBUG');
-      if (debugMode) {
-        console.log('event.event_type:', event.event_type);
-        console.log('event.event_data type:', typeof event.event_data);
-        console.log('event.event_data value:', event.event_data);
-        if (event.event_data && typeof event.event_data === 'object') {
-          console.log('  ✅ event.event_data.title:', event.event_data.title);
-          console.log('  ✅ event.event_data.message:', event.event_data.message);
-          console.log('  ✅ event.event_data.icon:', event.event_data.icon);
-          console.log('  ✅ event.event_data.emoji:', event.event_data.emoji);
-          console.log('  ✅ event.event_data.image_type:', event.event_data.image_type);
-          console.log('  ✅ event.event_data.cta_text:', event.event_data.cta_text);
-          console.log('  ✅ event.event_data.cta_url:', event.event_data.cta_url);
-        }
-      }
-      console.groupEnd();
+    // Debug announcement data
+    if (event.event_type === 'announcement' && debugMode) {
+      log('Announcement data:', event.event_data);
     }
     
     if (isPaused) {
-      console.log('[NotiProof] ⏸️ Notification SKIPPED - Widget is paused');
+      log('Notification SKIPPED - Widget is paused');
       return;
     }
     
     if (!checkFrequencyLimits()) {
-      console.log('[NotiProof] ⏸️ Notification SKIPPED - Frequency limit reached', {
-        pageImpressions: getPageImpressions(),
-        maxPerPage,
-        sessionImpressions: getSessionImpressions(),
-        maxPerSession
-      });
+      log('Notification SKIPPED - Frequency limit reached');
       return;
     }
     
     // Apply URL targeting rules
     if (!shouldShowOnCurrentUrl()) {
-      console.log('[NotiProof] ⏸️ Notification SKIPPED - URL rules filtered', window.location.pathname);
+      log('Notification SKIPPED - URL rules filtered');
       return;
     }
     
     // Apply geo-targeting rules
     if (!shouldShowForCountry()) {
-      console.log('[NotiProof] ⏸️ Notification SKIPPED - Geo-targeting filtered', visitorCountry);
+      log('Notification SKIPPED - Geo-targeting filtered');
       return;
     }
     
@@ -608,7 +584,8 @@
       box-shadow: ${getShadowStyle(config.shadow)};
       padding: ${isMobile ? '12px' : '16px'};
       margin-bottom: 10px;
-      max-width: ${isMobile ? '100%' : '350px'};
+      max-width: ${isMobile ? '383px' : '420px'};
+      min-height: 144px;
       cursor: ${config.makeClickable && (config.showCTA || event.event_data?.url) ? 'pointer' : 'default'};
       transition: ${getAnimationStyles(config.animation)};
       opacity: 0;
@@ -636,19 +613,12 @@
     // ANNOUNCEMENT-SPECIFIC IMAGE HANDLING
     if (event.event_type === 'announcement') {
       if (debugMode) {
-        console.log('🖼️ [Widget] Announcement image data:', {
-          image_type: event.event_data?.image_type,
-          emoji: event.event_data?.emoji,
-          icon: event.event_data?.icon,
-          image_url: event.event_data?.image_url,
-          full_event_data: event.event_data
-        });
+        log('Announcement image data:', event.event_data);
       }
 
       const imageType = event.event_data?.image_type;
       
       if (imageType === 'emoji' && event.event_data.emoji) {
-        if (debugMode) console.log('🖼️ [Widget] Rendering emoji:', event.event_data.emoji);
         contentHTML += `<div style="
           width: 48px; height: 48px; border-radius: 8px;
           background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
@@ -656,7 +626,6 @@
           font-size: 28px; flex-shrink: 0;
         ">${event.event_data.emoji}</div>`;
       } else if (imageType === 'icon' && event.event_data.icon) {
-        if (debugMode) console.log('🖼️ [Widget] Rendering icon:', event.event_data.icon);
         contentHTML += `<div style="
           width: 48px; height: 48px; border-radius: 8px;
           background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
@@ -664,18 +633,11 @@
           font-size: 28px; flex-shrink: 0;
         ">${event.event_data.icon}</div>`;
       } else if (imageType === 'url' && event.event_data.image_url && isValidUrl(event.event_data.image_url)) {
-        if (debugMode) console.log('🖼️ [Widget] Rendering image URL:', event.event_data.image_url);
         contentHTML += `<img src="${escapeHtml(event.event_data.image_url)}" 
           style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;"
           alt="Announcement" onerror="this.style.display='none'" />`;
       } else {
         // Fallback logic: try icon, then emoji, then default
-        if (debugMode) {
-          console.log('🖼️ [Widget] Using fallback image (imageType:', imageType, ')');
-          if (event.event_data?.icon) {
-            console.log('🖼️ [Widget] Fallback to icon:', event.event_data.icon);
-          }
-        }
         if (event.event_data?.icon) {
           contentHTML += `<div style="
             width: 48px; height: 48px; border-radius: 8px;
@@ -684,7 +646,6 @@
             font-size: 28px; flex-shrink: 0;
           ">${event.event_data.icon}</div>`;
         } else if (event.event_data?.emoji) {
-          if (debugMode) console.log('🖼️ [Widget] Fallback to emoji:', event.event_data.emoji);
           contentHTML += `<div style="
             width: 48px; height: 48px; border-radius: 8px;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
@@ -692,7 +653,6 @@
             font-size: 28px; flex-shrink: 0;
           ">${event.event_data.emoji}</div>`;
         } else {
-          if (debugMode) console.log('🖼️ [Widget] Using default 📢 emoji');
           contentHTML += `<div style="width: 48px; height: 48px; border-radius: 8px;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             display: flex; align-items: center; justify-content: center;
@@ -706,35 +666,50 @@
       const imageUrl = data['template.image_url'];
       const avatar = data['template.author_avatar'];
       const name = data['template.author_name'] || 'Anonymous';
+      const initial = name && name.length > 0 ? escapeHtml(name[0].toUpperCase()) : '?';
       
       if (videoUrl) {
-        // Video thumbnail with play indicator
-        contentHTML += `<div style="
-          width: 48px; height: 48px; border-radius: 8px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          display: flex; align-items: center; justify-content: center;
-          flex-shrink: 0; position: relative;
-        ">
-          <span style="font-size: 20px; color: white;">▶</span>
+        // Video testimonial: Show video thumbnail with large centered play overlay
+        const mediaUrl = imageUrl || avatar;
+        const isAvatarFallback = !imageUrl && avatar;
+        const borderRadius = isAvatarFallback ? '50%' : '12px';
+        
+        contentHTML += `<div style="position: relative; width: 100px; height: 100px; flex-shrink: 0; border-radius: ${borderRadius}; overflow: hidden; background: linear-gradient(135deg, #667eea, #764ba2);">`;
+        
+        if (mediaUrl && isValidUrl(mediaUrl)) {
+          contentHTML += `<img src="${escapeHtml(mediaUrl)}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'" />`;
+        } else {
+          // Initials fallback inside the media area
+          contentHTML += `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 32px;">${initial}</div>`;
+        }
+        
+        // Large centered play button overlay
+        contentHTML += `<div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3);">
+          <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.95); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#667eea"><path d="M8 5v14l11-7z"/></svg>
+          </div>
         </div>`;
+        contentHTML += `</div>`;
       } else if (imageUrl && isValidUrl(imageUrl)) {
+        // Non-video with image: show larger image
         contentHTML += `<img src="${escapeHtml(imageUrl)}" style="
-          width: 48px; height: 48px; border-radius: 8px;
+          width: 100px; height: 100px; border-radius: 12px;
           object-fit: cover; flex-shrink: 0;
         " onerror="this.style.display='none'" />`;
       } else if (avatar && isValidUrl(avatar)) {
+        // Non-video with avatar: show larger avatar
         contentHTML += `<img src="${escapeHtml(avatar)}" style="
-          width: 48px; height: 48px; border-radius: 50%;
+          width: 100px; height: 100px; border-radius: 50%;
           object-fit: cover; flex-shrink: 0;
-        " onerror="this.outerHTML='<div style=\\"width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;\\">${escapeHtml(name[0])}</div>'" />`;
+        " onerror="this.outerHTML='<div style=&quot;width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:32px;&quot;>${initial}</div>'" />`;
       } else {
-        // Default testimonial icon
+        // Default: larger author initials
         contentHTML += `<div style="
-          width: 48px; height: 48px; border-radius: 8px;
-          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+          width: 100px; height: 100px; border-radius: 50%;
+          background: linear-gradient(135deg, #667eea, #764ba2);
           display: flex; align-items: center; justify-content: center;
-          font-size: 28px; flex-shrink: 0;
-        ">💬</div>`;
+          color: white; font-weight: bold; font-size: 32px; flex-shrink: 0;
+        ">${initial}</div>`;
       }
     } else if (showProductImages && hasProductImage) {
       // EXISTING PRODUCT IMAGE LOGIC
@@ -767,59 +742,21 @@
     // Content
     contentHTML += '<div style="flex: 1; min-width: 0;">';
     
-    // JSON parsing already done at function start (line 505)
+    // JSON parsing already done at function start
     // This duplicate parsing has been moved up
-    if (false && event.event_data && typeof event.event_data === 'string') {
-      try {
-        event.event_data = JSON.parse(event.event_data);
-        if (debugMode) console.log('[Widget] Parsed event_data from string to object');
-      } catch (e) {
-        console.error('[Widget] Failed to parse event_data:', e);
-      }
-    }
     
-    // DIAGNOSTIC: Check announcement rendering condition
+    // Debug logging for event rendering
     if (debugMode) {
-      console.log('[Widget] Event rendering check:', {
-        event_id: event.id,
+      log('Event rendering check:', {
         event_type: event.event_type,
-        event_type_is_announcement: event.event_type === 'announcement',
-        has_event_data: !!event.event_data,
-      event_data_type: typeof event.event_data,
-      has_title: !!event.event_data?.title,
-      title_value: event.event_data?.title,
-      condition_passes: event.event_type === 'announcement' && event.event_data?.title,
-      full_event_data: event.event_data
-      });
-    }
-    
-    // CRITICAL DIAGNOSTIC: Log BEFORE condition check to see why it might fail
-    if (debugMode) {
-      console.log('[Widget] CRITICAL STEP 1 - About to check announcement condition:', {
-        event_type: event.event_type,
-        is_announcement: event.event_type === 'announcement',
-        has_event_data: !!event.event_data,
-        has_title: !!event.event_data?.title,
-        title_value: event.event_data?.title,
-        title_type: typeof event.event_data?.title,
-        title_trimmed: event.event_data?.title?.trim(),
-        condition_will_pass: (event.event_type === 'announcement' && !!event.event_data?.title?.trim())
+        has_title: !!event.event_data?.title
       });
     }
     
     // ANNOUNCEMENT-SPECIFIC MESSAGE RENDERING: Separate title and message with different font weights
     if (event.event_type === 'announcement' && event.event_data?.title?.trim()) {
-      // STEP 4 FIX: Add comprehensive logging for announcement data
       if (debugMode) {
-        console.log('[Widget] STEP 4 - Announcement rendering data:', {
-          has_title: !!event.event_data.title,
-          title_value: event.event_data.title,
-          title_length: event.event_data.title?.length || 0,
-          has_message: !!event.event_data.message,
-          message_value: event.event_data.message,
-          message_length: event.event_data.message?.length || 0,
-          full_event_data: event.event_data
-        });
+        log('Announcement rendering:', event.event_data.title);
       }
       
       // Render announcement header (bold)
@@ -827,38 +764,22 @@
         ${escapeHtml(event.event_data.title)}
       </div>`;
       
-      // STEP 4 FIX: Enhanced message rendering with defensive checks
       // Check for message as non-empty string
       const hasMessage = event.event_data.message && 
                         typeof event.event_data.message === 'string' && 
                         event.event_data.message.trim().length > 0;
       
       if (hasMessage) {
-        if (debugMode) console.log('[Widget] STEP 4 - Rendering announcement message:', event.event_data.message);
         contentHTML += `<div style="font-weight: 400; margin-bottom: 4px; line-height: 1.4; opacity: 0.9;">
           ${escapeHtml(event.event_data.message)}
         </div>`;
-      } else {
-        console.warn('[Widget] STEP 4 - Announcement message missing or empty:', {
-          message_exists: !!event.event_data.message,
-          message_type: typeof event.event_data.message,
-          message_value: event.event_data.message
-        });
       }
     } else if (event.event_type === 'testimonial') {
       // TESTIMONIAL-SPECIFIC MESSAGE RENDERING
       const data = event.event_data || {};
       
-      // Debug logging for testimonial processing
       if (debugMode) {
-        console.log('[NotiProof] Processing testimonial:', {
-          id: event.id,
-          has_event_data: !!event.event_data,
-          author: data['template.author_name'],
-          message: data['template.message']?.substring(0, 50),
-          rating: data['template.rating'],
-          all_keys: Object.keys(data)
-        });
+        log('Processing testimonial:', data['template.author_name']);
       }
       
       const name = data['template.author_name'] || 'Anonymous Customer';
@@ -909,15 +830,6 @@
     }
     
     // CTA Button - check both config.showCTA AND announcement-specific CTA
-    // STEP 3 FIX: Add defensive checks and logging for announcement CTA
-    if (event.event_type === 'announcement') {
-      if (debugMode) {
-        console.log('[Widget] Announcement event_data:', event.event_data);
-        console.log('[Widget] CTA check - cta_text:', event.event_data?.cta_text, 'cta_url:', event.event_data?.cta_url);
-      }
-    }
-    
-    // STEP 3 FIX: Ensure CTA values are non-empty strings
     const hasAnnouncementCTA = event.event_type === 'announcement' && 
                                event.event_data?.cta_text && 
                                event.event_data?.cta_text.trim().length > 0 &&
@@ -930,25 +842,11 @@
                          config.ctaUrl && 
                          config.ctaUrl.trim().length > 0;
     
-    const announcementCTA = hasAnnouncementCTA;
-    const showButton = hasConfigCTA || announcementCTA;
-    
-    if (event.event_type === 'announcement' && !hasAnnouncementCTA) {
-      console.warn('[Widget] Announcement missing valid CTA data:', {
-        has_cta_text: !!event.event_data?.cta_text,
-        cta_text_value: event.event_data?.cta_text,
-        has_cta_url: !!event.event_data?.cta_url,
-        cta_url_value: event.event_data?.cta_url
-      });
-    }
-    
-    if (debugMode) console.log('[Widget] CTA Button Check - announcementCTA:', announcementCTA, 'showButton:', showButton);
+    const showButton = hasConfigCTA || hasAnnouncementCTA;
     
     if (showButton) {
-      const ctaText = announcementCTA ? event.event_data.cta_text : config.ctaText;
-      const ctaUrl = announcementCTA ? event.event_data.cta_url : config.ctaUrl;
-      
-      if (debugMode) console.log('[Widget] Rendering CTA button - Text:', ctaText, 'URL:', ctaUrl);
+      const ctaText = hasAnnouncementCTA ? event.event_data.cta_text : config.ctaText;
+      const ctaUrl = hasAnnouncementCTA ? event.event_data.cta_url : config.ctaUrl;
       
       contentHTML += `
         <button style="
@@ -991,16 +889,7 @@
       notification.style.transform = 'translateY(0) scale(1)';
     }, 10);
     
-    console.log('[NotiProof] ✅ Notification DISPLAYED successfully:', {
-      eventId: event.id,
-      event_type: event.event_type,
-      message: event.message_template?.substring(0, 50) + '...'
-    });
-    
-    // Testimonial-specific success log
-    if (event.event_type === 'testimonial') {
-      console.log('[NotiProof] ✅ TESTIMONIAL rendered on page');
-    }
+    log('Notification displayed:', event.event_type, event.id);
     
     trackView(event.id);
     incrementPageImpressions();
@@ -1377,7 +1266,7 @@
     try {
       if (mode === 'site') {
         // Fetch all widgets and events for the site
-        console.log('[NotiProof] 🔄 Fetching events for site:', siteToken);
+        log('Fetching events for site:', siteToken);
         const response = await fetch(`${API_BASE}/site/${siteToken}`);
         if (!response.ok) {
           const errorText = await response.text();
@@ -1386,34 +1275,14 @@
         const data = await response.json();
         eventQueue = data.events || [];
         
-        // UNCONDITIONAL LOG: Show event breakdown by type
-        const eventsByType = {};
-        eventQueue.forEach(e => {
-          eventsByType[e.event_type] = (eventsByType[e.event_type] || 0) + 1;
-        });
-        console.log('[NotiProof] ✅ Events fetched:', {
-          total: eventQueue.length,
-          by_type: eventsByType,
-          testimonials: eventQueue.filter(e => e.event_type === 'testimonial').length,
-          announcements: eventQueue.filter(e => e.event_type === 'announcement').length,
-          purchases: eventQueue.filter(e => e.event_type === 'purchase').length
-        });
-        
-        // CRITICAL STEP 3: Log eventQueue population
-        const announcementCount = eventQueue.filter(e => e.event_type === 'announcement').length;
-        if (debugMode) console.log('[Widget] STEP 3 - Event queue loaded:', {
-          total_events: eventQueue.length,
-          announcement_events: announcementCount,
-          announcement_details: eventQueue
-            .filter(e => e.event_type === 'announcement')
-            .map(e => ({
-              id: e.id,
-              has_title: !!e.event_data?.title,
-              title: e.event_data?.title,
-              has_message: !!e.event_data?.message,
-              message: e.event_data?.message
-            }))
-        });
+        // Debug: Show event breakdown by type
+        if (debugMode) {
+          const eventsByType = {};
+          eventQueue.forEach(e => {
+            eventsByType[e.event_type] = (eventsByType[e.event_type] || 0) + 1;
+          });
+          log('Events fetched:', { total: eventQueue.length, by_type: eventsByType });
+        }
         
         // Apply display settings from API
         if (data.display_settings) {
@@ -1548,38 +1417,65 @@
     }
   }
   
-  // PHASE 7: Fix 401 error - Only fetch for live_visitors campaigns via widget-api
+  // Visitors Pulse: Fetch real active visitor count from visitor_sessions
+  let visitorsPulseConfig = null;
+  
   async function fetchActiveVisitorCount() {
     try {
-      // Don't fetch active count for non-live-visitor campaigns
-      if (!config.showActiveVisitors) {
-        log('Active visitor tracking disabled for this campaign type');
-        return;
-      }
-
-      // Use widget-api endpoint which handles GA4 auth server-side
-      const endpoint = `${API_BASE}/widget-api/active-visitors?site_token=${siteToken}`;
-      
-      log('Fetching active visitor count via widget-api');
-      const response = await fetch(endpoint);
-      
-      if (!response.ok) {
-        // Gracefully fallback on error (don't show active count)
-        log('Active visitor fetch failed (status ' + response.status + '), skipping');
+      // Check if we have a Visitors Pulse campaign config
+      if (!visitorsPulseConfig) {
+        log('No Visitors Pulse campaign configured');
         return;
       }
       
-      const data = await response.json();
-      currentActiveCount = data.count || 0;
-      log('Active visitor count updated:', currentActiveCount, data.cached ? '(cached)' : '(fresh)');
+      const mode = visitorsPulseConfig.mode || 'simulated';
       
-      // Show active visitor notification if count changed and is > 1
-      if (currentActiveCount > 1 && config.showActiveVisitors) {
+      if (mode === 'simulated') {
+        // Use simulated count within min/max range
+        const minCount = visitorsPulseConfig.min_count || 5;
+        const maxCount = visitorsPulseConfig.max_count || 25;
+        currentActiveCount = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount;
+        log('Simulated visitor count:', currentActiveCount);
+      } else {
+        // Mode is 'real' - fetch from visitor_sessions via API
+        const endpoint = `${API_BASE}/active-count?site_token=${siteToken}`;
+        log('Fetching real active visitor count from visitor_sessions');
+        
+        const response = await fetch(endpoint);
+        if (!response.ok) {
+          log('Active visitor fetch failed (status ' + response.status + '), using fallback');
+          // Fallback to minimum configured count
+          currentActiveCount = visitorsPulseConfig.min_count || 1;
+          return;
+        }
+        
+        const data = await response.json();
+        currentActiveCount = data.count || 0;
+        
+        // Apply min/max bounds if configured
+        const minCount = visitorsPulseConfig.min_count || 0;
+        const maxCount = visitorsPulseConfig.max_count || 999;
+        
+        // If real count is below minimum, show minimum (for better UX)
+        if (currentActiveCount < minCount) {
+          log('Real count', currentActiveCount, 'below minimum', minCount, '- using minimum');
+          currentActiveCount = minCount;
+        }
+        
+        // Cap at maximum if needed
+        if (currentActiveCount > maxCount) {
+          currentActiveCount = maxCount;
+        }
+        
+        log('Real active visitor count:', currentActiveCount, '(from visitor_sessions)');
+      }
+      
+      // Show notification if count > 1
+      if (currentActiveCount > 1) {
         showActiveVisitorNotification(currentActiveCount);
       }
     } catch (err) {
       error('Failed to fetch active visitor count', err);
-      // Don't break widget - just skip active visitor notifications
     }
   }
   
@@ -1661,29 +1557,13 @@
   }
   
   function startDisplayLoop() {
-    console.log('[NotiProof] Starting display loop with', eventQueue.length, 'events');
-    console.log('[NotiProof] Event types in queue:', eventQueue.map(e => e.event_type));
-    console.log('[NotiProof] Config:', { 
-      initialDelay: config.initialDelay, 
-      interval: config.interval,
-      maxPerPage: maxPerPage,
-      maxPerSession: maxPerSession,
-      pageImpressions: getPageImpressions(),
-      sessionImpressions: getSessionImpressions()
-    });
-    log('Starting display loop', { interval: config.interval });
+    log('Starting display loop with', eventQueue.length, 'events');
     
     // Initial delay before first notification
     setTimeout(() => {
       if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused) {
         const event = eventQueue.shift();
-        if (debugMode) console.log('[Widget] STEP 4 - About to show notification:', {
-          event_id: event.id,
-          event_type: event.event_type,
-          is_announcement: event.event_type === 'announcement',
-          has_event_data: !!event.event_data,
-          event_data_keys: event.event_data ? Object.keys(event.event_data) : []
-        });
+        if (debugMode) log('Showing notification:', event.event_type, event.id);
         showNotification(event);
       }
       
@@ -1691,13 +1571,7 @@
       setInterval(() => {
         if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused) {
           const event = eventQueue.shift();
-          if (debugMode) console.log('[Widget] STEP 4 - About to show notification (interval):', {
-            event_id: event.id,
-            event_type: event.event_type,
-            is_announcement: event.event_type === 'announcement',
-            has_event_data: !!event.event_data,
-            event_data_keys: event.event_data ? Object.keys(event.event_data) : []
-          });
+          if (debugMode) log('Showing notification (interval):', event.event_type, event.id);
           showNotification(event);
         }
       }, config.interval);
@@ -1738,44 +1612,97 @@
   }
   
   // NATIVE INTEGRATIONS - Instant Capture (Form Submission Tracking)
-  function initInstantCapture(campaignId, websiteId, config) {
-    const targetUrl = config.target_url || window.location.pathname;
+  // Stores all form capture rules for URL matching
+  let formCaptureRules = [];
+  let formCaptureInitialized = false;
+  
+  // Check if URL matches a form capture rule
+  function matchFormCaptureRule(pageUrl) {
+    const pathname = new URL(pageUrl).pathname;
     
-    // Only listen on target page
-    if (!window.location.pathname.includes(targetUrl)) {
-      log('[Instant Capture] Not on target URL:', targetUrl);
-      return;
+    // Sort rules: most specific (longest path) first, empty path last
+    const sortedRules = [...formCaptureRules].sort((a, b) => {
+      const aPath = a.config?.target_url || '';
+      const bPath = b.config?.target_url || '';
+      // Empty paths go last (catch-all)
+      if (!aPath && bPath) return 1;
+      if (aPath && !bPath) return -1;
+      // Longer paths are more specific, go first
+      return bPath.length - aPath.length;
+    });
+    
+    for (const rule of sortedRules) {
+      const targetUrl = rule.config?.target_url || '';
+      
+      // Empty target URL means capture all pages
+      if (!targetUrl) {
+        log('[Instant Capture] Matched catch-all rule:', rule.id);
+        return rule;
+      }
+      
+      // Check for exact match or path containment
+      if (pathname === targetUrl || 
+          pathname.startsWith(targetUrl) || 
+          pathname.includes(targetUrl)) {
+        log('[Instant Capture] Matched rule:', rule.id, 'for path:', pathname);
+        return rule;
+      }
     }
     
-    log('[Instant Capture] Listening for form submissions on', targetUrl);
+    return null;
+  }
+  
+  function initInstantCapture(integrationId, websiteId, config) {
+    // Add rule to the list
+    formCaptureRules.push({ id: integrationId, websiteId, config });
+    log('[Instant Capture] Added rule:', integrationId, 'target:', config.target_url || '/*');
+    
+    // Only initialize the form listener once
+    if (formCaptureInitialized) return;
+    formCaptureInitialized = true;
+    
+    log('[Instant Capture] ✅ Initializing global form submission listener');
     
     document.addEventListener('submit', async (e) => {
       if (e.target.tagName !== 'FORM') return;
+      
+      // Find matching rule for current page
+      const matchedRule = matchFormCaptureRule(window.location.href);
+      if (!matchedRule) {
+        log('[Instant Capture] No matching rule for page:', window.location.pathname);
+        return;
+      }
       
       // Extract form data
       const formData = new FormData(e.target);
       const data = Object.fromEntries(formData.entries());
       
-      log('[Instant Capture] Form submitted, capturing...', data);
+      log('[Instant Capture] Form submitted on', window.location.pathname, 
+          'matched rule:', matchedRule.id, 'data:', data);
       
       try {
-        await fetch(`${SUPABASE_URL}/functions/v1/track-form`, {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/track-form`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'apikey': SUPABASE_ANON_KEY
           },
           body: JSON.stringify({
-            campaign_id: campaignId,
-            website_id: websiteId,
+            integration_id: matchedRule.id,
+            website_id: matchedRule.websiteId,
             form_data: data,
             page_url: window.location.href
           })
         });
         
-        log('[Instant Capture] Form data captured successfully');
-      } catch (error) {
-        error('[Instant Capture] Form capture failed:', error);
+        if (response.ok) {
+          log('[Instant Capture] ✅ Form data captured successfully');
+        } else {
+          const errorData = await response.json();
+          log('[Instant Capture] ⚠️ Form capture response:', response.status, errorData);
+        }
+      } catch (err) {
+        console.error('[NotiProof][Instant Capture] Form capture failed:', err);
       }
     }, true); // Use capture phase
   }
@@ -2024,7 +1951,7 @@
         updateDebugPanel(debugContent);
       }, 1000);
       
-      console.log('[NotiProof DEBUG] 🐛 Debug panel initialized');
+      log('Debug panel initialized');
     }
     
     log('Initializing NotiProof widget with config:', config);
@@ -2045,6 +1972,22 @@
         const response = await fetch(`${API_BASE}/site/${siteToken}`);
         if (response.ok) {
           nativeCampaignsData = await response.json();
+          
+          // Initialize form capture from native_integrations (integration_connectors)
+          if (nativeCampaignsData.native_integrations && nativeCampaignsData.native_integrations.length > 0) {
+            log('[Native] Found', nativeCampaignsData.native_integrations.length, 'form capture integrations');
+            for (const integration of nativeCampaignsData.native_integrations) {
+              if (integration.config) {
+                initInstantCapture(
+                  integration.id,
+                  nativeCampaignsData.website_id,
+                  integration.config
+                );
+              }
+            }
+          }
+          
+          // Also initialize legacy campaigns if present
           if (nativeCampaignsData.campaigns) {
             await initNativeCampaigns(nativeCampaignsData.campaigns, nativeCampaignsData.website_id);
           }
@@ -2054,10 +1997,33 @@
       }
     }
     
-    // Start active visitor tracking (legacy GA4) - Only if explicitly enabled AND live_visitors campaign exists
-    if (config.showActiveVisitors && nativeCampaignsData?.campaigns?.some(c => c.data_source === 'live_visitors')) {
-      fetchActiveVisitorCount(); // Initial fetch
-      activeVisitorInterval = setInterval(fetchActiveVisitorCount, 15000); // Update every 15 seconds
+    // Start Visitors Pulse tracking if a live_visitors campaign exists
+    if (nativeCampaignsData?.campaigns) {
+      const visitorsPulseCampaign = nativeCampaignsData.campaigns.find(c => {
+        const sources = c.data_sources || [];
+        return sources.some(s => s.provider === 'live_visitors');
+      });
+      
+      if (visitorsPulseCampaign) {
+        // Get the native_config from the campaign
+        const liveVisitorSource = visitorsPulseCampaign.data_sources.find(s => s.provider === 'live_visitors');
+        visitorsPulseConfig = liveVisitorSource?.config || {
+          mode: 'real',
+          min_count: 1,
+          max_count: 50,
+          update_interval_seconds: 30
+        };
+        
+        log('Visitors Pulse campaign found, config:', visitorsPulseConfig);
+        
+        const updateInterval = (visitorsPulseConfig.update_interval_seconds || 30) * 1000;
+        
+        // Initial fetch after short delay
+        setTimeout(() => {
+          fetchActiveVisitorCount();
+          activeVisitorInterval = setInterval(fetchActiveVisitorCount, updateInterval);
+        }, 2000);
+      }
     }
     
     // Branding footer is now added after first notification displays (see showNotification function)

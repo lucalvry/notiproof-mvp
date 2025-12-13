@@ -3,6 +3,9 @@
  * 
  * Fetches events with per-type limits, applies weighted interleaving,
  * and returns an optimized queue of max 15 events.
+ * 
+ * IMPORTANT: For testimonials, this function creates/updates event records
+ * in the events table so that views/clicks tracking works correctly.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
@@ -28,6 +31,7 @@ interface QueueConfig {
 const DEFAULT_WEIGHTS: Record<string, NotificationWeight> = {
   'purchase': { event_type: 'purchase', weight: 10, max_per_queue: 20, ttl_days: 7 },
   'testimonial': { event_type: 'testimonial', weight: 8, max_per_queue: 15, ttl_days: 180 },
+  'form_capture': { event_type: 'form_capture', weight: 7, max_per_queue: 20, ttl_days: 14 },
   'signup': { event_type: 'signup', weight: 6, max_per_queue: 20, ttl_days: 14 },
   'announcement': { event_type: 'announcement', weight: 4, max_per_queue: 5, ttl_days: 30 },
   'live_visitors': { event_type: 'live_visitors', weight: 2, max_per_queue: 3, ttl_days: 1 },
@@ -58,20 +62,116 @@ function getRelativeTime(timestamp: string): string {
 }
 
 /**
- * Render Mustache template with event data
+ * Render Mustache template with event data (supports conditionals)
  */
 function renderTemplate(template: string, data: Record<string, any>): string {
   let rendered = template;
   
-  // Simple Mustache-like rendering
-  // Replace {{key}} with data[key]
-  rendered = rendered.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+  // Step 1: Handle section blocks {{#key}}...{{/key}} (show if truthy)
+  rendered = rendered.replace(/\{\{#([^}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (match, key, content) => {
+    const trimmedKey = key.trim();
+    const value = data[trimmedKey];
+    // Show content if value is truthy (not null, undefined, false, empty string, or 0)
+    if (value !== undefined && value !== null && value !== '' && value !== false) {
+      return content;
+    }
+    return '';
+  });
+  
+  // Step 2: Handle inverted blocks {{^key}}...{{/key}} (show if falsy)
+  rendered = rendered.replace(/\{\{\^([^}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (match, key, content) => {
+    const trimmedKey = key.trim();
+    const value = data[trimmedKey];
+    // Show content if value is falsy
+    if (value === undefined || value === null || value === '' || value === false) {
+      return content;
+    }
+    return '';
+  });
+  
+  // Step 3: Handle simple substitutions {{key}}
+  rendered = rendered.replace(/\{\{([^#^/][^}]*)\}\}/g, (match, key) => {
     const trimmedKey = key.trim();
     const value = data[trimmedKey];
     return value !== undefined && value !== null ? String(value) : '';
   });
   
   return rendered;
+}
+
+/**
+ * Get or create an event record for a testimonial
+ * This ensures views/clicks tracking works
+ */
+async function getOrCreateTestimonialEvent(
+  supabase: any,
+  testimonial: any,
+  widgetId: string,
+  websiteId: string,
+  messageTemplate: string,
+  normalizedData: Record<string, any>,
+  authorName: string
+): Promise<string> {
+  const externalId = `testimonial_${testimonial.id}`;
+  
+  // Check if event already exists
+  const { data: existingEvent, error: fetchError } = await supabase
+    .from('events')
+    .select('id')
+    .eq('external_id', externalId)
+    .maybeSingle();
+  
+  if (fetchError) {
+    console.error(`[Queue Builder] Error checking existing event for ${externalId}:`, fetchError);
+  }
+  
+  if (existingEvent?.id) {
+    // Update the event with latest template/data (but preserve views/clicks)
+    const { error: updateError } = await supabase
+      .from('events')
+      .update({
+        message_template: messageTemplate,
+        event_data: normalizedData,
+        user_name: authorName,
+      })
+      .eq('id', existingEvent.id);
+    
+    if (updateError) {
+      console.error(`[Queue Builder] Error updating event ${existingEvent.id}:`, updateError);
+    }
+    
+    return existingEvent.id;
+  }
+  
+  // Create new event record
+  const { data: newEvent, error: insertError } = await supabase
+    .from('events')
+    .insert({
+      external_id: externalId,
+      event_type: 'testimonial',
+      widget_id: widgetId,
+      website_id: websiteId,
+      event_data: normalizedData,
+      message_template: messageTemplate,
+      user_name: authorName,
+      moderation_status: 'approved',
+      status: 'approved',
+      source: 'manual',
+      views: 0,
+      clicks: 0,
+      created_at: testimonial.created_at || new Date().toISOString(),
+    })
+    .select('id')
+    .single();
+  
+  if (insertError) {
+    console.error(`[Queue Builder] Error creating event for testimonial ${testimonial.id}:`, insertError);
+    // Return a fallback synthetic ID if insert fails
+    return externalId;
+  }
+  
+  console.log(`[Queue Builder] Created event ${newEvent.id} for testimonial ${testimonial.id}`);
+  return newEvent.id;
 }
 
 /**
@@ -99,6 +199,38 @@ async function fetchGroupedEvents(
     
     // Special handling for testimonials - fetch from testimonials table
     if (eventType === 'testimonial') {
+      // First, find the testimonial campaign to get the correct widget
+      const { data: allCampaigns } = await supabase
+        .from('campaigns')
+        .select('id, data_sources')
+        .eq('website_id', config.websiteId)
+        .eq('status', 'active');
+      
+      // Find the campaign with testimonials provider in data_sources
+      let testimonialCampaignId: string | null = null;
+      for (const camp of (allCampaigns || [])) {
+        const sources = Array.isArray(camp.data_sources) ? camp.data_sources : [];
+        if (sources.some((ds: any) => ds.provider === 'testimonials')) {
+          testimonialCampaignId = camp.id;
+          break;
+        }
+      }
+      
+      // Get the widget for the testimonial campaign
+      let testimonialWidgetId = config.widgetIds[0]; // fallback
+      if (testimonialCampaignId) {
+        const { data: testimonialWidget } = await supabase
+          .from('widgets')
+          .select('id')
+          .eq('campaign_id', testimonialCampaignId)
+          .single();
+        
+        if (testimonialWidget?.id) {
+          testimonialWidgetId = testimonialWidget.id;
+          console.log('[Queue Builder] Found testimonial campaign widget:', { testimonialCampaignId, testimonialWidgetId });
+        }
+      }
+      
       const { data: testimonials, error } = await supabase
         .from('testimonials')
         .select('*')
@@ -113,7 +245,9 @@ async function fetchGroupedEvents(
         grouped[eventType] = [];
       } else {
         // Transform testimonials to event format
-        grouped[eventType] = (testimonials || []).map((t: any) => {
+        const transformedEvents = [];
+        
+        for (const t of (testimonials || [])) {
           const createdAt = t.created_at || new Date().toISOString();
           const timeAgo = getRelativeTime(createdAt);
           const rating = t.rating || 5;
@@ -121,24 +255,38 @@ async function fetchGroupedEvents(
           const authorName = t.author_name || 'Anonymous Customer';
           const authorPosition = t.author_position || t.metadata?.position || 'Customer';
           const authorCompany = t.author_company || t.metadata?.company || 'Happy Customer';
-          const authorAvatar = t.avatar_url || 
-            t.author_avatar_url ||
+          // Prioritize author_avatar_url (where form submissions store avatars)
+          const authorAvatar = t.author_avatar_url || 
+            t.avatar_url ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}&background=2563EB&color=fff`;
           
-          // Prepare normalized data
+          // Generate initials for fallback
+          const authorInitials = authorName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+          
+          // Prepare normalized data with correct field mappings
           const normalized = {
             'template.author_name': authorName,
             'template.author_email': t.author_email || '',
             'template.author_avatar': authorAvatar,
+            'template.author_initials': authorInitials,
             'template.author_position': authorPosition,
             'template.author_company': authorCompany,
             'template.rating': rating,
             'template.rating_stars': stars,
             'template.message': t.message || 'Great experience!',
-            'template.image_url': t.metadata?.product_image_url || null,
-            'template.video_url': t.video_url,
+            // image_url: check direct field first, then metadata
+            'template.image_url': t.image_url || t.metadata?.product_image_url || null,
+            'template.video_url': t.video_url || null,
+            // video_thumbnail: for video testimonials, use avatar as thumbnail
+            'template.video_thumbnail': t.video_url ? (t.author_avatar_url || t.avatar_url || authorAvatar) : null,
             'template.time_ago': timeAgo,
             'template.verified': !!t.metadata?.verified_purchase,
+            // Also include flat keys for compatibility
+            author_name: authorName,
+            author_avatar: authorAvatar,
+            message: t.message || 'Great experience!',
+            rating: rating,
+            time_ago: timeAgo,
           };
           
           // Render template
@@ -154,20 +302,99 @@ async function fetchGroupedEvents(
             </div>`;
           }
           
-          return {
-            id: `testimonial_${t.id}`,
+          // Get or create the actual event record using the CORRECT testimonial widget
+          let eventId: string;
+          
+          if (testimonialWidgetId) {
+            eventId = await getOrCreateTestimonialEvent(
+              supabase,
+              t,
+              testimonialWidgetId,
+              config.websiteId,
+              messageTemplate,
+              normalized,
+              authorName
+            );
+          } else {
+            // Fallback to synthetic ID if no widget
+            eventId = `testimonial_${t.id}`;
+          }
+          
+          transformedEvents.push({
+            id: eventId, // Use real event ID for tracking
             event_type: 'testimonial',
             message_template: messageTemplate,
             user_name: authorName,
             user_location: null,
             created_at: createdAt,
             event_data: normalized,
-            widget_id: config.widgetIds[0] || null,
+            widget_id: testimonialWidgetId,
             moderation_status: 'approved',
             status: 'approved',
+            // Include original testimonial ID for reference
+            testimonial_id: t.id,
+          });
+        }
+        
+        grouped[eventType] = transformedEvents;
+        console.log(`[Queue Builder] Fetched and processed ${testimonials?.length || 0} testimonial events`);
+      }
+    } else if (eventType === 'form_capture') {
+      // Step 1: Fetch form_capture events without the problematic join
+      const { data: formEvents, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('website_id', config.websiteId)
+        .eq('event_type', 'form_capture')
+        .eq('moderation_status', 'approved')
+        .eq('status', 'approved')
+        .gte('created_at', ttlDate)
+        .order('created_at', { ascending: false })
+        .limit(weightConfig.max_per_queue);
+      
+      if (error) {
+        console.error(`[Queue Builder] Error fetching form_capture events:`, error);
+        grouped[eventType] = [];
+      } else {
+        // Step 2: Fetch form capture campaign settings for this website
+        const { data: formCaptureCampaign } = await supabase
+          .from('campaigns')
+          .select('integration_settings')
+          .eq('website_id', config.websiteId)
+          .not('integration_settings->form_type', 'is', null)
+          .limit(1)
+          .maybeSingle();
+        
+        const campaignSettings = formCaptureCampaign?.integration_settings || {};
+        const defaultAvatar = campaignSettings.avatar || '📧';
+        const defaultMessageTemplate = campaignSettings.message_template || '{{name}} just signed up';
+        
+        console.log(`[Queue Builder] Form capture campaign settings:`, { 
+          avatar: defaultAvatar, 
+          template: defaultMessageTemplate,
+          found: !!formCaptureCampaign 
+        });
+        
+        // Step 3: Transform events with campaign settings
+        const transformedEvents = (formEvents || []).map((e: any) => {
+          const messageTemplate = e.message_template || defaultMessageTemplate;
+          const eventData = e.event_data || {};
+          const flatData = eventData.flattened_fields || eventData;
+          const renderedMessage = renderTemplate(messageTemplate, flatData);
+          
+          return {
+            ...e,
+            message_template: renderedMessage,
+            event_data: {
+              ...e.event_data,
+              avatar: defaultAvatar,
+              rendered_message: renderedMessage
+            }
           };
         });
-        console.log(`[Queue Builder] Fetched ${testimonials?.length || 0} testimonial events`);
+        
+        grouped[eventType] = transformedEvents;
+        console.log(`[Queue Builder] Fetched and processed ${formEvents?.length || 0} form_capture events`);
       }
     } else {
       // Fetch from events table for other event types

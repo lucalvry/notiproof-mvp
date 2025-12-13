@@ -1,107 +1,104 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, MousePointer, TrendingUp, Zap, ArrowUpIcon, ArrowDownIcon } from "lucide-react";
+import { Eye, MousePointerClick, Percent, Bell, Activity, ArrowUp, ArrowDown } from "lucide-react";
 
 interface OverviewCardsProps {
   totalViews: number;
   totalClicks: number;
-  conversionRate: number;
-  activeWidgets: number;
+  ctr: number;
+  activeNotifications: number;
+  totalEvents: number;
   previousViews?: number;
   previousClicks?: number;
-  previousConversionRate?: number;
-  previousActiveWidgets?: number;
+  previousCtr?: number;
+  previousActiveNotifications?: number;
+  previousTotalEvents?: number;
   isLoading?: boolean;
 }
 
 export function OverviewCards({
   totalViews,
   totalClicks,
-  conversionRate,
-  activeWidgets,
+  ctr,
+  activeNotifications,
+  totalEvents,
   previousViews = 0,
   previousClicks = 0,
-  previousConversionRate = 0,
-  previousActiveWidgets = 0,
+  previousCtr = 0,
+  previousActiveNotifications = 0,
+  previousTotalEvents = 0,
   isLoading = false,
 }: OverviewCardsProps) {
   const calculateChange = (current: number, previous: number) => {
-    if (previous === 0) return 0;
+    if (previous === 0) return current > 0 ? 100 : 0;
     return ((current - previous) / previous) * 100;
   };
 
-  const viewsChange = calculateChange(totalViews, previousViews);
-  const clicksChange = calculateChange(totalClicks, previousClicks);
-  const conversionChange = calculateChange(conversionRate, previousConversionRate);
-  const widgetsChange = calculateChange(activeWidgets, previousActiveWidgets);
-
-  const stats = [
+  const cards = [
     {
-      label: "Total Views",
-      value: isLoading ? "..." : totalViews.toLocaleString(),
+      title: "Total Views",
+      value: totalViews,
       icon: Eye,
-      change: viewsChange,
+      change: calculateChange(totalViews, previousViews),
+      format: (v: number) => v.toLocaleString(),
     },
     {
-      label: "Total Clicks",
-      value: isLoading ? "..." : totalClicks.toLocaleString(),
-      icon: MousePointer,
-      change: clicksChange,
+      title: "Total Clicks",
+      value: totalClicks,
+      icon: MousePointerClick,
+      change: calculateChange(totalClicks, previousClicks),
+      format: (v: number) => v.toLocaleString(),
     },
     {
-      label: "Conversion Rate",
-      value: isLoading ? "..." : `${conversionRate.toFixed(1)}%`,
-      icon: TrendingUp,
-      change: conversionChange,
+      title: "Click-Through Rate",
+      value: ctr,
+      icon: Percent,
+      change: calculateChange(ctr, previousCtr),
+      format: (v: number) => `${v.toFixed(2)}%`,
     },
     {
-      label: "Active Widgets",
-      value: isLoading ? "..." : activeWidgets.toString(),
-      icon: Zap,
-      change: widgetsChange,
+      title: "Active Notifications",
+      value: activeNotifications,
+      icon: Bell,
+      change: calculateChange(activeNotifications, previousActiveNotifications),
+      format: (v: number) => v.toString(),
+    },
+    {
+      title: "Total Events",
+      value: totalEvents,
+      icon: Activity,
+      change: calculateChange(totalEvents, previousTotalEvents),
+      format: (v: number) => v.toLocaleString(),
     },
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {stats.map((stat) => {
-        const Icon = stat.icon;
-        const isPositive = stat.change > 0;
-        const isNegative = stat.change < 0;
-        
-        return (
-          <Card key={stat.label}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.label}
-              </CardTitle>
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              {!isLoading && (
-                <div className="flex items-center gap-1 mt-1">
-                  {isPositive && (
-                    <>
-                      <ArrowUpIcon className="h-3 w-3 text-green-500" />
-                      <span className="text-xs text-green-500">+{stat.change.toFixed(1)}%</span>
-                    </>
-                  )}
-                  {isNegative && (
-                    <>
-                      <ArrowDownIcon className="h-3 w-3 text-red-500" />
-                      <span className="text-xs text-red-500">{stat.change.toFixed(1)}%</span>
-                    </>
-                  )}
-                  {!isPositive && !isNegative && (
-                    <span className="text-xs text-muted-foreground">No change</span>
-                  )}
-                  <span className="text-xs text-muted-foreground ml-1">vs last period</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      {cards.map((card) => (
+        <Card key={card.title}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
+            <card.icon className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {isLoading ? "..." : card.format(card.value)}
+            </div>
+            {!isLoading && card.change !== 0 && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                {card.change > 0 ? (
+                  <ArrowUp className="h-3 w-3 text-green-500" />
+                ) : (
+                  <ArrowDown className="h-3 w-3 text-red-500" />
+                )}
+                <span className={card.change > 0 ? "text-green-500" : "text-red-500"}>
+                  {Math.abs(card.change).toFixed(1)}%
+                </span>
+                <span>vs last period</span>
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Globe, CheckCircle2, Clock, XCircle, MoreVertical, AlertCircle, Copy, RefreshCw } from "lucide-react";
+import { Plus, Globe, CheckCircle2, Clock, XCircle, MoreVertical, AlertCircle, Copy, RefreshCw, Archive } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +36,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConnectionWizard } from "@/components/websites/ConnectionWizard";
 import { getAllBusinessTypes, getBusinessTypeLabel } from "@/lib/businessTypes";
 import { FreeTrialLimitBanner } from "@/components/billing/FreeTrialLimitBanner";
+import { DeleteWebsiteDialog } from "@/components/websites/DeleteWebsiteDialog";
+import { ArchivedWebsitesSection } from "@/components/websites/ArchivedWebsitesSection";
 
 const mockWebsites = [
   {
@@ -62,7 +64,7 @@ export default function Websites() {
   const allBusinessTypes = getAllBusinessTypes();
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string>();
-  const { websites, isLoading, addWebsiteAsync, deleteWebsite } = useWebsites(userId);
+  const { websites, isLoading, addWebsiteAsync, archiveWebsite } = useWebsites(userId);
   const { sitesAllowed, planName, isLoading: subscriptionLoading } = useSubscription(userId);
   
   useEffect(() => {
@@ -82,6 +84,8 @@ export default function Websites() {
     domain: "",
     businessType: "",
   });
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [websiteToDelete, setWebsiteToDelete] = useState<any>(null);
 
   // Real-time verification check
   useEffect(() => {
@@ -272,9 +276,13 @@ export default function Websites() {
                       </DropdownMenuItem>
                       <DropdownMenuItem 
                         className="text-destructive"
-                        onClick={() => deleteWebsite(site.id)}
+                        onClick={() => {
+                          setWebsiteToDelete(site);
+                          setDeleteDialogOpen(true);
+                        }}
                       >
-                        Delete
+                        <Archive className="h-4 w-4 mr-2" />
+                        Archive
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -368,7 +376,16 @@ export default function Websites() {
         </div>
       )}
 
-      {/* Add Website Dialog */}
+      {/* Archived Websites Section */}
+      <ArchivedWebsitesSection 
+        userId={userId} 
+        onRestored={() => {
+          // Refresh the websites list
+          supabase.auth.getUser().then(({ data: { user } }) => {
+            setUserId(user?.id);
+          });
+        }} 
+      />
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -657,6 +674,14 @@ export default function Websites() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Website Confirmation Dialog */}
+      <DeleteWebsiteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        website={websiteToDelete}
+        onArchive={archiveWebsite}
+      />
     </div>
   );
 }

@@ -6,14 +6,18 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Chrome } from "lucide-react";
+import { Chrome, User, Building2 } from "lucide-react";
 import logo from "@/assets/NotiProof_Logo.png";
+
+type AccountType = 'individual' | 'organization';
 
 export default function Register() {
   const navigate = useNavigate();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accountType, setAccountType] = useState<AccountType>('individual');
+  const [organizationName, setOrganizationName] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -29,25 +33,30 @@ export default function Register() {
       return;
     }
 
+    if (accountType === 'organization' && !organizationName.trim()) {
+      toast.error("Please enter your organization name");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Create account directly - session returned immediately when email confirmation is disabled
+      // Create account with account type metadata
       const { data: authData, error: signupError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password: password,
         options: {
           data: {
             full_name: fullName.trim(),
+            account_type: accountType,
+            organization_name: accountType === 'organization' ? organizationName.trim() : null,
           },
         },
       });
 
-      // Handle Supabase Auth errors
       if (signupError) {
         console.error("Signup error:", signupError);
         
-        // Check if it's a duplicate email error
         if (
           signupError.message.includes('already registered') ||
           signupError.message.includes('User already registered') ||
@@ -66,7 +75,6 @@ export default function Register() {
           return;
         }
         
-        // Handle other errors with clear messages
         throw new Error(signupError.message);
       }
 
@@ -74,7 +82,6 @@ export default function Register() {
         throw new Error("Failed to create account");
       }
 
-      // Success - navigate immediately to plan selection
       toast.success("Account created! Choose your plan to start your free trial.");
       await new Promise(resolve => setTimeout(resolve, 500));
       navigate("/select-plan");
@@ -144,6 +151,51 @@ export default function Register() {
           </div>
 
           <form onSubmit={handleRegister} className="space-y-4">
+            {/* Account Type Selection */}
+            <div className="space-y-2">
+              <Label>Account Type</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  type="button"
+                  variant={accountType === 'individual' ? 'default' : 'outline'}
+                  onClick={() => setAccountType('individual')}
+                  className="h-20 flex-col gap-1"
+                  disabled={loading}
+                >
+                  <User className="h-5 w-5" />
+                  <span className="font-medium">Individual</span>
+                  <span className="text-xs opacity-70">Personal use</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={accountType === 'organization' ? 'default' : 'outline'}
+                  onClick={() => setAccountType('organization')}
+                  className="h-20 flex-col gap-1"
+                  disabled={loading}
+                >
+                  <Building2 className="h-5 w-5" />
+                  <span className="font-medium">Organization</span>
+                  <span className="text-xs opacity-70">Team access</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Organization Name (shown only for organization accounts) */}
+            {accountType === 'organization' && (
+              <div className="space-y-2">
+                <Label htmlFor="orgName">Organization Name</Label>
+                <Input
+                  id="orgName"
+                  type="text"
+                  placeholder="Acme Inc."
+                  value={organizationName}
+                  onChange={(e) => setOrganizationName(e.target.value)}
+                  required
+                  disabled={loading}
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
               <Input

@@ -9,6 +9,7 @@ import { IntegrationConnectionStep } from './IntegrationConnectionStep';
 import { TemplateSelectionStep } from './steps/TemplateSelectionStep';
 import { FieldMappingStep } from './steps/FieldMappingStep';
 import { OrchestrationStep } from './steps/OrchestrationStep';
+import { FormCaptureTemplateStep } from './steps/FormCaptureTemplateStep';
 import { RulesTargeting } from './RulesTargeting';
 import { ReviewActivate } from './ReviewActivate';
 import { AnnouncementConfig } from './native/AnnouncementConfig';
@@ -81,6 +82,14 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     emoji: '📢',
   });
   
+  // Form Capture Config (for form_hook integration)
+  const [formCaptureConfig, setFormCaptureConfig] = useState({
+    formType: null as string | null,
+    messageTemplate: '',
+    avatar: '✅',
+    fieldMappings: {} as Record<string, string>,
+  });
+  
   // Step 4: Orchestration
   const [priority, setPriority] = useState(50);
   const [frequencyCap, setFrequencyCap] = useState({
@@ -127,14 +136,33 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     if (!selectedWebsiteId) return;
     
     try {
-      const { data, error } = await supabase
+      // Fetch from integrations table (external integrations)
+      const { data: externalData, error: externalError } = await supabase
         .from('integrations')
         .select('id, provider, name')
         .eq('website_id', selectedWebsiteId)
         .eq('is_active', true);
 
-      if (error) throw error;
-      setIntegrations(data || []);
+      if (externalError) throw externalError;
+
+      // Fetch from integration_connectors table (native integrations like form_hook)
+      const { data: nativeData, error: nativeError } = await supabase
+        .from('integration_connectors')
+        .select('id, integration_type, name, config, status')
+        .eq('website_id', selectedWebsiteId)
+        .eq('status', 'active');
+
+      if (nativeError) throw nativeError;
+
+      // Map native integrations to same shape (integration_type -> provider)
+      const nativeMapped: Integration[] = (nativeData || []).map(native => ({
+        id: native.id,
+        provider: native.integration_type, // Map integration_type to provider
+        name: native.name || adapterRegistry.get(native.integration_type)?.displayName || native.integration_type,
+      }));
+
+      // Combine both sources
+      setIntegrations([...(externalData || []), ...nativeMapped]);
     } catch (error) {
       console.error('Error loading integrations:', error);
       toast.error('Failed to load integrations');
@@ -145,6 +173,12 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
   const hasOnlyAnnouncements = () => {
     const selected = integrations.filter(i => selectedIntegrationIds.includes(i.id));
     return selected.length > 0 && selected.every(i => i.provider === 'announcements');
+  };
+
+  // Helper to check if form_hook integration is selected
+  const hasFormHook = () => {
+    const selected = integrations.filter(i => selectedIntegrationIds.includes(i.id));
+    return selected.some(i => i.provider === 'form_hook');
   };
 
   const handleNext = async () => {
@@ -193,6 +227,12 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
       image_type: 'emoji',
       emoji: '📢',
     });
+    setFormCaptureConfig({
+      formType: null,
+      messageTemplate: '',
+      avatar: '✅',
+      fieldMappings: {},
+    });
     setPriority(50);
     setFrequencyCap({ per_user: 3, per_session: 1, cooldown_seconds: 600 });
     setNeedsConnection(false);
@@ -238,23 +278,41 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
     toast.success('Integration connected successfully!');
   };
 
-  // Validate that selected integrations exist in database
+  // Validate that selected integrations exist in database (checks both tables)
   const validateSelectedIntegrations = async (): Promise<boolean> => {
     if (selectedIntegrationIds.length === 0) return false;
 
     try {
-      const { data, error } = await supabase
+      // Check external integrations table
+      const { data: externalData, error: externalError } = await supabase
         .from('integrations')
         .select('id')
         .in('id', selectedIntegrationIds);
 
-      if (error) {
-        console.error('Error validating integrations:', error);
-        return false;
+      if (externalError) {
+        console.error('Error validating external integrations:', externalError);
       }
 
-      // Check if all selected integrations exist
-      if (!data || data.length !== selectedIntegrationIds.length) {
+      // Check native integration_connectors table
+      const { data: nativeData, error: nativeError } = await supabase
+        .from('integration_connectors')
+        .select('id')
+        .in('id', selectedIntegrationIds);
+
+      if (nativeError) {
+        console.error('Error validating native integrations:', nativeError);
+      }
+
+      // Combine found IDs from both tables
+      const foundIds = [
+        ...(externalData || []).map(d => d.id),
+        ...(nativeData || []).map(d => d.id),
+      ];
+
+      // Check if all selected integrations exist in either table
+      const allFound = selectedIntegrationIds.every(id => foundIds.includes(id));
+      
+      if (!allFound) {
         toast.error('One or more selected integrations not found. Please reconnect them.');
         return false;
       }
@@ -276,8 +334,17 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
         // Connection step - skip if not needed or already complete
         return !needsConnection || connectionComplete;
       case 3:
+        // For form_hook, we use FormCaptureTemplateStep instead
+        if (hasFormHook()) {
+          return !!formCaptureConfig.formType && formCaptureConfig.messageTemplate.length > 0;
+        }
         return !!selectedTemplate;
       case 4:
+        // For form_hook, Step 4 is auto-skipped (FormCaptureTemplateStep handles field mapping)
+        if (hasFormHook()) {
+          return true;
+        }
+        
         // For announcements, check if title and message are filled
         if (hasOnlyAnnouncements()) {
           return announcementConfig.title.length > 0 && 
@@ -369,6 +436,23 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
         );
       
       case 3:
+        // For form_hook integrations, show FormCaptureTemplateStep
+        if (hasFormHook()) {
+          return (
+            <FormCaptureTemplateStep
+              websiteId={selectedWebsiteId!}
+              selectedFormType={formCaptureConfig.formType}
+              messageTemplate={formCaptureConfig.messageTemplate}
+              avatar={formCaptureConfig.avatar}
+              fieldMappings={formCaptureConfig.fieldMappings}
+              onFormTypeSelect={(formType) => setFormCaptureConfig(prev => ({ ...prev, formType }))}
+              onMessageTemplateChange={(messageTemplate) => setFormCaptureConfig(prev => ({ ...prev, messageTemplate }))}
+              onAvatarChange={(avatar) => setFormCaptureConfig(prev => ({ ...prev, avatar }))}
+              onFieldMappingsChange={(fieldMappings) => setFormCaptureConfig(prev => ({ ...prev, fieldMappings }))}
+            />
+          );
+        }
+        
         return (
           <TemplateSelectionStep
             selectedIntegrations={integrations.filter(i => 
@@ -380,6 +464,16 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
         );
       
       case 4:
+        // For form_hook, auto-skip Step 4 (FormCaptureTemplateStep already handles field mapping)
+        if (hasFormHook()) {
+          setTimeout(() => handleNext(), 0);
+          return (
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground">Field mapping configured, proceeding...</p>
+            </div>
+          );
+        }
+        
         if (!selectedTemplate) return null;
         
         // Check if all integrations are announcements
@@ -456,22 +550,36 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
               display_rules: displayRules,
               native_config: hasOnlyAnnouncements()
                 ? announcementConfig
-                : integrations.some(i => i.provider === 'testimonials')
-                  ? { 
-                      display_mode: displayMode,
-                      testimonial_ids: displayMode === 'specific' ? selectedTestimonialIds : null,
-                      testimonial_filters: displayMode === 'filtered' ? testimonialFilters : null
+                : hasFormHook()
+                  ? {
+                      form_type: formCaptureConfig.formType,
+                      message_template: formCaptureConfig.messageTemplate,
+                      avatar: formCaptureConfig.avatar,
+                      field_mappings: formCaptureConfig.fieldMappings,
                     }
-                  : {},
+                  : integrations.some(i => i.provider === 'testimonials')
+                    ? { 
+                        display_mode: displayMode,
+                        testimonial_ids: displayMode === 'specific' ? selectedTestimonialIds : null,
+                        testimonial_filters: displayMode === 'filtered' ? testimonialFilters : null
+                      }
+                    : {},
               integration_settings: hasOnlyAnnouncements()
                 ? announcementConfig
-                : integrations.some(i => i.provider === 'testimonials')
-                  ? { 
-                      display_mode: displayMode,
-                      testimonial_ids: displayMode === 'specific' ? selectedTestimonialIds : null,
-                      testimonial_filters: displayMode === 'filtered' ? testimonialFilters : null
+                : hasFormHook()
+                  ? {
+                      form_type: formCaptureConfig.formType,
+                      message_template: formCaptureConfig.messageTemplate,
+                      avatar: formCaptureConfig.avatar,
+                      field_mappings: formCaptureConfig.fieldMappings,
                     }
-                  : {},
+                  : integrations.some(i => i.provider === 'testimonials')
+                    ? { 
+                        display_mode: displayMode,
+                        testimonial_ids: displayMode === 'specific' ? selectedTestimonialIds : null,
+                        testimonial_filters: displayMode === 'filtered' ? testimonialFilters : null
+                      }
+                    : {},
             }}
             selectedTemplate={selectedTemplate}
             onComplete={() => {
@@ -498,7 +606,7 @@ export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProp
         }}
       >
         <DialogHeader>
-          <DialogTitle>Create Campaign</DialogTitle>
+          <DialogTitle>Create Notification</DialogTitle>
           <DialogDescription>
             Step {currentStep + 1} of {WIZARD_STEPS.length}: {WIZARD_STEPS[currentStep]}
           </DialogDescription>

@@ -45,16 +45,16 @@ export function OrchestrationStep({
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold mb-2">Campaign Orchestration</h3>
+        <h3 className="text-lg font-semibold mb-2">Notification Orchestration</h3>
         <p className="text-sm text-muted-foreground">
-          Control how and when this campaign displays to visitors
+          Control how and when this notification displays to visitors
         </p>
       </div>
 
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          These settings help you balance multiple campaigns and prevent notification fatigue.
+          These settings help you balance multiple notifications and prevent notification fatigue.
         </AlertDescription>
       </Alert>
 
@@ -63,10 +63,10 @@ export function OrchestrationStep({
         <CardHeader>
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-primary" />
-            <CardTitle className="text-base">Campaign Priority</CardTitle>
+            <CardTitle className="text-base">Notification Priority</CardTitle>
           </div>
           <CardDescription>
-            Higher priority campaigns are shown first when multiple campaigns are active
+            Higher priority notifications are shown first when multiple are active
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -103,7 +103,7 @@ export function OrchestrationStep({
             <CardTitle className="text-base">Frequency Capping</CardTitle>
           </div>
           <CardDescription>
-            Limit how often visitors see this campaign
+            Limit how often visitors see this notification
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -174,7 +174,7 @@ export function OrchestrationStep({
             <CardTitle className="text-base">Schedule</CardTitle>
           </div>
           <CardDescription>
-            Control when this campaign is active
+            Control when this notification is active
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -227,7 +227,7 @@ export function OrchestrationStep({
       <div className="bg-muted/50 rounded-lg p-4">
         <p className="text-xs text-muted-foreground">
           💡 <strong>Best Practice:</strong> Start with conservative frequency caps (1-2 per user) and 
-          adjust based on conversion data. High-priority campaigns will be shown first in playlists.
+          adjust based on conversion data. High-priority notifications will be shown first in playlists.
         </p>
       </div>
     </div>

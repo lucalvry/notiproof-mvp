@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { RoleManagementDialog } from "@/components/admin/RoleManagementDialog";
+import { ExtendTrialDialog } from "@/components/admin/ExtendTrialDialog";
+import { AssignPlanDialog } from "@/components/admin/AssignPlanDialog";
 import {
   Table,
   TableBody,
@@ -28,7 +30,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Search, Eye, Ban, Trash2, CheckCircle, Shield } from "lucide-react";
+import { Search, Eye, Ban, CheckCircle, Shield, Clock, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -60,6 +62,8 @@ export default function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState<UserDetails | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+  const [extendTrialDialogOpen, setExtendTrialDialogOpen] = useState(false);
+  const [assignPlanDialogOpen, setAssignPlanDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading) {
@@ -78,21 +82,34 @@ export default function AdminUsers() {
 
       if (error) throw error;
 
-      // Fetch subscription data for all users
+      // Fetch ALL subscription data for users (not just active)
       const { data: subscriptions } = await supabase
         .from('user_subscriptions')
         .select(`
           user_id,
           status,
+          trial_end,
           plan:subscription_plans(
             name,
             price_monthly
           )
-        `)
-        .eq('status', 'active');
+        `);
 
       const combinedUsers = data.users.map((user: any) => {
         const userSub = subscriptions?.find((sub: any) => sub.user_id === user.id);
+        
+        // Determine subscription status label
+        let subStatus = 'none';
+        if (userSub) {
+          if (userSub.status === 'active') subStatus = 'active';
+          else if (userSub.status === 'trialing') {
+            const isExpired = userSub.trial_end && new Date(userSub.trial_end) < new Date();
+            subStatus = isExpired ? 'expired' : 'trialing';
+          }
+          else if (userSub.status === 'past_due') subStatus = 'past_due';
+          else if (userSub.status === 'cancelled') subStatus = 'cancelled';
+        }
+        
         return {
           id: user.id,
           email: user.email,
@@ -101,6 +118,7 @@ export default function AdminUsers() {
           avatar_url: null,
           role: "user",
           subscription: userSub || null,
+          subscriptionStatus: subStatus,
         };
       });
 
@@ -250,6 +268,7 @@ export default function AdminUsers() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Plan</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Actions</TableHead>
@@ -262,7 +281,22 @@ export default function AdminUsers() {
                   <TableCell>{user.email}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">
-                      {user.subscription?.plan?.name || 'Free'}
+                      {user.subscription?.plan?.name || 'No Plan'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge 
+                      variant={
+                        (user as any).subscriptionStatus === 'active' ? 'default' :
+                        (user as any).subscriptionStatus === 'trialing' ? 'outline' :
+                        (user as any).subscriptionStatus === 'past_due' ? 'destructive' :
+                        (user as any).subscriptionStatus === 'expired' ? 'destructive' :
+                        'secondary'
+                      }
+                    >
+                      {(user as any).subscriptionStatus === 'none' ? 'No Subscription' :
+                       (user as any).subscriptionStatus === 'past_due' ? 'Payment Failed' :
+                       (user as any).subscriptionStatus?.charAt(0).toUpperCase() + (user as any).subscriptionStatus?.slice(1)}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -343,6 +377,32 @@ export default function AdminUsers() {
                           </span>
                         </div>
                       )}
+                      {selectedUser.subscription?.trial_end && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Trial Ends:</span>
+                          <span className={`font-bold ${new Date(selectedUser.subscription.trial_end) < new Date() ? 'text-destructive' : ''}`}>
+                            {new Date(selectedUser.subscription.trial_end).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex gap-2 mt-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setExtendTrialDialogOpen(true)}
+                        >
+                          <Clock className="h-4 w-4 mr-1" />
+                          Extend Trial
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setAssignPlanDialogOpen(true)}
+                        >
+                          <CreditCard className="h-4 w-4 mr-1" />
+                          Assign Plan
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   <div>
@@ -449,16 +509,40 @@ export default function AdminUsers() {
       </Sheet>
 
       {selectedUser && (
-        <RoleManagementDialog
-          open={roleDialogOpen}
-          onOpenChange={setRoleDialogOpen}
-          userId={selectedUser.id}
-          userName={selectedUser.name || "Unknown"}
-          onSuccess={() => {
-            viewUserDetails(selectedUser.id);
-            fetchUsers();
-          }}
-        />
+        <>
+          <RoleManagementDialog
+            open={roleDialogOpen}
+            onOpenChange={setRoleDialogOpen}
+            userId={selectedUser.id}
+            userName={selectedUser.name || "Unknown"}
+            onSuccess={() => {
+              viewUserDetails(selectedUser.id);
+              fetchUsers();
+            }}
+          />
+          <ExtendTrialDialog
+            open={extendTrialDialogOpen}
+            onOpenChange={setExtendTrialDialogOpen}
+            userId={selectedUser.id}
+            userName={selectedUser.name || "Unknown"}
+            currentTrialEnd={selectedUser.subscription?.trial_end}
+            onSuccess={() => {
+              viewUserDetails(selectedUser.id);
+              fetchUsers();
+            }}
+          />
+          <AssignPlanDialog
+            open={assignPlanDialogOpen}
+            onOpenChange={setAssignPlanDialogOpen}
+            userId={selectedUser.id}
+            userName={selectedUser.name || "Unknown"}
+            currentPlanName={selectedUser.subscription?.plan?.name}
+            onSuccess={() => {
+              viewUserDetails(selectedUser.id);
+              fetchUsers();
+            }}
+          />
+        </>
       )}
     </div>
   );

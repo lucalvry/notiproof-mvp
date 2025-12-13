@@ -117,7 +117,7 @@ export function TestimonialPicker({
           Select Testimonials
         </CardTitle>
         <CardDescription>
-          Choose which testimonials to display in your campaign
+          Choose which testimonials to display in your notification
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -142,7 +142,7 @@ export function TestimonialPicker({
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Please select at least one testimonial to display in your campaign.
+                  Please select at least one testimonial to display in your notification.
                 </AlertDescription>
               </Alert>
             )}

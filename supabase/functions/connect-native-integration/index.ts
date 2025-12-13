@@ -44,9 +44,18 @@ Deno.serve(async (req) => {
     }
 
     const body: ConnectRequest = await req.json();
-    const { provider, websiteId, name } = body;
+    const { provider: rawProvider, websiteId, name } = body;
 
-    console.log(`Connecting native integration: ${provider} for user ${user.id}`);
+    // Provider aliases to handle legacy/alternate provider names
+    const PROVIDER_ALIASES: Record<string, string> = {
+      instant_capture: 'form_hook',
+      active_visitors: 'live_visitors',
+    };
+    
+    // Resolve to canonical provider name
+    const provider = PROVIDER_ALIASES[rawProvider] || rawProvider;
+
+    console.log(`Connecting native integration: ${provider} (raw: ${rawProvider}) for user ${user.id}`);
 
     // Validate required fields
     if (!provider || !websiteId) {
@@ -57,7 +66,7 @@ Deno.serve(async (req) => {
     }
 
     // Validate that this is a native integration
-    const nativeIntegrations = ['testimonials', 'announcements', 'live_visitors', 'instant_capture'];
+    const nativeIntegrations = ['testimonials', 'announcements', 'live_visitors', 'form_hook'];
     if (!nativeIntegrations.includes(provider)) {
       return new Response(
         JSON.stringify({ error: 'This integration is not a native integration' }),
@@ -79,17 +88,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if integration already exists
-    const { data: existing } = await supabase
+    // Check if integration already exists (check both canonical and alias names)
+    const providerAliases = [provider];
+    // Add reverse aliases (canonical -> legacy names)
+    Object.entries(PROVIDER_ALIASES).forEach(([legacy, canonical]) => {
+      if (canonical === provider) providerAliases.push(legacy);
+    });
+    
+    const { data: existingList } = await supabase
       .from('integrations')
-      .select('id')
+      .select('id, provider')
       .eq('website_id', websiteId)
-      .eq('provider', provider)
       .eq('user_id', user.id)
-      .single();
+      .in('provider', providerAliases);
 
-    if (existing) {
-      console.log(`Integration already exists: ${existing.id}`);
+    if (existingList && existingList.length > 0) {
+      const existing = existingList[0];
+      console.log(`Integration already exists: ${existing.id} (provider: ${existing.provider})`);
       return new Response(
         JSON.stringify({
           success: true,

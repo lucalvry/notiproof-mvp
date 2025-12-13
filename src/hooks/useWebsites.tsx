@@ -139,21 +139,41 @@ export const useWebsites = (userId: string | undefined) => {
     },
   });
 
-  const deleteWebsite = useMutation({
+  const archiveWebsite = useMutation({
     mutationFn: async (websiteId: string) => {
-      const { error } = await supabase
-        .from('websites')
-        .delete()
-        .eq('id', websiteId);
+      const { data, error } = await supabase.rpc('soft_delete_website', { 
+        _website_id: websiteId 
+      });
 
       if (error) throw error;
+      if (!data) throw new Error('Website not found or already archived');
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['websites', userId] });
-      toast.success('Website deleted successfully!');
+      toast.success('Website archived successfully! You can restore it within 30 days.');
     },
     onError: (error: Error) => {
-      toast.error(`Failed to delete website: ${error.message}`);
+      toast.error(`Failed to archive website: ${error.message}`);
+    },
+  });
+
+  const restoreWebsite = useMutation({
+    mutationFn: async (websiteId: string) => {
+      const { data, error } = await supabase.rpc('restore_website', { 
+        _website_id: websiteId 
+      });
+
+      if (error) throw error;
+      if (!data) throw new Error('Website not found or not archived');
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['websites', userId] });
+      toast.success('Website restored successfully!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to restore website: ${error.message}`);
     },
   });
 
@@ -162,6 +182,7 @@ export const useWebsites = (userId: string | undefined) => {
     isLoading,
     addWebsite: addWebsite.mutate,
     addWebsiteAsync: addWebsite.mutateAsync,
-    deleteWebsite: deleteWebsite.mutate,
+    archiveWebsite: archiveWebsite.mutateAsync,
+    restoreWebsite: restoreWebsite.mutateAsync,
   };
 };

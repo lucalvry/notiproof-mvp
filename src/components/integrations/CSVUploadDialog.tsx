@@ -88,7 +88,7 @@ export function CSVUploadDialog({
           .limit(1);
 
         if (!widgets || widgets.length === 0) {
-          throw new Error("Please create a campaign first before importing CSV data");
+          throw new Error("Please create a notification first before importing CSV data");
         }
         
         targetWidgetId = widgets[0].id;

@@ -74,6 +74,7 @@ export default function Pricing() {
         .from('subscription_plans')
         .select('*')
         .eq('is_active', true)
+        .gt('price_monthly', 0) // Exclude Free plan
         .order('price_monthly');
 
       if (error) throw error;
@@ -126,11 +127,8 @@ export default function Pricing() {
   ];
 
   const handleSelectPlan = (plan: any) => {
-    if (plan.name === "Free") {
-      navigate('/register');
-    } else {
-      navigate('/select-plan');
-    }
+    // All plans now go to plan selection (no more Free)
+    navigate('/select-plan');
   };
 
   return (
@@ -169,13 +167,12 @@ export default function Pricing() {
           {allPlans.map((plan, index) => {
             const price = billingPeriod === 'monthly' ? plan.price_monthly : plan.price_yearly;
             const isPopular = plan.name === 'Pro';
-            const isFree = plan.name === 'Free';
             const features = generatePlanFeatures(plan);
 
             return (
               <Card 
                 key={plan.id} 
-                className={`relative ${isPopular ? 'border-primary shadow-lg scale-105' : ''} ${isFree ? 'border-accent' : ''}`}
+                className={`relative ${isPopular ? 'border-primary shadow-lg scale-105' : ''}`}
               >
                 {isPopular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -191,11 +188,9 @@ export default function Pricing() {
                       /{billingPeriod === 'monthly' ? 'mo' : 'yr'}
                     </span>
                   </div>
-                  {!isFree && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      14-day free trial
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    14-day free trial
+                  </p>
                 </CardHeader>
 
                 <CardContent className="space-y-4">
@@ -213,7 +208,7 @@ export default function Pricing() {
                     variant={isPopular ? 'default' : 'outline'}
                     onClick={() => handleSelectPlan(plan)}
                   >
-                    {isFree ? 'Start Free' : 'Start Trial'}
+                    Start 14-Day Trial
                   </Button>
                 </CardContent>
               </Card>

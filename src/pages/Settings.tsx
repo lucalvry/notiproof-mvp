@@ -12,7 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { useSubscription } from "@/hooks/useSubscription";
 import WhiteLabelSettings from "@/components/settings/WhiteLabelSettings";
 import { 
-  Globe, Bell, Palette, User, Target, Code, Clock, 
+  Globe, Bell, Palette, User, Code, Clock, 
   MapPin, Sliders, MousePointer, Wrench 
 } from "lucide-react";
 
@@ -358,7 +358,7 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="installation" className="space-y-4">
-        <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-1">
+        <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-1">
           <TabsTrigger value="installation" className="gap-1 text-xs">
             <Code className="h-3 w-3" />
             <span className="hidden sm:inline">Installation</span>
@@ -382,10 +382,6 @@ export default function Settings() {
           <TabsTrigger value="theme" className="gap-1 text-xs">
             <Palette className="h-3 w-3" />
             <span className="hidden sm:inline">Theme</span>
-          </TabsTrigger>
-          <TabsTrigger value="rules" className="gap-1 text-xs">
-            <Target className="h-3 w-3" />
-            <span className="hidden sm:inline">Rules</span>
           </TabsTrigger>
           <TabsTrigger value="advanced" className="gap-1 text-xs">
             <Wrench className="h-3 w-3" />
@@ -712,27 +708,6 @@ export default function Settings() {
               </div>
               <Button onClick={handleSaveBranding} disabled={saving}>
                 {saving ? "Saving..." : "Save Theme"}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Rules Tab */}
-        <TabsContent value="rules" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Global Targeting Rules</CardTitle>
-              <CardDescription>
-                Configure default targeting rules for all campaigns
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Global targeting rules let you set default behavior for page targeting, geography, devices, timing, and more.
-                These rules will be automatically applied to new campaigns, but can be customized per campaign.
-              </p>
-              <Button onClick={() => navigate('/rules')}>
-                Manage Global Rules
               </Button>
             </CardContent>
           </Card>

@@ -24,7 +24,7 @@ export function DeviceTargetingCard({ devices, onChange }: DeviceTargetingCardPr
       <CardHeader>
         <CardTitle>Device Targeting</CardTitle>
         <CardDescription>
-          Choose which devices should display this campaign
+          Choose which devices should display this notification
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

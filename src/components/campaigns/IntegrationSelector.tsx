@@ -52,13 +52,13 @@ export function IntegrationSelector({
       <div className="text-center space-y-2">
         <h3 className="text-xl font-semibold">Choose Your Data Source</h3>
         <p className="text-sm text-muted-foreground">
-          Select how you want to connect data for this campaign
+          Select how you want to connect data for this notification
         </p>
       </div>
 
       {/* Recommended Integrations */}
       <div className="space-y-3">
-        <h4 className="text-sm font-medium text-muted-foreground">Recommended for this campaign</h4>
+        <h4 className="text-sm font-medium text-muted-foreground">Recommended for this notification</h4>
         <div className="grid gap-3 md:grid-cols-2">
           {topRecommended.map((integration) => {
             const Icon = integration.icon;

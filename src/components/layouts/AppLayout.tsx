@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare, Plug, Layout, Users, Plus, ListOrdered, Sliders } from "lucide-react";
+import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare, Plug, Users, Plus, ListOrdered } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -9,7 +9,8 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { SetupGuideButton } from "@/components/onboarding/SetupGuideButton";
-import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
+import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
+import { OnboardingProvider } from "@/hooks/useOnboarding";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,9 +38,7 @@ const navItems: NavItem[] = [
   { label: "Notifications", icon: Megaphone, path: "/campaigns", section: "website" },
   { label: "Playlists", icon: ListOrdered, path: "/playlists", section: "website" },
   { label: "Analytics", icon: BarChart, path: "/analytics", section: "website" },
-  { label: "Testimonials", icon: MessageSquare, path: "/testimonials", section: "website" },
-  { label: "Weights", icon: Sliders, path: "/notification-weights", section: "website" },
-  { label: "Rules", icon: Layout, path: "/rules", section: "website" },
+  { label: "Integrations", icon: Plug, path: "/integrations", section: "website" },
   { label: "Settings", icon: Settings, path: "/settings", section: "website" },
   { label: "All Websites", icon: Globe, path: "/websites", section: "global" },
   { label: "Team", icon: Users, path: "/team", section: "global" },
@@ -245,165 +244,162 @@ export function AppLayout() {
   );
 
   return (
-    <div className="flex min-h-screen w-full">
-      {/* Desktop Sidebar */}
-      <aside
-        className={cn(
-          "hidden lg:block border-r bg-sidebar transition-all duration-300",
-          sidebarCollapsed ? "w-16" : "w-64"
-        )}
-      >
-        <div className="flex h-16 items-center justify-between border-b px-4">
-          {!sidebarCollapsed && (
-            <img src={logo} alt="NotiProof" className="h-8" />
+    <OnboardingProvider userId={user?.id}>
+      <div className="flex min-h-screen w-full">
+        {/* Desktop Sidebar */}
+        <aside
+          className={cn(
+            "hidden lg:block border-r bg-sidebar transition-all duration-300",
+            sidebarCollapsed ? "w-16" : "w-64"
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          >
-            <Menu className="h-4 w-4" />
-          </Button>
-        </div>
-        <SidebarContent />
-      </aside>
-
-      {/* Main Content */}
-      <div className="flex flex-1 flex-col">
-        {/* Header */}
-        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
-          {/* Mobile Menu */}
-          <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0">
-              <div className="flex h-16 items-center border-b px-4">
-                <img src={logo} alt="NotiProof" className="h-8" />
-              </div>
-              <SidebarContent />
-            </SheetContent>
-          </Sheet>
-
-          {/* Logo (mobile) */}
-          <img src={logo} alt="NotiProof" className="h-8 lg:hidden" />
-
-          <div className="flex-1" />
-
-          {/* Global Actions */}
-          <div className="flex items-center gap-2">
-            {/* Setup Guide Button */}
-            {user?.id && (
-              <SetupGuideButton 
-                userId={user.id} 
-                onOpenWizard={() => setShowOnboardingWizard(true)} 
-              />
+        >
+          <div className="flex h-16 items-center justify-between border-b px-4">
+            {!sidebarCollapsed && (
+              <img src={logo} alt="NotiProof" className="h-8" />
             )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            >
+              <Menu className="h-4 w-4" />
+            </Button>
+          </div>
+          <SidebarContent />
+        </aside>
 
-            {/* Website Selector - Links to All Websites in Global section */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <Globe className="h-4 w-4" />
-                  <span className="hidden md:inline">
-                    {currentWebsite?.domain || "Select Website"}
-                  </span>
-                  <ChevronDown className="h-4 w-4" />
+        {/* Main Content */}
+        <div className="flex flex-1 flex-col">
+          {/* Header */}
+          <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
+            {/* Mobile Menu */}
+            <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="lg:hidden">
+                  <Menu className="h-5 w-5" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                {!websitesLoading && websites.length === 0 ? (
-                  <DropdownMenuItem onClick={() => handleNavigation("/websites")}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Your First Website
-                  </DropdownMenuItem>
-                ) : (
-                  <>
-                    {websites.map((website) => (
-                      <DropdownMenuItem
-                        key={website.id}
-                        onClick={() => setCurrentWebsite(website)}
-                        className={currentWebsite?.id === website.id ? "bg-accent" : ""}
-                      >
-                        <Globe className="h-4 w-4 mr-2" />
-                        {website.domain}
-                      </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuSeparator />
+              </SheetTrigger>
+              <SheetContent side="left" className="w-64 p-0">
+                <div className="flex h-16 items-center border-b px-4">
+                  <img src={logo} alt="NotiProof" className="h-8" />
+                </div>
+                <SidebarContent />
+              </SheetContent>
+            </Sheet>
+
+            {/* Logo (mobile) */}
+            <img src={logo} alt="NotiProof" className="h-8 lg:hidden" />
+
+            <div className="flex-1" />
+
+            {/* Global Actions */}
+            <div className="flex items-center gap-2">
+              {/* Setup Guide Button */}
+              {user?.id && (
+                <SetupGuideButton 
+                  userId={user.id} 
+                  onOpenOnboarding={() => setShowOnboardingWizard(true)} 
+                />
+              )}
+
+              {/* Website Selector - Links to All Websites in Global section */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Globe className="h-4 w-4" />
+                    <span className="hidden md:inline">
+                      {currentWebsite?.domain || "Select Website"}
+                    </span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  {!websitesLoading && websites.length === 0 ? (
                     <DropdownMenuItem onClick={() => handleNavigation("/websites")}>
                       <Plus className="h-4 w-4 mr-2" />
-                      Add New Website
+                      Add Your First Website
                     </DropdownMenuItem>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      {websites.map((website) => (
+                        <DropdownMenuItem
+                          key={website.id}
+                          onClick={() => setCurrentWebsite(website)}
+                          className={currentWebsite?.id === website.id ? "bg-accent" : ""}
+                        >
+                          <Globe className="h-4 w-4 mr-2" />
+                          {website.domain}
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleNavigation("/websites")}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add New Website
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Usage Meter - Links to Billing in Global section */}
+              {websitesLoading || subscriptionLoading ? (
+                <div className="hidden items-center gap-2 md:flex">
+                  <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                  <div className="h-4 w-12 animate-pulse rounded bg-muted" />
+                </div>
+              ) : (
+                <div className="hidden items-center gap-2 md:flex">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleNavigation("/billing")}
+                    className="gap-2"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    <span className="text-sm text-muted-foreground">
+                      {sitesUsed} / {sitesAllowed} sites
+                    </span>
+                    <span className="text-xs text-muted-foreground">({planName})</span>
+                  </Button>
+                  {!isSuperAdmin && (!isBusinessPlan || sitesUsed >= sitesAllowed * 0.8) && (
+                    <Button size="sm" variant="default" onClick={() => handleNavigation("/billing")}>
+                      Upgrade
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* User Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <User className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleNavigation("/account")}>
+                  Account Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut}>
+                  Sign Out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          </header>
 
-            {/* Usage Meter - Links to Billing in Global section */}
-            {websitesLoading || subscriptionLoading ? (
-              <div className="hidden items-center gap-2 md:flex">
-                <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-                <div className="h-4 w-12 animate-pulse rounded bg-muted" />
-              </div>
-            ) : (
-              <div className="hidden items-center gap-2 md:flex">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleNavigation("/billing")}
-                  className="gap-2"
-                >
-                  <CreditCard className="h-4 w-4" />
-                  <span className="text-sm text-muted-foreground">
-                    {sitesUsed} / {sitesAllowed} sites
-                  </span>
-                  <span className="text-xs text-muted-foreground">({planName})</span>
-                </Button>
-                {!isSuperAdmin && (!isBusinessPlan || sitesUsed >= sitesAllowed * 0.8) && (
-                  <Button size="sm" variant="default" onClick={() => handleNavigation("/billing")}>
-                    Upgrade
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
+          {/* Main Content Area */}
+          <main className="flex-1 overflow-auto bg-background p-4 md:p-6">
+            <Outlet />
+          </main>
+        </div>
 
-          {/* User Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <User className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleNavigation("/account")}>
-                Account Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut}>
-                Sign Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </header>
-
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-auto bg-background p-4 md:p-6">
-          <Outlet />
-        </main>
+        {/* Reopenable Onboarding Flow */}
+        {user?.id && showOnboardingWizard && (
+          <OnboardingFlow userId={user.id} />
+        )}
       </div>
-
-      {/* Reopenable Onboarding Wizard */}
-      {user?.id && (
-        <OnboardingWizard
-          open={showOnboardingWizard}
-          onComplete={() => setShowOnboardingWizard(false)}
-          planName={planName}
-          userId={user.id}
-        />
-      )}
-    </div>
+    </OnboardingProvider>
   );
 }

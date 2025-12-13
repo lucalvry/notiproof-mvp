@@ -18,10 +18,10 @@ export interface IntegrationMetadata {
 }
 
 const integrationMetadataMap: Record<string, IntegrationMetadata> = {
-  instant_capture: {
-    displayName: "Instant Capture",
+  form_hook: {
+    displayName: "Form Capture",
     type: "native",
-    description: "Track form submissions without third-party tools",
+    description: "Capture and display real form submissions as social proof",
     icon: FormInput,
     connectorType: 'native',
     phase: 1,
@@ -32,7 +32,7 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
     isNative: true,
   },
   live_visitors: {
-    displayName: "Active Visitors",
+    displayName: "Visitors Pulse",
     type: "native",
     description: "Show how many people are viewing your site right now",
     icon: Users,

@@ -2,15 +2,15 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ClipboardList, MessageSquare, BarChart3, Mail, Send, Zap } from "lucide-react";
+import { ClipboardList, MessageSquare, BarChart3, Mail, Send, Zap, Sliders, Star, Eye, MousePointerClick, CheckCircle } from "lucide-react";
 import { TestimonialFormsManager } from "@/components/testimonials/TestimonialFormsManager";
 import { TestimonialSubmissionsList } from "@/components/testimonials/TestimonialSubmissionsList";
 import { TriggerSelector } from "@/components/testimonials/TriggerSelector";
 import { TestimonialEmailSelector } from "@/components/testimonials/TestimonialEmailSelector";
+import { IntegrationWeightsTab } from "@/components/weights/IntegrationWeightsTab";
 import { useNavigate } from "react-router-dom";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { useTestimonialAnalytics } from "@/hooks/useTestimonialAnalytics";
-import { TestimonialAnalyticsDashboard } from "@/components/analytics/TestimonialAnalyticsDashboard";
 import { 
   Breadcrumb, 
   BreadcrumbItem, 
@@ -25,7 +25,6 @@ export default function TestimonialManagement() {
   const navigate = useNavigate();
   const { currentWebsite } = useWebsiteContext();
   
-  // Always call hooks unconditionally - before any early returns
   const { data: analytics, isLoading } = useTestimonialAnalytics(
     currentWebsite?.id || '', 
     30
@@ -57,7 +56,7 @@ export default function TestimonialManagement() {
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbLink onClick={() => navigate("/dashboard")}>Dashboard</BreadcrumbLink>
+            <BreadcrumbLink onClick={() => navigate("/integrations")}>Integrations</BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
@@ -80,7 +79,7 @@ export default function TestimonialManagement() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-4xl grid-cols-6">
+        <TabsList className="grid w-full max-w-5xl grid-cols-7">
           <TabsTrigger value="forms" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Forms
@@ -104,6 +103,10 @@ export default function TestimonialManagement() {
           <TabsTrigger value="embeds" className="gap-2">
             <Send className="h-4 w-4" />
             Embeds
+          </TabsTrigger>
+          <TabsTrigger value="weights" className="gap-2">
+            <Sliders className="h-4 w-4" />
+            Weights
           </TabsTrigger>
         </TabsList>
 
@@ -155,38 +158,80 @@ export default function TestimonialManagement() {
                 Track performance and engagement across all your testimonial forms
               </p>
             </div>
-            <TestimonialAnalyticsDashboard 
-              analytics={analytics || {
-                totalTestimonials: 0,
-                approvedTestimonials: 0,
-                pendingTestimonials: 0,
-                rejectedTestimonials: 0,
-                approvalRate: 0,
-                averageRating: 0,
-                testimonialsWithMedia: 0,
-                mediaRate: 0,
-                formViews: 0,
-                testimonialViews: 0,
-                testimonialClicks: 0,
-                testimonialCtr: 0,
-                videoSubmissionRate: 0,
-                imageSubmissionRate: 0,
-                textOnlyRate: 0,
-                conversionRate: 0,
-                averageTimeToSubmit: null,
-                emailsSent: 0,
-                emailsOpened: 0,
-                emailsClicked: 0,
-                emailOpenRate: 0,
-                emailClickRate: 0,
-                ratingDistribution: [],
-                submissionsByDay: [],
-                topForms: [],
-                conversionFunnel: [],
-                mediaTypeBreakdown: [],
-              }}
-              isLoading={isLoading}
-            />
+            
+            {/* Simple Testimonial Analytics Cards */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Testimonials</CardTitle>
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {isLoading ? "..." : analytics?.totalTestimonials || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Approved</CardTitle>
+                  <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {isLoading ? "..." : analytics?.approvedTestimonials || 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {analytics?.totalTestimonials ? 
+                      `${((analytics.approvedTestimonials / analytics.totalTestimonials) * 100).toFixed(0)}% approval rate` 
+                      : 'No data'}
+                  </p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Average Rating</CardTitle>
+                  <Star className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {isLoading ? "..." : analytics?.averageRating?.toFixed(1) || "N/A"}
+                  </div>
+                  <p className="text-xs text-muted-foreground">out of 5 stars</p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Form Views</CardTitle>
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {isLoading ? "..." : analytics?.formViews || 0}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {analytics?.totalTestimonials === 0 && !isLoading && (
+              <Card className="mt-6">
+                <CardContent className="flex flex-col items-center justify-center py-12 gap-4">
+                  <MessageSquare className="h-12 w-12 text-muted-foreground" />
+                  <div className="text-center">
+                    <h3 className="font-semibold">No testimonials yet</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Create a collection form and start gathering customer feedback
+                    </p>
+                  </div>
+                  <Button onClick={() => setActiveTab("forms")}>
+                    Create Form
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </TabsContent>
 
@@ -243,6 +288,10 @@ export default function TestimonialManagement() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="weights" className="space-y-6">
+          <IntegrationWeightsTab eventType="testimonial" />
         </TabsContent>
       </Tabs>
     </div>

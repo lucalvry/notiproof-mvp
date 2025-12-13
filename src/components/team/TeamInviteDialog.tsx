@@ -19,8 +19,8 @@ interface TeamInviteDialogProps {
 
 const roles = [
   { value: "admin", label: "Admin", description: "Full access except role management and billing changes" },
-  { value: "editor", label: "Editor", description: "Can create and edit campaigns, but not delete" },
-  { value: "viewer", label: "Viewer", description: "Read-only access to campaigns and analytics" },
+  { value: "editor", label: "Editor", description: "Can create and edit notifications, but not delete" },
+  { value: "viewer", label: "Viewer", description: "Read-only access to notifications and analytics" },
   { value: "member", label: "Member", description: "Standard access with create and edit permissions" },
 ];
 

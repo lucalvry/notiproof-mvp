@@ -2,51 +2,62 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CheckCircle2, Circle, Sparkles } from "lucide-react";
-import { useOnboardingState } from "@/hooks/useOnboardingState";
+import { useOnboarding } from "@/hooks/useOnboarding";
 
 interface SetupGuideButtonProps {
   userId: string;
-  onOpenWizard: () => void;
+  onOpenOnboarding: () => void;
 }
 
-export function SetupGuideButton({ userId, onOpenWizard }: SetupGuideButtonProps) {
-  const { progress, isLoading } = useOnboardingState(userId);
+export function SetupGuideButton({ userId, onOpenOnboarding }: SetupGuideButtonProps) {
+  const { progress, isLoading, websiteCount, campaignCount } = useOnboarding();
 
-  if (isLoading || !progress) return null;
+  if (isLoading) return null;
 
-  const completionPercentage = progress.completion_percentage || 0;
+  // Calculate real completion based on actual database data
+  const realMilestones = {
+    website_added: websiteCount > 0 || progress.website_added,
+    campaign_created: campaignCount > 0 || progress.campaign_created,
+    widget_installed: progress.widget_installed,
+    first_conversion: progress.first_conversion,
+  };
+
+  const completedCount = Object.values(realMilestones).filter(Boolean).length;
+  const completionPercentage = Math.round((completedCount / 4) * 100);
   const isComplete = completionPercentage === 100;
 
-  // Hide the button entirely when setup is complete
-  if (isComplete) return null;
+  // Hide the button entirely when setup is complete or dismissed
+  if (isComplete || progress.dismissed) return null;
 
   const milestones = [
-    { key: 'websites_added', label: 'Add website', completed: progress.websites_added },
-    { key: 'campaigns_created', label: 'Create campaign', completed: progress.campaigns_created },
-    { key: 'widget_installed', label: 'Install widget', completed: progress.widget_installed },
-    { key: 'first_conversion', label: 'First conversion', completed: progress.first_conversion },
+    { key: 'website_added', label: 'Add website', completed: realMilestones.website_added },
+    { key: 'campaign_created', label: 'Create notification', completed: realMilestones.campaign_created },
+    { key: 'widget_installed', label: 'Install widget', completed: realMilestones.widget_installed },
+    { key: 'first_conversion', label: 'First conversion', completed: realMilestones.first_conversion },
   ];
+
+  // Additional feature milestones based on path
+  const featureMilestones = [];
+  if (progress.selected_path === 'testimonials') {
+    featureMilestones.push(
+      { key: 'testimonial_form_created', label: 'Create testimonial form', completed: progress.testimonial_form_created },
+      { key: 'first_testimonial_collected', label: 'Collect first testimonial', completed: progress.first_testimonial_collected },
+    );
+  }
+
+  const allMilestones = [...milestones, ...featureMilestones];
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button 
-          variant={isComplete ? "outline" : "default"} 
+          variant="default" 
           size="sm" 
           className="gap-2"
         >
-          {isComplete ? (
-            <>
-              <CheckCircle2 className="h-4 w-4 text-success" />
-              <span className="hidden sm:inline">Setup Complete</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4" />
-              <span className="hidden sm:inline">Setup Guide</span>
-              <span className="text-xs">({completionPercentage}%)</span>
-            </>
-          )}
+          <Sparkles className="h-4 w-4" />
+          <span className="hidden sm:inline">Setup Guide</span>
+          <span className="text-xs">({completionPercentage}%)</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80" align="end">
@@ -60,7 +71,7 @@ export function SetupGuideButton({ userId, onOpenWizard }: SetupGuideButtonProps
           </div>
 
           <div className="space-y-2">
-            {milestones.map((milestone) => (
+            {allMilestones.map((milestone) => (
               <div key={milestone.key} className="flex items-center gap-2 text-sm">
                 {milestone.completed ? (
                   <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
@@ -74,24 +85,14 @@ export function SetupGuideButton({ userId, onOpenWizard }: SetupGuideButtonProps
             ))}
           </div>
 
-          {!isComplete && (
-            <Button 
-              onClick={onOpenWizard} 
-              className="w-full gap-2"
-              size="sm"
-            >
-              <Sparkles className="h-4 w-4" />
-              Continue Setup
-            </Button>
-          )}
-
-          {isComplete && (
-            <div className="text-center py-2">
-              <p className="text-sm text-success font-medium">
-                🎉 You're all set up!
-              </p>
-            </div>
-          )}
+          <Button 
+            onClick={onOpenOnboarding} 
+            className="w-full gap-2"
+            size="sm"
+          >
+            <Sparkles className="h-4 w-4" />
+            Continue Setup
+          </Button>
         </div>
       </PopoverContent>
     </Popover>

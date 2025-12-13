@@ -2,6 +2,7 @@
  * Cleanup Events - Phase 1: Event Cleanup Engine
  * 
  * Enforces retention policies and per-type caps on events.
+ * Also cleans up stale visitor sessions for Visitors Pulse.
  * Should be run daily via cron job.
  */
 
@@ -85,6 +86,47 @@ async function cleanupByCount(supabase: any, rule: RetentionRule): Promise<numbe
   return deleted;
 }
 
+/**
+ * Cleanup stale visitor sessions for Visitors Pulse
+ * - Mark sessions as inactive if last_seen > 5 minutes ago
+ * - Delete sessions older than 24 hours (no longer useful for counting)
+ */
+async function cleanupVisitorSessions(supabase: any): Promise<{ marked_inactive: number; deleted: number }> {
+  console.log('[Cleanup] Starting visitor session cleanup...');
+  
+  // Mark sessions as inactive if not seen in last 5 minutes
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const { count: markedInactive, error: markError } = await supabase
+    .from('visitor_sessions')
+    .update({ is_active: false })
+    .eq('is_active', true)
+    .lt('last_seen_at', fiveMinutesAgo);
+  
+  if (markError) {
+    console.error('[Cleanup] Error marking sessions inactive:', markError);
+  } else {
+    console.log(`[Cleanup] Marked ${markedInactive || 0} sessions as inactive`);
+  }
+  
+  // Delete sessions older than 24 hours
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count: deletedSessions, error: deleteError } = await supabase
+    .from('visitor_sessions')
+    .delete({ count: 'exact' })
+    .lt('last_seen_at', twentyFourHoursAgo);
+  
+  if (deleteError) {
+    console.error('[Cleanup] Error deleting old sessions:', deleteError);
+  } else {
+    console.log(`[Cleanup] Deleted ${deletedSessions || 0} old visitor sessions`);
+  }
+  
+  return {
+    marked_inactive: markedInactive || 0,
+    deleted: deletedSessions || 0
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -109,10 +151,13 @@ Deno.serve(async (req) => {
       };
     }
     
+    // Cleanup visitor sessions for Visitors Pulse
+    const sessionCleanup = await cleanupVisitorSessions(supabase);
+    
     const totalDeleted = Object.values(results).reduce(
       (sum, r) => sum + r.deleted_by_age + r.deleted_by_count, 
       0
-    );
+    ) + sessionCleanup.deleted;
     
     console.log('[Cleanup] Cleanup complete, total deleted:', totalDeleted);
     
@@ -121,6 +166,7 @@ Deno.serve(async (req) => {
         success: true,
         total_deleted: totalDeleted,
         results,
+        visitor_sessions: sessionCleanup,
         timestamp: new Date().toISOString()
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

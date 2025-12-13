@@ -15,8 +15,8 @@ export { StripeAdapter } from './adapters/StripeAdapter';
 export { WooCommerceAdapter } from './adapters/WooCommerceAdapter';
 export { TestimonialAdapter } from './adapters/TestimonialAdapter';
 export { AnnouncementAdapter } from './adapters/AnnouncementAdapter';
-export { InstantCaptureAdapter } from './adapters/InstantCaptureAdapter';
 export { LiveVisitorsAdapter } from './adapters/LiveVisitorsAdapter';
+export { FormHookAdapter } from './adapters/FormHookAdapter';
 
 // Export singleton registry
 export { adapterRegistry } from './AdapterRegistry';
