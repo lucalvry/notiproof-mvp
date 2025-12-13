@@ -22,6 +22,7 @@ interface CampaignWizardProps {
   open: boolean;
   onClose: () => void;
   onComplete: () => void;
+  websiteId?: string | null;
 }
 
 interface Integration {
@@ -41,12 +42,19 @@ const WIZARD_STEPS = [
   'Review & Activate',
 ];
 
-export function CampaignWizard({ open, onClose, onComplete }: CampaignWizardProps) {
+export function CampaignWizard({ open, onClose, onComplete, websiteId }: CampaignWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [campaignName, setCampaignName] = useState('');
   
   // Step 0: Website
   const [selectedWebsiteId, setSelectedWebsiteId] = useState<string | null>(null);
+
+  // Pre-select website from URL param when wizard opens
+  useEffect(() => {
+    if (open && websiteId && !selectedWebsiteId) {
+      setSelectedWebsiteId(websiteId);
+    }
+  }, [open, websiteId]);
   
   // Step 1: Integrations
   const [selectedIntegrationIds, setSelectedIntegrationIds] = useState<string[]>([]);

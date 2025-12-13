@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Plug, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CampaignWizard } from "@/components/campaigns/CampaignWizard";
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CampaignGridSkeleton } from "@/components/ui/campaign-skeleton";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import confetti from "canvas-confetti";
 
@@ -36,7 +36,24 @@ interface Campaign {
 export default function Campaigns() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const websiteIdFromUrl = searchParams.get('website');
   const queryClient = useQueryClient();
+
+  // Auto-open wizard if websiteId is in URL
+  useEffect(() => {
+    if (websiteIdFromUrl && !wizardOpen) {
+      setWizardOpen(true);
+    }
+  }, [websiteIdFromUrl]);
+
+  const handleWizardClose = () => {
+    setWizardOpen(false);
+    // Clear URL param to prevent stale state
+    if (websiteIdFromUrl) {
+      navigate('/campaigns', { replace: true });
+    }
+  };
 
   // Single query for campaigns with caching
   const { data: campaigns = [], isLoading: loading } = useQuery({
@@ -269,7 +286,8 @@ export default function Campaigns() {
 
       <CampaignWizard
         open={wizardOpen}
-        onClose={() => setWizardOpen(false)}
+        websiteId={websiteIdFromUrl}
+        onClose={handleWizardClose}
         onComplete={() => {
           if (campaigns.length === 0) {
             confetti({
@@ -278,7 +296,7 @@ export default function Campaigns() {
               origin: { y: 0.6 }
             });
           }
-          setWizardOpen(false);
+          handleWizardClose();
           refetchCampaigns();
         }}
       />
