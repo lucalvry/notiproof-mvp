@@ -25,8 +25,8 @@ export function WidgetInstallationSuccess({
   campaignName,
   campaignId,
 }: WidgetInstallationSuccessProps) {
-  const unifiedCode = `<script src="https://app.notiproof.com/widget.js" data-site-token="YOUR-SITE-TOKEN" data-show-active-visitors="true"></script>`;
-  const legacyCode = `<script src="https://app.notiproof.com/widget.js" data-widget-id="${widgetId}" data-show-active-visitors="true"></script>`;
+  const unifiedCode = `<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-site-token="YOUR-SITE-TOKEN" data-show-active-visitors="true"></script>`;
+  const legacyCode = `<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-widget-id="${widgetId}" data-show-active-visitors="true"></script>`;
 
   const handleCopyUnifiedCode = () => {
     navigator.clipboard.writeText(unifiedCode);

@@ -2,10 +2,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, MessageSquare, Activity, Megaphone, Plug, Clock, Sparkles } from "lucide-react";
 import { OnboardingPath } from "@/hooks/useOnboarding";
+import { Badge } from "@/components/ui/badge";
+import { Crown } from "lucide-react";
 
 interface GoalSelectorProps {
   onSelect: (path: OnboardingPath) => void;
   onBack: () => void;
+  isLTD?: boolean;
 }
 
 const goals = [
@@ -59,7 +62,7 @@ const goals = [
   },
 ];
 
-export function GoalSelector({ onSelect, onBack }: GoalSelectorProps) {
+export function GoalSelector({ onSelect, onBack, isLTD = false }: GoalSelectorProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -68,9 +71,20 @@ export function GoalSelector({ onSelect, onBack }: GoalSelectorProps) {
           <ArrowLeft className="h-4 w-4" />
           Back
         </Button>
-        <h2 className="text-2xl font-bold">What would you like to do first?</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold">What would you like to do first?</h2>
+          {isLTD && (
+            <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 border-amber-500/20">
+              <Crown className="h-3 w-3 mr-1" />
+              All Included
+            </Badge>
+          )}
+        </div>
         <p className="text-muted-foreground">
-          Choose your starting point - you can always explore other features later
+          {isLTD 
+            ? "All features are included in your lifetime deal — pick your starting point!"
+            : "Choose your starting point - you can always explore other features later"
+          }
         </p>
       </div>
 

@@ -21,10 +21,39 @@ export const WebsiteProvider = ({ children }: { children: ReactNode }) => {
   const isLoading = userIdLoading || websitesLoading;
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUserId(user?.id);
-      setUserIdLoading(false);
+    const getUser = async () => {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        if (error) {
+          console.warn('Auth error, clearing session:', error.message);
+          // Clear invalid session - this handles "Invalid Refresh Token" errors
+          await supabase.auth.signOut();
+          setUserId(undefined);
+        } else {
+          setUserId(user?.id);
+        }
+      } catch (err) {
+        console.error('Unexpected auth error:', err);
+        setUserId(undefined);
+      } finally {
+        setUserIdLoading(false);
+      }
+    };
+
+    getUser();
+
+    // Listen for auth state changes to handle session refresh failures
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED') {
+        setUserId(session?.user?.id);
+      } else if (event === 'SIGNED_OUT') {
+        setUserId(undefined);
+        localStorage.removeItem("selectedWebsiteId");
+      }
     });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // Load selected website from localStorage when websites are loaded

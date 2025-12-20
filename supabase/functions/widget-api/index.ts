@@ -325,10 +325,13 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Fetch active campaigns to check for native integrations
+      // Fetch active campaigns with full data for native integrations INCLUDING template HTML
       const { data: activeCampaigns, error: campaignsCheckError } = await supabase
         .from('campaigns')
-        .select('id, data_sources')
+        .select(`
+          id, name, data_sources, native_config, template_id, template_mapping, display_rules,
+          templates:template_id (id, name, template_key, html_template, required_fields, style_variant)
+        `)
         .eq('website_id', website.id)
         .eq('status', 'active');
       
@@ -338,6 +341,49 @@ Deno.serve(async (req) => {
         return sources && sources.some(s => 
           ['instant_capture', 'live_visitors', 'announcements', 'testimonials'].includes(s.provider)
         );
+      });
+
+      // Enrich campaigns with integration credentials for live_visitors
+      const enrichedCampaigns = [];
+      if (activeCampaigns) {
+        for (const campaign of activeCampaigns) {
+          const sources = campaign.data_sources as any[];
+          const liveVisitorSource = sources?.find((s: any) => s.provider === 'live_visitors');
+          
+          if (liveVisitorSource?.integration_id) {
+            // Fetch integration credentials for live_visitors
+            const { data: integration } = await supabase
+              .from('integrations')
+              .select('credentials')
+              .eq('id', liveVisitorSource.integration_id)
+              .maybeSingle();
+            
+            // Merge credentials into native_config
+            enrichedCampaigns.push({
+              ...campaign,
+              native_config: {
+                ...campaign.native_config,
+                ...integration?.credentials,
+                mode: integration?.credentials?.mode || 'simulated',
+              }
+            });
+            
+            console.log('[widget-api] Enriched live_visitors campaign:', {
+              campaign_id: campaign.id,
+              integration_id: liveVisitorSource.integration_id,
+              has_credentials: !!integration?.credentials
+            });
+          } else {
+            enrichedCampaigns.push(campaign);
+          }
+        }
+      }
+      
+      console.log('[widget-api] Active campaigns:', {
+        total: enrichedCampaigns.length,
+        with_live_visitors: enrichedCampaigns.filter(c => 
+          (c.data_sources as any[])?.some((s: any) => s.provider === 'live_visitors')
+        ).length
       });
 
       // Fetch form_hook integrations from integration_connectors
@@ -390,7 +436,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         widgets: widgets || [],
         events: allEvents || [],
-        campaigns: [], // Will be provided by queue builder
+        campaigns: enrichedCampaigns, // Include enriched campaigns with live_visitors config
         native_integrations: formHookIntegrations || [], // Form capture integrations
         website_id: website.id, // Needed for form tracking
         display_settings: displaySettings,
@@ -703,6 +749,42 @@ Deno.serve(async (req) => {
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // POST /campaigns/:campaignId/view - Track campaign view (for Visitors Pulse)
+    if (req.method === 'POST' && resource === 'campaigns' && action === 'view' && identifier) {
+      try {
+        await supabase.rpc('increment_campaign_view', { p_campaign_id: identifier });
+        console.log('[widget-api] Campaign view tracked:', identifier);
+        
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (err) {
+        console.error('[widget-api] Campaign view tracking error:', err);
+        return new Response(JSON.stringify({ success: false, error: 'Failed to track view' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // POST /campaigns/:campaignId/click - Track campaign click (for Visitors Pulse)
+    if (req.method === 'POST' && resource === 'campaigns' && action === 'click' && identifier) {
+      try {
+        await supabase.rpc('increment_campaign_click', { p_campaign_id: identifier });
+        console.log('[widget-api] Campaign click tracked:', identifier);
+        
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (err) {
+        console.error('[widget-api] Campaign click tracking error:', err);
+        return new Response(JSON.stringify({ success: false, error: 'Failed to track click' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
     }
 
     // GET /active-count - Get active visitor count

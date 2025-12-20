@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { WidgetInstallationSuccess } from "./WidgetInstallationSuccess";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
+import { useWebsiteContext } from "@/contexts/WebsiteContext";
 
 interface ReviewActivateProps {
   campaignData: any;
@@ -21,6 +22,7 @@ interface ReviewActivateProps {
 export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: ReviewActivateProps) {
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const { currentWebsite } = useWebsiteContext();
   const [campaignName, setCampaignName] = useState("");
   const [saving, setSaving] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -109,18 +111,19 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Get website_id
+      // Get website_id - prioritize URL params, then campaign data, then current context
       const websiteIdFromParams = searchParams.get('website');
       const websiteIdFromCampaign = campaignData.website_id;
       
-      let websiteId = websiteIdFromParams || websiteIdFromCampaign;
+      let websiteId = websiteIdFromParams || websiteIdFromCampaign || currentWebsite?.id;
       
       if (!websiteId) {
+        // Last fallback: query for most recent website
         const { data: websites } = await supabase
           .from("websites")
           .select("id")
           .eq("user_id", user.id)
-          .order("created_at", { ascending: true })
+          .order("created_at", { ascending: false })
           .limit(1);
 
         if (!websites || websites.length === 0) {
@@ -226,6 +229,8 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
             subtext: campaignData.settings?.subtext,
             ctaEnabled: campaignData.settings?.ctaEnabled,
             ctaLabel: campaignData.settings?.ctaLabel,
+            contentAlignment: campaignData.integration_settings?.content_alignment || 
+                              campaignData.settings?.contentAlignment || 'top',
           },
           display_rules: {
             show_duration_ms: 5000,
@@ -274,19 +279,19 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Get website_id from URL params, campaign data, or user's first website
+      // Get website_id - prioritize URL params, then campaign data, then current context
       const websiteIdFromParams = searchParams.get('website');
       const websiteIdFromCampaign = campaignData.website_id;
       
-      let websiteId = websiteIdFromParams || websiteIdFromCampaign;
+      let websiteId = websiteIdFromParams || websiteIdFromCampaign || currentWebsite?.id;
       
       if (!websiteId) {
-        // Fallback to user's first website
+        // Last fallback: query for most recent website
         const { data: websites } = await supabase
           .from("websites")
           .select("id, business_type")
           .eq("user_id", user.id)
-          .order("created_at", { ascending: true })
+          .order("created_at", { ascending: false })
           .limit(1);
 
         if (!websites || websites.length === 0) {
@@ -429,6 +434,8 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
             subtext: campaignData.settings?.subtext,
             ctaEnabled: campaignData.settings?.ctaEnabled,
             ctaLabel: campaignData.settings?.ctaLabel,
+            contentAlignment: campaignData.integration_settings?.content_alignment || 
+                              campaignData.settings?.contentAlignment || 'top',
           },
           display_rules: {
             show_duration_ms: 5000,

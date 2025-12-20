@@ -8,6 +8,7 @@ import { IntegrationSelectionStep } from './steps/IntegrationSelectionStep';
 import { IntegrationConnectionStep } from './IntegrationConnectionStep';
 import { TemplateSelectionStep } from './steps/TemplateSelectionStep';
 import { FieldMappingStep } from './steps/FieldMappingStep';
+import { DesignStep } from './steps/DesignStep';
 import { OrchestrationStep } from './steps/OrchestrationStep';
 import { FormCaptureTemplateStep } from './steps/FormCaptureTemplateStep';
 import { RulesTargeting } from './RulesTargeting';
@@ -17,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { adapterRegistry } from '@/lib/integrations/AdapterRegistry';
 import type { TemplateConfig } from '@/lib/templateEngine';
+import type { DesignDefaults } from '@/hooks/useIntegrationDesignDefaults';
 
 interface CampaignWizardProps {
   open: boolean;
@@ -37,6 +39,7 @@ const WIZARD_STEPS = [
   'Connect Integration',
   'Select Template',
   'Map Fields',
+  'Design',
   'Orchestration',
   'Rules & Targeting',
   'Review & Activate',
@@ -49,9 +52,9 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
   // Step 0: Website
   const [selectedWebsiteId, setSelectedWebsiteId] = useState<string | null>(null);
 
-  // Pre-select website from URL param when wizard opens
+  // Pre-select website from URL param when wizard opens - always update when provided
   useEffect(() => {
-    if (open && websiteId && !selectedWebsiteId) {
+    if (open && websiteId) {
       setSelectedWebsiteId(websiteId);
     }
   }, [open, websiteId]);
@@ -113,7 +116,10 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
     time_ranges: [] as Array<{ start: string; end: string }>,
   });
   
-  // Step 5: Rules & Targeting
+  // Step 5: Design Settings
+  const [designSettings, setDesignSettings] = useState<DesignDefaults>({});
+  
+  // Step 6: Rules & Targeting
   const [displayRules, setDisplayRules] = useState<any>({
     show_duration_ms: 5000,
     interval_ms: 8000,
@@ -189,6 +195,49 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
     return selected.some(i => i.provider === 'form_hook');
   };
 
+  // Helper to intelligently detect campaign type based on selected integration
+  const getCampaignType = () => {
+    const selected = integrations.filter(i => selectedIntegrationIds.includes(i.id));
+    
+    // Form Capture - use the selected form type
+    if (hasFormHook()) {
+      return formCaptureConfig.formType || 'form-capture';
+    }
+    
+    // Announcements
+    if (hasOnlyAnnouncements()) {
+      return 'announcement';
+    }
+    
+    // WooCommerce
+    if (selected.some(i => i.provider === 'woocommerce')) {
+      return selectedTemplate?.category || 'recent-purchase';
+    }
+    
+    // Visitors Pulse
+    if (selected.some(i => i.provider === 'visitors_pulse')) {
+      return 'live-visitor';
+    }
+    
+    // Testimonials
+    if (selected.some(i => i.provider === 'testimonials')) {
+      return 'review';
+    }
+    
+    // Shopify
+    if (selected.some(i => i.provider === 'shopify')) {
+      return selectedTemplate?.category || 'recent-purchase';
+    }
+    
+    // Stripe
+    if (selected.some(i => i.provider === 'stripe')) {
+      return selectedTemplate?.category || 'signup';
+    }
+    
+    // Fallback to template category or generic social-proof
+    return selectedTemplate?.category || 'social-proof';
+  };
+
   const handleNext = async () => {
     // Special validation before Step 3 (Template Selection)
     if (currentStep === 1) {
@@ -210,7 +259,7 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
   };
 
   const handleClose = () => {
-    // Reset all state
+    // Reset all state including website selection for next open
     setCurrentStep(0);
     setSelectedWebsiteId(null);
     setSelectedIntegrationIds([]);
@@ -270,6 +319,7 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
       geo_allowlist: [],
       geo_denylist: [],
     });
+    setDesignSettings({});
     onClose();
   };
 
@@ -380,10 +430,12 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
           field => field in fieldMapping && fieldMapping[field]
         );
       case 5:
-        return true; // Orchestration always allows proceed
+        return true; // Design step always allows proceed
       case 6:
-        return true; // Rules always allows proceed
+        return true; // Orchestration always allows proceed
       case 7:
+        return true; // Rules always allows proceed
+      case 8:
         return false; // Final step, no Next button
       default:
         return false;
@@ -516,6 +568,18 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
       
       case 5:
         return (
+          <DesignStep
+            selectedIntegrationIds={selectedIntegrationIds}
+            integrations={integrations}
+            designSettings={designSettings}
+            onDesignSettingsChange={setDesignSettings}
+            templateName={hasFormHook() ? formCaptureConfig.formType : selectedTemplate?.name}
+            campaignType={getCampaignType()}
+          />
+        );
+      
+      case 6:
+        return (
           <OrchestrationStep
             priority={priority}
             frequencyCap={frequencyCap}
@@ -526,7 +590,7 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
           />
         );
       
-      case 6:
+      case 7:
         return (
           <RulesTargeting
             rules={displayRules}
@@ -536,7 +600,7 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
           />
         );
       
-      case 7:
+      case 8:
         return (
           <ReviewActivate
             campaignData={{
@@ -555,7 +619,7 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
               priority,
               frequency_cap: frequencyCap,
               schedule,
-              display_rules: displayRules,
+              display_rules: { ...displayRules, ...designSettings },
               native_config: hasOnlyAnnouncements()
                 ? announcementConfig
                 : hasFormHook()

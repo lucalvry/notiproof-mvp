@@ -70,12 +70,67 @@ const PRESET_THEMES = [
   },
 ];
 
+// Form Capture specific themes
+const FORM_CAPTURE_THEMES = [
+  { 
+    name: "✅ Success Green", 
+    description: "Perfect for signups & confirmations",
+    performanceBoost: "+28% form completions",
+    primaryColor: "#10b981", 
+    backgroundColor: "#ecfdf5", 
+    textColor: "#065f46" 
+  },
+  { 
+    name: "📧 Newsletter Blue", 
+    description: "Clean look for subscriptions",
+    performanceBoost: "+19% signups",
+    primaryColor: "#3b82f6", 
+    backgroundColor: "#eff6ff", 
+    textColor: "#1e40af" 
+  },
+  { 
+    name: "💼 Professional", 
+    description: "Great for B2B lead capture",
+    performanceBoost: "+24% demo requests",
+    primaryColor: "#6366f1", 
+    backgroundColor: "#ffffff", 
+    textColor: "#1f2937" 
+  },
+  { 
+    name: "🎯 Contact Form", 
+    description: "Welcoming & approachable",
+    performanceBoost: "+15% inquiries",
+    primaryColor: "#f59e0b", 
+    backgroundColor: "#fffbeb", 
+    textColor: "#92400e" 
+  },
+];
+
 const FONT_FAMILIES = [
   { name: "System Default", value: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
   { name: "Inter", value: "'Inter', sans-serif" },
   { name: "Roboto", value: "'Roboto', sans-serif" },
   { name: "Open Sans", value: "'Open Sans', sans-serif" },
   { name: "Poppins", value: "'Poppins', sans-serif" },
+  { name: "Lato", value: "'Lato', sans-serif" },
+  { name: "Montserrat", value: "'Montserrat', sans-serif" },
+  { name: "Playfair Display", value: "'Playfair Display', serif" },
+  { name: "Source Sans Pro", value: "'Source Sans Pro', sans-serif" },
+  { name: "Nunito", value: "'Nunito', sans-serif" },
+];
+
+const HOVER_EFFECTS = [
+  { name: "None", value: "none", description: "No hover effect" },
+  { name: "Subtle Scale", value: "subtle", description: "Gentle 2% scale up" },
+  { name: "Lift", value: "lift", description: "Lifts up with shadow" },
+  { name: "Glow", value: "glow", description: "Adds a colored glow" },
+  { name: "Brighten", value: "brighten", description: "Brightens on hover" },
+];
+
+const TEXT_ALIGNMENTS = [
+  { name: "Left", value: "left" },
+  { name: "Center", value: "center" },
+  { name: "Right", value: "right" },
 ];
 
 export function DesignEditor({ 
@@ -127,6 +182,13 @@ export function DesignEditor({
         { placeholder: '{{location}}', label: 'Customer Location', example: 'Chicago' },
         { placeholder: '{{price}}', label: 'Product Price', example: '$29.99' },
       ],
+      'form_hook': [
+        { placeholder: '{{name}}', label: 'Person Name', example: 'Sarah' },
+        { placeholder: '{{email}}', label: 'Email Address', example: 'sarah@example.com' },
+        { placeholder: '{{company}}', label: 'Company Name', example: 'Acme Inc' },
+        { placeholder: '{{location}}', label: 'Location', example: 'New York' },
+        { placeholder: '{{product}}', label: 'Product/Service', example: 'Premium Plan' },
+      ],
       'default': [
         { placeholder: '{{user_name}}', label: 'User Name', example: 'Alex' },
         { placeholder: '{{location}}', label: 'Location', example: 'Austin, TX' },
@@ -150,6 +212,16 @@ export function DesignEditor({
       'review': '{{user_name}} gave {{rating}} stars - "{{review_text}}"',
       'download': '{{user_name}} just downloaded {{resource_name}}',
       'booking': '{{user_name}} from {{location}} just booked {{service_name}}',
+      // Form Capture types
+      'form-capture': '{{name}} just submitted a form',
+      'contact_form': '{{name}} from {{company}} just reached out',
+      'newsletter': '{{name}} just subscribed to updates',
+      'demo_request': '{{name}} from {{company}} requested a demo',
+      'lead_form': '{{name}} from {{company}} is interested',
+      'survey': '{{name}} just completed a survey',
+      'other': '{{name}} just took action',
+      // Announcement
+      'announcement': 'New announcement',
     };
     
     return placeholders[campaignType] || "{{name}} from {{city}} just {{action}}";
@@ -238,9 +310,54 @@ export function DesignEditor({
       'volunteer-signup': 'Make an impact - volunteer today',
       'course-enrollment': 'Start learning today - limited seats available',
       'completion-milestone': 'Complete your course today',
+      
+      // Form Capture
+      'form-capture': 'Be part of our community',
+      'newsletter': 'Join {{count}}+ subscribers',
+      'demo_request': 'Schedule your demo today',
+      'lead_form': 'Get your personalized quote',
+      'survey': 'Your feedback matters',
+      'other': 'Join others who took action',
+      
+      // Announcement
+      'announcement': 'Check out our latest update',
     };
     
     return subtexts[campaignType] || "Join {{name}} and thousands of others";
+  };
+
+  // Helper to get campaign type display label
+  const getCampaignTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      'form-capture': 'Form Capture',
+      'contact_form': 'Contact Form',
+      'signup': 'Signup Form',
+      'newsletter': 'Newsletter',
+      'demo_request': 'Demo Request',
+      'lead_form': 'Lead Capture',
+      'survey': 'Survey',
+      'other': 'Form Capture',
+      'live-visitor': 'Live Visitors',
+      'recent-purchase': 'Recent Purchase',
+      'review': 'Reviews',
+      'announcement': 'Announcement',
+      'social-proof': 'Social Proof',
+    };
+    return labels[type] || type.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  // Helper to check if current campaign is form-related
+  const isFormCaptureCampaign = () => {
+    const formTypes = ['form-capture', 'contact_form', 'newsletter', 'demo_request', 'lead_form', 'survey', 'other'];
+    return formTypes.includes(campaignType || '') || dataSource === 'form_hook';
+  };
+
+  // Get themes based on campaign type
+  const getThemesForCampaign = () => {
+    if (isFormCaptureCampaign()) {
+      return FORM_CAPTURE_THEMES;
+    }
+    return PRESET_THEMES;
   };
   
   // PHASE 2: Merge strategy - baseDefaults < templateSettings < userEdits
@@ -250,6 +367,7 @@ export function DesignEditor({
     animation: "slide",
     animationSpeed: "normal",
     exitAnimation: "fade",
+    contentAlignment: "center",
     
     // Hover Effects
     hoverScale: "1.02",
@@ -271,10 +389,19 @@ export function DesignEditor({
     primaryColor: "#2563EB",
     backgroundColor: "#ffffff",
     textColor: "#1a1a1a",
+    linkColor: "#2563EB", // NEW: Link color for clickable elements
     borderRadius: "12",
     shadow: "md",
     fontSize: "14",
     fontFamily: FONT_FAMILIES[0].value,
+    
+    // NEW: Enhanced styling options
+    borderColor: "transparent",
+    borderWidth: "0",
+    textAlignment: "left",
+    lineHeight: "1.4",
+    hoverEffect: "subtle",
+    notificationPadding: "16",
     
     // Timing
     initialDelay: "0",
@@ -343,7 +470,7 @@ export function DesignEditor({
                     <Badge variant="secondary" className="gap-1.5">
                       <span className="text-xs">Type:</span>
                       <span className="font-medium">
-                        {campaignType.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                        {getCampaignTypeLabel(campaignType)}
                       </span>
                     </Badge>
                   )}
@@ -389,7 +516,7 @@ export function DesignEditor({
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {PRESET_THEMES.map((theme) => (
+              {getThemesForCampaign().map((theme) => (
                 <Button
                   key={theme.name}
                   variant="outline"
@@ -679,7 +806,7 @@ export function DesignEditor({
                   </div>
                 )}
                 
-                {dataSource !== 'announcements' && (
+                {dataSource !== 'announcements' && dataSource !== 'live_visitors' && (
                   <div className="space-y-3 pt-2 border-t">
                     <p className="text-sm font-medium">Show/Hide Elements</p>
                     <div className="flex items-center justify-between">
@@ -706,8 +833,8 @@ export function DesignEditor({
                   </div>
                 )}
                 
-                {/* PHASE 4: Product Images Display Control (not for announcements) */}
-                {dataSource !== 'announcements' && (
+                {/* PHASE 4: Product Images Display Control (not for announcements or live_visitors) */}
+                {dataSource !== 'announcements' && dataSource !== 'live_visitors' && (
                   <div className="space-y-3 pt-2 border-t">
                     <div className="flex items-center justify-between">
                       <div>
@@ -752,8 +879,8 @@ export function DesignEditor({
                   </div>
                 )}
                 
-                {/* CTA Button (not for announcements - they configure CTA in Step 2) */}
-                {dataSource !== 'announcements' && (
+                {/* CTA Button (not for announcements or live_visitors - they configure CTA in their own config) */}
+                {dataSource !== 'announcements' && dataSource !== 'live_visitors' && (
                   <div className="space-y-3 pt-2 border-t">
                     <div className="flex items-center justify-between">
                       <Label>Enable CTA Button</Label>
@@ -785,8 +912,8 @@ export function DesignEditor({
                   </div>
                 )}
 
-                {/* PHASE 2: Image Configuration (not for announcements - they configure in Step 2) */}
-                {dataSource !== 'announcements' && (
+                {/* PHASE 2: Image Configuration (not for announcements or live_visitors - they configure in their own config) */}
+                {dataSource !== 'announcements' && dataSource !== 'live_visitors' && (
                   <div className="space-y-3 pt-2 border-t">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-2xl">🖼️</span>
@@ -891,6 +1018,20 @@ export function DesignEditor({
                       <SelectItem value="top-left">Top Left</SelectItem>
                       <SelectItem value="top-right">Top Right</SelectItem>
                       <SelectItem value="top-center">Top Center</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Content Alignment</Label>
+                  <Select value={design.contentAlignment || 'center'} onValueChange={(value) => updateDesign({ contentAlignment: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="top">Top</SelectItem>
+                      <SelectItem value="center">Center</SelectItem>
+                      <SelectItem value="bottom">Bottom</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1009,21 +1150,41 @@ export function DesignEditor({
                   </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label>Text Color</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="color"
-                      value={design.textColor}
-                      onChange={(e) => updateDesign({ textColor: e.target.value })}
-                      className="w-12 h-10 p-1"
-                    />
-                    <Input
-                      value={design.textColor}
-                      onChange={(e) => updateDesign({ textColor: e.target.value })}
-                      placeholder="#1a1a1a"
-                      className="flex-1"
-                    />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Text Color</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="color"
+                        value={design.textColor}
+                        onChange={(e) => updateDesign({ textColor: e.target.value })}
+                        className="w-12 h-10 p-1"
+                      />
+                      <Input
+                        value={design.textColor}
+                        onChange={(e) => updateDesign({ textColor: e.target.value })}
+                        placeholder="#1a1a1a"
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Link Color</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="color"
+                        value={design.linkColor}
+                        onChange={(e) => updateDesign({ linkColor: e.target.value })}
+                        className="w-12 h-10 p-1"
+                      />
+                      <Input
+                        value={design.linkColor}
+                        onChange={(e) => updateDesign({ linkColor: e.target.value })}
+                        placeholder="#2563EB"
+                        className="flex-1"
+                      />
+                    </div>
                   </div>
                 </div>
                 
@@ -1063,6 +1224,100 @@ export function DesignEditor({
                     value={design.fontSize}
                     onChange={(e) => updateDesign({ fontSize: e.target.value })}
                   />
+                </div>
+
+                {/* NEW: Border Color & Width */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Border Color</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="color"
+                        value={design.borderColor === 'transparent' ? '#ffffff' : design.borderColor}
+                        onChange={(e) => updateDesign({ borderColor: e.target.value })}
+                        className="w-12 h-10 p-1"
+                      />
+                      <Input
+                        value={design.borderColor}
+                        onChange={(e) => updateDesign({ borderColor: e.target.value })}
+                        placeholder="transparent"
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Border Width: {design.borderWidth}px</Label>
+                    <Input
+                      type="range"
+                      min="0"
+                      max="4"
+                      value={design.borderWidth}
+                      onChange={(e) => updateDesign({ borderWidth: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* NEW: Text Alignment */}
+                <div className="space-y-2">
+                  <Label>Text Alignment</Label>
+                  <Select value={design.textAlignment} onValueChange={(value) => updateDesign({ textAlignment: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEXT_ALIGNMENTS.map((align) => (
+                        <SelectItem key={align.value} value={align.value}>
+                          {align.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* NEW: Line Height */}
+                <div className="space-y-2">
+                  <Label>Line Height: {design.lineHeight}</Label>
+                  <Input
+                    type="range"
+                    min="1.2"
+                    max="2.0"
+                    step="0.1"
+                    value={design.lineHeight}
+                    onChange={(e) => updateDesign({ lineHeight: e.target.value })}
+                  />
+                </div>
+
+                {/* NEW: Padding */}
+                <div className="space-y-2">
+                  <Label>Padding: {design.notificationPadding}px</Label>
+                  <Input
+                    type="range"
+                    min="8"
+                    max="24"
+                    value={design.notificationPadding}
+                    onChange={(e) => updateDesign({ notificationPadding: e.target.value })}
+                  />
+                </div>
+
+                {/* NEW: Hover Effect */}
+                <div className="space-y-2">
+                  <Label>Hover Effect</Label>
+                  <Select value={design.hoverEffect} onValueChange={(value) => updateDesign({ hoverEffect: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {HOVER_EFFECTS.map((effect) => (
+                        <SelectItem key={effect.value} value={effect.value}>
+                          <div className="flex flex-col">
+                            <span>{effect.name}</span>
+                            <span className="text-xs text-muted-foreground">{effect.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>

@@ -1,16 +1,18 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Chrome } from "lucide-react";
+
 import logo from "@/assets/NotiProof_Logo.png";
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,6 +31,14 @@ export default function Login() {
 
       if (!data.user) throw new Error("Login failed");
 
+      toast.success("Logged in successfully!");
+
+      // If returnTo is set, redirect there
+      if (returnTo) {
+        navigate(returnTo);
+        return;
+      }
+
       // Check subscription status intelligently
       const { data: subscriptions } = await supabase
         .from('user_subscriptions')
@@ -38,8 +48,6 @@ export default function Login() {
         .limit(1);
 
       const subscription = subscriptions?.[0];
-      
-      toast.success("Logged in successfully!");
       
       if (!subscription) {
         // No subscription at all - first time user
@@ -73,25 +81,6 @@ export default function Login() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/websites`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
-      });
-
-      if (error) throw error;
-    } catch (error: any) {
-      toast.error(error.message || "Failed to login with Google");
-    }
-  };
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
       <Card className="w-full max-w-md">
@@ -104,28 +93,7 @@ export default function Login() {
             <CardDescription>Sign in to your NotiProof account</CardDescription>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={handleGoogleLogin}
-          >
-            <Chrome className="mr-2 h-4 w-4" />
-            Continue with Google
-          </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                Or continue with email
-              </span>
-            </div>
-          </div>
-
+        <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -161,8 +129,8 @@ export default function Login() {
             </Button>
             <p className="text-center text-sm text-muted-foreground">
               Don't have an account?{" "}
-              <Link to="/signup" className="text-primary hover:underline">
-                Sign up
+              <Link to={returnTo ? `/register?returnTo=${encodeURIComponent(returnTo)}` : "/register"} className="text-primary hover:underline">
+                Create an account
               </Link>
             </p>
           </form>

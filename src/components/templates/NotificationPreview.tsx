@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CheckCircle2 } from "lucide-react";
+import { shouldShowVerificationBadge, VERIFICATION_BADGE_TEXT } from "@/lib/verificationBadgeUtils";
 
 interface NotificationPreviewProps {
   template: {
@@ -8,9 +9,11 @@ interface NotificationPreviewProps {
     template_config: any;
     style_config: any;
   };
+  provider?: string;
+  visitorsPulseMode?: 'real' | 'simulated';
 }
 
-export function NotificationPreview({ template }: NotificationPreviewProps) {
+export function NotificationPreview({ template, provider, visitorsPulseMode }: NotificationPreviewProps) {
   const templateConfig = typeof template.template_config === 'string' 
     ? JSON.parse(template.template_config) 
     : template.template_config;
@@ -142,12 +145,18 @@ export function NotificationPreview({ template }: NotificationPreviewProps) {
                     </>
                   )}
                 </p>
-                {(previewData.time || previewData.cta || previewData.icon || previewData.emoji) && (
+                {(previewData.time || previewData.cta || previewData.icon || previewData.emoji || provider) && (
                   <div className="flex items-center gap-2 mt-2 text-xs" style={{ color: `${textColor}99` }}>
                     {(previewData.icon || previewData.emoji) && <span>{previewData.icon || previewData.emoji}</span>}
-                    <CheckCircle2 className="h-3 w-3" style={{ color: accentColor }} />
                     {previewData.time && <span>{previewData.time}</span>}
                     {!previewData.time && <span>Just now</span>}
+                    
+                    {/* NotiProof Verified Badge */}
+                    {provider && shouldShowVerificationBadge(provider, { visitorsPulseMode }) && (
+                      <span className="font-medium" style={{ color: accentColor }}>
+                        {VERIFICATION_BADGE_TEXT}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

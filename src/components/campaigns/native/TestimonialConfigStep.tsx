@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Star, Settings2 } from "lucide-react";
+import { ContentAlignmentSelector, ContentAlignment } from "@/components/campaigns/ContentAlignmentSelector";
 
 interface TestimonialConfigStepProps {
   config: any;
@@ -27,6 +28,7 @@ export function TestimonialConfigStep({
     show_only_verified: config.show_only_verified || false,
     include_fields: config.include_fields || ['name', 'company', 'rating', 'message'],
     thank_you_message: config.thank_you_message || 'Thank you for your testimonial!',
+    content_alignment: config.content_alignment || 'top',
     ...config
   });
 
@@ -163,6 +165,22 @@ export function TestimonialConfigStep({
               onCheckedChange={(checked) => handleChange({ show_only_verified: checked })}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Display Settings Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Display Settings</CardTitle>
+          <CardDescription>
+            Control how testimonials appear in notifications
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ContentAlignmentSelector
+            value={localConfig.content_alignment}
+            onChange={(alignment) => handleChange({ content_alignment: alignment })}
+          />
         </CardContent>
       </Card>
 

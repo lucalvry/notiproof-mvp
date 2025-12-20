@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useAdminMetrics } from "@/hooks/useAdminMetrics";
 import { supabase } from "@/integrations/supabase/client";
-import { Users, Globe, Megaphone, DollarSign, TrendingUp, AlertTriangle, Eye, MousePointer, Zap, Activity } from "lucide-react";
+import { Users, Globe, Megaphone, DollarSign, TrendingUp, AlertTriangle, Eye, MousePointer, Zap, Activity, Percent } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DashboardSkeleton } from "@/components/ui/loading-skeletons";
 import { toast } from "sonner";
@@ -12,6 +12,8 @@ import { CheckoutMetricsWidget } from "@/components/admin/CheckoutMetricsWidget"
 import { SubscriptionMetricsWidget } from "@/components/admin/SubscriptionMetricsWidget";
 import { TrialExpirationsWidget } from "@/components/admin/TrialExpirationsWidget";
 import { EmailAnalyticsWidget } from "@/components/admin/EmailAnalyticsWidget";
+import { DateRangeFilter } from "@/components/dashboard/DateRangeFilter";
+import { EventsTrendChart } from "@/components/dashboard/EventsTrendChart";
 
 interface Stats {
   totalUsers: number;
@@ -22,7 +24,8 @@ interface Stats {
 
 export default function AdminDashboard() {
   const { loading: authLoading } = useAdminAuth();
-  const { data: metrics, isLoading: metricsLoading } = useAdminMetrics();
+  const [dateRange, setDateRange] = useState(14);
+  const { data: metrics, isLoading: metricsLoading } = useAdminMetrics(dateRange);
   const [stats, setStats] = useState<Stats>({
     totalUsers: 0,
     activeWebsites: 0,
@@ -115,16 +118,6 @@ export default function AdminDashboard() {
 
       if (campaignsError) throw campaignsError;
 
-      // Fetch platform-wide metrics from events
-      const { data: eventsData, error: eventsError } = await supabase
-        .from("events")
-        .select("views, clicks");
-
-      if (eventsError) throw eventsError;
-
-      const totalViews = eventsData?.reduce((sum, e) => sum + (e.views || 0), 0) || 0;
-      const totalClicks = eventsData?.reduce((sum, e) => sum + (e.clicks || 0), 0) || 0;
-
       // Calculate MRR from subscriptions
       const { data: subscriptions } = await supabase
         .from("user_subscriptions")
@@ -200,11 +193,14 @@ export default function AdminDashboard() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your NotiProof platform
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+          <p className="text-muted-foreground">
+            Overview of your NotiProof platform
+          </p>
+        </div>
+        <DateRangeFilter value={dateRange} onChange={setDateRange} />
       </div>
 
       {/* Stats Grid */}
@@ -231,6 +227,124 @@ export default function AdminDashboard() {
           );
         })}
       </div>
+
+      {/* Platform-Wide Metrics with Date Filter */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Total Events</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics?.platformWide.totalEvents.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              Last {dateRange} days
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Total Views</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics?.platformWide.totalViews.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              Last {dateRange} days
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
+            <MousePointer className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics?.platformWide.totalClicks.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              Last {dateRange} days
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">CTR</CardTitle>
+            <Percent className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics?.platformWide.ctr.toFixed(2)}%</div>
+            <p className="text-xs text-muted-foreground">
+              Click-through rate
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Active Widgets</CardTitle>
+            <Zap className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics?.platformWide.activeWidgets}</div>
+            <p className="text-xs text-muted-foreground">
+              Running campaigns
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Events Trend Chart */}
+      <EventsTrendChart
+        data={metrics?.trendData ?? []}
+        isLoading={metricsLoading}
+      />
+
+      {/* Campaign Performance Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Top Campaigns (Platform-Wide)</CardTitle>
+          <CardDescription>Highest performing campaigns in the last {dateRange} days</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Campaign</TableHead>
+                <TableHead>Owner</TableHead>
+                <TableHead>Website</TableHead>
+                <TableHead className="text-right">Views</TableHead>
+                <TableHead className="text-right">Clicks</TableHead>
+                <TableHead className="text-right">CTR</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {metrics?.topPerformers.campaigns.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    No campaign data for this period
+                  </TableCell>
+                </TableRow>
+              ) : (
+                metrics?.topPerformers.campaigns.map((campaign) => (
+                  <TableRow key={campaign.id}>
+                    <TableCell className="font-medium">{campaign.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{campaign.owner_name}</TableCell>
+                    <TableCell className="text-muted-foreground">{campaign.website_name}</TableCell>
+                    <TableCell className="text-right">{campaign.views.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{campaign.clicks.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{campaign.ctr.toFixed(1)}%</TableCell>
+                    <TableCell>
+                      <Badge variant={campaign.status === 'active' ? 'default' : 'secondary'}>
+                        {campaign.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {/* Subscription Health Metrics */}
       <SubscriptionMetricsWidget />
@@ -266,66 +380,12 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Platform-Wide Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Events</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics?.platformWide.totalEvents.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              {metrics?.platformWide.eventsToday} today
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Views</CardTitle>
-            <Eye className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics?.platformWide.totalViews.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              Across all widgets
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
-            <MousePointer className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics?.platformWide.totalClicks.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              {metrics?.platformWide.totalViews 
-                ? ((metrics.platformWide.totalClicks / metrics.platformWide.totalViews) * 100).toFixed(2)
-                : 0}% click rate
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Active Widgets</CardTitle>
-            <Zap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics?.platformWide.activeWidgets}</div>
-            <p className="text-xs text-muted-foreground">
-              Running campaigns
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Top Performers */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Top Performing Widgets</CardTitle>
-            <CardDescription>Highest views in the platform</CardDescription>
+            <CardDescription>Highest views in the last {dateRange} days</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -338,19 +398,27 @@ export default function AdminDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {metrics?.topPerformers.widgets.map((widget) => (
-                  <TableRow key={widget.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{widget.name}</div>
-                        <div className="text-xs text-muted-foreground">{widget.website_name}</div>
-                      </div>
+                {metrics?.topPerformers.widgets.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      No widget data for this period
                     </TableCell>
-                    <TableCell className="text-right">{widget.views.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{widget.clicks.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{widget.clickRate.toFixed(1)}%</TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  metrics?.topPerformers.widgets.map((widget) => (
+                    <TableRow key={widget.id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{widget.name}</div>
+                          <div className="text-xs text-muted-foreground">{widget.website_name}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">{widget.views.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{widget.clicks.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{widget.clickRate.toFixed(1)}%</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -359,7 +427,7 @@ export default function AdminDashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Top Users</CardTitle>
-            <CardDescription>Most active users by views</CardDescription>
+            <CardDescription>Most active users in the last {dateRange} days</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -371,18 +439,26 @@ export default function AdminDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {metrics?.topPerformers.users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{user.name}</div>
-                        <div className="text-xs text-muted-foreground">{user.email}</div>
-                      </div>
+                {metrics?.topPerformers.users.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                      No user data for this period
                     </TableCell>
-                    <TableCell className="text-right">{user.totalViews.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{user.widgetCount}</TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  metrics?.topPerformers.users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{user.name}</div>
+                          <div className="text-xs text-muted-foreground">{user.email}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">{user.totalViews.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{user.widgetCount}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -404,7 +480,7 @@ export default function AdminDashboard() {
               <div className="flex-1">
                 <h4 className="font-medium">All integrations healthy</h4>
                 <p className="text-sm text-muted-foreground">
-                  No sync errors detected
+                  No sync errors in the last {dateRange} days
                 </p>
               </div>
               <Badge variant="outline">System</Badge>

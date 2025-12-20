@@ -1,18 +1,20 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Chrome, User, Building2 } from "lucide-react";
+import { User, Building2 } from "lucide-react";
 import logo from "@/assets/NotiProof_Logo.png";
 
 type AccountType = 'individual' | 'organization';
 
 export default function Register() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -65,9 +67,12 @@ export default function Register() {
           toast.error(
             <div className="flex flex-col gap-1">
               <span>This email is already registered.</span>
-              <Link to="/login" className="text-primary underline font-semibold">
-                Click here to log in instead
-              </Link>
+                <Link 
+                  to={returnTo ? `/login?returnTo=${encodeURIComponent(returnTo)}` : "/login"} 
+                  className="text-primary underline font-semibold"
+                >
+                  Click here to log in instead
+                </Link>
             </div>,
             { duration: 6000 }
           );
@@ -82,9 +87,16 @@ export default function Register() {
         throw new Error("Failed to create account");
       }
 
-      toast.success("Account created! Choose your plan to start your free trial.");
+      toast.success("Account created successfully!");
       await new Promise(resolve => setTimeout(resolve, 500));
-      navigate("/select-plan");
+      
+      // Redirect to returnTo if set, otherwise to select-plan
+      if (returnTo) {
+        navigate(returnTo);
+      } else {
+        toast.info("Choose your plan to start your free trial.");
+        navigate("/select-plan");
+      }
 
     } catch (error: any) {
       console.error("Error creating account:", error);
@@ -94,24 +106,6 @@ export default function Register() {
     }
   };
 
-  const handleGoogleSignup = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/select-plan`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
-      });
-
-      if (error) throw error;
-    } catch (error: any) {
-      toast.error(error.message || "Failed to sign up with Google");
-    }
-  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
@@ -128,28 +122,7 @@ export default function Register() {
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={handleGoogleSignup}
-          >
-            <Chrome className="mr-2 h-4 w-4" />
-            Continue with Google
-          </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                Or continue with email
-              </span>
-            </div>
-          </div>
-
+        <CardContent>
           <form onSubmit={handleRegister} className="space-y-4">
             {/* Account Type Selection */}
             <div className="space-y-2">
@@ -242,7 +215,7 @@ export default function Register() {
 
             <div className="text-center text-sm text-muted-foreground">
               Already have an account?{" "}
-              <Link to="/login" className="text-primary hover:underline">
+              <Link to={returnTo ? `/login?returnTo=${encodeURIComponent(returnTo)}` : "/login"} className="text-primary hover:underline">
                 Log in
               </Link>
             </div>

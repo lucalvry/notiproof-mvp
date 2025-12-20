@@ -1,0 +1,1 @@
+UPDATE subscription_plans SET has_api = false WHERE name = 'LTD';

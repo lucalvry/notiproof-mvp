@@ -6,6 +6,7 @@ import { Monitor, Smartphone, Tablet, Eye, RefreshCw, ExternalLink, AlertCircle 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { renderTemplate } from "@/lib/templateEngine";
+import { shouldShowVerificationBadge, VERIFICATION_BADGE_TEXT } from "@/lib/verificationBadgeUtils";
 import type { CanonicalEvent } from "@/lib/integrations/types";
 
 interface WidgetPreviewFrameProps {
@@ -16,6 +17,7 @@ interface WidgetPreviewFrameProps {
   position?: string;
   animation?: string;
   selectedTemplate?: any;
+  visitorsPulseMode?: 'real' | 'simulated';
 }
 
 type DeviceType = 'desktop' | 'tablet' | 'mobile';
@@ -27,7 +29,8 @@ export function WidgetPreviewFrame({
   websiteDomain,
   position,
   animation,
-  selectedTemplate
+  selectedTemplate,
+  visitorsPulseMode
 }: WidgetPreviewFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [device, setDevice] = useState<DeviceType>('desktop');
@@ -149,7 +152,7 @@ export function WidgetPreviewFrame({
               padding: 16px;
               max-width: 350px;
               display: flex;
-              align-items: center;
+              align-items: ${settings.contentAlignment === 'top' ? 'flex-start' : settings.contentAlignment === 'bottom' ? 'flex-end' : 'center'};
               gap: 12px;
             `}
             animation: ${getAnimation(animation || settings.animation || 'slide')} 0.3s ease-out;
@@ -448,6 +451,15 @@ export function WidgetPreviewFrame({
               return `<div class="notification-avatar">${integrationSettings.icon}</div>`;
             }
             
+            // Check if this is a live_visitors campaign - skip avatar for these (template has its own icon)
+            const isLiveVisitors = campaignType === 'live-visitor' || 
+              (settings.data_sources && settings.data_sources.some(ds => ds.provider === 'live_visitors'));
+            
+            if (isLiveVisitors) {
+              // Don't add avatar wrapper - live visitors config handles its own icon display
+              return '';
+            }
+            
             // Fallback to existing logic for other campaign types
             if (settings.showProductImage !== false && settings.productImageUrl) {
               return `<img src="${settings.productImageUrl}" class="notification-avatar-img" alt="Product" onerror="this.style.display='none'" />`;
@@ -606,7 +618,7 @@ export function WidgetPreviewFrame({
                     <div class="notiproof-modal-author-info">
                       <p class="notiproof-modal-name">\${name}</p>
                       \${position ? \`<p class="notiproof-modal-position">\${position}\${company ? \` at \${company}\` : ''}</p>\` : ''}
-                      \${verified ? '<p class="notiproof-modal-verified">✓ Verified Customer</p>' : ''}
+                      \${verified ? '<p class="notiproof-modal-verified">✓ NotiProof Verified</p>' : ''}
                     </div>
                   </div>
                   

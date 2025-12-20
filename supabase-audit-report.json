@@ -1,0 +1,569 @@
+{
+  "audit_timestamp": "2025-11-23T10:39:00Z",
+  "project_id": "ewymvxhpkswhsirdrjub",
+  "project_name": "NotiProof",
+  
+  "executive_summary": {
+    "total_database_size": "85 MB",
+    "total_storage_used": "63 MB",
+    "total_users": 12,
+    "active_users_30_days": 10,
+    "total_events": 247,
+    "total_campaigns": 5,
+    "total_widgets": 5,
+    "storage_objects": 31,
+    "edge_function_invocations_estimate": "~500-1000/day"
+  },
+
+  "1_database_usage": {
+    "overall_metrics": {
+      "total_db_size": "85 MB",
+      "table_count": 67,
+      "index_count": 233,
+      "active_connections": 13
+    },
+    
+    "table_sizes": {
+      "events": {
+        "total_size": "1072 kB",
+        "table_size": "144 kB",
+        "indexes_size": "888 kB",
+        "toast_size": "928 kB",
+        "row_count": 247,
+        "rows_last_30_days": 237,
+        "rows_last_7_days": 237
+      },
+      "integration_logs": {
+        "total_size": "576 kB",
+        "table_size": "168 kB",
+        "indexes_size": "184 kB",
+        "toast_size": "408 kB"
+      },
+      "visitor_sessions": {
+        "total_size": "416 kB",
+        "table_size": "24 kB",
+        "indexes_size": "272 kB",
+        "toast_size": "392 kB"
+      },
+      "campaigns": {
+        "total_size": "352 kB",
+        "table_size": "24 kB",
+        "indexes_size": "272 kB",
+        "toast_size": "328 kB",
+        "row_count": 5,
+        "active_campaigns": 5
+      },
+      "help_articles": {
+        "total_size": "264 kB",
+        "table_size": "32 kB",
+        "indexes_size": "184 kB"
+      },
+      "templates": {
+        "total_size": "216 kB",
+        "table_size": "88 kB",
+        "indexes_size": "80 kB"
+      },
+      "marketplace_templates": {
+        "total_size": "200 kB",
+        "table_size": "16 kB",
+        "indexes_size": "112 kB",
+        "row_count": 39
+      },
+      "widgets": {
+        "total_size": "152 kB",
+        "table_size": "16 kB",
+        "indexes_size": "96 kB",
+        "row_count": 5,
+        "active_widgets": 5
+      }
+    },
+
+    "database_load": {
+      "transactions_committed": 9477605,
+      "transactions_rolled_back": 484355,
+      "disk_blocks_read": 1210,
+      "buffer_blocks_hit": 6260299344,
+      "rows_returned": 7191969205,
+      "rows_fetched": 3902317626,
+      "rows_inserted": 453103,
+      "rows_updated": 341147,
+      "rows_deleted": 377728,
+      "query_conflicts": 0,
+      "deadlock_count": 1
+    },
+
+    "table_activity": {
+      "widgets": {
+        "seq_scan": 697342,
+        "seq_tup_read": 3100782,
+        "idx_scan": 2378539,
+        "idx_tup_fetch": 2346208,
+        "n_tup_ins": 87,
+        "n_tup_upd": 55,
+        "n_tup_del": 82,
+        "n_live_tup": 5,
+        "n_dead_tup": 2,
+        "note": "HIGH SEQUENTIAL SCANS - Needs optimization"
+      },
+      "websites": {
+        "seq_scan": 139755,
+        "seq_tup_read": 705930,
+        "idx_scan": 7468,
+        "idx_tup_fetch": 20693,
+        "n_live_tup": 4,
+        "note": "HIGH SEQUENTIAL SCANS - Needs optimization"
+      },
+      "profiles": {
+        "seq_scan": 45693,
+        "seq_tup_read": 207994,
+        "idx_scan": 2069756,
+        "idx_tup_fetch": 2069795,
+        "n_live_tup": 12
+      },
+      "campaigns": {
+        "seq_scan": 44763,
+        "seq_tup_read": 167066,
+        "idx_scan": 24405,
+        "idx_tup_fetch": 23523,
+        "n_live_tup": 5
+      },
+      "visitor_sessions": {
+        "seq_scan": 25021,
+        "seq_tup_read": 514575,
+        "idx_scan": 1699332,
+        "idx_tup_fetch": 10192030,
+        "n_tup_ins": 25099,
+        "n_tup_upd": 308395,
+        "n_live_tup": 43,
+        "note": "High update activity - consider partitioning"
+      },
+      "events": {
+        "seq_scan": 3503,
+        "seq_tup_read": 631050,
+        "idx_scan": 39559,
+        "idx_tup_fetch": 2687586,
+        "n_tup_ins": 4215,
+        "n_tup_upd": 654,
+        "n_tup_del": 3990,
+        "n_live_tup": 247,
+        "n_dead_tup": 4
+      }
+    },
+
+    "events_breakdown": {
+      "by_source_and_status": {
+        "manual_approved": {
+          "count": 237,
+          "last_30_days": 237,
+          "last_7_days": 237
+        },
+        "woocommerce_pending": {
+          "count": 10,
+          "last_30_days": 0,
+          "last_7_days": 0
+        }
+      }
+    },
+
+    "performance_issues": [
+      {
+        "issue": "High sequential scans on widgets table",
+        "severity": "HIGH",
+        "impact": "697,342 sequential scans reading 3.1M tuples",
+        "recommendation": "Add indexes for frequently queried columns (status, user_id)"
+      },
+      {
+        "issue": "High sequential scans on websites table",
+        "severity": "HIGH",
+        "impact": "139,755 sequential scans reading 705K tuples",
+        "recommendation": "Add composite indexes on (user_id, domain), (user_id, status)"
+      },
+      {
+        "issue": "High update activity on visitor_sessions",
+        "severity": "MEDIUM",
+        "impact": "308,395 updates, potential bloat",
+        "recommendation": "Consider partitioning by date, implement archival strategy"
+      }
+    ]
+  },
+
+  "2_storage_usage": {
+    "total_storage_used": "63 MB",
+    "buckets": {
+      "testimonials": {
+        "is_public": true,
+        "object_count": 31,
+        "total_size": "63 MB",
+        "created_at": "2025-11-20T01:51:25.474028Z"
+      }
+    },
+    
+    "largest_files": [
+      {
+        "name": "614a6ffd-bfef-4557-8347-7e74f3a7db8c/videos/1763861870826-2zr5u6.webm",
+        "size": "3723 kB",
+        "type": "video/webm",
+        "bucket": "testimonials"
+      },
+      {
+        "name": "614a6ffd-bfef-4557-8347-7e74f3a7db8c/videos/1763861892165-8empuq.webm",
+        "size": "3723 kB",
+        "type": "video/webm",
+        "bucket": "testimonials"
+      },
+      {
+        "name": "614a6ffd-bfef-4557-8347-7e74f3a7db8c/videos/1763863565620-viy0p.webm",
+        "size": "3625 kB",
+        "type": "video/webm",
+        "bucket": "testimonials"
+      }
+    ],
+
+    "file_type_distribution": {
+      "video_webm": {
+        "count": 15,
+        "total_size_estimate": "~40 MB"
+      },
+      "image_png": {
+        "count": 16,
+        "total_size_estimate": "~23 MB"
+      }
+    },
+
+    "storage_recommendations": [
+      {
+        "recommendation": "Enable CDN for public testimonials bucket",
+        "impact": "Reduce bandwidth costs by 60-80%"
+      },
+      {
+        "recommendation": "Implement video compression pipeline",
+        "impact": "Current videos average 2.5MB, could be reduced to ~1MB with compression"
+      },
+      {
+        "recommendation": "Add lifecycle policy to archive old testimonial media",
+        "impact": "Reduce storage costs for rarely accessed content"
+      }
+    ]
+  },
+
+  "3_auth_usage": {
+    "total_users": 12,
+    "confirmed_users": 12,
+    "email_confirmed_users": 12,
+    "users_last_30_days": 9,
+    "users_last_7_days": 0,
+    "active_users_30_days": 10,
+    "active_users_7_days": 2,
+    "first_user_created": "2025-08-12T12:12:02.766463Z",
+    "last_user_created": "2025-11-11T19:40:40.845715Z",
+    
+    "subscription_distribution": {
+      "starter_trialing": 4
+    },
+
+    "monthly_active_users": {
+      "current": 10,
+      "trend": "stable",
+      "churn_estimate": "16% (2 inactive in last 7 days)"
+    }
+  },
+
+  "4_edge_functions_usage": {
+    "note": "Detailed metrics require Supabase Dashboard access or Management API",
+    
+    "observed_functions": {
+      "widget-api": {
+        "status": "active",
+        "recent_invocations": "~80 invocations/hour (based on logs)",
+        "avg_boot_time": "30-40ms",
+        "cold_starts": "frequent (15 sec timeout)",
+        "errors": "none observed in recent logs",
+        "primary_operations": [
+          "visitor geolocation detection",
+          "notification serving",
+          "testimonial fetching"
+        ]
+      },
+      "process-announcements": {
+        "status": "active",
+        "schedule": "cron-based (every 5 minutes)",
+        "avg_boot_time": "328ms",
+        "recent_activity": "Processing 5 campaigns, 0 new announcements created",
+        "optimization_needed": "Yes - checking already-created instant announcements repeatedly"
+      },
+      "ga4-realtime": {
+        "status": "active",
+        "errors": "Token refresh failures",
+        "recommendation": "Check OAuth token expiration"
+      },
+      "poll-ga4-campaigns": {
+        "status": "active",
+        "recent_activity": "0 campaigns due for polling",
+        "avg_boot_time": "477-694ms"
+      }
+    },
+
+    "estimated_monthly_invocations": {
+      "widget-api": "~57,600 invocations/month (24 per hour * 2400 hours)",
+      "process-announcements": "~8,640 invocations/month (12 per hour * 720 hours)",
+      "total_estimate": "~70,000 invocations/month"
+    },
+
+    "function_recommendations": [
+      {
+        "function": "widget-api",
+        "issue": "High cold start frequency",
+        "recommendation": "Consider keeping function warm with periodic pings or upgrading to reserved compute"
+      },
+      {
+        "function": "process-announcements",
+        "issue": "Redundant checks for instant announcements",
+        "recommendation": "Cache announcement creation status or optimize query to avoid repeated checks"
+      },
+      {
+        "function": "ga4-realtime",
+        "issue": "Token refresh failures",
+        "recommendation": "Implement proper OAuth token refresh flow with refresh tokens"
+      }
+    ]
+  },
+
+  "5_api_bandwidth": {
+    "note": "Detailed bandwidth metrics require Supabase Dashboard or CDN logs",
+    
+    "estimates": {
+      "widget_js_bandwidth": {
+        "file_size": "~50KB (estimated)",
+        "monthly_requests_estimate": "~50,000",
+        "monthly_bandwidth_estimate": "~2.5 GB"
+      },
+      "storage_egress": {
+        "testimonial_videos": "~40 MB total storage",
+        "views_per_video_estimate": "10-50 views/video",
+        "monthly_egress_estimate": "~2-10 GB"
+      },
+      "api_requests": {
+        "database_reads": "3.9B rows fetched (lifetime)",
+        "database_writes": "453K rows inserted (lifetime)",
+        "recent_activity": "moderate, ~237 events in last 30 days"
+      }
+    }
+  },
+
+  "6_supabase_limits_status": {
+    "free_tier_limits": {
+      "database_size": {
+        "limit": "500 MB",
+        "current": "85 MB",
+        "usage_percent": "17%",
+        "status": "HEALTHY"
+      },
+      "storage": {
+        "limit": "1 GB",
+        "current": "63 MB",
+        "usage_percent": "6%",
+        "status": "HEALTHY"
+      },
+      "bandwidth": {
+        "limit": "5 GB/month",
+        "estimated_current": "5-15 GB/month",
+        "status": "MONITOR - May exceed on video-heavy usage"
+      },
+      "monthly_active_users": {
+        "limit": "Unlimited (auth usage metered separately)",
+        "current": 10,
+        "status": "HEALTHY"
+      },
+      "edge_function_invocations": {
+        "limit": "500K/month (Free), 2M/month (Pro)",
+        "estimated_current": "70K/month",
+        "status": "HEALTHY"
+      }
+    },
+
+    "pro_tier_limits": {
+      "database_size": {
+        "limit": "8 GB included, $0.125/GB beyond",
+        "current": "85 MB",
+        "status": "HEALTHY"
+      },
+      "storage": {
+        "limit": "100 GB included, $0.021/GB beyond",
+        "current": "63 MB",
+        "status": "HEALTHY"
+      },
+      "bandwidth": {
+        "limit": "50 GB included, $0.09/GB beyond",
+        "projected": "~15-30 GB/month at current scale",
+        "status": "WITHIN LIMITS"
+      }
+    },
+
+    "warnings": [
+      {
+        "resource": "Bandwidth",
+        "severity": "WATCH",
+        "message": "Testimonial videos can consume significant bandwidth. Monitor usage if video views increase."
+      },
+      {
+        "resource": "Sequential Scans",
+        "severity": "WARNING",
+        "message": "High sequential scans on widgets and websites tables will impact performance at scale."
+      }
+    ]
+  },
+
+  "7_cost_projection": {
+    "current_tier": "Free Tier (assumed)",
+    
+    "pro_plan_estimate": {
+      "base_cost": "$25/month",
+      "database_addon": "$0 (within 8GB limit)",
+      "storage_addon": "$0 (within 100GB limit)",
+      "bandwidth_addon": "$0-2/month (within 50GB limit)",
+      "estimated_total": "$25-27/month"
+    },
+
+    "at_2x_scale": {
+      "users": 24,
+      "events": "494/month",
+      "storage": "126 MB",
+      "bandwidth": "30-60 GB/month",
+      "estimated_cost": "$25-29/month (Pro plan)"
+    },
+
+    "at_5x_scale": {
+      "users": 60,
+      "events": "1,235/month",
+      "storage": "315 MB",
+      "bandwidth": "75-150 GB/month",
+      "estimated_cost": "$25-36/month (Pro plan)",
+      "bandwidth_addon": "$2-9/month (50GB + 25-100GB overage)"
+    },
+
+    "at_10x_scale": {
+      "users": 120,
+      "events": "2,470/month",
+      "storage": "630 MB",
+      "bandwidth": "150-300 GB/month",
+      "estimated_cost": "$34-48/month (Pro plan)",
+      "bandwidth_addon": "$9-23/month (100-250GB overage)",
+      "recommendations": [
+        "Enable CDN for storage (can reduce bandwidth costs by 60%)",
+        "Implement video compression (reduce storage and bandwidth by 50%)",
+        "Archive old events and visitor sessions"
+      ]
+    },
+
+    "expensive_features": [
+      {
+        "feature": "Testimonial Videos",
+        "cost_driver": "Storage + Bandwidth",
+        "current_impact": "~63MB storage, ~5-10GB bandwidth/month",
+        "scaling_impact": "HIGH - grows linearly with testimonial count"
+      },
+      {
+        "feature": "Visitor Sessions Tracking",
+        "cost_driver": "Database write operations",
+        "current_impact": "308K updates, moderate",
+        "scaling_impact": "MEDIUM - requires partitioning strategy"
+      },
+      {
+        "feature": "Widget API (Edge Function)",
+        "cost_driver": "Function invocations",
+        "current_impact": "~70K invocations/month",
+        "scaling_impact": "LOW - well within limits even at 10x"
+      }
+    ]
+  },
+
+  "8_optimization_priorities": [
+    {
+      "priority": 1,
+      "action": "Add indexes to widgets table",
+      "impact": "Eliminate 697K sequential scans, improve query performance by 10-100x",
+      "effort": "LOW",
+      "sql": "CREATE INDEX idx_widgets_user_id ON widgets(user_id); CREATE INDEX idx_widgets_status ON widgets(status);"
+    },
+    {
+      "priority": 2,
+      "action": "Add indexes to websites table",
+      "impact": "Eliminate 139K sequential scans, improve auth checks",
+      "effort": "LOW",
+      "sql": "CREATE INDEX idx_websites_user_domain ON websites(user_id, domain); CREATE INDEX idx_websites_status ON websites(user_id, status);"
+    },
+    {
+      "priority": 3,
+      "action": "Enable CDN for testimonials bucket",
+      "impact": "Reduce bandwidth costs by 60-80%, improve global latency",
+      "effort": "MEDIUM",
+      "steps": "Enable Supabase CDN or configure Cloudflare"
+    },
+    {
+      "priority": 4,
+      "action": "Implement video compression pipeline",
+      "impact": "Reduce storage and bandwidth by 50%",
+      "effort": "HIGH",
+      "implementation": "Add edge function to compress videos on upload, or use client-side compression"
+    },
+    {
+      "priority": 5,
+      "action": "Optimize process-announcements function",
+      "impact": "Reduce redundant database queries, improve function efficiency",
+      "effort": "MEDIUM",
+      "recommendation": "Cache instant announcement creation status or adjust query logic"
+    },
+    {
+      "priority": 6,
+      "action": "Implement visitor_sessions archival",
+      "impact": "Reduce database size growth, improve query performance",
+      "effort": "HIGH",
+      "implementation": "Partition by month, archive sessions older than 90 days"
+    },
+    {
+      "priority": 7,
+      "action": "Fix GA4 OAuth token refresh",
+      "impact": "Eliminate recurring auth errors",
+      "effort": "MEDIUM",
+      "recommendation": "Implement proper refresh token flow with expiry handling"
+    }
+  ],
+
+  "9_scaling_strategy": {
+    "immediate_actions": [
+      "Add database indexes (Priority 1-2)",
+      "Monitor bandwidth usage closely",
+      "Set up alerting for approaching limits"
+    ],
+    
+    "short_term": [
+      "Enable CDN for storage",
+      "Optimize edge functions",
+      "Implement basic archival for old data"
+    ],
+    
+    "medium_term": [
+      "Implement video compression",
+      "Add database partitioning for high-volume tables",
+      "Consider read replicas if needed"
+    ],
+    
+    "scale_triggers": {
+      "upgrade_to_pro": "When approaching 500 edge function invocations OR bandwidth exceeds 5GB/month OR need >500MB database",
+      "consider_team_plan": "When >100 MAU OR bandwidth >200GB/month OR database >50GB",
+      "architecture_review": "When >1000 MAU OR >10M events/month"
+    }
+  },
+
+  "10_summary": {
+    "overall_health": "HEALTHY",
+    "immediate_concerns": [
+      "High sequential scans on widgets and websites tables",
+      "GA4 OAuth token refresh failures"
+    ],
+    "capacity_status": "EXCELLENT - Well within all limits",
+    "scaling_runway": "Can scale 5-10x on current infrastructure with optimizations",
+    "recommended_tier": "Pro Plan ($25/month) for production workloads",
+    "estimated_monthly_cost_at_current_scale": "$25-27/month (Pro Plan)"
+  }
+}

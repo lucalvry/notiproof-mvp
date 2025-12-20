@@ -57,18 +57,6 @@ verify_jwt = false
 [functions.ga4-realtime]
 verify_jwt = false
 
-[functions.webhook-paypal]
-verify_jwt = false
-
-[functions.webhook-wordpress]
-verify_jwt = false
-
-[functions.webhook-webflow]
-verify_jwt = false
-
-[functions.webhook-jotform]
-verify_jwt = false
-
 [functions.send-confirmation-email]
 verify_jwt = false
 
@@ -93,67 +81,11 @@ verify_jwt = true
 [functions.oauth-shopify]
 verify_jwt = false
 
-[functions.oauth-hubspot]
-verify_jwt = false
-
-[functions.webhook-ghost]
-verify_jwt = false
-
-[functions.webhook-gumroad]
-verify_jwt = false
-
-[functions.webhook-thinkific]
-verify_jwt = false
-
-[functions.webhook-plaid]
-verify_jwt = false
-
-[functions.webhook-segment]
-verify_jwt = false
-
-[functions.webhook-razorpay]
-verify_jwt = false
-
-[functions.webhook-flutterwave]
-verify_jwt = false
-
-[functions.webhook-mixpanel]
-verify_jwt = false
-
-[functions.webhook-circle]
-verify_jwt = false
-
-[functions.webhook-learndash]
-verify_jwt = false
-
-[functions.webhook-beehiiv]
-verify_jwt = false
-
-[functions.webhook-convertkit]
-verify_jwt = false
-
-[functions.webhook-framer]
-verify_jwt = false
-
-[functions.oauth-twitter]
-verify_jwt = false
 
 [functions.oauth-google-reviews]
 verify_jwt = false
 
-[functions.oauth-intercom]
-verify_jwt = false
-
 [functions.oauth-mailchimp]
-verify_jwt = false
-
-[functions.oauth-spotify]
-verify_jwt = false
-
-[functions.oauth-salesforce]
-verify_jwt = false
-
-[functions.oauth-soundcloud]
 verify_jwt = false
 
 [functions.oauth-instagram]
@@ -208,4 +140,22 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.record-impact-conversion]
+verify_jwt = false
+
+[functions.sync-woocommerce-products]
+verify_jwt = true
+
+[functions.sync-shopify-products]
+verify_jwt = true
+
+[functions.webhook-woocommerce]
+verify_jwt = false
+
+[functions.import-woocommerce-orders]
+verify_jwt = true
+
+[functions.create-ltd-checkout]
+verify_jwt = false
+
+[functions.verify-ltd-session]
 verify_jwt = false

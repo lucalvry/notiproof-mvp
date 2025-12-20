@@ -34,7 +34,8 @@ export type BlockReason =
   | 'no_subscription' 
   | 'trial_expired' 
   | 'payment_failed' 
-  | 'subscription_cancelled';
+  | 'subscription_cancelled'
+  | 'lifetime';
 
 export const useSubscription = (userId: string | undefined) => {
   const { isSuperAdmin } = useSuperAdmin(userId);
@@ -121,10 +122,12 @@ export const useSubscription = (userId: string | undefined) => {
   // Check subscription status
   const isPaymentFailed = status === 'past_due';
   const isCancelled = status === 'cancelled';
+  const isLifetime = status === 'lifetime';
   const isExpired = isTrialExpired || isCancelled;
   
   // User is blocked if no subscription, expired, or payment failed
-  const isBlocked = hasNoSubscription || isExpired || isPaymentFailed;
+  // Lifetime users are NEVER blocked
+  const isBlocked = !isLifetime && (hasNoSubscription || isExpired || isPaymentFailed);
   
   // Determine block reason
   let blockReason: BlockReason | null = null;
@@ -184,6 +187,7 @@ export const useSubscription = (userId: string | undefined) => {
   const isProPlan = planName === "Pro";
   const isStandard = planName === "Standard";
   const isStarter = planName === "Starter";
+  const isLTD = planName === "LTD";
   
   // Trial information
   const isTrialing = status === 'trialing';
@@ -201,6 +205,8 @@ export const useSubscription = (userId: string | undefined) => {
     isProPlan,
     isStandard,
     isStarter,
+    isLTD,
+    isLifetime,
     isFree: false, // No more free plan
     // Global features (ALL PLANS get these - no limits!)
     maxIntegrations: 999,  // All 38+ integrations for all plans

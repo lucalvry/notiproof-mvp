@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -20,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CreditCard } from "lucide-react";
+import { CreditCard, Infinity } from "lucide-react";
 
 interface Plan {
   id: string;
@@ -48,6 +49,7 @@ export function AssignPlanDialog({
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [durationDays, setDurationDays] = useState(30);
+  const [isLifetime, setIsLifetime] = useState(false);
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -77,7 +79,15 @@ export function AssignPlanDialog({
   };
 
   const selectedPlan = plans.find((p) => p.id === selectedPlanId);
-  const endDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+  const isLtdPlan = selectedPlan?.name?.toLowerCase() === "ltd";
+  const endDate = isLifetime ? null : new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+
+  // Auto-check lifetime when LTD plan is selected
+  useEffect(() => {
+    if (isLtdPlan) {
+      setIsLifetime(true);
+    }
+  }, [isLtdPlan]);
 
   const handleAssignPlan = async () => {
     if (!selectedPlanId) {
@@ -85,7 +95,7 @@ export function AssignPlanDialog({
       return;
     }
 
-    if (durationDays <= 0) {
+    if (!isLifetime && durationDays <= 0) {
       toast.error("Duration must be greater than 0");
       return;
     }
@@ -97,7 +107,8 @@ export function AssignPlanDialog({
           action: "assign-plan",
           userId,
           planId: selectedPlanId,
-          durationDays,
+          durationDays: isLifetime ? null : durationDays,
+          isLifetime,
           reason: reason.trim() || undefined,
         },
       });
@@ -105,13 +116,15 @@ export function AssignPlanDialog({
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast.success(`Assigned ${selectedPlan?.name} plan to ${userName} for ${durationDays} days`);
+      const durationText = isLifetime ? "lifetime access" : `${durationDays} days`;
+      toast.success(`Assigned ${selectedPlan?.name} plan to ${userName} for ${durationText}`);
       onSuccess();
       onOpenChange(false);
       
       // Reset form
       setReason("");
       setDurationDays(30);
+      setIsLifetime(false);
     } catch (error: any) {
       console.error("Error assigning plan:", error);
       toast.error(error.message || "Failed to assign plan");
@@ -150,27 +163,45 @@ export function AssignPlanDialog({
                 {plans.map((plan) => (
                   <SelectItem key={plan.id} value={plan.id}>
                     {plan.name} {plan.price_monthly ? `($${plan.price_monthly}/mo)` : "(Free)"}
+                    {plan.name.toLowerCase() === "ltd" && " 🎫"}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="duration">Duration (days)</Label>
-            <Input
-              id="duration"
-              type="number"
-              min={1}
-              max={365}
-              value={durationDays}
-              onChange={(e) => setDurationDays(parseInt(e.target.value) || 0)}
-              placeholder="Enter number of days"
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="lifetime" 
+              checked={isLifetime}
+              onCheckedChange={(checked) => setIsLifetime(checked === true)}
             />
-            <p className="text-xs text-muted-foreground">
-              Common: 30 (1 month), 90 (3 months), 365 (1 year)
-            </p>
+            <Label 
+              htmlFor="lifetime" 
+              className="flex items-center gap-2 cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              <Infinity className="h-4 w-4" />
+              Lifetime Access (no expiry)
+            </Label>
           </div>
+
+          {!isLifetime && (
+            <div className="space-y-2">
+              <Label htmlFor="duration">Duration (days)</Label>
+              <Input
+                id="duration"
+                type="number"
+                min={1}
+                max={365}
+                value={durationDays}
+                onChange={(e) => setDurationDays(parseInt(e.target.value) || 0)}
+                placeholder="Enter number of days"
+              />
+              <p className="text-xs text-muted-foreground">
+                Common: 30 (1 month), 90 (3 months), 365 (1 year)
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="reason">Reason (optional)</Label>
@@ -178,7 +209,7 @@ export function AssignPlanDialog({
               id="reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g., Promotional offer, Customer support case #123"
+              placeholder="e.g., LTD Purchase, Promotional offer, Customer support case #123"
               rows={2}
             />
           </div>
@@ -186,17 +217,26 @@ export function AssignPlanDialog({
           <div className="rounded-lg bg-muted p-3 space-y-1">
             <p className="text-sm">
               Plan: <strong className="text-primary">{selectedPlan?.name || "None selected"}</strong>
+              {isLtdPlan && <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">LTD</span>}
             </p>
             <p className="text-sm">
-              Expires:{" "}
-              <strong className="text-primary">
-                {endDate.toLocaleDateString("en-US", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </strong>
+              {isLifetime ? (
+                <span className="flex items-center gap-1">
+                  Duration: <strong className="text-primary flex items-center gap-1"><Infinity className="h-4 w-4" /> Lifetime</strong>
+                </span>
+              ) : (
+                <>
+                  Expires:{" "}
+                  <strong className="text-primary">
+                    {endDate?.toLocaleDateString("en-US", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </strong>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -205,7 +245,7 @@ export function AssignPlanDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleAssignPlan} disabled={loading || !selectedPlanId || durationDays <= 0}>
+          <Button onClick={handleAssignPlan} disabled={loading || !selectedPlanId || (!isLifetime && durationDays <= 0)}>
             {loading ? "Assigning..." : "Assign Plan"}
           </Button>
         </DialogFooter>

@@ -24,6 +24,8 @@ import { formatDistanceToNow } from "date-fns";
 import { AnnouncementConfig } from "@/components/campaigns/native/AnnouncementConfig";
 import { FormCaptureEditor } from "@/components/campaigns/FormCaptureEditor";
 import { TestimonialCampaignEditor } from "@/components/campaigns/TestimonialCampaignEditor";
+import { VisitorsPulseCampaignEditor } from "@/components/campaigns/VisitorsPulseCampaignEditor";
+import { WooCommerceCampaignEditor } from "@/components/campaigns/WooCommerceCampaignEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function CampaignDetails() {
@@ -47,6 +49,8 @@ export default function CampaignDetails() {
   const isAnnouncementCampaign = dataSources.some((ds: any) => ds.provider === 'announcements');
   const isFormCaptureCampaign = dataSources.some((ds: any) => ds.provider === 'form_hook');
   const isTestimonialCampaign = dataSources.some((ds: any) => ds.provider === 'testimonials');
+  const isVisitorsPulseCampaign = dataSources.some((ds: any) => ds.provider === 'live_visitors');
+  const isWooCommerceCampaign = dataSources.some((ds: any) => ds.provider === 'woocommerce');
   const [settingsForm, setSettingsForm] = useState({
     name: "",
     status: "draft",
@@ -61,9 +65,15 @@ export default function CampaignDetails() {
 
   useEffect(() => {
     fetchCampaign();
-    fetchEvents();
     fetchPreviewData();
   }, [id]);
+
+  // Fetch events after campaign is loaded (needed for data_sources check)
+  useEffect(() => {
+    if (campaign) {
+      fetchEvents();
+    }
+  }, [campaign?.id]);
 
   // Simple Mustache-style template renderer
   const renderTemplate = (template: string, data: Record<string, any>): string => {
@@ -196,6 +206,38 @@ export default function CampaignDetails() {
 
   const fetchEvents = async () => {
     try {
+      // For Visitors Pulse, fetch from campaign_stats
+      const dataSources = Array.isArray(campaign?.data_sources) ? campaign.data_sources : [];
+      const isLiveVisitors = dataSources.some((ds: any) => ds.provider === 'live_visitors');
+      
+      if (isLiveVisitors) {
+        // Fetch campaign_stats for Visitors Pulse
+        const { data: statsData, error: statsError } = await supabase
+          .from("campaign_stats")
+          .select("*")
+          .eq("campaign_id", id)
+          .order("date", { ascending: false })
+          .limit(50);
+        
+        if (statsError) throw statsError;
+        
+        // Transform campaign_stats to event-like format for display
+        const statsAsEvents = (statsData || []).map((stat: any) => ({
+          id: stat.id,
+          created_at: stat.date,
+          source: 'live_visitors',
+          status: 'approved',
+          event_type: 'notification_display',
+          views: stat.views || 0,
+          clicks: stat.clicks || 0,
+          event_data: { date: stat.date },
+        }));
+        
+        setEvents(statsAsEvents);
+        return;
+      }
+      
+      // For other campaign types, fetch from events table
       const { data: widgetData } = await supabase
         .from("widgets")
         .select("id")
@@ -957,6 +999,28 @@ export default function CampaignDetails() {
                   
                   if (error) throw error;
                   
+                  // Also update widget style_config with content_alignment
+                  if (widgets.length > 0) {
+                    for (const widget of widgets) {
+                      const { data: widgetData } = await supabase
+                        .from('widgets')
+                        .select('style_config')
+                        .eq('id', widget.id)
+                        .single();
+                      
+                      const existingConfig = (widgetData?.style_config as Record<string, unknown>) || {};
+                      await supabase
+                        .from('widgets')
+                        .update({
+                          style_config: {
+                            ...existingConfig,
+                            contentAlignment: editingConfig?.content_alignment || 'top',
+                          },
+                        })
+                        .eq('id', widget.id);
+                    }
+                  }
+                  
                   toast.success('Announcement updated successfully');
                   setEditMode(false);
                   setEditingConfig(null);
@@ -992,6 +1056,31 @@ export default function CampaignDetails() {
             fetchCampaign();
           }}
           integrationSettings={campaign.integration_settings || campaign.native_config || {}}
+        />
+      ) : isVisitorsPulseCampaign ? (
+        <VisitorsPulseCampaignEditor
+          campaignId={id!}
+          websiteId={campaign.website_id}
+          open={editMode}
+          onClose={() => setEditMode(false)}
+          onSave={() => {
+            setEditMode(false);
+            fetchCampaign();
+          }}
+          integrationSettings={campaign.integration_settings || campaign.native_config || {}}
+        />
+      ) : isWooCommerceCampaign ? (
+        <WooCommerceCampaignEditor
+          campaignId={id!}
+          websiteId={campaign.website_id}
+          open={editMode}
+          onClose={() => setEditMode(false)}
+          onSave={() => {
+            setEditMode(false);
+            fetchCampaign();
+          }}
+          integrationSettings={campaign.integration_settings || campaign.display_rules || {}}
+          templateId={campaign.template_id}
         />
       ) : (
         <CampaignEditor

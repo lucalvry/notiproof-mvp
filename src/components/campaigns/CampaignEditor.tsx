@@ -4,11 +4,13 @@ import { CampaignTypeSelector } from "./CampaignTypeSelector";
 import { DesignEditor } from "./DesignEditor";
 import { RulesTargeting } from "./RulesTargeting";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, RotateCcw, Palette, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { fetchIntegrationDesignDefaults, DesignDefaults } from "@/hooks/useIntegrationDesignDefaults";
 
 interface CampaignEditorProps {
   campaignId: string;
@@ -28,6 +30,9 @@ export function CampaignEditor({ campaignId, open, onClose, onSave }: CampaignEd
     settings: {},
     rules: {},
   });
+  const [integrationDefaults, setIntegrationDefaults] = useState<DesignDefaults | null>(null);
+  const [integrationName, setIntegrationName] = useState<string>("");
+  const [isUsingDefaults, setIsUsingDefaults] = useState(false);
 
   useEffect(() => {
     if (open && campaignId) {
@@ -67,11 +72,54 @@ export function CampaignEditor({ campaignId, open, onClose, onSave }: CampaignEd
           endDate: data.end_date,
         },
       });
+
+      // Fetch integration defaults if data_sources has an integration
+      await loadIntegrationDefaults(dataSources, displayRules);
     } catch (error) {
       console.error("Error loading campaign:", error);
       toast.error("Failed to load campaign");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadIntegrationDefaults = async (dataSources: any[], currentSettings: any) => {
+    if (!dataSources || dataSources.length === 0) return;
+
+    const source = dataSources[0];
+    const integrationId = source?.integration_id;
+    
+    if (!integrationId) return;
+
+    // Determine integration type and fetch defaults
+    const integrationType = source?.provider === 'testimonials' || source?.provider === 'announcements' 
+      ? 'native' 
+      : 'connector';
+
+    const defaults = await fetchIntegrationDesignDefaults(integrationId, integrationType);
+    
+    if (defaults) {
+      setIntegrationDefaults(defaults);
+      setIntegrationName(source?.provider || 'Integration');
+      
+      // Check if current settings match defaults
+      const isMatch = compareDesignSettings(currentSettings, defaults);
+      setIsUsingDefaults(isMatch);
+    }
+  };
+
+  const compareDesignSettings = (current: any, defaults: DesignDefaults): boolean => {
+    if (!current || !defaults) return false;
+    
+    const keysToCompare = ['backgroundColor', 'textColor', 'accentColor', 'borderRadius', 'shadow', 'position', 'animation'];
+    return keysToCompare.every(key => current[key] === defaults[key]);
+  };
+
+  const resetToIntegrationDefaults = () => {
+    if (integrationDefaults) {
+      updateCampaignData({ settings: { ...campaignData.settings, ...integrationDefaults } });
+      setIsUsingDefaults(true);
+      toast.success("Design reset to integration defaults");
     }
   };
 
@@ -172,10 +220,58 @@ export function CampaignEditor({ campaignId, open, onClose, onSave }: CampaignEd
           )}
 
           {step === 2 && (
-            <DesignEditor
-              settings={campaignData.settings}
-              onChange={(settings: any) => updateCampaignData({ settings })}
-            />
+            <div className="space-y-4">
+              {integrationDefaults && (
+                <Alert className={isUsingDefaults ? "border-primary/50 bg-primary/5" : "border-muted"}>
+                  {isUsingDefaults ? (
+                    <>
+                      <Palette className="h-4 w-4" />
+                      <AlertDescription className="flex items-center justify-between">
+                        <span>Using design defaults from <strong className="capitalize">{integrationName}</strong></span>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => setIsUsingDefaults(false)}
+                          className="h-7 text-xs"
+                        >
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Customize
+                        </Button>
+                      </AlertDescription>
+                    </>
+                  ) : (
+                    <>
+                      <Pencil className="h-4 w-4" />
+                      <AlertDescription className="flex items-center justify-between">
+                        <span>Using custom design (differs from <strong className="capitalize">{integrationName}</strong> defaults)</span>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={resetToIntegrationDefaults}
+                          className="h-7 text-xs"
+                        >
+                          <RotateCcw className="h-3 w-3 mr-1" />
+                          Reset to Defaults
+                        </Button>
+                      </AlertDescription>
+                    </>
+                  )}
+                </Alert>
+              )}
+              <DesignEditor
+                settings={campaignData.settings}
+                onChange={(settings: any) => {
+                  updateCampaignData({ settings });
+                  if (integrationDefaults) {
+                    setIsUsingDefaults(compareDesignSettings(settings, integrationDefaults));
+                  }
+                }}
+                campaignType={campaignData.type}
+                dataSource={campaignData.data_sources?.[0]?.provider}
+                integrationPath={campaignData.data_sources?.[0]?.provider}
+                templateName={campaignData.template_mapping?.templateName}
+              />
+            </div>
           )}
 
           {step === 3 && (

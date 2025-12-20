@@ -33,8 +33,22 @@ export class LiveVisitorsAdapter extends BaseAdapter {
         key: 'template.page_name',
         label: 'Page Name',
         type: 'string',
-        description: 'Name of the page being viewed',
-        example: 'this page',
+        description: 'Name of the page being viewed (clickable)',
+        example: 'Products',
+      },
+      {
+        key: 'template.page_url',
+        label: 'Page URL',
+        type: 'string',
+        description: 'Full URL of the page being viewed (for clickable links)',
+        example: '/shop/products',
+      },
+      {
+        key: 'template.page_title',
+        label: 'Page Title',
+        type: 'string',
+        description: 'Browser title of the page being viewed',
+        example: 'Shop - Our Products',
       },
       {
         key: 'template.message',
@@ -52,6 +66,8 @@ export class LiveVisitorsAdapter extends BaseAdapter {
   normalize(rawEvent: any): CanonicalEvent {
     const count = rawEvent.native_config?.visitor_count || 0;
     const page = rawEvent.native_config?.page_name || 'this page';
+    const pageUrl = rawEvent.native_config?.page_url || '';
+    const pageTitle = rawEvent.native_config?.page_title || '';
     const location = rawEvent.native_config?.location;
     
     const message = `${count} ${count === 1 ? 'person is' : 'people are'} viewing ${page}`;
@@ -66,6 +82,8 @@ export class LiveVisitorsAdapter extends BaseAdapter {
         'template.visitor_count': count,
         'template.location': location,
         'template.page_name': page,
+        'template.page_url': pageUrl,
+        'template.page_title': pageTitle,
         'template.message': message,
       },
     };
@@ -85,8 +103,10 @@ export class LiveVisitorsAdapter extends BaseAdapter {
         normalized: {
           'template.visitor_count': 23,
           'template.location': 'United States',
-          'template.page_name': 'this page',
-          'template.message': '23 people are viewing this page',
+          'template.page_name': 'Products',
+          'template.page_url': '/shop/products',
+          'template.page_title': 'Shop - Our Products',
+          'template.message': '23 people are viewing Products',
         },
       },
       {
@@ -98,8 +118,25 @@ export class LiveVisitorsAdapter extends BaseAdapter {
         normalized: {
           'template.visitor_count': 12,
           'template.location': 'Canada',
-          'template.page_name': 'the pricing page',
-          'template.message': '12 people are viewing the pricing page',
+          'template.page_name': 'Pricing',
+          'template.page_url': '/pricing',
+          'template.page_title': 'Pricing Plans',
+          'template.message': '12 people are viewing Pricing',
+        },
+      },
+      {
+        event_id: 'sample-lv-3',
+        provider: this.provider,
+        provider_event_type: 'visitor',
+        timestamp: new Date().toISOString(),
+        payload: {},
+        normalized: {
+          'template.visitor_count': 8,
+          'template.location': 'United Kingdom',
+          'template.page_name': 'Checkout',
+          'template.page_url': '/checkout',
+          'template.page_title': 'Complete Your Order',
+          'template.message': '8 people are checking out now',
         },
       },
     ];

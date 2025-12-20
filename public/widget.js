@@ -1,8 +1,8 @@
 (function() {
   'use strict';
   
-  const WIDGET_VERSION = 11; // Current widget version - PRODUCTION READY
-  const BUILD_TIMESTAMP = '2025-12-13T03:00:00Z'; // Build timestamp for version tracking
+  const WIDGET_VERSION = 14; // Enhanced: form_capture avatar/emoji support, content alignment fix
+  const BUILD_TIMESTAMP = '2025-12-15T14:00:00Z'; // Build timestamp for version tracking
   // Version logging moved to debug mode only
   
   const API_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
@@ -323,6 +323,8 @@
   let displayedCount = 0;
   let sessionCount = 0;
   let isPaused = false;
+  let notificationEngaged = false; // NEW: Track if user is hovering on a notification
+  let activeNotificationTimers = new Map(); // NEW: Track notification timers for pause/resume
   const sessionId = generateSessionId();
   let maxPerPage = 5;
   let maxPerSession = 20;
@@ -382,6 +384,15 @@
     pauseAfterClose: script.getAttribute('data-pause-after-close') === 'true',
     makeClickable: script.getAttribute('data-make-clickable') !== 'false',
     debugMode: script.getAttribute('data-debug-mode') === 'true',
+    
+    // NEW: Enhanced styling options
+    borderColor: script.getAttribute('data-border-color') || 'transparent',
+    borderWidth: parseInt(script.getAttribute('data-border-width') || '0', 10),
+    textAlignment: script.getAttribute('data-text-alignment') || 'left',
+    lineHeight: parseFloat(script.getAttribute('data-line-height') || '1.4'),
+    hoverEffect: script.getAttribute('data-hover-effect') || 'subtle',
+    notificationPadding: parseInt(script.getAttribute('data-padding') || '16', 10),
+    contentAlignment: script.getAttribute('data-content-alignment') || 'top',
     
     // PHASE 4: Product image display settings with version check
     showProductImages: (() => {
@@ -643,6 +654,23 @@
     return imgContainer;
   }
   
+  // Helper function to merge event-specific design settings with global config
+  function getEffectiveConfig(event) {
+    const ds = event.design_settings?.style || event.design_settings || {};
+    return {
+      ...config,
+      backgroundColor: ds.backgroundColor || ds.background_color || config.backgroundColor,
+      textColor: ds.textColor || ds.text_color || config.textColor,
+      borderRadius: ds.borderRadius !== undefined ? ds.borderRadius : (ds.border_radius !== undefined ? ds.border_radius : config.borderRadius),
+      shadow: ds.shadow || config.shadow,
+      borderWidth: ds.borderWidth !== undefined ? ds.borderWidth : (ds.border_width !== undefined ? ds.border_width : config.borderWidth),
+      borderColor: ds.borderColor || ds.border_color || config.borderColor,
+      fontSize: ds.fontSize || ds.font_size || config.fontSize,
+      primaryColor: ds.primaryColor || ds.primary_color || config.primaryColor,
+      animation: ds.animation || config.animation,
+      contentAlignment: ds.contentAlignment || ds.content_alignment || config.contentAlignment || 'top',
+    };
+  }
   
   function showNotification(event) {
     log('showNotification called for:', event.event_type, event.id);
@@ -700,23 +728,59 @@
     
     const container = document.getElementById('notiproof-container') || createNotificationElement();
     const isMobile = window.innerWidth <= 768;
-    const notification = document.createElement('div');
+    // FIXED DIMENSIONS: 420x144 desktop, 384x144 mobile
+    const notificationWidth = isMobile ? 384 : 420;
+    const notificationHeight = 144;
+    const padding = config.notificationPadding || 16;
     
-    // Apply configured styles
+    // FIXED: Get effective config by merging event-specific design settings with global config
+    const effectiveConfig = event.design_settings ? getEffectiveConfig(event) : config;
+    if (event.design_settings && debugMode) {
+      log('Applying event-specific design settings:', event.design_settings);
+    }
+    
+    // ANNOUNCEMENT-SPECIFIC: Override content alignment from event_data if present
+    if (event.event_type === 'announcement' && event.event_data?.content_alignment) {
+      effectiveConfig.contentAlignment = event.event_data.content_alignment;
+      if (debugMode) {
+        log('Announcement content alignment:', event.event_data.content_alignment);
+      }
+    }
+    
+    // LIVE_VISITORS-SPECIFIC: Override content alignment from event_data if present
+    if ((event.event_type === 'live_visitors' || event.event_type === 'active_visitors') && event.event_data?.content_alignment) {
+      effectiveConfig.contentAlignment = event.event_data.content_alignment;
+      if (debugMode) {
+        log('Live visitors content alignment:', event.event_data.content_alignment);
+      }
+    }
+    
+    // Create the notification element
+    const notification = document.createElement('div');
+    notification.className = 'notiproof-notification';
+    notification.setAttribute('data-notification-id', event.id);
+    
+    // Apply configured styles with fixed dimensions - USE effectiveConfig for design settings
     notification.style.cssText = `
-      background: ${config.backgroundColor};
-      color: ${config.textColor};
-      border-radius: ${config.borderRadius}px;
-      box-shadow: ${getShadowStyle(config.shadow)};
-      padding: ${isMobile ? '12px' : '16px'};
+      background: ${effectiveConfig.backgroundColor};
+      color: ${effectiveConfig.textColor};
+      border-radius: ${effectiveConfig.borderRadius}px;
+      box-shadow: ${getShadowStyle(effectiveConfig.shadow)};
+      padding: ${isMobile ? Math.max(12, padding - 4) : padding}px;
       margin-bottom: 10px;
-      max-width: ${isMobile ? '383px' : '420px'};
-      min-height: 144px;
+      width: ${notificationWidth}px;
+      height: ${notificationHeight}px;
+      max-width: ${notificationWidth}px;
+      box-sizing: border-box;
+      overflow: hidden;
+      border: ${effectiveConfig.borderWidth}px solid ${effectiveConfig.borderColor};
+      text-align: ${config.textAlignment};
+      line-height: ${config.lineHeight};
       cursor: ${config.makeClickable && (config.showCTA || event.event_data?.url) ? 'pointer' : 'default'};
-      transition: ${getAnimationStyles(config.animation)};
+      transition: ${getAnimationStyles(effectiveConfig.animation)}, transform 0.2s ease, box-shadow 0.2s ease;
       opacity: 0;
-      transform: ${config.animation === 'slide' ? 'translateY(20px)' : 'scale(0.95)'};
-      font-size: ${isMobile ? Math.max(12, config.fontSize - 2) : config.fontSize}px;
+      transform: ${effectiveConfig.animation === 'slide' ? 'translateY(20px)' : 'scale(0.95)'};
+      font-size: ${isMobile ? Math.max(12, effectiveConfig.fontSize - 2) : effectiveConfig.fontSize}px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       position: relative;
     `;
@@ -724,8 +788,10 @@
     const time = new Date(event.created_at);
     const timeAgo = getTimeAgo(time);
     
-    // Build notification content
-    let contentHTML = '<div style="display: flex; align-items: start; gap: 12px;">';
+    // Build notification content with dynamic content alignment
+    const contentAlignValue = effectiveConfig.contentAlignment === 'bottom' ? 'flex-end' : 
+                              effectiveConfig.contentAlignment === 'center' ? 'center' : 'flex-start';
+    let contentHTML = `<div style="display: flex; align-items: ${contentAlignValue}; gap: 12px; height: 100%;">`;
     
     // Close button (top right)
     contentHTML += `
@@ -735,6 +801,193 @@
         </svg>
       </div>
     `;
+    
+    // ACTIVE VISITORS / LIVE VISITORS - Media + Text Format with Dynamic Clickable Links
+    // Supports both 'active_visitors' (legacy) and 'live_visitors' (server-generated)
+    if (event.event_type === 'active_visitors' || event.event_type === 'live_visitors') {
+      const data = event.event_data || {};
+      const icon = data.icon || '👥';
+      const templateStyle = data.template_style || 'social_proof';
+      const showLocation = data.show_location !== false;
+      const location = data.location;
+      const visitorCount = data.visitor_count || 0;
+      const pageName = data.page_name || 'this page';
+      const pageUrl = data.page_url || '';
+      
+      // Style-specific icon container
+      let iconStyle = 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);';
+      if (templateStyle === 'urgency') {
+        iconStyle = 'background: linear-gradient(135deg, #f97316 0%, #dc2626 100%);';
+      } else if (templateStyle === 'animated') {
+        iconStyle = 'background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);';
+      } else if (templateStyle === 'checkout') {
+        iconStyle = 'background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);';
+      } else if (templateStyle === 'product') {
+        iconStyle = 'background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);';
+      }
+      
+      contentHTML += `<div style="
+        position: relative;
+        width: 48px; height: 48px; border-radius: 50%;
+        ${iconStyle}
+        display: flex; align-items: center; justify-content: center;
+        font-size: 24px; flex-shrink: 0;
+      ">
+        ${templateStyle === 'animated' ? '<span style="position: absolute; top: -2px; right: -2px; width: 12px; height: 12px; background: #22c55e; border-radius: 50%; border: 2px solid white; animation: pulse 1.5s infinite;"></span>' : ''}
+        ${icon}
+      </div>`;
+      
+      // Add pulse animation style if not already present
+      if (templateStyle === 'animated' && !document.getElementById('notiproof-pulse-style')) {
+        const styleEl = document.createElement('style');
+        styleEl.id = 'notiproof-pulse-style';
+        styleEl.textContent = '@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.1); } }';
+        document.head.appendChild(styleEl);
+      }
+      
+      // Content section with vertical alignment
+      const liveVisitorVerticalAlign = effectiveConfig.contentAlignment === 'center' ? 'center' : 
+                                       effectiveConfig.contentAlignment === 'bottom' ? 'flex-end' : 'flex-start';
+      contentHTML += `<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: ${liveVisitorVerticalAlign};">`;
+      
+      // Build dynamic message with clickable page link
+      let displayMessage = data.rendered_message || event.message_template;
+      
+      if (!displayMessage) {
+        // Build message dynamically with clickable link if page_url is available
+        const personWord = visitorCount === 1 ? 'person is' : 'people are';
+        
+        if (pageUrl) {
+          // Create clickable page link
+          const pageLink = `<a href="${escapeHtml(pageUrl)}" style="color: #667eea; text-decoration: underline; font-weight: 600;" target="_self">${escapeHtml(pageName)}</a>`;
+          
+          if (templateStyle === 'checkout') {
+            displayMessage = `<strong>${visitorCount}</strong> ${personWord} checking out on ${pageLink}`;
+          } else if (templateStyle === 'product') {
+            displayMessage = `<strong>${visitorCount}</strong> customers interested in ${pageLink}`;
+          } else {
+            displayMessage = `<strong>${visitorCount}</strong> ${personWord} viewing ${pageLink}`;
+          }
+        } else {
+          displayMessage = `${visitorCount} ${personWord} viewing ${escapeHtml(pageName)}`;
+        }
+      } else {
+        // If rendered_message contains {{page_name}} and {{page_url}}, replace them with clickable link
+        if (pageUrl && displayMessage.includes('{{page_name}}')) {
+          const pageLink = `<a href="${escapeHtml(pageUrl)}" style="color: #667eea; text-decoration: underline; font-weight: 600;" target="_self">${escapeHtml(pageName)}</a>`;
+          displayMessage = displayMessage.replace(/\{\{page_name\}\}/g, pageLink);
+        } else {
+          displayMessage = displayMessage.replace(/\{\{page_name\}\}/g, escapeHtml(pageName));
+        }
+        displayMessage = displayMessage.replace(/\{\{page_url\}\}/g, escapeHtml(pageUrl));
+        displayMessage = displayMessage.replace(/\{\{count\}\}/g, visitorCount);
+        displayMessage = displayMessage.replace(/\{\{visitor_count\}\}/g, visitorCount);
+        // Note: Individual values are already escaped above - don't escape the whole message
+        // as it contains intentional HTML (links, strong tags, etc.)
+      }
+      
+      contentHTML += `<div style="font-weight: 600; margin-bottom: 4px; line-height: 1.4;">
+        ${displayMessage}
+      </div>`;
+      
+      // Optional sub-text for urgency styles
+      if (templateStyle === 'checkout') {
+        contentHTML += `<div style="font-size: 11px; color: #dc2626; font-weight: 500; margin-top: 2px;">Complete your order now!</div>`;
+      } else if (templateStyle === 'product') {
+        contentHTML += `<div style="font-size: 11px; color: #8b5cf6; font-weight: 500; margin-top: 2px;">Don't miss out!</div>`;
+      }
+      
+      // Footer line with location and verification badge on same line
+      const hasLocation = showLocation && location;
+      const showVisitorVerified = event.show_verified || data.show_verified || (data.mode === 'real');
+      
+      if (hasLocation || showVisitorVerified) {
+        contentHTML += `<div style="font-size: 12px; opacity: 0.85; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">`;
+        if (hasLocation) {
+          contentHTML += `<span>📍 ${escapeHtml(location)}</span>`;
+        }
+        if (showVisitorVerified) {
+          if (hasLocation) contentHTML += `<span style="opacity: 0.5;">•</span>`;
+          contentHTML += `<span style="color: #2563eb; font-weight: 500; opacity: 1;">✓ NotiProof Verified</span>`;
+        }
+        contentHTML += '</div>';
+      }
+      
+      contentHTML += '</div></div>';
+      
+      notification.innerHTML = contentHTML;
+      container.appendChild(notification);
+      
+      // Animate in
+      setTimeout(() => {
+        notification.style.opacity = '1';
+        notification.style.transform = 'translateY(0) scale(1)';
+      }, 10);
+      
+      log('Active Visitors notification displayed:', visitorCount);
+      
+      // === HOVER PAUSE FOR ACTIVE VISITORS ===
+      let avAutoHideTimeout = null;
+      let avStartTime = Date.now();
+      let avRemainingTime = config.displayDuration;
+      
+      const avHideNotification = () => {
+        notification.style.opacity = '0';
+        notification.style.transform = config.animation === 'slide' ? 'translateY(20px)' : 'scale(0.95)';
+        setTimeout(() => notification.remove(), 300);
+      };
+      
+      // Hover pause
+      notification.addEventListener('mouseenter', () => {
+        notificationEngaged = true;
+        if (avAutoHideTimeout) {
+          clearTimeout(avAutoHideTimeout);
+          const elapsed = Date.now() - avStartTime;
+          avRemainingTime = Math.max(1000, config.displayDuration - elapsed);
+          log('Active Visitors paused on hover');
+        }
+        storeInteraction(event.id, event.campaign_id, 'hover');
+        trackHover(event.id);
+        
+        // Apply hover effect
+        const hoverEffect = config.hoverEffect || 'subtle';
+        if (hoverEffect === 'subtle') notification.style.transform = 'scale(1.02)';
+        else if (hoverEffect === 'lift') {
+          notification.style.transform = 'translateY(-4px)';
+          notification.style.boxShadow = getShadowStyle('xl');
+        } else if (hoverEffect === 'glow') {
+          notification.style.boxShadow = `0 0 20px ${config.primaryColor}40`;
+        }
+      });
+      
+      notification.addEventListener('mouseleave', () => {
+        notificationEngaged = false;
+        avAutoHideTimeout = setTimeout(avHideNotification, avRemainingTime);
+        log('Active Visitors resumed');
+        
+        // Remove hover effect
+        notification.style.transform = '';
+        notification.style.boxShadow = getShadowStyle(config.shadow);
+      });
+      
+      // Close button handling
+      const closeBtn = notification.querySelector('[data-close]');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (config.pauseAfterClose) {
+            isPaused = true;
+          }
+          if (avAutoHideTimeout) clearTimeout(avAutoHideTimeout);
+          avHideNotification();
+        });
+      }
+      
+      // Start auto-hide timer
+      avAutoHideTimeout = setTimeout(avHideNotification, config.displayDuration);
+      
+      return; // Exit early for active_visitors
+    }
     
     // ANNOUNCEMENT-SPECIFIC IMAGE HANDLING
     if (event.event_type === 'announcement') {
@@ -784,6 +1037,30 @@
             display: flex; align-items: center; justify-content: center;
             font-size: 28px; flex-shrink: 0;">📢</div>`;
         }
+      }
+    } else if (event.event_type === 'form_capture') {
+      // FORM_CAPTURE-SPECIFIC IMAGE HANDLING
+      const formData = event.event_data || {};
+      const avatar = formData.avatar || '📧';
+      
+      if (debugMode) {
+        log('Form capture avatar data:', { avatar, formData });
+      }
+      
+      // Check if avatar is a URL or emoji
+      if (avatar.startsWith('http') && isValidUrl(avatar)) {
+        contentHTML += `<img src="${escapeHtml(avatar)}" style="
+          width: 48px; height: 48px; border-radius: 50%;
+          object-fit: cover; flex-shrink: 0;
+        " onerror="this.outerHTML='<div style=&quot;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#f0f9ff,#e0f2fe);display:flex;align-items:center;justify-content:center;font-size:28px;&quot;>📧</div>'" />`;
+      } else {
+        // Emoji or icon avatar
+        contentHTML += `<div style="
+          width: 48px; height: 48px; border-radius: 50%;
+          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 28px; flex-shrink: 0;
+        ">${avatar}</div>`;
       }
     } else if (event.event_type === 'testimonial') {
       // TESTIMONIAL-SPECIFIC IMAGE HANDLING
@@ -865,8 +1142,10 @@
       `;
     }
     
-    // Content
-    contentHTML += '<div style="flex: 1; min-width: 0;">';
+    // Content with vertical alignment based on contentAlignment setting
+    const contentVerticalAlign = effectiveConfig.contentAlignment === 'center' ? 'center' : 
+                                 effectiveConfig.contentAlignment === 'bottom' ? 'flex-end' : 'flex-start';
+    contentHTML += `<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: ${contentVerticalAlign};">`;
     
     // JSON parsing already done at function start
     // This duplicate parsing has been moved up
@@ -885,8 +1164,16 @@
         log('Announcement rendering:', event.event_data.title);
       }
       
+      // Get announcement-specific font settings
+      const announcementFontSize = event.event_data.font_size || 14;
+      const announcementFontFamily = event.event_data.font_family === 'serif' 
+        ? 'Georgia, serif' 
+        : event.event_data.font_family === 'mono' 
+          ? 'Menlo, Consolas, monospace' 
+          : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      
       // Render announcement header (bold)
-      contentHTML += `<div style="font-weight: 600; margin-bottom: 4px; line-height: 1.4;">
+      contentHTML += `<div style="font-weight: 600; margin-bottom: 4px; line-height: 1.4; font-size: ${announcementFontSize}px; font-family: ${announcementFontFamily};">
         ${escapeHtml(event.event_data.title)}
       </div>`;
       
@@ -896,7 +1183,7 @@
                         event.event_data.message.trim().length > 0;
       
       if (hasMessage) {
-        contentHTML += `<div style="font-weight: 400; margin-bottom: 4px; line-height: 1.4; opacity: 0.9;">
+        contentHTML += `<div style="font-weight: 400; margin-bottom: 4px; line-height: 1.4; opacity: 0.9; font-size: ${Math.max(12, announcementFontSize - 1)}px; font-family: ${announcementFontFamily};">
           ${escapeHtml(event.event_data.message)}
         </div>`;
       }
@@ -914,6 +1201,8 @@
       const position = data['template.author_position'] || '';
       const company = data['template.author_company'] || '';
       const verified = data['template.verified'] || false;
+      // Check for NotiProof verification badge from queue builder
+      const showNotiProofVerified = event.show_verified || data.show_verified || false;
       
       // Rating stars
       contentHTML += `<div style="color: #f59e0b; font-size: 14px; margin-bottom: 4px;">${rating}</div>`;
@@ -931,8 +1220,21 @@
           ${escapeHtml(position)}${position && company ? ' at ' : ''}${escapeHtml(company)}
         </div>`;
       }
-      if (verified) {
-        contentHTML += `<div style="font-size: 11px; color: #2563eb; margin-top: 2px;">✓ Verified Customer</div>`;
+      // Footer line with verification badges and timestamp on same line
+      const testimonialFooterItems = [];
+      if (verified) testimonialFooterItems.push({ text: '✓ Verified Customer', color: '#2563eb' });
+      if (showNotiProofVerified) testimonialFooterItems.push({ text: '✓ NotiProof Verified', color: '#2563eb' });
+      
+      if (testimonialFooterItems.length > 0 || config.showTimestamp) {
+        contentHTML += `<div style="font-size: 11px; color: #6b7280; display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap;">`;
+        if (config.showTimestamp) {
+          contentHTML += `<span style="opacity: 0.8;">${timeAgo}</span>`;
+        }
+        testimonialFooterItems.forEach((item, i) => {
+          if (i > 0 || config.showTimestamp) contentHTML += `<span style="opacity: 0.5;">•</span>`;
+          contentHTML += `<span style="color: ${item.color}; font-weight: 500;">${item.text}</span>`;
+        });
+        contentHTML += '</div>';
       }
     } else {
       // Regular event - existing logic with product linkification
@@ -942,15 +1244,25 @@
       </div>`;
     }
     
-    // Metadata (time + location) - Skip for announcements with CTA
-    const skipMetadata = event.event_type === 'announcement' && event.event_data?.cta_text && event.event_data?.cta_url;
-    if (!skipMetadata && (config.showTimestamp || (config.showLocation && event.user_location))) {
-      contentHTML += '<div style="font-size: 12px; opacity: 0.7; display: flex; align-items: center; gap: 6px;">';
+    // Metadata (time + location + verification badge) - Skip for announcements with CTA and testimonials (they have their own footer)
+    const skipMetadata = (event.event_type === 'announcement' && event.event_data?.cta_text && event.event_data?.cta_url) || 
+                         event.event_type === 'testimonial';
+    const showEventVerified = event.show_verified || event.event_data?.show_verified;
+    
+    if (!skipMetadata && (config.showTimestamp || (config.showLocation && event.user_location) || showEventVerified)) {
+      contentHTML += '<div style="font-size: 12px; opacity: 0.7; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">';
       if (config.showTimestamp) {
         contentHTML += `<span>${timeAgo}</span>`;
       }
       if (config.showLocation && event.user_location) {
-        contentHTML += `<span>•</span><span>${event.user_location}</span>`;
+        contentHTML += `<span style="opacity: 0.5;">•</span><span>${event.user_location}</span>`;
+      }
+      // Add verification badge on same line as timestamp and location
+      if (showEventVerified) {
+        if (config.showTimestamp || (config.showLocation && event.user_location)) {
+          contentHTML += `<span style="opacity: 0.5;">•</span>`;
+        }
+        contentHTML += `<span style="color: #2563eb; font-weight: 500; opacity: 1;">✓ NotiProof Verified</span>`;
       }
       contentHTML += '</div>';
     }
@@ -974,10 +1286,16 @@
       const ctaText = hasAnnouncementCTA ? event.event_data.cta_text : config.ctaText;
       const ctaUrl = hasAnnouncementCTA ? event.event_data.cta_url : config.ctaUrl;
       
+      // Check for button_stretch setting (announcement-specific)
+      const buttonStretch = hasAnnouncementCTA && event.event_data?.button_stretch === true;
+      const buttonWidth = buttonStretch ? 'width: 100%;' : '';
+      const buttonPadding = buttonStretch ? 'padding: 8px 0;' : 'padding: 6px 12px;';
+      
       contentHTML += `
         <button style="
           margin-top: 8px;
-          padding: 6px 12px;
+          ${buttonPadding}
+          ${buttonWidth}
           background: ${config.primaryColor};
           color: white;
           border: none;
@@ -986,6 +1304,7 @@
           font-weight: 500;
           cursor: pointer;
           transition: opacity 0.2s;
+          text-align: center;
         " onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" 
            data-cta-url="${escapeHtml(ctaUrl)}">
           ${escapeHtml(ctaText)}
@@ -1017,7 +1336,19 @@
     
     log('Notification displayed:', event.event_type, event.id);
     
-    trackView(event.id);
+    // Track view - use campaign stats for live_visitors, event stats for others
+    if (event.event_type === 'live_visitors' || event.event_type === 'active_visitors') {
+      // Check multiple sources for campaign_id (fallback for older data structures)
+      const campaignId = event.campaign_id || event.event_data?.campaign_id || event.event_data?.campaignId;
+      if (campaignId) {
+        trackCampaignView(campaignId);
+        log('Tracked campaign view for Visitors Pulse:', campaignId);
+      } else {
+        log('Warning: No campaign_id found for live_visitors event', event);
+      }
+    } else {
+      trackView(event.id);
+    }
     incrementPageImpressions();
     incrementSessionImpressions();
     
@@ -1026,13 +1357,99 @@
       createBrandingFooter();
     }
     
+    // === HOVER PAUSE & ENGAGEMENT TRACKING ===
+    let autoHideTimeout = null;
+    let startTime = Date.now();
+    let remainingTime = config.displayDuration;
+    let pausedAt = null;
+    const notificationId = event.id || Date.now().toString();
+    
+    // Apply hover effect styles
+    const applyHoverStyles = () => {
+      const hoverEffect = config.hoverEffect || 'subtle';
+      if (hoverEffect === 'none') return;
+      
+      if (hoverEffect === 'subtle') {
+        notification.style.transform = 'scale(1.02)';
+      } else if (hoverEffect === 'lift') {
+        notification.style.transform = 'translateY(-4px)';
+        notification.style.boxShadow = getShadowStyle('xl');
+      } else if (hoverEffect === 'glow') {
+        notification.style.boxShadow = `0 0 20px ${config.primaryColor}40, ${getShadowStyle(config.shadow)}`;
+      } else if (hoverEffect === 'brighten') {
+        notification.style.filter = 'brightness(1.05)';
+      }
+    };
+    
+    const removeHoverStyles = () => {
+      notification.style.transform = '';
+      notification.style.boxShadow = getShadowStyle(config.shadow);
+      notification.style.filter = '';
+    };
+    
+    // Hover pause: pause timer when mouse enters
+    notification.addEventListener('mouseenter', () => {
+      notificationEngaged = true;
+      
+      // Pause auto-hide timer
+      if (autoHideTimeout) {
+        clearTimeout(autoHideTimeout);
+        pausedAt = Date.now();
+        const elapsed = pausedAt - startTime;
+        remainingTime = Math.max(1000, config.displayDuration - elapsed);
+        log('Notification paused on hover, remaining:', remainingTime + 'ms');
+      }
+      
+      // Track hover engagement
+      storeInteraction(event.id, event.campaign_id, 'hover');
+      trackHover(event.id);
+      
+      // Apply hover effect
+      applyHoverStyles();
+    });
+    
+    // Hover resume: resume timer when mouse leaves
+    notification.addEventListener('mouseleave', () => {
+      notificationEngaged = false;
+      pausedAt = null;
+      
+      // Resume auto-hide with remaining time
+      autoHideTimeout = setTimeout(() => {
+        hideNotification();
+      }, remainingTime);
+      
+      log('Notification resumed, remaining:', remainingTime + 'ms');
+      
+      // Remove hover effect
+      removeHoverStyles();
+    });
+    
+    // Function to hide notification with animation
+    const hideNotification = () => {
+      notification.style.opacity = '0';
+      notification.style.transform = config.animation === 'slide' ? 'translateY(20px)' : 'scale(0.95)';
+      setTimeout(() => {
+        notification.remove();
+        activeNotificationTimers.delete(notificationId);
+      }, 300);
+    };
+    
     // Click handling
     notification.addEventListener('click', (e) => {
       if (e.target.closest('[data-close]')) return;
       if (!config.makeClickable) return;
       
       log('Notification clicked', { eventId: event.id });
-      trackClick(event.id);
+      
+      // Track click - use campaign stats for live_visitors, event stats for others
+      if (event.event_type === 'live_visitors' || event.event_type === 'active_visitors') {
+        if (event.campaign_id) {
+          trackCampaignClick(event.campaign_id);
+        }
+      } else {
+        trackClick(event.id);
+      }
+      storeInteraction(event.id, event.campaign_id, 'click');
       
       // Pause if configured
       if (config.pauseAfterClick) {
@@ -1060,9 +1477,9 @@
         window.open(event.event_data.url, '_blank');
       }
       
-      notification.style.opacity = '0';
-      notification.style.transform = config.animation === 'slide' ? 'translateY(20px)' : 'scale(0.95)';
-      setTimeout(() => notification.remove(), 300);
+      // Clear timer and hide
+      if (autoHideTimeout) clearTimeout(autoHideTimeout);
+      hideNotification();
     });
     
     // Close button handling
@@ -1074,18 +1491,43 @@
           isPaused = true;
           log('Notifications paused after close');
         }
-        notification.style.opacity = '0';
-        notification.style.transform = config.animation === 'slide' ? 'translateY(20px)' : 'scale(0.95)';
-        setTimeout(() => notification.remove(), 300);
+        if (autoHideTimeout) clearTimeout(autoHideTimeout);
+        hideNotification();
       });
     }
     
-    // Auto-hide
-    setTimeout(() => {
-      notification.style.opacity = '0';
-      notification.style.transform = config.animation === 'slide' ? 'translateY(20px)' : 'scale(0.95)';
-      setTimeout(() => notification.remove(), 300);
+    // Start auto-hide timer
+    autoHideTimeout = setTimeout(() => {
+      hideNotification();
     }, config.displayDuration);
+    
+    // Store timer reference for queue pause
+    activeNotificationTimers.set(notificationId, {
+      timeout: autoHideTimeout,
+      startTime,
+      remainingTime: config.displayDuration
+    });
+  }
+  
+  // Track hover engagement
+  async function trackHover(eventId) {
+    if (!eventId) return;
+    
+    try {
+      await fetch(`${API_BASE}/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: eventId,
+          action: 'hover',
+          session_id: sessionId,
+          timestamp: new Date().toISOString()
+        })
+      });
+      log('Hover tracked:', eventId);
+    } catch (err) {
+      log('Hover tracking failed:', err);
+    }
   }
   
   // Helper to adjust color brightness
@@ -1543,143 +1985,32 @@
     }
   }
   
-  // Visitors Pulse: Fetch real active visitor count from visitor_sessions
-  let visitorsPulseConfig = null;
-  
-  async function fetchActiveVisitorCount() {
+  // Track campaign view (for Visitors Pulse and other non-event campaigns)
+  async function trackCampaignView(campaignId) {
+    if (!campaignId) return;
     try {
-      // Check if we have a Visitors Pulse campaign config
-      if (!visitorsPulseConfig) {
-        log('No Visitors Pulse campaign configured');
-        return;
-      }
-      
-      const mode = visitorsPulseConfig.mode || 'simulated';
-      
-      if (mode === 'simulated') {
-        // Use simulated count within min/max range
-        const minCount = visitorsPulseConfig.min_count || 5;
-        const maxCount = visitorsPulseConfig.max_count || 25;
-        currentActiveCount = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount;
-        log('Simulated visitor count:', currentActiveCount);
-      } else {
-        // Mode is 'real' - fetch from visitor_sessions via API
-        const endpoint = `${API_BASE}/active-count?site_token=${siteToken}`;
-        log('Fetching real active visitor count from visitor_sessions');
-        
-        const response = await fetch(endpoint);
-        if (!response.ok) {
-          log('Active visitor fetch failed (status ' + response.status + '), using fallback');
-          // Fallback to minimum configured count
-          currentActiveCount = visitorsPulseConfig.min_count || 1;
-          return;
-        }
-        
-        const data = await response.json();
-        currentActiveCount = data.count || 0;
-        
-        // Apply min/max bounds if configured
-        const minCount = visitorsPulseConfig.min_count || 0;
-        const maxCount = visitorsPulseConfig.max_count || 999;
-        
-        // If real count is below minimum, show minimum (for better UX)
-        if (currentActiveCount < minCount) {
-          log('Real count', currentActiveCount, 'below minimum', minCount, '- using minimum');
-          currentActiveCount = minCount;
-        }
-        
-        // Cap at maximum if needed
-        if (currentActiveCount > maxCount) {
-          currentActiveCount = maxCount;
-        }
-        
-        log('Real active visitor count:', currentActiveCount, '(from visitor_sessions)');
-      }
-      
-      // Show notification if count > 1
-      if (currentActiveCount > 1) {
-        showActiveVisitorNotification(currentActiveCount);
-      }
+      log('[Campaign Stats] Tracking view for campaign:', campaignId);
+      await fetch(`${API_BASE}/campaigns/${campaignId}/view`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
     } catch (err) {
-      error('Failed to fetch active visitor count', err);
+      error('Failed to track campaign view:', err);
     }
   }
-  
-  function showActiveVisitorNotification(count) {
-    if (displayedCount >= config.maxPerPage || sessionCount >= config.maxPerSession) {
-      return;
+
+  // Track campaign click (for Visitors Pulse and other non-event campaigns)
+  async function trackCampaignClick(campaignId) {
+    if (!campaignId) return;
+    try {
+      log('[Campaign Stats] Tracking click for campaign:', campaignId);
+      await fetch(`${API_BASE}/campaigns/${campaignId}/click`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (err) {
+      error('Failed to track campaign click:', err);
     }
-    
-    const container = document.getElementById('notiproof-container') || createNotificationElement();
-    
-    // Remove existing active visitor notification if present
-    const existing = container.querySelector('[data-type="active-visitors"]');
-    if (existing) {
-      existing.remove();
-    }
-    
-    const notification = document.createElement('div');
-    notification.setAttribute('data-type', 'active-visitors');
-    notification.style.cssText = `
-      background: linear-gradient(135deg, ${config.primaryColor} 0%, ${adjustColor(config.primaryColor, -20)} 100%);
-      color: white;
-      border-radius: ${config.borderRadius}px;
-      padding: 12px 16px;
-      margin-bottom: 10px;
-      max-width: 350px;
-      cursor: default;
-      transition: ${getAnimationStyles(config.animation)};
-      opacity: 0;
-      transform: ${config.animation === 'slide' ? 'translateY(20px)' : 'scale(0.95)'};
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      box-shadow: ${getShadowStyle(config.shadow)};
-      font-size: ${config.fontSize}px;
-    `;
-    
-    const peopleText = count === 2 ? '1 other person' : `${count - 1} other people`;
-    
-    notification.innerHTML = `
-      <div style="width: 8px; height: 8px; background: #4ade80; border-radius: 50%; animation: pulse 2s infinite;"></div>
-      <div style="flex: 1; font-weight: 500;">
-        ${peopleText} ${count === 2 ? 'is' : 'are'} viewing this page
-      </div>
-    `;
-    
-    // Add pulse animation and product link styles
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes pulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.5; transform: scale(1.2); }
-      }
-      
-      .notiproof-product-link {
-        color: ${config.primaryColor};
-        text-decoration: underline;
-        font-weight: 500;
-        cursor: pointer;
-        transition: opacity 0.2s ease;
-      }
-      
-      .notiproof-product-link:hover {
-        opacity: 0.8;
-      }
-    `;
-    if (!document.head.querySelector('[data-notiproof-styles]')) {
-      style.setAttribute('data-notiproof-styles', 'true');
-      document.head.appendChild(style);
-    }
-    
-    container.appendChild(notification);
-    
-    setTimeout(() => {
-      notification.style.opacity = '1';
-      notification.style.transform = 'translateY(0) scale(1)';
-    }, 10);
-    
-    log('Active visitor notification displayed', count);
   }
   
   function startDisplayLoop() {
@@ -1687,7 +2018,7 @@
     
     // Initial delay before first notification
     setTimeout(() => {
-      if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused) {
+      if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused && !notificationEngaged) {
         const event = eventQueue.shift();
         if (debugMode) log('Showing notification:', event.event_type, event.id);
         showNotification(event);
@@ -1695,6 +2026,12 @@
       
       // Then show notifications at intervals
       setInterval(() => {
+        // QUEUE PAUSE: Don't show next notification if user is engaged with current one
+        if (notificationEngaged) {
+          log('Queue paused - user engaged with notification');
+          return;
+        }
+        
         if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused) {
           const event = eventQueue.shift();
           if (debugMode) log('Showing notification (interval):', event.event_type, event.id);
@@ -1833,34 +2170,129 @@
     }, true); // Use capture phase
   }
   
-  // NATIVE INTEGRATIONS - Active Visitors (Simulated Visitor Count)
-  function initActiveVisitors(campaignId, config) {
+  // Mustache-style template renderer for custom templates
+  function renderMustacheTemplate(template, data) {
+    if (!template) return '';
+    
+    let result = template;
+    
+    // Handle conditional sections {{#key}}...{{/key}}
+    result = result.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (match, key, content) => {
+      const value = data[key];
+      if (value && value !== '' && value !== 'undefined') {
+        return content;
+      }
+      return '';
+    });
+    
+    // Handle inverted sections {{^key}}...{{/key}} (show if falsy)
+    result = result.replace(/\{\{\^(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (match, key, content) => {
+      const value = data[key];
+      if (!value || value === '' || value === 'undefined') {
+        return content;
+      }
+      return '';
+    });
+    
+    // Replace simple placeholders {{key}}
+    result = result.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+      const value = data[key];
+      if (value !== undefined && value !== null) {
+        return escapeHtml(String(value));
+      }
+      return '';
+    });
+    
+    return result;
+  }
+  
+  // NATIVE INTEGRATIONS - Active Visitors (Simulated Visitor Count) with Media+Text Format
+  function initActiveVisitors(campaignId, config, template) {
     const { 
       mode = 'simulated',
       min_count = 5, 
       max_count = 50,
       update_interval_seconds = 10,
-      scope = 'site'
+      scope = 'site',
+      // New customization fields
+      template_style = 'social_proof',
+      message_template = '{{count}} people are viewing this page',
+      icon = '👥',
+      show_location = true
     } = config;
     
     let currentCount = getRandomCount(min_count, max_count);
     
-    // Create visitor count notification
+    // Check if we have a custom template from the campaigns table
+    const hasCustomTemplate = template && template.html_template;
+    
+    log('[Active Visitors] Template config:', { 
+      hasCustomTemplate, 
+      templateName: template?.name,
+      templateKey: template?.template_key
+    });
+    
+    // Render message template with placeholders
+    function renderVisitorMessage(count) {
+      const pageName = document.title || window.location.pathname;
+      const pageUrl = window.location.href;
+      const location = visitorCountry || 'Multiple locations';
+      
+      // If we have a custom HTML template, use it
+      if (hasCustomTemplate) {
+        return renderMustacheTemplate(template.html_template, {
+          count: count,
+          visitor_count: count,
+          page_name: pageName,
+          page_url: pageUrl,
+          location: location
+        });
+      }
+      
+      // Otherwise use the config message_template
+      return message_template
+        .replace(/\{\{count\}\}/g, count.toString())
+        .replace(/\{\{visitor_count\}\}/g, count.toString())
+        .replace(/\{\{page_name\}\}/g, pageName)
+        .replace(/\{\{page_url\}\}/g, pageUrl)
+        .replace(/\{\{location\}\}/g, location);
+    }
+    
+    // Create visitor count notification with media+text format
     function createVisitorNotification() {
+      const renderedMessage = renderVisitorMessage(currentCount);
+      const pageName = document.title || window.location.pathname;
+      const pageUrl = window.location.href;
+      
       return {
         id: `visitor-${Date.now()}`,
         event_type: 'active_visitors',
-        message_template: `${currentCount} people are viewing ${scope === 'site' ? 'this site' : 'this page'} right now`,
-        timestamp: new Date().toISOString(),
-        is_simulated: true,
-        event_data: { visitor_count: currentCount, mode, scope }
+        message_template: renderedMessage,
+        created_at: new Date().toISOString(),
+        is_simulated: mode === 'simulated',
+        event_data: { 
+          visitor_count: currentCount, 
+          mode, 
+          scope,
+          // Style config for rendering
+          template_style: hasCustomTemplate ? (template.style_variant || template_style) : template_style,
+          icon,
+          show_location,
+          location: visitorCountry || null,
+          page_name: pageName,
+          page_url: pageUrl,
+          rendered_message: renderedMessage,
+          // Pass template info for custom rendering
+          has_custom_template: hasCustomTemplate,
+          custom_html: hasCustomTemplate ? renderedMessage : null
+        }
       };
     }
     
     // Show initial count
     const initialNotif = createVisitorNotification();
     eventQueue.push(initialNotif);
-    log('[Active Visitors] Initial count:', currentCount);
+    log('[Active Visitors] Initial count:', currentCount, 'Style:', hasCustomTemplate ? 'custom' : template_style);
     
     // Update count periodically
     setInterval(() => {
@@ -1901,8 +2333,8 @@
           break;
           
         case 'live_visitors':
-          initActiveVisitors(campaign.id, nativeConfig);
-          log('[Native] Active Visitors initialized for campaign', campaign.id);
+          initActiveVisitors(campaign.id, nativeConfig, campaign.templates);
+          log('[Native] Active Visitors initialized for campaign', campaign.id, 'with template:', campaign.templates?.name);
           break;
           
         case 'announcements':
@@ -2123,34 +2555,9 @@
       }
     }
     
-    // Start Visitors Pulse tracking if a live_visitors campaign exists
-    if (nativeCampaignsData?.campaigns) {
-      const visitorsPulseCampaign = nativeCampaignsData.campaigns.find(c => {
-        const sources = c.data_sources || [];
-        return sources.some(s => s.provider === 'live_visitors');
-      });
-      
-      if (visitorsPulseCampaign) {
-        // Get the native_config from the campaign
-        const liveVisitorSource = visitorsPulseCampaign.data_sources.find(s => s.provider === 'live_visitors');
-        visitorsPulseConfig = liveVisitorSource?.config || {
-          mode: 'real',
-          min_count: 1,
-          max_count: 50,
-          update_interval_seconds: 30
-        };
-        
-        log('Visitors Pulse campaign found, config:', visitorsPulseConfig);
-        
-        const updateInterval = (visitorsPulseConfig.update_interval_seconds || 30) * 1000;
-        
-        // Initial fetch after short delay
-        setTimeout(() => {
-          fetchActiveVisitorCount();
-          activeVisitorInterval = setInterval(fetchActiveVisitorCount, updateInterval);
-        }, 2000);
-      }
-    }
+    // Visitors Pulse now flows through the unified queue via initActiveVisitors()
+    // which is called when processing campaigns with live_visitors data source
+    // No independent loop needed - all notifications respect the queue system
     
     // Branding footer is now added after first notification displays (see showNotification function)
     

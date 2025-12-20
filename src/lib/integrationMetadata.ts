@@ -6,7 +6,7 @@ export interface IntegrationMetadata {
   type: string;
   description: string;
   icon: LucideIcon;
-  connectorType?: 'webhook' | 'api_poll' | 'oauth' | 'embed' | 'zapier_proxy' | 'native';
+  connectorType?: 'webhook' | 'api_poll' | 'oauth' | 'embed' | 'zapier_proxy' | 'native' | 'api_key';
   requiresOauth?: boolean;
   phase?: 1 | 2 | 3;
   popularityScore?: number; // 1-100, higher = more popular
@@ -15,6 +15,7 @@ export interface IntegrationMetadata {
   setupComplexity?: 'easy' | 'medium' | 'hard';
   setupTime?: string; // e.g., "10 min", "30 min"
   isNative?: boolean; // Flag for native integrations (no external connection required)
+  supportsProductSync?: boolean; // Flag for e-commerce integrations that support product catalog sync
 }
 
 const integrationMetadataMap: Record<string, IntegrationMetadata> = {
@@ -114,23 +115,30 @@ const integrationMetadataMap: Record<string, IntegrationMetadata> = {
   shopify: {
     displayName: "Shopify",
     type: "ecommerce",
-    description: "Track purchases and cart activity from your Shopify store",
+    description: "Sync products and track purchases from your Shopify store",
     icon: ShoppingBag,
-    connectorType: 'webhook',
+    connectorType: 'oauth',
+    requiresOauth: true,
     phase: 1,
     popularityScore: 96,
     category: 'ecommerce',
     isTrending: true,
+    setupComplexity: 'easy',
+    setupTime: '5 min',
+    supportsProductSync: true,
   },
   woocommerce: {
     displayName: "WooCommerce",
     type: "ecommerce",
-    description: "Capture orders from your WooCommerce website",
+    description: "Sync products and orders via WooCommerce REST API",
     icon: ShoppingBag,
-    connectorType: 'webhook',
+    connectorType: 'api_key',
     phase: 1,
     popularityScore: 90,
     category: 'ecommerce',
+    setupComplexity: 'easy',
+    setupTime: '5 min',
+    supportsProductSync: true,
   },
   stripe: {
     displayName: "Stripe",

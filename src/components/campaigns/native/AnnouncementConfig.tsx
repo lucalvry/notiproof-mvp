@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, Eye } from "lucide-react";
@@ -13,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TemplateRenderer } from "@/components/templates/TemplateRenderer";
 import { CanonicalEvent } from "@/lib/integrations/types";
 import type { TemplateConfig } from "@/lib/templateEngine";
+import { ContentAlignmentSelector, ContentAlignment } from "@/components/campaigns/ContentAlignmentSelector";
 
 interface AnnouncementConfigProps {
   config: {
@@ -38,6 +40,13 @@ interface AnnouncementConfigProps {
     emoji?: string;
     image_url?: string;
     icon?: string;
+    content_alignment?: ContentAlignment;
+    /** Full-width CTA button */
+    button_stretch?: boolean;
+    /** Font size in pixels (12-18) */
+    font_size?: number;
+    /** Font family: system, serif, or mono */
+    font_family?: 'system' | 'serif' | 'mono';
   };
   onChange: (config: any) => void;
   selectedTemplate?: TemplateConfig;
@@ -47,6 +56,35 @@ interface AnnouncementConfigProps {
 
 export function AnnouncementConfig({ config, onChange, selectedTemplate, showSaveButton, onSave }: AnnouncementConfigProps) {
   const [showPreview, setShowPreview] = useState(true);
+
+  // Create a default announcement template when none is provided
+  const defaultAnnouncementTemplate: TemplateConfig = useMemo(() => ({
+    id: 'default-announcement',
+    provider: 'announcements',
+    template_key: 'announcement-default',
+    name: 'Announcement',
+    description: 'Default announcement template',
+    style_variant: 'card',
+    category: 'announcement',
+    html_template: `
+      <div class="noti-card" style="display: flex; gap: 12px; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 320px; align-items: ${config.content_alignment === 'center' ? 'center' : config.content_alignment === 'bottom' ? 'flex-end' : 'flex-start'};">
+        <div class="noti-icon" style="font-size: 32px;">{{template.icon}}</div>
+        <div class="noti-content" style="flex: 1;">
+          <div style="font-weight: 600; color: #111;">{{template.title}}</div>
+          <div style="color: #555; font-size: 14px; margin-top: 4px;">{{template.message}}</div>
+          {{#template.cta_text}}
+          <a href="{{template.cta_url}}" style="display: inline-block; margin-top: 8px; padding: 6px 16px; background: #3b82f6; color: white; border-radius: 6px; text-decoration: none; font-size: 13px;">{{template.cta_text}}</a>
+          {{/template.cta_text}}
+        </div>
+      </div>
+    `,
+    required_fields: ['template.title', 'template.message'],
+    preview_json: {},
+    is_active: true,
+  }), [config.content_alignment]);
+
+  // Use provided template or fall back to default
+  const effectiveTemplate = selectedTemplate || defaultAnnouncementTemplate;
 
   // Create mock event data for live preview
   const mockEvent: CanonicalEvent = useMemo(() => ({
@@ -341,6 +379,66 @@ export function AnnouncementConfig({ config, onChange, selectedTemplate, showSav
             Higher priority announcements show first when multiple are active
           </p>
         </div>
+
+        {/* Content Alignment */}
+        <ContentAlignmentSelector
+          value={config.content_alignment || 'top'}
+          onChange={(alignment) => onChange({ ...config, content_alignment: alignment })}
+        />
+
+        {/* Typography Settings */}
+        <div className="space-y-4 pt-4 border-t">
+          <Label className="text-base font-medium">Typography</Label>
+          
+          {/* Font Size */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">Font Size</Label>
+              <Badge variant="secondary">{config.font_size || 14}px</Badge>
+            </div>
+            <Slider
+              min={12}
+              max={18}
+              step={1}
+              value={[config.font_size || 14]}
+              onValueChange={(values) => onChange({ ...config, font_size: values[0] })}
+            />
+          </div>
+
+          {/* Font Family */}
+          <div className="space-y-2">
+            <Label className="text-sm">Font Family</Label>
+            <Select
+              value={config.font_family || 'system'}
+              onValueChange={(v) => onChange({ ...config, font_family: v as 'system' | 'serif' | 'mono' })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[9999] bg-background border shadow-lg">
+                <SelectItem value="system">System Default</SelectItem>
+                <SelectItem value="serif">Serif (Georgia)</SelectItem>
+                <SelectItem value="mono">Monospace</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Button Settings */}
+        <div className="space-y-4 pt-4 border-t">
+          <Label className="text-base font-medium">Button Style</Label>
+          
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label className="text-sm">Full-Width Button</Label>
+              <p className="text-xs text-muted-foreground">Stretch the CTA button to full width</p>
+            </div>
+            <Switch
+              checked={config.button_stretch || false}
+              onCheckedChange={(checked) => onChange({ ...config, button_stretch: checked })}
+            />
+          </div>
+        </div>
         
         {/* Save Button for Edit Mode */}
         {showSaveButton && (
@@ -366,7 +464,7 @@ export function AnnouncementConfig({ config, onChange, selectedTemplate, showSav
     </Card>
 
       {/* Live Preview Panel */}
-      {showPreview && selectedTemplate && (
+      {showPreview && (
         <Card className="lg:sticky lg:top-6 lg:self-start">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -381,7 +479,7 @@ export function AnnouncementConfig({ config, onChange, selectedTemplate, showSav
             <div className="border rounded-lg overflow-hidden bg-muted/30 relative min-h-[300px] flex items-center justify-center">
               <div className="absolute inset-0 scale-75 origin-center">
                 <TemplateRenderer
-                  template={selectedTemplate}
+                  template={effectiveTemplate}
                   event={mockEvent}
                   className="announcement-preview"
                 />

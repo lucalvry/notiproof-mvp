@@ -1,10 +1,13 @@
 import Mustache from 'mustache';
 import { CanonicalEvent } from './integrations/types';
+import { shouldShowVerificationBadge, VERIFICATION_BADGE_TEXT } from './verificationBadgeUtils';
 
 /**
  * Template Engine - Renders HTML templates with event data
  * Uses Mustache for safe templating
  */
+
+const VERIFICATION_BADGE_HTML = `<span class="notiproof-verified">${VERIFICATION_BADGE_TEXT}</span>`;
 
 export interface TemplateConfig {
   id: string;
@@ -25,9 +28,19 @@ export interface TemplateConfig {
 /**
  * Render a template with event data
  */
+export interface StyleConfig {
+  font_size?: number;
+  link_color?: string;
+  text_color?: string;
+  background_color?: string;
+  border_radius?: number;
+  font_family?: string;
+}
+
 export function renderTemplate(
   template: TemplateConfig,
-  event: CanonicalEvent
+  event: CanonicalEvent,
+  styleConfig?: StyleConfig
 ): string {
   try {
     // Merge event normalized data with metadata
@@ -37,6 +50,16 @@ export function renderTemplate(
       _event_id: event.event_id,
       _timestamp: event.timestamp,
     };
+    
+    // Add style namespace variables if provided
+    if (styleConfig) {
+      flatData['style.font_size'] = styleConfig.font_size ? `${styleConfig.font_size}px` : '14px';
+      flatData['style.link_color'] = styleConfig.link_color || '#667eea';
+      flatData['style.text_color'] = styleConfig.text_color || '#1a1a1a';
+      flatData['style.background_color'] = styleConfig.background_color || '#ffffff';
+      flatData['style.border_radius'] = styleConfig.border_radius ? `${styleConfig.border_radius}px` : '12px';
+      flatData['style.font_family'] = styleConfig.font_family || 'system-ui';
+    }
 
     // Convert flat keys to nested for Mustache
     const templateData = flatToNested(flatData);
@@ -123,43 +146,61 @@ export function sanitizeTemplateForPreview(html: string): string {
 
 /**
  * Render template preview using preview data
+ * Optionally includes verification badge based on provider
  */
-export function renderTemplatePreview(template: TemplateConfig): string {
+export function renderTemplatePreview(
+  template: TemplateConfig,
+  options?: { includeVerificationBadge?: boolean }
+): string {
   try {
     console.log('[TemplateEngine] 🎨 Rendering preview for template:', template.template_key);
-    console.log('[TemplateEngine] 📋 Original preview_json:', JSON.stringify(template.preview_json, null, 2));
-    console.log('[TemplateEngine] 📝 HTML Template (first 300 chars):', template.html_template.substring(0, 300));
     
     // Convert flat keys to nested structure for Mustache
     const nestedData = flatToNested(template.preview_json);
-    console.log('[TemplateEngine] 🔄 Converted to nested structure:', JSON.stringify(nestedData, null, 2));
     
     // Render using Mustache
-    const rendered = Mustache.render(template.html_template, nestedData);
+    let rendered = Mustache.render(template.html_template, nestedData);
     
     // Sanitize for safe preview rendering
-    const sanitized = sanitizeTemplateForPreview(rendered);
+    let sanitized = sanitizeTemplateForPreview(rendered);
     
-    console.log('[TemplateEngine] ✅ Rendered HTML (first 300 chars):', sanitized.substring(0, 300));
-    console.log('[TemplateEngine] 📊 Rendered HTML length:', sanitized.length);
+    // Check if template already contains a verified badge (either static or Mustache conditional)
+    const templateHasVerifiedBadge = /verified|{{#template\.verified}}|notiproof-verified/i.test(template.html_template);
+    
+    // Add verification badge if applicable AND template doesn't already have one
+    const showBadge = options?.includeVerificationBadge !== false && 
+      shouldShowVerificationBadge(template.provider) &&
+      !templateHasVerifiedBadge;
+    
+    if (showBadge) {
+      sanitized = appendVerificationBadgeToHtml(sanitized);
+    }
     
     // Check if rendering actually replaced placeholders
     const hasUnresolvedPlaceholders = /\{\{[^}]+\}\}/.test(sanitized);
     if (hasUnresolvedPlaceholders) {
       console.warn('[TemplateEngine] ⚠️ Warning: Template has unresolved placeholders!');
-      console.warn('[TemplateEngine] Unresolved:', sanitized.match(/\{\{[^}]+\}\}/g));
     }
     
     return sanitized;
   } catch (error) {
     console.error('[TemplateEngine] ❌ Preview render error:', error);
-    console.error('[TemplateEngine] Template data:', {
-      template_key: template.template_key,
-      preview_json: template.preview_json,
-      html_length: template.html_template?.length || 0
-    });
     return `<div class="noti-error">Preview rendering failed: ${error instanceof Error ? error.message : 'Unknown error'}</div>`;
   }
+}
+
+/**
+ * Append verification badge HTML to rendered template
+ */
+function appendVerificationBadgeToHtml(html: string): string {
+  // Try to insert badge before the last closing div
+  const lastDivIndex = html.lastIndexOf('</div>');
+  if (lastDivIndex !== -1) {
+    return html.slice(0, lastDivIndex) + VERIFICATION_BADGE_HTML + html.slice(lastDivIndex);
+  }
+  
+  // Fallback: append to end
+  return html + VERIFICATION_BADGE_HTML;
 }
 
 /**
@@ -178,8 +219,25 @@ export function extractTemplatePlaceholders(htmlTemplate: string): string[] {
 }
 
 /**
+ * Field aliases for fuzzy matching between template placeholders and adapter fields
+ */
+const FIELD_ALIASES: Record<string, string[]> = {
+  'template.visitor_count': ['count', 'visitor_count', 'visitors', 'template.count'],
+  'template.page_name': ['page_name', 'page', 'pageName', 'template.page'],
+  'template.page_url': ['page_url', 'url', 'pageUrl', 'template.url'],
+  'template.location': ['location', 'loc', 'city', 'template.city'],
+  'template.user_name': ['user_name', 'name', 'userName', 'customer_name'],
+  'template.user_location': ['user_location', 'location', 'city', 'region'],
+  'template.product_name': ['product_name', 'product', 'item_name', 'productName'],
+  'template.time_ago': ['time_ago', 'timeAgo', 'timestamp', 'created_at'],
+  'template.icon': ['icon', 'emoji', 'template.emoji'],
+  'template.title': ['title', 'headline', 'template.headline'],
+  'template.message': ['message', 'body', 'content', 'template.body'],
+};
+
+/**
  * Build template mapping for campaign
- * Maps adapter fields to template placeholders
+ * Maps adapter fields to template placeholders with fuzzy matching support
  */
 export function buildTemplateMapping(
   adapterFields: string[],
@@ -187,11 +245,34 @@ export function buildTemplateMapping(
 ): Record<string, string> {
   const mapping: Record<string, string> = {};
   
-  // Auto-map fields with exact matches
   for (const placeholder of templatePlaceholders) {
+    // Try exact match first
     const exactMatch = adapterFields.find(f => f === placeholder);
     if (exactMatch) {
       mapping[placeholder] = exactMatch;
+      continue;
+    }
+    
+    // Try alias matching - check if placeholder matches any alias
+    for (const [adapterField, aliases] of Object.entries(FIELD_ALIASES)) {
+      if (aliases.includes(placeholder) && adapterFields.includes(adapterField)) {
+        mapping[placeholder] = adapterField;
+        break;
+      }
+    }
+    
+    // Reverse alias matching - check if adapter field matches placeholder via aliases
+    if (!mapping[placeholder]) {
+      for (const [adapterField, aliases] of Object.entries(FIELD_ALIASES)) {
+        if (adapterField === placeholder) {
+          // Find matching adapter field from aliases
+          const matchingAdapterField = adapterFields.find(f => aliases.includes(f));
+          if (matchingAdapterField) {
+            mapping[placeholder] = matchingAdapterField;
+            break;
+          }
+        }
+      }
     }
   }
   

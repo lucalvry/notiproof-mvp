@@ -64,6 +64,10 @@ import NotificationWeights from "./pages/NotificationWeights";
 import FormCaptures from "./pages/FormCaptures";
 import VisitorsPulse from "./pages/VisitorsPulse";
 import ImpactBoard from "./pages/ImpactBoard";
+import IntegrationSettings from "./pages/IntegrationSettings";
+import WooCommerceOrders from "./pages/WooCommerceOrders";
+import LTDCheckout from "./pages/LTDCheckout";
+import LTDSuccess from "./pages/LTDSuccess";
 import { OAuthCallback } from "./components/integrations/OAuthCallback";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { inject } from "@vercel/analytics";
@@ -115,6 +119,8 @@ const App = () => (
         <Route path="/get-started" element={<Navigate to="/register" replace />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/select-plan" element={<SelectPlan />} />
+        <Route path="/ltd" element={<LTDCheckout />} />
+        <Route path="/ltd-success" element={<LTDSuccess />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
@@ -166,6 +172,8 @@ const App = () => (
             <Route path="/visitors-pulse" element={<VisitorsPulse />} />
             <Route path="/analytics/widget/:id" element={<WidgetAnalytics />} />
             <Route path="/integrations" element={<Integrations />} />
+            <Route path="/integrations/:integrationId/settings" element={<IntegrationSettings />} />
+            <Route path="/woocommerce-orders" element={<WooCommerceOrders />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="/testimonials" element={<TestimonialManagement />} />
             <Route path="/testimonials/builder/:formId?" element={<TestimonialFormBuilder />} />

@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare, Plug, Users, Plus, ListOrdered, Target } from "lucide-react";
+import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, X, ChevronDown, Globe, CreditCard, User, HelpCircle, FileText, MessageSquare, Plug, Users, Plus, ListOrdered, Target, Crown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { useSuperAdmin } from "@/hooks/useSuperAdmin";
+import { useQueryClient } from "@tanstack/react-query";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { SetupGuideButton } from "@/components/onboarding/SetupGuideButton";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
@@ -59,8 +62,21 @@ export function AppLayout() {
   // Real data from contexts and hooks
   const { currentWebsite, setCurrentWebsite, websites, isLoading: websitesLoading } = useWebsiteContext();
   const { sitesAllowed, planName, isBusinessPlan, isLoading: subscriptionLoading } = useSubscription(user?.id);
+  const { isLTD } = useSubscriptionStatus(user?.id);
   const { isSuperAdmin } = useSuperAdmin(user?.id);
+  const queryClient = useQueryClient();
   const sitesUsed = websites.length;
+
+  // Function to invalidate all website-dependent queries
+  const invalidateWebsiteQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+    queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
+    queryClient.invalidateQueries({ queryKey: ['website-settings'] });
+    queryClient.invalidateQueries({ queryKey: ['integrations'] });
+    queryClient.invalidateQueries({ queryKey: ['playlists'] });
+  };
 
   useEffect(() => {
     const checkAuthAndSubscription = async () => {
@@ -325,7 +341,11 @@ export function AppLayout() {
                       {websites.map((website) => (
                         <DropdownMenuItem
                           key={website.id}
-                          onClick={() => setCurrentWebsite(website)}
+                          onClick={() => {
+                            setCurrentWebsite(website);
+                            invalidateWebsiteQueries();
+                            toast.success(`Switched to ${website.domain}`);
+                          }}
                           className={currentWebsite?.id === website.id ? "bg-accent" : ""}
                         >
                           <Globe className="h-4 w-4 mr-2" />
@@ -342,11 +362,28 @@ export function AppLayout() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Usage Meter - Links to Billing in Global section */}
+              {/* Usage Meter / LTD Badge */}
               {websitesLoading || subscriptionLoading ? (
                 <div className="hidden items-center gap-2 md:flex">
                   <div className="h-4 w-20 animate-pulse rounded bg-muted" />
                   <div className="h-4 w-12 animate-pulse rounded bg-muted" />
+                </div>
+              ) : isLTD ? (
+                <div className="hidden items-center gap-2 md:flex">
+                  <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 border-amber-500/20 gap-1.5 px-3 py-1">
+                    <Crown className="h-3.5 w-3.5" />
+                    Lifetime Member
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleNavigation("/billing")}
+                    className="gap-2"
+                  >
+                    <span className="text-sm text-muted-foreground">
+                      {sitesUsed} / {sitesAllowed} sites
+                    </span>
+                  </Button>
                 </div>
               ) : (
                 <div className="hidden items-center gap-2 md:flex">

@@ -159,7 +159,13 @@ Deno.serve(async (req) => {
 
     // Handle different webhook events
     if (eventType === 'checkout.session.completed') {
-      await handleCheckoutCompleted(supabase, body.data.object);
+      const session = body.data.object;
+      // Check if this is an LTD purchase (one-time payment, not subscription)
+      if (session.mode === 'payment' && session.metadata?.plan_type === 'LTD') {
+        await handleLTDPurchase(supabase, session);
+      } else {
+        await handleCheckoutCompleted(supabase, session);
+      }
     } else if (eventType === 'customer.subscription.created' || eventType === 'customer.subscription.updated') {
       await handleSubscriptionUpdate(supabase, body.data.object);
     } else if (eventType === 'customer.subscription.deleted') {
@@ -416,4 +422,100 @@ async function handlePaymentFailed(supabase: any, invoice: any) {
   if (error) {
     console.error('Error updating subscription to past_due:', error);
   }
+}
+
+async function handleLTDPurchase(supabase: any, session: any) {
+  console.log('🎉 LTD Purchase completed:', session.id);
+  
+  const stripeCustomerId = session.customer;
+  const paymentIntentId = session.payment_intent;
+  const customerEmail = session.metadata?.customer_email || session.customer_email;
+  const userId = session.metadata?.user_id || session.client_reference_id;
+  
+  console.log('Processing LTD purchase:', {
+    email: customerEmail,
+    userId,
+    paymentIntentId,
+    sessionId: session.id,
+  });
+
+  // Get the LTD plan ID
+  const { data: ltdPlan, error: planError } = await supabase
+    .from('subscription_plans')
+    .select('id, name')
+    .eq('name', 'LTD')
+    .single();
+  
+  if (planError || !ltdPlan) {
+    console.error('LTD plan not found:', planError);
+    return;
+  }
+
+  // Check if user account already exists by email if userId not provided
+  let finalUserId = userId;
+  if (!finalUserId && customerEmail) {
+    const { data: existingUser } = await supabase.auth.admin.getUserByEmail(customerEmail);
+    finalUserId = existingUser?.user?.id || null;
+  }
+
+  // Create or update user subscription with 'lifetime' status
+  const subscriptionData = {
+    user_id: finalUserId || null,
+    plan_id: ltdPlan.id,
+    stripe_customer_id: stripeCustomerId,
+    stripe_subscription_id: `ltd_${paymentIntentId}`, // Use payment intent as unique ID with prefix
+    status: 'lifetime', // Special status for LTD users
+    current_period_start: new Date().toISOString(),
+    current_period_end: null, // No end date for lifetime
+    cancel_at_period_end: false,
+    trial_start: null,
+    trial_end: null,
+  };
+
+  // Try to upsert by stripe_customer_id first
+  const { data: existingSub } = await supabase
+    .from('user_subscriptions')
+    .select('id')
+    .eq('stripe_customer_id', stripeCustomerId)
+    .single();
+
+  if (existingSub) {
+    // Update existing subscription
+    const { error } = await supabase
+      .from('user_subscriptions')
+      .update(subscriptionData)
+      .eq('id', existingSub.id);
+
+    if (error) {
+      console.error('Error updating to LTD subscription:', error);
+      return;
+    }
+  } else {
+    // Insert new subscription
+    const { error } = await supabase
+      .from('user_subscriptions')
+      .insert(subscriptionData);
+
+    if (error) {
+      console.error('Error creating LTD subscription:', error);
+      return;
+    }
+  }
+
+  // Log successful LTD purchase
+  await supabase.from('integration_logs').insert({
+    integration_type: 'stripe',
+    action: 'ltd_purchase_completed',
+    status: 'success',
+    user_id: finalUserId,
+    details: { 
+      session_id: session.id,
+      payment_intent_id: paymentIntentId,
+      plan_name: ltdPlan.name,
+      customer_email: customerEmail,
+      amount_paid: session.amount_total,
+    },
+  });
+
+  console.log(`✅ LTD subscription created for ${customerEmail || 'pending user'}`);
 }

@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { useWebsites } from "@/hooks/useWebsites";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConnectionWizard } from "@/components/websites/ConnectionWizard";
@@ -66,6 +67,7 @@ export default function Websites() {
   const [userId, setUserId] = useState<string>();
   const { websites, isLoading, addWebsiteAsync, archiveWebsite } = useWebsites(userId);
   const { sitesAllowed, planName, isLoading: subscriptionLoading } = useSubscription(userId);
+  const { setCurrentWebsite } = useWebsiteContext();
   
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -315,6 +317,7 @@ export default function Websites() {
                       <Button
                         className="w-full"
                         onClick={() => {
+                          setCurrentWebsite(site);
                           navigate(`/campaigns?website=${site.id}`);
                           setShowConnectionWizard(site.id);
                         }}
@@ -355,7 +358,10 @@ export default function Websites() {
                     <>
                       <Button
                         className="w-full"
-                        onClick={() => navigate(`/analytics?website=${site.id}`)}
+                        onClick={() => {
+                          setCurrentWebsite(site);
+                          navigate('/dashboard');
+                        }}
                       >
                         View Dashboard
                       </Button>
@@ -363,7 +369,10 @@ export default function Websites() {
                         variant="outline"
                         size="sm"
                         className="w-full"
-                        onClick={() => navigate(`/campaigns?website=${site.id}`)}
+                        onClick={() => {
+                          setCurrentWebsite(site);
+                          navigate(`/campaigns?website=${site.id}`);
+                        }}
                       >
                         Create Another Widget
                       </Button>
@@ -460,7 +469,7 @@ export default function Websites() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    const code = `<script src="https://app.notiproof.com/widget.js" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`;
+                    const code = `<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`;
                     navigator.clipboard.writeText(code);
                     toast.success("Code copied to clipboard!");
                   }}
@@ -471,7 +480,7 @@ export default function Websites() {
               </div>
               <div className="rounded-lg bg-muted p-4">
                 <code className="text-sm break-all font-mono">
-                  {`<script src="https://app.notiproof.com/widget.js" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`}
+                  {`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`}
                 </code>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -572,7 +581,7 @@ export default function Websites() {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      const code = `<script src="https://app.notiproof.com/widget.js" data-site-token="${selectedWebsite?.verification_token}"></script>`;
+                      const code = `<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-site-token="${selectedWebsite?.verification_token}"></script>`;
                       navigator.clipboard.writeText(code);
                       toast.success("Code copied to clipboard!");
                     }}
@@ -583,7 +592,7 @@ export default function Websites() {
               </div>
               <div className="rounded-lg bg-muted p-4">
                 <code className="text-sm break-all font-mono">
-                  {`<script src="https://app.notiproof.com/widget.js" data-site-token="${selectedWebsite?.verification_token || 'TOKEN'}"></script>`}
+                  {`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-site-token="${selectedWebsite?.verification_token || 'TOKEN'}"></script>`}
                 </code>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -666,6 +675,9 @@ export default function Websites() {
             {selectedWebsite?.is_verified && (
               <Button onClick={() => {
                 setSnippetDialogOpen(false);
+                if (selectedWebsite) {
+                  setCurrentWebsite(selectedWebsite);
+                }
                 navigate(`/campaigns?website=${selectedWebsite?.id}`);
               }}>
                 Create First Widget

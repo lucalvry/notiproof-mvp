@@ -251,6 +251,7 @@ export default function Integrations() {
       instant_capture: '/form-captures',
       announcements: '/campaigns?type=announcement',
       live_visitors: '/visitors-pulse',
+      woocommerce: '/woocommerce-orders',
     };
     return routes[integrationType] || null;
   };
@@ -274,6 +275,12 @@ export default function Integrations() {
     } else {
       handleConnect(integration);
     }
+  };
+
+  const handleDesignDefaults = (integration: Integration) => {
+    // Navigate to integration settings page with design tab
+    const connectorId = integration.connector?.id || integration.id;
+    navigate(`/integrations/${connectorId}/settings?tab=design`);
   };
 
   const handleSync = async (integration: Integration) => {
@@ -504,12 +511,17 @@ export default function Integrations() {
                   onSettings={() => handleSettings(integration)}
                   onDisconnect={() => handleDisconnect(integration)}
                   onManage={
-                    integration.isNative && getManageRoute(integration.id)
+                    (integration.isNative || integration.id === 'woocommerce') && getManageRoute(integration.id)
                       ? () => handleManage(integration)
                       : undefined
                   }
+                  onDesignDefaults={
+                    integration.status === "connected"
+                      ? () => handleDesignDefaults(integration)
+                      : undefined
+                  }
                   onModerate={
-                    integration.status === "connected" && !integration.isNative
+                    integration.status === "connected" && !integration.isNative && integration.id !== 'woocommerce'
                       ? () => setModerationDialog({ 
                           open: true, 
                           type: integration.id, 
@@ -542,12 +554,17 @@ export default function Integrations() {
                   onSettings={() => handleSettings(integration)}
                   onDisconnect={() => handleDisconnect(integration)}
                   onManage={
-                    integration.isNative && getManageRoute(integration.id)
+                    (integration.isNative || integration.id === 'woocommerce') && getManageRoute(integration.id)
                       ? () => handleManage(integration)
                       : undefined
                   }
+                  onDesignDefaults={
+                    integration.status === "connected"
+                      ? () => handleDesignDefaults(integration)
+                      : undefined
+                  }
                   onModerate={
-                    integration.status === "connected" && !integration.isNative
+                    integration.status === "connected" && !integration.isNative && integration.id !== 'woocommerce'
                       ? () => setModerationDialog({ 
                           open: true, 
                           type: integration.id, 
@@ -584,6 +601,11 @@ export default function Integrations() {
                       ? () => handleManage(integration)
                       : undefined
                   }
+                  onDesignDefaults={
+                    integration.status === "connected"
+                      ? () => handleDesignDefaults(integration)
+                      : undefined
+                  }
                   quota={integrationQuotas[integration.id]}
                 />
               ))}
@@ -608,11 +630,26 @@ export default function Integrations() {
                   onSettings={() => handleSettings(integration)}
                   onDisconnect={() => handleDisconnect(integration)}
                   onManage={
-                    integration.isNative && getManageRoute(integration.id)
+                    (integration.isNative || integration.id === 'woocommerce') && getManageRoute(integration.id)
                       ? () => handleManage(integration)
                       : undefined
                   }
+                  onDesignDefaults={
+                    integration.status === "connected"
+                      ? () => handleDesignDefaults(integration)
+                      : undefined
+                  }
+                  onModerate={
+                    integration.status === "connected" && !integration.isNative && integration.id !== 'woocommerce'
+                      ? () => setModerationDialog({ 
+                          open: true, 
+                          type: integration.id, 
+                          name: integration.name 
+                        })
+                      : undefined
+                  }
                   quota={integrationQuotas[integration.id]}
+                  pendingCount={pendingCounts[integration.id] || 0}
                 />
               ))}
             </div>

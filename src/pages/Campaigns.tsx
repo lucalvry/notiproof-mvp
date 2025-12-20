@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Plug, Sparkles } from "lucide-react";
+import { Plus, Plug, Sparkles, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { CampaignGridSkeleton } from "@/components/ui/campaign-skeleton";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import confetti from "canvas-confetti";
+import { useWebsiteContext } from "@/contexts/WebsiteContext";
 
 interface Campaign {
   id: string;
@@ -31,6 +32,7 @@ interface Campaign {
   total_views?: number;
   total_clicks?: number;
   widgets?: any[];
+  campaign_stats?: any[];
 }
 
 export default function Campaigns() {
@@ -39,6 +41,7 @@ export default function Campaigns() {
   const [searchParams] = useSearchParams();
   const websiteIdFromUrl = searchParams.get('website');
   const queryClient = useQueryClient();
+  const { currentWebsite } = useWebsiteContext();
 
   // Auto-open wizard if websiteId is in URL
   useEffect(() => {
@@ -55,10 +58,12 @@ export default function Campaigns() {
     }
   };
 
-  // Single query for campaigns with caching
+  // Single query for campaigns with caching - filtered by current website
   const { data: campaigns = [], isLoading: loading } = useQuery({
-    queryKey: ['campaigns'],
+    queryKey: ['campaigns', currentWebsite?.id],
     queryFn: async () => {
+      if (!currentWebsite?.id) return [];
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error("Please log in to view campaigns");
@@ -71,32 +76,40 @@ export default function Campaigns() {
           widgets(
             id,
             events!events_widget_id_fkey(views, clicks)
-          )
+          ),
+          campaign_stats(views, clicks)
         `)
         .eq("user_id", user.id)
+        .eq("website_id", currentWebsite.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       
-      // Calculate totals for each campaign
+      // Calculate totals for each campaign (combining events + campaign_stats)
       return (data || []).map(campaign => {
+        // Stats from events table (announcements, testimonials, etc.)
         const allEvents = campaign.widgets?.flatMap(w => w.events || []) || [];
-        const total_views = allEvents.reduce((sum: number, e: any) => sum + (e.views || 0), 0);
-        const total_clicks = allEvents.reduce((sum: number, e: any) => sum + (e.clicks || 0), 0);
+        const eventsViews = allEvents.reduce((sum: number, e: any) => sum + (e.views || 0), 0);
+        const eventsClicks = allEvents.reduce((sum: number, e: any) => sum + (e.clicks || 0), 0);
+        
+        // Stats from campaign_stats table (Visitors Pulse)
+        const statsViews = campaign.campaign_stats?.reduce((sum: number, s: any) => sum + (s.views || 0), 0) || 0;
+        const statsClicks = campaign.campaign_stats?.reduce((sum: number, s: any) => sum + (s.clicks || 0), 0) || 0;
         
         return {
           ...campaign,
-          total_views,
-          total_clicks,
+          total_views: eventsViews + statsViews,
+          total_clicks: eventsClicks + statsClicks,
         };
       }) as Campaign[];
     },
+    enabled: !!currentWebsite?.id,
     staleTime: 30000, // Cache for 30 seconds
     retry: 1,
   });
 
   const refetchCampaigns = () => {
-    queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+    queryClient.invalidateQueries({ queryKey: ['campaigns', currentWebsite?.id] });
   };
 
   const handleStatusChange = async (id: string, newStatus: string) => {
@@ -215,6 +228,12 @@ export default function Campaigns() {
           <p className="text-muted-foreground">
             Create and manage your social proof notifications
           </p>
+          {currentWebsite && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+              <Globe className="h-4 w-4" />
+              <span>Showing data for: <strong className="text-foreground">{currentWebsite.domain}</strong></span>
+            </div>
+          )}
         </div>
         <div className="flex gap-3">
           <Button variant="outline" className="gap-2" onClick={() => navigate('/integrations')}>

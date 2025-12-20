@@ -406,6 +406,44 @@ export type Database = {
           },
         ]
       }
+      campaign_stats: {
+        Row: {
+          campaign_id: string
+          clicks: number | null
+          created_at: string | null
+          date: string
+          id: string
+          updated_at: string | null
+          views: number | null
+        }
+        Insert: {
+          campaign_id: string
+          clicks?: number | null
+          created_at?: string | null
+          date?: string
+          id?: string
+          updated_at?: string | null
+          views?: number | null
+        }
+        Update: {
+          campaign_id?: string
+          clicks?: number | null
+          created_at?: string | null
+          date?: string
+          id?: string
+          updated_at?: string | null
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_stats_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           auto_repeat: boolean
@@ -1307,6 +1345,7 @@ export type Database = {
           auto_sync_enabled: boolean | null
           config: Json
           created_at: string
+          design_defaults: Json | null
           id: string
           integration_type: Database["public"]["Enums"]["integration_type"]
           last_sync: string | null
@@ -1322,6 +1361,7 @@ export type Database = {
           auto_sync_enabled?: boolean | null
           config?: Json
           created_at?: string
+          design_defaults?: Json | null
           id?: string
           integration_type: Database["public"]["Enums"]["integration_type"]
           last_sync?: string | null
@@ -1337,6 +1377,7 @@ export type Database = {
           auto_sync_enabled?: boolean | null
           config?: Json
           created_at?: string
+          design_defaults?: Json | null
           id?: string
           integration_type?: Database["public"]["Enums"]["integration_type"]
           last_sync?: string | null
@@ -1420,6 +1461,7 @@ export type Database = {
         Row: {
           created_at: string | null
           credentials: Json | null
+          design_defaults: Json | null
           id: string
           is_active: boolean | null
           last_sync_at: string | null
@@ -1433,6 +1475,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           credentials?: Json | null
+          design_defaults?: Json | null
           id?: string
           is_active?: boolean | null
           last_sync_at?: string | null
@@ -1446,6 +1489,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           credentials?: Json | null
+          design_defaults?: Json | null
           id?: string
           is_active?: boolean | null
           last_sync_at?: string | null
@@ -1849,6 +1893,96 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      products: {
+        Row: {
+          category: string | null
+          compare_at_price: number | null
+          created_at: string | null
+          currency: string | null
+          description: string | null
+          external_id: string
+          handle: string | null
+          id: string
+          image_url: string | null
+          images: Json | null
+          integration_id: string | null
+          is_active: boolean | null
+          last_synced_at: string | null
+          price: number | null
+          product_url: string | null
+          stock_quantity: number | null
+          stock_status: string | null
+          tags: Json | null
+          title: string
+          updated_at: string | null
+          variants: Json | null
+          website_id: string
+        }
+        Insert: {
+          category?: string | null
+          compare_at_price?: number | null
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          external_id: string
+          handle?: string | null
+          id?: string
+          image_url?: string | null
+          images?: Json | null
+          integration_id?: string | null
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          price?: number | null
+          product_url?: string | null
+          stock_quantity?: number | null
+          stock_status?: string | null
+          tags?: Json | null
+          title: string
+          updated_at?: string | null
+          variants?: Json | null
+          website_id: string
+        }
+        Update: {
+          category?: string | null
+          compare_at_price?: number | null
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          external_id?: string
+          handle?: string | null
+          id?: string
+          image_url?: string | null
+          images?: Json | null
+          integration_id?: string | null
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          price?: number | null
+          product_url?: string | null
+          stock_quantity?: number | null
+          stock_status?: string | null
+          tags?: Json | null
+          title?: string
+          updated_at?: string | null
+          variants?: Json | null
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -4012,6 +4146,14 @@ export type Database = {
         Args: { article_uuid: string }
         Returns: undefined
       }
+      increment_campaign_click: {
+        Args: { p_campaign_id: string }
+        Returns: undefined
+      }
+      increment_campaign_view: {
+        Args: { p_campaign_id: string }
+        Returns: undefined
+      }
       increment_event_counter: {
         Args: { counter_type: string; event_id: string }
         Returns: undefined
@@ -4174,6 +4316,9 @@ export type Database = {
         | "demo"
         | "woocommerce"
         | "quick_win"
+        | "shopify"
+        | "stripe"
+        | "integration"
       event_status: "pending" | "approved" | "rejected"
       integration_type:
         | "manual"
@@ -4358,6 +4503,9 @@ export const Constants = {
         "demo",
         "woocommerce",
         "quick_win",
+        "shopify",
+        "stripe",
+        "integration",
       ],
       event_status: ["pending", "approved", "rejected"],
       integration_type: [

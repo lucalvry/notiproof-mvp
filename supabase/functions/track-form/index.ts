@@ -42,18 +42,37 @@ function flattenBracketNotation(data: Record<string, any>): Record<string, any> 
   return flattened;
 }
 
-// Extract user name from various field patterns
+// Extract user name from various field patterns (including hyphenated versions)
 function extractUserName(sanitizedData: Record<string, any>, flattened: Record<string, any>): string | null {
   return sanitizedData.name || 
     flattened.name || 
     sanitizedData.full_name || 
     flattened.full_name ||
     flattened.fullname ||
+    flattened['full-name'] ||
+    sanitizedData['full-name'] ||
     sanitizedData.first_name || 
     flattened.first_name ||
     flattened.firstname ||
+    flattened['first-name'] ||
     flattened.your_name ||
     flattened['your-name'] ||
+    flattened.customer_name ||
+    flattened['customer-name'] ||
+    null;
+}
+
+// Extract company from various field patterns
+function extractCompany(sanitizedData: Record<string, any>, flattened: Record<string, any>): string | null {
+  return sanitizedData.company ||
+    flattened.company ||
+    sanitizedData.company_name ||
+    flattened.company_name ||
+    flattened['company-name'] ||
+    sanitizedData['company-name'] ||
+    flattened.organization ||
+    flattened.business_name ||
+    flattened['business-name'] ||
     null;
 }
 
@@ -257,12 +276,13 @@ serve(async (req) => {
     const flattened = flattenBracketNotation(sanitizedData);
     console.log('[track-form] Flattened form data fields:', Object.keys(flattened));
     
-    // 4. Extract location, name, and email using helper functions
+    // 4. Extract location, name, email, and company using helper functions
     const location = sanitizedData.city || flattened.city || sanitizedData.location || flattened.location || sanitizedData.state || flattened.state || 'Unknown'
     const userName = extractUserName(sanitizedData, flattened);
     const userEmail = extractUserEmail(sanitizedData, flattened);
+    const companyName = extractCompany(sanitizedData, flattened);
     
-    console.log('[track-form] Extracted userName:', userName, 'userEmail:', userEmail);
+    console.log('[track-form] Extracted userName:', userName, 'userEmail:', userEmail, 'company:', companyName);
 
     // 5. Build message from template
     let message = nativeConfig.message_template || `${userName || 'Someone'} just submitted a form`
@@ -272,7 +292,7 @@ serve(async (req) => {
       message = message.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value))
     })
 
-    // 6. Create event
+    // 6. Create event with normalized fields for template rendering
     const { data: event, error } = await supabase
       .from('events')
       .insert({
@@ -282,7 +302,13 @@ serve(async (req) => {
         source: 'tracking',
         event_data: {
           ...sanitizedData,
-          flattened_fields: flattened,
+          flattened_fields: {
+            ...flattened,
+            // Normalize common fields for template rendering
+            name: userName || flattened.name,
+            company: companyName || flattened.company,
+            email: userEmail || flattened.email,
+          },
           page_url,
           auto_detected: true,
           integration_id: integration_id || null

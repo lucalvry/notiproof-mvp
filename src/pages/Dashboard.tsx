@@ -1,4 +1,4 @@
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
@@ -25,9 +25,9 @@ export default function Dashboard() {
   const { currentWebsite } = useWebsiteContext();
   const { restartOnboarding, isOpen: onboardingOpen } = useOnboarding();
   
-  // Real data hooks
-  const { data: stats, isLoading: statsLoading } = useDashboardStats(userId, dateRange);
-  const { data: activities, isLoading: activitiesLoading } = useRecentActivity(userId, 10);
+  // Real data hooks - filter by current website
+  const { data: stats, isLoading: statsLoading } = useDashboardStats(userId, dateRange, currentWebsite?.id);
+  const { data: activities, isLoading: activitiesLoading } = useRecentActivity(userId, 10, currentWebsite?.id);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -37,13 +37,19 @@ export default function Dashboard() {
     // Check for payment success redirect
     const params = new URLSearchParams(window.location.search);
     const paymentSuccess = params.get('payment_success');
+    const ltdSuccess = params.get('ltd_success');
     const sessionId = params.get('session_id');
 
-    if (paymentSuccess === 'true' && sessionId) {
+    if ((paymentSuccess === 'true' || ltdSuccess === 'true') && sessionId) {
       setVerifying(true);
-      toast.loading("Verifying payment...");
       
-      supabase.functions.invoke('verify-stripe-session', {
+      const isLtd = ltdSuccess === 'true';
+      const functionName = isLtd ? 'verify-ltd-session' : 'verify-stripe-session';
+      const loadingMessage = isLtd ? "Verifying your lifetime purchase..." : "Verifying payment...";
+      
+      toast.loading(loadingMessage);
+      
+      supabase.functions.invoke(functionName, {
         body: { sessionId }
       }).then(({ data, error }) => {
         setVerifying(false);
@@ -53,10 +59,14 @@ export default function Dashboard() {
           console.error('Failed to verify session:', error || data);
           toast.error('Failed to verify payment. Please try again or contact support.');
           setTimeout(() => {
-            navigate('/select-plan?verification_failed=true');
+            navigate(isLtd ? '/ltd?verification_failed=true' : '/select-plan?verification_failed=true');
           }, 2000);
         } else {
-          toast.success(`Your ${data.planName} trial has started! Welcome to NotiProof.`);
+          if (isLtd) {
+            toast.success("🎉 Welcome to NotiProof! Your lifetime access is now active.");
+          } else {
+            toast.success(`Your ${data.planName} trial has started! Welcome to NotiProof.`);
+          }
         }
         window.history.replaceState({}, '', '/dashboard');
       });
@@ -92,8 +102,14 @@ export default function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">
-            {currentWebsite ? `Overview for ${currentWebsite.domain}` : "Overview of your notifications"}
+            Overview of your notifications
           </p>
+          {currentWebsite && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+              <Globe className="h-4 w-4" />
+              <span>Showing data for: <strong className="text-foreground">{currentWebsite.domain}</strong></span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <DateRangeFilter value={dateRange} onChange={setDateRange} />

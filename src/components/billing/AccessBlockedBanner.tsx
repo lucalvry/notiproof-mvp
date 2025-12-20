@@ -51,6 +51,14 @@ const reasonConfig: Record<BlockReason, {
     actionPath: "/select-plan",
     color: "text-muted-foreground",
   },
+  lifetime: {
+    icon: CreditCard,
+    title: "Lifetime Access",
+    description: "You have lifetime access to NotiProof.",
+    actionLabel: "Go to Dashboard",
+    actionPath: "/dashboard",
+    color: "text-primary",
+  },
 };
 
 export function AccessBlockedBanner({ 

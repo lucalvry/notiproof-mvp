@@ -10,6 +10,8 @@ import { OAuthFlow } from "./OAuthFlow";
 import { WebhookFlow } from "./WebhookFlow";
 import { APIKeyFlow } from "./APIKeyFlow";
 import { NativeIntegrationFlow } from "./NativeIntegrationFlow";
+import { WooCommerceConnectFlow } from "./WooCommerceConnectFlow";
+import { ShopifyConnectFlow } from "./ShopifyConnectFlow";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
 
 interface IntegrationConnectionDialogProps {
@@ -46,6 +48,27 @@ export function IntegrationConnectionDialog({
           <p className="text-lg font-medium mb-2">Website Required</p>
           <p className="text-sm">Please create a website first to connect integrations.</p>
         </div>
+      );
+    }
+
+    // Custom flows for specific integrations
+    if (integration.id === 'woocommerce') {
+      return (
+        <WooCommerceConnectFlow
+          integration={integration}
+          websiteId={effectiveWebsiteId}
+          onSuccess={handleSuccess}
+        />
+      );
+    }
+
+    if (integration.id === 'shopify') {
+      return (
+        <ShopifyConnectFlow
+          integration={integration}
+          websiteId={effectiveWebsiteId}
+          onSuccess={handleSuccess}
+        />
       );
     }
 

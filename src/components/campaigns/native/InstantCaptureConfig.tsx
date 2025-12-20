@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { ContentAlignmentSelector, ContentAlignment } from "@/components/campaigns/ContentAlignmentSelector";
 
 interface InstantCaptureConfigProps {
   config: {
@@ -15,6 +16,7 @@ interface InstantCaptureConfigProps {
     auto_detect: boolean;
     field_mappings: Record<string, string>;
     require_moderation: boolean;
+    content_alignment?: ContentAlignment;
   };
   onChange: (config: any) => void;
 }
@@ -115,7 +117,13 @@ export function InstantCaptureConfig({ config, onChange }: InstantCaptureConfigP
           </Tabs>
         </div>
 
-        {/* Step 3: Moderation Toggle */}
+        {/* Step 3: Content Alignment */}
+        <ContentAlignmentSelector
+          value={config.content_alignment || 'top'}
+          onChange={(alignment) => onChange({ ...config, content_alignment: alignment })}
+        />
+
+        {/* Step 4: Moderation Toggle */}
         <div className="flex items-center justify-between p-4 border rounded-lg">
           <div className="space-y-1">
             <Label>Require approval before showing</Label>

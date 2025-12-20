@@ -101,7 +101,8 @@ export default function AdminUsers() {
         // Determine subscription status label
         let subStatus = 'none';
         if (userSub) {
-          if (userSub.status === 'active') subStatus = 'active';
+          if (userSub.status === 'lifetime') subStatus = 'lifetime';
+          else if (userSub.status === 'active') subStatus = 'active';
           else if (userSub.status === 'trialing') {
             const isExpired = userSub.trial_end && new Date(userSub.trial_end) < new Date();
             subStatus = isExpired ? 'expired' : 'trialing';
@@ -213,10 +214,10 @@ export default function AdminUsers() {
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === "all" || user.role === roleFilter;
-    return matchesSearch && matchesRole;
+    const matchesFilter = roleFilter === "all" || (user as any).subscriptionStatus === roleFilter;
+    return matchesSearch && matchesFilter;
   });
 
   if (authLoading || loading) {
@@ -248,14 +249,16 @@ export default function AdminUsers() {
                 />
               </div>
               <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Filter by role" />
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Roles</SelectItem>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="support">Support</SelectItem>
+                  <SelectItem value="all">All Users</SelectItem>
+                  <SelectItem value="lifetime">🎫 Lifetime (LTD)</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="trialing">Trialing</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                  <SelectItem value="none">No Subscription</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -287,17 +290,19 @@ export default function AdminUsers() {
                   <TableCell>
                     <Badge 
                       variant={
+                        (user as any).subscriptionStatus === 'lifetime' ? 'default' :
                         (user as any).subscriptionStatus === 'active' ? 'default' :
                         (user as any).subscriptionStatus === 'trialing' ? 'outline' :
                         (user as any).subscriptionStatus === 'past_due' ? 'destructive' :
                         (user as any).subscriptionStatus === 'expired' ? 'destructive' :
                         'secondary'
                       }
+                      className={(user as any).subscriptionStatus === 'lifetime' ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0' : ''}
                     >
-                      {(user as any).subscriptionStatus === 'none' ? 'No Subscription' :
+                      {(user as any).subscriptionStatus === 'lifetime' ? '🎫 Lifetime' :
+                       (user as any).subscriptionStatus === 'none' ? 'No Subscription' :
                        (user as any).subscriptionStatus === 'past_due' ? 'Payment Failed' :
-                       (user as any).subscriptionStatus?.charAt(0).toUpperCase() + (user as any).subscriptionStatus?.slice(1)}
-                    </Badge>
+                       (user as any).subscriptionStatus?.charAt(0).toUpperCase() + (user as any).subscriptionStatus?.slice(1)}</Badge>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{user.role}</Badge>

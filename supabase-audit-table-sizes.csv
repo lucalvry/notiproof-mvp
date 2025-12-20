@@ -1,0 +1,21 @@
+table_name,total_size,table_size,indexes_size,toast_size,row_count,rows_last_30_days,rows_last_7_days
+events,1072 kB,144 kB,888 kB,928 kB,247,237,237
+integration_logs,576 kB,168 kB,184 kB,408 kB,N/A,N/A,N/A
+visitor_sessions,416 kB,24 kB,272 kB,392 kB,43,N/A,N/A
+campaigns,352 kB,24 kB,272 kB,328 kB,5,5,5
+help_articles,264 kB,32 kB,184 kB,232 kB,3,N/A,N/A
+webhook_dedup,264 kB,8 kB,64 kB,256 kB,N/A,N/A,N/A
+templates,216 kB,88 kB,80 kB,128 kB,N/A,N/A,N/A
+marketplace_templates,200 kB,16 kB,112 kB,144 kB,39,N/A,N/A
+widgets,152 kB,16 kB,96 kB,136 kB,5,3,N/A
+integrations_config,128 kB,24 kB,72 kB,104 kB,39,N/A,N/A
+template_categories,128 kB,8 kB,80 kB,120 kB,N/A,N/A,N/A
+testimonials,112 kB,8 kB,96 kB,104 kB,N/A,N/A,N/A
+websites,112 kB,8 kB,64 kB,104 kB,4,N/A,N/A
+social_items,104 kB,8 kB,88 kB,96 kB,N/A,N/A,N/A
+event_usage_tracking,96 kB,8 kB,48 kB,88 kB,2,N/A,N/A
+feature_flags,80 kB,8 kB,64 kB,72 kB,N/A,N/A,N/A
+integrations,80 kB,8 kB,64 kB,72 kB,N/A,N/A,N/A
+system_settings,80 kB,8 kB,64 kB,72 kB,N/A,N/A,N/A
+profiles,72 kB,8 kB,56 kB,64 kB,12,N/A,N/A
+user_subscriptions,64 kB,16 kB,16 kB,48 kB,4,N/A,N/A

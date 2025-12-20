@@ -34,8 +34,54 @@ const DEFAULT_WEIGHTS: Record<string, NotificationWeight> = {
   'form_capture': { event_type: 'form_capture', weight: 7, max_per_queue: 20, ttl_days: 14 },
   'signup': { event_type: 'signup', weight: 6, max_per_queue: 20, ttl_days: 14 },
   'announcement': { event_type: 'announcement', weight: 4, max_per_queue: 5, ttl_days: 30 },
-  'live_visitors': { event_type: 'live_visitors', weight: 2, max_per_queue: 3, ttl_days: 1 },
+  'live_visitors': { event_type: 'live_visitors', weight: 2, max_per_queue: 1, ttl_days: 1 },
 };
+
+/**
+ * Verification Badge Logic - Determines when to show "✓ NotiProof Verified"
+ * 
+ * Rules:
+ * - Shopify, Stripe, WooCommerce, Testimonials, Form Hook: Always show (real customer data)
+ * - Live Visitors (Visitors Pulse): Only show when mode === 'real'
+ * - Announcements: Never show (business-created content)
+ * - Simulated/Demo data: Never show
+ */
+const VERIFICATION_BADGE_HTML = '<span class="notiproof-verified" style="color: #2563EB; font-size: 11px; font-weight: 500; margin-left: 8px;">✓ NotiProof Verified</span>';
+
+function shouldShowVerificationBadge(eventType: string, eventData: Record<string, any>): boolean {
+  // Never show for announcements (business-created content)
+  if (eventType === 'announcement') return false;
+  
+  // Visitors Pulse / Live Visitors: only show for real mode
+  if (eventType === 'live_visitors') {
+    return eventData?.mode === 'real';
+  }
+  
+  // Never show for explicitly simulated/demo data
+  if (eventData?.isSimulated || eventData?.isDemo) return false;
+  
+  // Show for all real data providers
+  const verifiedEventTypes = ['purchase', 'testimonial', 'form_capture', 'signup', 'payment'];
+  return verifiedEventTypes.includes(eventType);
+}
+
+/**
+ * Append verification badge to notification HTML if applicable
+ */
+function appendVerificationBadge(html: string, eventType: string, eventData: Record<string, any>): string {
+  if (!shouldShowVerificationBadge(eventType, eventData)) {
+    return html;
+  }
+  
+  // Try to insert badge before the last closing div
+  const lastDivIndex = html.lastIndexOf('</div>');
+  if (lastDivIndex !== -1) {
+    return html.slice(0, lastDivIndex) + VERIFICATION_BADGE_HTML + html.slice(lastDivIndex);
+  }
+  
+  // Fallback: append to end
+  return html + VERIFICATION_BADGE_HTML;
+}
 
 /**
  * Get relative time string from timestamp
@@ -356,10 +402,10 @@ async function fetchGroupedEvents(
         console.error(`[Queue Builder] Error fetching form_capture events:`, error);
         grouped[eventType] = [];
       } else {
-        // Step 2: Fetch form capture campaign settings for this website
+        // Step 2: Fetch form capture campaign settings AND widget style_config for this website
         const { data: formCaptureCampaign } = await supabase
           .from('campaigns')
-          .select('integration_settings')
+          .select('id, integration_settings')
           .eq('website_id', config.websiteId)
           .not('integration_settings->form_type', 'is', null)
           .limit(1)
@@ -368,33 +414,384 @@ async function fetchGroupedEvents(
         const campaignSettings = formCaptureCampaign?.integration_settings || {};
         const defaultAvatar = campaignSettings.avatar || '📧';
         const defaultMessageTemplate = campaignSettings.message_template || '{{name}} just signed up';
+        const contentAlignment = campaignSettings.content_alignment || 'top';
+        
+        // Fetch widget style_config for additional design settings
+        let widgetStyleConfig: Record<string, any> = {};
+        if (formCaptureCampaign?.id) {
+          const { data: widgetData } = await supabase
+            .from('widgets')
+            .select('id, style_config')
+            .eq('campaign_id', formCaptureCampaign.id)
+            .maybeSingle();
+          
+          if (widgetData?.style_config) {
+            widgetStyleConfig = widgetData.style_config as Record<string, any>;
+          }
+        }
         
         console.log(`[Queue Builder] Form capture campaign settings:`, { 
           avatar: defaultAvatar, 
           template: defaultMessageTemplate,
+          contentAlignment,
+          widgetStyleConfig,
           found: !!formCaptureCampaign 
         });
         
-        // Step 3: Transform events with campaign settings
+        // Step 3: Transform events with campaign settings, widget styles, and normalize field names
         const transformedEvents = (formEvents || []).map((e: any) => {
-          const messageTemplate = e.message_template || defaultMessageTemplate;
+          // Always use campaign's current message_template so template updates apply immediately
+          const messageTemplate = defaultMessageTemplate;
           const eventData = e.event_data || {};
           const flatData = eventData.flattened_fields || eventData;
-          const renderedMessage = renderTemplate(messageTemplate, flatData);
+          
+          // Normalize field names for template rendering (handle hyphenated field names)
+          const normalizedData = {
+            ...flatData,
+            name: flatData.name || flatData['full-name'] || flatData.full_name || flatData['first-name'] || flatData.first_name || e.user_name || 'Someone',
+            company: flatData.company || flatData['company-name'] || flatData.company_name || flatData.organization || '',
+            email: flatData.email || flatData['your-email'] || e.user_email || '',
+            location: flatData.location || flatData.city || e.user_location || '',
+          };
+          
+          const renderedMessage = renderTemplate(messageTemplate, normalizedData);
           
           return {
             ...e,
             message_template: renderedMessage,
+            // Design settings at top-level for widget.js to read correctly
+            design_settings: {
+              contentAlignment: widgetStyleConfig.contentAlignment || contentAlignment,
+              backgroundColor: widgetStyleConfig.backgroundColor || campaignSettings.backgroundColor,
+              textColor: widgetStyleConfig.textColor || campaignSettings.textColor,
+              primaryColor: widgetStyleConfig.primaryColor || campaignSettings.primaryColor,
+              borderRadius: widgetStyleConfig.borderRadius || campaignSettings.borderRadius,
+              shadow: widgetStyleConfig.shadow || campaignSettings.shadow,
+              fontSize: widgetStyleConfig.fontSize || campaignSettings.fontSize,
+              fontFamily: widgetStyleConfig.fontFamily || campaignSettings.fontFamily,
+            },
             event_data: {
               ...e.event_data,
               avatar: defaultAvatar,
-              rendered_message: renderedMessage
+              rendered_message: renderedMessage,
+              normalized: normalizedData,
             }
           };
         });
         
         grouped[eventType] = transformedEvents;
         console.log(`[Queue Builder] Fetched and processed ${formEvents?.length || 0} form_capture events`);
+      }
+    } else if (eventType === 'live_visitors') {
+      // Generate synthetic live_visitors events from active campaigns
+      const { data: visitorCampaigns, error: campError } = await supabase
+        .from('campaigns')
+        .select(`
+          id, name, native_config, data_sources,
+          templates:template_id (id, name, template_key, html_template, style_variant)
+        `)
+        .eq('website_id', config.websiteId)
+        .eq('status', 'active');
+      
+      if (campError) {
+        console.error(`[Queue Builder] Error fetching live_visitors campaigns:`, campError);
+        grouped[eventType] = [];
+      } else {
+        // Find campaigns with live_visitors provider
+        const liveVisitorCampaigns = (visitorCampaigns || []).filter((c: any) => {
+          const sources = Array.isArray(c.data_sources) ? c.data_sources : [];
+          return sources.some((s: any) => s.provider === 'live_visitors');
+        });
+        
+        if (liveVisitorCampaigns.length > 0) {
+          const campaign = liveVisitorCampaigns[0];
+          const nativeConfig = campaign.native_config || {};
+          const liveVisitorSource = (campaign.data_sources as any[])?.find((s: any) => s.provider === 'live_visitors');
+          
+          // Fetch the widget's style_config for this campaign
+          const { data: widgetData } = await supabase
+            .from('widgets')
+            .select('id, style_config')
+            .eq('campaign_id', campaign.id)
+            .maybeSingle();
+          
+          const widgetStyleConfig = (widgetData?.style_config as Record<string, any>) || {};
+          
+          // Generate config from native_config or data_source config
+          const minCount = nativeConfig.min_count || liveVisitorSource?.config?.min_count || 5;
+          const maxCount = nativeConfig.max_count || liveVisitorSource?.config?.max_count || 25;
+          const count = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount;
+          
+          // Generate a single live_visitors event per campaign (it's a counter, not multiple notifications)
+          const showLocation = nativeConfig.show_location !== false;
+          
+          // Build design_settings from widget's style_config
+          const designSettings = {
+            content_alignment: nativeConfig.content_alignment || widgetStyleConfig.contentAlignment || 'top',
+            fontSize: widgetStyleConfig.fontSize || nativeConfig.fontSize || 14,
+            fontFamily: widgetStyleConfig.fontFamily || nativeConfig.fontFamily || 'system',
+            borderRadius: widgetStyleConfig.borderRadius !== undefined ? widgetStyleConfig.borderRadius : (nativeConfig.borderRadius ?? 12),
+            borderWidth: widgetStyleConfig.borderWidth ?? nativeConfig.borderWidth ?? 0,
+            borderColor: widgetStyleConfig.borderColor || nativeConfig.borderColor || '#e5e7eb',
+            shadow: widgetStyleConfig.shadow || nativeConfig.shadow || 'md',
+            backgroundColor: widgetStyleConfig.backgroundColor || nativeConfig.backgroundColor || '#ffffff',
+            textColor: widgetStyleConfig.textColor || nativeConfig.textColor || '#1a1a1a',
+            linkColor: widgetStyleConfig.linkColor || nativeConfig.linkColor || '#667eea',
+          };
+          
+          // Generate a single count for this visitor counter
+          const visitorCount = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount;
+          const peopleText = visitorCount === 1 ? 'person is' : 'people are';
+          const templateStyle = nativeConfig.template_style || 'social_proof';
+          
+          // Template variables for all template types
+          const templateData: Record<string, any> = {
+            // Standard count variables
+            count: visitorCount,
+            visitor_count: visitorCount,
+            'template.visitor_count': visitorCount,
+            
+            // Page info (will be overwritten client-side)
+            page_name: 'this page',
+            page_url: '',
+            'template.page_name': 'this page',
+            'template.page_url': '',
+            
+            // Location (populated client-side)
+            location: '',
+            'template.location': '',
+            
+            // Icon
+            icon: nativeConfig.icon || '👥',
+            
+            // Urgency Banner specific variables
+            prefix: templateStyle === 'urgency' ? '🔥 HOT -' : '',
+            message: `${peopleText} viewing right now!`,
+            
+            // For animated/live counter templates
+            'visitors-count': visitorCount,
+            
+            // Style namespace variables for templates
+            'style.font_size': `${designSettings.fontSize}px`,
+            'style.link_color': designSettings.linkColor,
+            'style.text_color': designSettings.textColor,
+            'style.background_color': designSettings.backgroundColor,
+            'style.border_radius': `${designSettings.borderRadius}px`,
+            'style.font_family': designSettings.fontFamily,
+          };
+          
+          const defaultMessage = `${visitorCount} ${peopleText} viewing this page`;
+          
+          // Build rendered message for pre-rendered template case
+          const renderedMessage = (campaign.templates as any)?.html_template 
+            ? renderTemplate((campaign.templates as any).html_template, templateData)
+            : defaultMessage;
+          
+          const singleEvent = {
+            id: `live_visitors_${campaign.id}_${Date.now()}`,
+            event_type: 'live_visitors',
+            event_data: {
+              visitor_count: visitorCount,
+              mode: nativeConfig.mode || 'simulated',
+              template_style: templateStyle,
+              campaign_id: campaign.id,
+              campaign_name: campaign.name,
+              has_custom_template: !!(campaign.templates as any)?.html_template,
+              custom_html: (campaign.templates as any)?.html_template || null,
+              icon: nativeConfig.icon || '👥',
+              // Fields expected by widget.js for proper rendering
+              show_location: showLocation,
+              location: null, // Will be populated client-side with visitor's location
+              page_name: 'this page',
+              page_url: '', // Client will use actual page URL
+              rendered_message: renderedMessage,
+              // Pass template variables for client-side re-rendering if needed
+              prefix: templateData.prefix,
+              message: templateData.message,
+              // Pass content alignment for widget.js
+              content_alignment: designSettings.content_alignment,
+            },
+            // Pass design_settings at event level for widget.js to apply styles
+            design_settings: designSettings,
+            message_template: renderedMessage,
+            created_at: new Date().toISOString(),
+            campaign_id: campaign.id,
+            moderation_status: 'approved',
+            status: 'approved'
+          };
+          
+          grouped[eventType] = [singleEvent];
+          console.log(`[Queue Builder] Generated 1 live_visitors event for campaign ${campaign.id} with design_settings:`, designSettings);
+        } else {
+          grouped[eventType] = [];
+          console.log(`[Queue Builder] No active live_visitors campaigns found`);
+        }
+      }
+    } else if (eventType === 'announcement') {
+      // Special handling for announcements - read from campaign's native_config for up-to-date content
+      // This ensures edits to announcements are immediately reflected
+      // NOTE: Announcement campaigns have campaign_type='notification' but data_sources[].provider='announcements'
+      const { data: allActiveCampaigns, error: campError } = await supabase
+        .from('campaigns')
+        .select(`
+          id, name, native_config, integration_settings, status, data_sources,
+          widgets!inner (id)
+        `)
+        .eq('website_id', config.websiteId)
+        .eq('status', 'active');
+      
+      // Filter for campaigns with announcements provider in data_sources
+      const announcementCampaigns = (allActiveCampaigns || []).filter((c: any) => {
+        const sources = Array.isArray(c.data_sources) ? c.data_sources : [];
+        return sources.some((s: any) => s.provider === 'announcements');
+      });
+      
+      console.log(`[Queue Builder] Found ${announcementCampaigns.length} announcement campaigns by data_sources provider`);
+      
+      if (campError) {
+        console.error(`[Queue Builder] Error fetching announcement campaigns:`, campError);
+        grouped[eventType] = [];
+      } else if (announcementCampaigns.length > 0) {
+        const announcementEvents = [];
+        
+        for (const campaign of announcementCampaigns) {
+          // Use native_config or integration_settings for the most up-to-date content
+          const announcementConfig = campaign.native_config || campaign.integration_settings || {};
+          
+          if (announcementConfig.title) {
+            announcementEvents.push({
+              id: `announcement_${campaign.id}_${Date.now()}`,
+              event_type: 'announcement',
+              message_template: announcementConfig.title,
+              campaign_id: campaign.id,
+              widget_id: (campaign.widgets as any)?.[0]?.id || config.widgetIds[0],
+              event_data: {
+                title: announcementConfig.title,
+                message: announcementConfig.message,
+                cta_text: announcementConfig.cta_text,
+                cta_url: announcementConfig.cta_url,
+                image_type: announcementConfig.image_type || 'emoji',
+                emoji: announcementConfig.emoji,
+                icon: announcementConfig.icon,
+                image_url: announcementConfig.image_url,
+                // NEW: Style settings from announcement config
+                content_alignment: announcementConfig.content_alignment || 'top',
+                button_stretch: announcementConfig.button_stretch || false,
+                font_size: announcementConfig.font_size || 14,
+                font_family: announcementConfig.font_family || 'system',
+              },
+              created_at: new Date().toISOString(),
+              moderation_status: 'approved',
+              status: 'approved',
+            });
+            console.log(`[Queue Builder] Generated announcement from campaign ${campaign.id}: "${announcementConfig.title}"`);
+          }
+        }
+        
+        grouped[eventType] = announcementEvents;
+        console.log(`[Queue Builder] Generated ${announcementEvents.length} announcement events from campaigns`);
+      } else {
+        // Fallback: fetch from events table if no active campaigns
+        const { data, error } = await supabase
+          .from('events')
+          .select('*')
+          .in('widget_id', config.widgetIds)
+          .eq('event_type', eventType)
+          .eq('moderation_status', 'approved')
+          .eq('status', 'approved')
+          .gte('created_at', ttlDate)
+          .order('created_at', { ascending: false })
+          .limit(weightConfig.max_per_queue);
+        
+        if (error) {
+          console.error(`[Queue Builder] Error fetching ${eventType}:`, error);
+          grouped[eventType] = [];
+        } else {
+          grouped[eventType] = data || [];
+          console.log(`[Queue Builder] Fetched ${data?.length || 0} ${eventType} events from events table`);
+        }
+      }
+    } else if (eventType === 'purchase') {
+      // FIXED: For purchase events from integrations (WooCommerce, Shopify, Stripe),
+      // query by website_id instead of widget_id so all WooCommerce campaigns can show events
+      const { data: purchaseEvents, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('website_id', config.websiteId)
+        .eq('event_type', 'purchase')
+        .eq('moderation_status', 'approved')
+        .eq('status', 'approved')
+        .in('source', ['woocommerce', 'shopify', 'stripe', 'manual'])
+        .gte('created_at', ttlDate)
+        .order('created_at', { ascending: false })
+        .limit(weightConfig.max_per_queue);
+      
+      if (error) {
+        console.error(`[Queue Builder] Error fetching purchase events:`, error);
+        grouped[eventType] = [];
+      } else {
+        // Fetch all active purchase/WooCommerce campaigns WITH their widgets and style settings
+        const { data: purchaseCampaigns } = await supabase
+          .from('campaigns')
+          .select('id, display_rules, data_sources, template_id')
+          .eq('website_id', config.websiteId)
+          .eq('status', 'active');
+        
+        // Find WooCommerce campaigns
+        const wooCampaigns = (purchaseCampaigns || []).filter((c: any) => {
+          const sources = Array.isArray(c.data_sources) ? c.data_sources : [];
+          return sources.some((ds: any) => ds.provider === 'woocommerce');
+        });
+        
+        console.log(`[Queue Builder] Found ${wooCampaigns.length} active WooCommerce campaigns`);
+        
+        // Fetch widgets for all WooCommerce campaigns to get their style_config
+        const campaignWidgetMap: Record<string, any> = {};
+        for (const camp of wooCampaigns) {
+          const { data: campaignWidget } = await supabase
+            .from('widgets')
+            .select('id, style_config')
+            .eq('campaign_id', camp.id)
+            .maybeSingle();
+          
+          if (campaignWidget) {
+            campaignWidgetMap[camp.id] = campaignWidget;
+            console.log(`[Queue Builder] Found widget for campaign ${camp.id}:`, { 
+              widgetId: campaignWidget.id, 
+              hasStyleConfig: !!campaignWidget.style_config 
+            });
+          }
+        }
+        
+        // Attach campaign design settings to each event
+        const eventsWithDesign = (purchaseEvents || []).map((event: any) => {
+          // Find the campaign whose widget matches this event's widget_id
+          let matchingCampaign = wooCampaigns.find((c: any) => {
+            const campWidget = campaignWidgetMap[c.id];
+            return campWidget && campWidget.id === event.widget_id;
+          }) || wooCampaigns[0];
+          
+          if (matchingCampaign) {
+            const campaignWidget = campaignWidgetMap[matchingCampaign.id];
+            // Merge display_rules from campaign with style_config from widget
+            const mergedDesignSettings = {
+              ...matchingCampaign.display_rules,
+              ...(campaignWidget?.style_config || {}),
+            };
+            
+            console.log(`[Queue Builder] Event ${event.id} matched campaign ${matchingCampaign.id}, design_settings:`, mergedDesignSettings);
+            
+            return {
+              ...event,
+              campaign_id: matchingCampaign.id,
+              design_settings: mergedDesignSettings,
+            };
+          }
+          return event;
+        });
+        
+        grouped[eventType] = eventsWithDesign;
+        console.log(`[Queue Builder] Fetched ${purchaseEvents?.length || 0} purchase events by website_id`);
       }
     } else {
       // Fetch from events table for other event types
@@ -424,6 +821,7 @@ async function fetchGroupedEvents(
 
 /**
  * Build weighted queue using round-robin selection based on weights
+ * Also adds verification badge to eligible notifications
  */
 function buildWeightedQueue(
   groupedEvents: Record<string, any[]>,
@@ -468,10 +866,26 @@ function buildWeightedQueue(
       }
     }
     
-    // Add event from selected type
+    // Add event from selected type with verification badge
     const event = groupedEvents[selectedType][cursors[selectedType]];
     if (event) {
-      queue.push(event);
+      // Determine if this event should show verification badge
+      const showVerified = shouldShowVerificationBadge(event.event_type, event.event_data || {});
+      
+      // Clone event and add verification data
+      const enrichedEvent = {
+        ...event,
+        show_verified: showVerified,
+        event_data: {
+          ...event.event_data,
+          show_verified: showVerified,
+        },
+      };
+      
+      // Note: Verification badge is now rendered by the widget on the same line as timestamp/location
+      // No longer appending to message_template to avoid duplication
+      
+      queue.push(enrichedEvent);
       cursors[selectedType]++;
     }
   }
@@ -484,6 +898,10 @@ function buildWeightedQueue(
       ])
     )
   );
+  
+  // Log verification badge stats
+  const verifiedCount = queue.filter(e => e.show_verified).length;
+  console.log(`[Queue Builder] Verification badges: ${verifiedCount}/${queue.length} events`);
   
   return queue;
 }

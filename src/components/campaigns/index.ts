@@ -12,3 +12,8 @@ export { OrchestrationStep } from './steps/OrchestrationStep';
 export { CampaignCard } from './CampaignCard';
 export { CampaignEditor } from './CampaignEditor';
 export { ReviewActivate } from './ReviewActivate';
+
+// Export WooCommerce-specific components
+export { WooCommerceCampaignEditor } from './WooCommerceCampaignEditor';
+export { WooCommerceDesignPresets } from './WooCommerceDesignPresets';
+export { WooCommerceTemplateGallery } from './WooCommerceTemplateGallery';

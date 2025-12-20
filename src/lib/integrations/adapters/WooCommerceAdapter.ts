@@ -1,6 +1,23 @@
 import { BaseAdapter } from '../BaseAdapter';
 import { CanonicalEvent, NormalizedField } from '../types';
 
+// Default WooCommerce template HTML (fallback)
+const DEFAULT_WOOCOMMERCE_TEMPLATE = `<div class="noti-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 340px;">
+  {{#template.product_image}}
+  <img src="{{template.product_image}}" alt="" style="width: 48px; height: 48px; border-radius: 6px; object-fit: cover; flex-shrink: 0;" />
+  {{/template.product_image}}
+  {{^template.product_image}}
+  <div style="width: 48px; height: 48px; border-radius: 6px; background: linear-gradient(135deg, #7C3AED 0%, #2563EB 100%); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+    <span style="font-size: 20px;">🛒</span>
+  </div>
+  {{/template.product_image}}
+  <div style="flex: 1; min-width: 0;">
+    <div style="font-weight: 600; font-size: 13px; color: #1f2937; margin-bottom: 2px;">{{template.customer_name}}</div>
+    <div style="font-size: 12px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">purchased <strong style="color: #1f2937;">{{template.product_name}}</strong></div>
+    <div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">{{template.customer_location}} • {{template.time_ago}}</div>
+  </div>
+</div>`;
+
 export class WooCommerceAdapter extends BaseAdapter {
   provider = 'woocommerce';
   displayName = 'WooCommerce';
@@ -83,6 +100,40 @@ export class WooCommerceAdapter extends BaseAdapter {
     ];
   }
   
+  /**
+   * Get the default template HTML for WooCommerce events
+   */
+  getDefaultTemplateHtml(): string {
+    return DEFAULT_WOOCOMMERCE_TEMPLATE;
+  }
+  
+  /**
+   * Render event data with a template
+   */
+  renderWithTemplate(templateHtml: string, data: Record<string, any>): string {
+    let rendered = templateHtml;
+    
+    // Handle section blocks {{#key}}...{{/key}} (show if truthy)
+    rendered = rendered.replace(/\{\{#([^}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (match, key, content) => {
+      const value = data[key.trim()];
+      return (value !== undefined && value !== null && value !== '' && value !== false) ? content : '';
+    });
+    
+    // Handle inverted blocks {{^key}}...{{/key}} (show if falsy)
+    rendered = rendered.replace(/\{\{\^([^}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (match, key, content) => {
+      const value = data[key.trim()];
+      return (value === undefined || value === null || value === '' || value === false) ? content : '';
+    });
+    
+    // Handle simple substitutions {{key}}
+    rendered = rendered.replace(/\{\{([^#^/][^}]*)\}\}/g, (match, key) => {
+      const value = data[key.trim()];
+      return value !== undefined && value !== null ? String(value) : '';
+    });
+    
+    return rendered;
+  }
+  
   normalize(rawEvent: any): CanonicalEvent {
     const order = rawEvent.order || rawEvent;
     
@@ -109,27 +160,46 @@ export class WooCommerceAdapter extends BaseAdapter {
     const timestamp = order.date_created || new Date().toISOString();
     const timeAgo = this.getRelativeTime(timestamp);
     
+    const normalized = {
+      'template.customer_name': customerName,
+      'template.customer_email': billing.email,
+      'template.customer_location': customerLocation || 'your store',
+      'template.product_name': productName,
+      'template.product_image': productImage,
+      'template.product_price': productPrice,
+      'template.order_total': orderTotal,
+      'template.order_id': `#${order.id || order.number}`,
+      'template.quantity': totalQuantity,
+      'template.time_ago': timeAgo,
+      'meta.status': order.status,
+      'meta.payment_method': order.payment_method_title,
+      'meta.currency': currency,
+    };
+    
     return {
       event_id: this.generateEventId('woocommerce'),
       provider: 'woocommerce',
       provider_event_type: order.status === 'completed' ? 'order.completed' : 'order.created',
       timestamp,
       payload: rawEvent,
-      normalized: {
-        'template.customer_name': customerName,
-        'template.customer_email': billing.email,
-        'template.customer_location': customerLocation,
-        'template.product_name': productName,
-        'template.product_image': productImage,
-        'template.product_price': productPrice,
-        'template.order_total': orderTotal,
-        'template.order_id': `#${order.id || order.number}`,
-        'template.quantity': totalQuantity,
-        'template.time_ago': timeAgo,
-        'meta.status': order.status,
-        'meta.payment_method': order.payment_method_title,
-        'meta.currency': currency,
-      },
+      normalized,
+    };
+  }
+  
+  /**
+   * Normalize and render - returns both normalized data and rendered HTML
+   */
+  normalizeAndRender(rawEvent: any, templateHtml?: string): { 
+    canonical: CanonicalEvent; 
+    renderedHtml: string;
+  } {
+    const canonical = this.normalize(rawEvent);
+    const template = templateHtml || this.getDefaultTemplateHtml();
+    const renderedHtml = this.renderWithTemplate(template, canonical.normalized);
+    
+    return {
+      canonical,
+      renderedHtml,
     };
   }
   

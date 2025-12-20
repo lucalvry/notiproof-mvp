@@ -199,10 +199,18 @@ Deno.serve(async (req) => {
 
     // Assign plan to user
     if (requestAction === 'assign-plan') {
-      const { userId, planId, durationDays, reason } = requestBody;
+      const { userId, planId, durationDays, isLifetime, reason } = requestBody;
 
-      if (!userId || !planId || !durationDays || durationDays <= 0) {
-        return new Response(JSON.stringify({ error: 'Invalid parameters' }), {
+      if (!userId || !planId) {
+        return new Response(JSON.stringify({ error: 'Invalid parameters: userId and planId required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // For non-lifetime, require valid durationDays
+      if (!isLifetime && (!durationDays || durationDays <= 0)) {
+        return new Response(JSON.stringify({ error: 'Invalid parameters: durationDays required for non-lifetime plans' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -223,8 +231,8 @@ Deno.serve(async (req) => {
       }
 
       const periodStart = new Date();
-      const periodEnd = new Date();
-      periodEnd.setDate(periodEnd.getDate() + durationDays);
+      const periodEnd = isLifetime ? null : new Date(periodStart.getTime() + durationDays * 24 * 60 * 60 * 1000);
+      const subscriptionStatus = isLifetime ? 'lifetime' : 'active';
 
       // Check if user has existing subscription
       const { data: existing } = await supabaseAdmin
@@ -239,9 +247,9 @@ Deno.serve(async (req) => {
           .from('user_subscriptions')
           .update({
             plan_id: planId,
-            status: 'active',
+            status: subscriptionStatus,
             current_period_start: periodStart.toISOString(),
-            current_period_end: periodEnd.toISOString(),
+            current_period_end: periodEnd ? periodEnd.toISOString() : null,
             trial_end: null,
           })
           .eq('id', existing.id);
@@ -254,9 +262,9 @@ Deno.serve(async (req) => {
           .insert({
             user_id: userId,
             plan_id: planId,
-            status: 'active',
+            status: subscriptionStatus,
             current_period_start: periodStart.toISOString(),
-            current_period_end: periodEnd.toISOString(),
+            current_period_end: periodEnd ? periodEnd.toISOString() : null,
           });
 
         if (insertError) throw insertError;
@@ -271,21 +279,23 @@ Deno.serve(async (req) => {
         details: {
           plan_id: planId,
           plan_name: plan.name,
-          duration_days: durationDays,
+          is_lifetime: isLifetime || false,
+          duration_days: isLifetime ? null : durationDays,
           reason: reason || 'Admin assignment',
           period_start: periodStart.toISOString(),
-          period_end: periodEnd.toISOString(),
+          period_end: periodEnd ? periodEnd.toISOString() : 'lifetime',
         },
       });
 
-      console.log(`[Admin] Assigned plan ${plan.name} to user ${userId} for ${durationDays} days`);
+      console.log(`[Admin] Assigned plan ${plan.name} to user ${userId}${isLifetime ? ' (LIFETIME)' : ` for ${durationDays} days`}`);
 
       return new Response(JSON.stringify({
         success: true,
         plan_name: plan.name,
-        period_end: periodEnd.toISOString(),
+        is_lifetime: isLifetime || false,
+        period_end: periodEnd ? periodEnd.toISOString() : null,
       }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 

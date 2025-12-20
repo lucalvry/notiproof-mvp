@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, TrendingUp, Star, Zap, List, ExternalLink, Globe } from "lucide-react";
+import { CheckCircle, XCircle, Plug, RefreshCw, AlertCircle, Settings, TrendingUp, Star, Zap, List, ExternalLink, Globe, Palette } from "lucide-react";
 
 interface IntegrationCardProps {
   integration: any;
@@ -12,6 +12,7 @@ interface IntegrationCardProps {
   onDisconnect: () => void;
   onModerate?: () => void;
   onManage?: () => void;
+  onDesignDefaults?: () => void;
   quota?: { quota: number; used: number };
   pendingCount?: number;
 }
@@ -25,6 +26,7 @@ export function IntegrationCard({
   onDisconnect,
   onModerate,
   onManage,
+  onDesignDefaults,
   quota,
   pendingCount = 0,
 }: IntegrationCardProps) {
@@ -177,6 +179,11 @@ export function IntegrationCard({
                       {pendingCount}
                     </Badge>
                   )}
+                </Button>
+              )}
+              {onDesignDefaults && (
+                <Button variant="outline" onClick={onDesignDefaults} title="Design Defaults">
+                  <Palette className="h-4 w-4" />
                 </Button>
               )}
               <Button variant="outline" onClick={onSettings}>

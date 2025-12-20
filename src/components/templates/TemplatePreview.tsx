@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Eye, Code, RefreshCw } from 'lucide-react';
+import { Eye, Code, RefreshCw, CheckCircle } from 'lucide-react';
 import { renderTemplatePreview } from '@/lib/templateEngine';
+import { shouldShowVerificationBadge, VERIFICATION_BADGE_TEXT } from '@/lib/verificationBadgeUtils';
 import type { TemplateConfig } from '@/lib/templateEngine';
 
 interface TemplatePreviewProps {
@@ -12,6 +13,7 @@ interface TemplatePreviewProps {
   onSelect?: (template: TemplateConfig) => void;
   selected?: boolean;
   scale?: number;
+  visitorsPulseMode?: 'real' | 'simulated';
 }
 
 export function TemplatePreview({ 
@@ -20,15 +22,21 @@ export function TemplatePreview({
   onSelect,
   selected = false,
   scale = 0.8,
+  visitorsPulseMode,
 }: TemplatePreviewProps) {
   const [renderedHtml, setRenderedHtml] = useState('');
   const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview');
   const [key, setKey] = useState(0);
 
+  // Determine if verification badge should be shown
+  const showVerificationBadge = shouldShowVerificationBadge(template.provider, {
+    visitorsPulseMode: visitorsPulseMode,
+  });
+
   useEffect(() => {
-    const html = renderTemplatePreview(template);
+    const html = renderTemplatePreview(template, { includeVerificationBadge: showVerificationBadge });
     setRenderedHtml(html);
-  }, [template, key]);
+  }, [template, key, showVerificationBadge]);
 
   const handleRefresh = () => {
     setKey(k => k + 1);
@@ -51,6 +59,12 @@ export function TemplatePreview({
             <Badge variant="outline" className="text-xs">
               {template.provider}
             </Badge>
+            {showVerificationBadge && (
+              <Badge variant="outline" className="text-xs text-primary border-primary/30">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Verified
+              </Badge>
+            )}
           </div>
         </div>
         <div className="flex gap-1">

@@ -124,6 +124,26 @@ export function TestimonialCampaignEditor({
 
       if (error) throw error;
 
+      // Update widget style_config with content_alignment
+      const { data: widget } = await supabase
+        .from("widgets")
+        .select("id, style_config")
+        .eq("campaign_id", campaignId)
+        .single();
+
+      if (widget) {
+        const existingConfig = (widget.style_config as any) || {};
+        await supabase
+          .from("widgets")
+          .update({
+            style_config: {
+              ...existingConfig,
+              contentAlignment: updatedSettings.content_alignment || 'top',
+            },
+          })
+          .eq("id", widget.id);
+      }
+
       toast.success("Testimonial campaign updated successfully");
       onSave();
       onClose();

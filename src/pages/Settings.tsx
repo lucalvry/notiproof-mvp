@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import WhiteLabelSettings from "@/components/settings/WhiteLabelSettings";
 import { 
   Globe, Bell, Palette, User, Code, Clock, 
@@ -19,9 +20,9 @@ import { AnalyticsAttributionSettings } from "@/components/settings/AnalyticsAtt
 
 export default function Settings() {
   const navigate = useNavigate();
+  const { currentWebsite, isLoading: websiteLoading } = useWebsiteContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [websiteId, setWebsiteId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   
   const { planName } = useSubscription(userId || undefined);
@@ -63,11 +64,15 @@ export default function Settings() {
   const [debugMode, setDebugMode] = useState(false);
   const [excludeTeamIps, setExcludeTeamIps] = useState(false);
 
+  // Load settings when currentWebsite changes
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (currentWebsite?.id) {
+      loadSettings(currentWebsite.id);
+    }
+  }, [currentWebsite?.id]);
 
-  const loadSettings = async () => {
+  const loadSettings = async (websiteId: string) => {
+    setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -77,32 +82,15 @@ export default function Settings() {
       
       setUserId(user.id);
 
-      // Get user's primary website
-      const { data: websites, error: websitesError } = await supabase
-        .from("websites")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true })
-        .limit(1);
-
-      if (websitesError) throw websitesError;
-
-      if (!websites || websites.length === 0) {
-        toast.error("No website found. Please add a website first.");
-        navigate("/websites");
-        return;
-      }
-
-      const website = websites[0];
-      setWebsiteId(website.id);
-      setSiteName(website.name);
-      setSiteDomain(website.domain);
+      // Use currentWebsite from context
+      setSiteName(currentWebsite?.name || "");
+      setSiteDomain(currentWebsite?.domain || "");
 
       // Get or create website settings
       let { data: settings, error: settingsError } = await supabase
         .from("website_settings")
         .select("*")
-        .eq("website_id", website.id)
+        .eq("website_id", websiteId)
         .single();
 
       if (settingsError && settingsError.code !== 'PGRST116') {
@@ -114,7 +102,7 @@ export default function Settings() {
         const { data: newSettings, error: createError } = await supabase
           .from("website_settings")
           .insert({
-            website_id: website.id,
+            website_id: websiteId,
             display_notifications: true,
             sound_effects: false,
             mobile_notifications: true,
@@ -167,14 +155,14 @@ export default function Settings() {
   };
 
   const handleSaveWebsiteInfo = async () => {
-    if (!websiteId) return;
+    if (!currentWebsite?.id) return;
     
     setSaving(true);
     try {
       const { error } = await supabase
         .from("websites")
         .update({ name: siteName })
-        .eq("id", websiteId);
+        .eq("id", currentWebsite.id);
 
       if (error) throw error;
       toast.success("Website information saved!");
@@ -187,14 +175,14 @@ export default function Settings() {
   };
 
   const handleSaveNotifications = async () => {
-    if (!websiteId) return;
+    if (!currentWebsite?.id) return;
     
     setSaving(true);
     try {
       const { error } = await supabase
         .from("website_settings")
         .upsert({
-          website_id: websiteId,
+          website_id: currentWebsite.id,
           display_notifications: displayNotifications,
           sound_effects: soundEffects,
           mobile_notifications: mobileNotifications,
@@ -211,14 +199,14 @@ export default function Settings() {
   };
 
   const handleSaveBranding = async () => {
-    if (!websiteId) return;
+    if (!currentWebsite?.id) return;
     
     setSaving(true);
     try {
       const { error } = await supabase
         .from("website_settings")
         .upsert({
-          website_id: websiteId,
+          website_id: currentWebsite.id,
           brand_color: brandColor,
           border_radius: borderRadius,
         }, { onConflict: "website_id" });
@@ -234,13 +222,13 @@ export default function Settings() {
   };
 
   const handleSaveTiming = async () => {
-    if (!websiteId) return;
+    if (!currentWebsite?.id) return;
     setSaving(true);
     try {
       const { error } = await supabase
         .from("website_settings")
         .upsert({
-          website_id: websiteId,
+          website_id: currentWebsite.id,
           initial_delay: initialDelay,
           display_duration: displayDuration,
           interval: interval,
@@ -256,13 +244,13 @@ export default function Settings() {
   };
 
   const handleSavePosition = async () => {
-    if (!websiteId) return;
+    if (!currentWebsite?.id) return;
     setSaving(true);
     try {
       const { error } = await supabase
         .from("website_settings")
         .upsert({
-          website_id: websiteId,
+          website_id: currentWebsite.id,
           position: position,
           mobile_position_override: mobilePositionOverride,
           animation: animation,
@@ -278,13 +266,13 @@ export default function Settings() {
   };
 
   const handleSaveLimits = async () => {
-    if (!websiteId) return;
+    if (!currentWebsite?.id) return;
     setSaving(true);
     try {
       const { error } = await supabase
         .from("website_settings")
         .upsert({
-          website_id: websiteId,
+          website_id: currentWebsite.id,
           max_per_page: maxPerPage,
           max_per_session: maxPerSession,
         }, { onConflict: "website_id" });
@@ -299,13 +287,13 @@ export default function Settings() {
   };
 
   const handleSaveActions = async () => {
-    if (!websiteId) return;
+    if (!currentWebsite?.id) return;
     setSaving(true);
     try {
       const { error } = await supabase
         .from("website_settings")
         .upsert({
-          website_id: websiteId,
+          website_id: currentWebsite.id,
           pause_after_click: pauseAfterClick,
           pause_after_close: pauseAfterClose,
           make_clickable: makeClickable,
@@ -321,13 +309,13 @@ export default function Settings() {
   };
 
   const handleSaveAdvanced = async () => {
-    if (!websiteId) return;
+    if (!currentWebsite?.id) return;
     setSaving(true);
     try {
       const { error } = await supabase
         .from("website_settings")
         .upsert({
-          website_id: websiteId,
+          website_id: currentWebsite.id,
           debug_mode: debugMode,
           exclude_team_ips: excludeTeamIps,
         }, { onConflict: "website_id" });
@@ -341,10 +329,18 @@ export default function Settings() {
     }
   };
 
-  if (loading) {
+  if (loading || websiteLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-muted-foreground">Loading settings...</p>
+      </div>
+    );
+  }
+
+  if (!currentWebsite) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">No website selected. Please add a website first.</p>
       </div>
     );
   }
@@ -423,7 +419,7 @@ export default function Settings() {
               <div className="space-y-2">
                 <Label>Installation Code</Label>
                 <div className="bg-muted p-4 rounded-md font-mono text-xs overflow-x-auto">
-                  {`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-website="${websiteId}"></script>`}
+                  {`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-website="${currentWebsite.id}"></script>`}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Paste this code before the closing &lt;/body&gt; tag on your website
@@ -432,7 +428,7 @@ export default function Settings() {
                   variant="outline" 
                   size="sm"
                   onClick={() => {
-                    navigator.clipboard.writeText(`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-website="${websiteId}"></script>`);
+                    navigator.clipboard.writeText(`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-website="${currentWebsite.id}"></script>`);
                     toast.success("Code copied to clipboard!");
                   }}
                 >
@@ -663,7 +659,7 @@ export default function Settings() {
 
         {/* Analytics Tab */}
         <TabsContent value="analytics" className="space-y-4">
-          {websiteId && <AnalyticsAttributionSettings websiteId={websiteId} />}
+          {currentWebsite?.id && <AnalyticsAttributionSettings websiteId={currentWebsite.id} />}
         </TabsContent>
 
         {/* Theme Tab */}

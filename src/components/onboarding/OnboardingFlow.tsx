@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { useOnboarding, OnboardingPath } from "@/hooks/useOnboarding";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { WelcomeScreen } from "./WelcomeScreen";
+import { LTDWelcomeScreen } from "./LTDWelcomeScreen";
 import { GoalSelector } from "./GoalSelector";
 import { PathGuide } from "./PathGuide";
 import { ProgressIndicator } from "./components/ProgressIndicator";
@@ -17,6 +19,7 @@ type FlowStep = 'welcome' | 'goal' | 'path';
 export function OnboardingFlow({ userId }: OnboardingFlowProps) {
   const navigate = useNavigate();
   const { isOpen, closeOnboarding, progress, setPath } = useOnboarding();
+  const { isLTD } = useSubscriptionStatus(userId);
   const [currentFlowStep, setCurrentFlowStep] = useState<FlowStep>('welcome');
   const [selectedPath, setSelectedPath] = useState<OnboardingPath>(null);
 
@@ -69,12 +72,14 @@ export function OnboardingFlow({ userId }: OnboardingFlowProps) {
   const renderContent = () => {
     switch (currentFlowStep) {
       case 'welcome':
-        return (
+        return isLTD ? (
+          <LTDWelcomeScreen onContinue={() => setCurrentFlowStep('goal')} onSkip={closeOnboarding} />
+        ) : (
           <WelcomeScreen onContinue={() => setCurrentFlowStep('goal')} onSkip={closeOnboarding} />
         );
       case 'goal':
         return (
-          <GoalSelector onSelect={handlePathSelect} onBack={() => setCurrentFlowStep('welcome')} />
+          <GoalSelector onSelect={handlePathSelect} onBack={() => setCurrentFlowStep('welcome')} isLTD={isLTD} />
         );
       case 'path':
         return (
