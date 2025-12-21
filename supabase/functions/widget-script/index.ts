@@ -9,7 +9,7 @@ const corsHeaders = {
   'X-Content-Type-Options': 'nosniff',
 };
 
-const WIDGET_VERSION = '8'; // v8: Fixed campaign_id fallback for Visitors Pulse tracking
+const WIDGET_VERSION = '9'; // v9: Enhanced campaign view tracking with detailed logging
 
 Deno.serve(async (req) => {
   // Handle CORS preflight

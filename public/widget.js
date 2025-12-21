@@ -1,8 +1,8 @@
 (function() {
   'use strict';
   
-  const WIDGET_VERSION = 14; // Enhanced: form_capture avatar/emoji support, content alignment fix
-  const BUILD_TIMESTAMP = '2025-12-15T14:00:00Z'; // Build timestamp for version tracking
+  const WIDGET_VERSION = 15; // v15: Enhanced campaign view tracking with detailed logging
+  const BUILD_TIMESTAMP = '2025-12-21T05:30:00Z'; // Build timestamp for version tracking
   // Version logging moved to debug mode only
   
   const API_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
@@ -1337,14 +1337,27 @@
     log('Notification displayed:', event.event_type, event.id);
     
     // Track view - use campaign stats for live_visitors, event stats for others
-    if (event.event_type === 'live_visitors' || event.event_type === 'active_visitors') {
+    const isLiveVisitors = event.event_type === 'live_visitors' || 
+                           event.event_type === 'active_visitors' ||
+                           event.event_type === 'visitor';
+    
+    log('[View Tracking] Event type:', event.event_type, 'isLiveVisitors:', isLiveVisitors);
+    
+    if (isLiveVisitors) {
       // Check multiple sources for campaign_id (fallback for older data structures)
       const campaignId = event.campaign_id || event.event_data?.campaign_id || event.event_data?.campaignId;
+      log('[Visitors Pulse] Event details:', { 
+        event_type: event.event_type, 
+        campaign_id: campaignId, 
+        event_id: event.id,
+        has_event_data: !!event.event_data 
+      });
+      
       if (campaignId) {
         trackCampaignView(campaignId);
         log('Tracked campaign view for Visitors Pulse:', campaignId);
       } else {
-        log('Warning: No campaign_id found for live_visitors event', event);
+        console.warn('[NotiProof] No campaign_id found for live_visitors event', JSON.stringify(event));
       }
     } else {
       trackView(event.id);
@@ -1987,15 +2000,30 @@
   
   // Track campaign view (for Visitors Pulse and other non-event campaigns)
   async function trackCampaignView(campaignId) {
-    if (!campaignId) return;
+    if (!campaignId) {
+      console.warn('[NotiProof] trackCampaignView called without campaignId');
+      return;
+    }
     try {
-      log('[Campaign Stats] Tracking view for campaign:', campaignId);
-      await fetch(`${API_BASE}/campaigns/${campaignId}/view`, {
+      const url = `${API_BASE}/campaigns/${campaignId}/view`;
+      log('[Campaign Stats] Tracking view for campaign:', campaignId, 'URL:', url);
+      
+      const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'cors',
+        credentials: 'omit'
       });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
+      log('[Campaign Stats] View tracked successfully for campaign:', campaignId);
     } catch (err) {
-      error('Failed to track campaign view:', err);
+      // Use console.error for visibility even in production
+      console.error('[NotiProof] Failed to track campaign view:', campaignId, err);
     }
   }
 

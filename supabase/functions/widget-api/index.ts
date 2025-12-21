@@ -753,16 +753,23 @@ Deno.serve(async (req) => {
 
     // POST /campaigns/:campaignId/view - Track campaign view (for Visitors Pulse)
     if (req.method === 'POST' && resource === 'campaigns' && action === 'view' && identifier) {
+      console.log('[widget-api] Received campaign view request for:', identifier);
       try {
-        await supabase.rpc('increment_campaign_view', { p_campaign_id: identifier });
-        console.log('[widget-api] Campaign view tracked:', identifier);
+        const { data, error } = await supabase.rpc('increment_campaign_view', { p_campaign_id: identifier });
         
-        return new Response(JSON.stringify({ success: true }), {
+        if (error) {
+          console.error('[widget-api] RPC error for campaign view:', identifier, error);
+          throw error;
+        }
+        
+        console.log('[widget-api] Campaign view tracked successfully:', identifier);
+        
+        return new Response(JSON.stringify({ success: true, campaign_id: identifier }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       } catch (err) {
-        console.error('[widget-api] Campaign view tracking error:', err);
-        return new Response(JSON.stringify({ success: false, error: 'Failed to track view' }), {
+        console.error('[widget-api] Campaign view tracking error:', identifier, err);
+        return new Response(JSON.stringify({ success: false, error: err?.message || 'Failed to track view' }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
