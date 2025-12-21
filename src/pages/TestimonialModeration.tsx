@@ -1,7 +1,7 @@
 import { TestimonialCSVImport } from '@/components/testimonials/TestimonialCSVImport';
 import { EditTestimonialDialog } from '@/components/testimonials/EditTestimonialDialog';
 import { useState, useEffect } from 'react';
-import { useWebsites } from '@/hooks/useWebsites';
+import { useWebsiteContext } from '@/contexts/WebsiteContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,16 +48,8 @@ interface Testimonial {
 
 export default function TestimonialModeration() {
   const navigate = useNavigate();
-  const [userId, setUserId] = useState<string>();
-  const { websites } = useWebsites(userId);
-  const currentWebsite = websites?.[0]; // Use first website for now
+  const { currentWebsite, isLoading: websitesLoading } = useWebsiteContext();
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUserId(user.id);
-    });
-  }, []);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterRating, setFilterRating] = useState('all');
@@ -264,6 +256,14 @@ export default function TestimonialModeration() {
     approved: testimonials.filter(t => t.status === 'approved').length,
     rejected: testimonials.filter(t => t.status === 'rejected').length,
   };
+
+  if (websitesLoading) {
+    return (
+      <div className="container mx-auto py-8 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (!currentWebsite) {
     return (
