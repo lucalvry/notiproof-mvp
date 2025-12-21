@@ -95,6 +95,8 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
   
   // Form Capture Config (for form_hook integration)
   const [formCaptureConfig, setFormCaptureConfig] = useState({
+    sourceMode: 'type' as 'all' | 'type' | 'integration',
+    selectedIntegrationId: null as string | null,
     formType: null as string | null,
     messageTemplate: '',
     avatar: '✅',
@@ -285,6 +287,8 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
       emoji: '📢',
     });
     setFormCaptureConfig({
+      sourceMode: 'type',
+      selectedIntegrationId: null,
       formType: null,
       messageTemplate: '',
       avatar: '✅',
@@ -394,7 +398,16 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
       case 3:
         // For form_hook, we use FormCaptureTemplateStep instead
         if (hasFormHook()) {
-          return !!formCaptureConfig.formType && formCaptureConfig.messageTemplate.length > 0;
+          if (formCaptureConfig.sourceMode === 'all') {
+            return true; // No additional config needed
+          }
+          if (formCaptureConfig.sourceMode === 'type') {
+            return !!formCaptureConfig.formType && formCaptureConfig.messageTemplate.length > 0;
+          }
+          if (formCaptureConfig.sourceMode === 'integration') {
+            return !!formCaptureConfig.selectedIntegrationId;
+          }
+          return false;
         }
         return !!selectedTemplate;
       case 4:
@@ -501,10 +514,14 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
           return (
             <FormCaptureTemplateStep
               websiteId={selectedWebsiteId!}
+              sourceMode={formCaptureConfig.sourceMode}
+              selectedIntegrationId={formCaptureConfig.selectedIntegrationId}
               selectedFormType={formCaptureConfig.formType}
               messageTemplate={formCaptureConfig.messageTemplate}
               avatar={formCaptureConfig.avatar}
               fieldMappings={formCaptureConfig.fieldMappings}
+              onSourceModeChange={(sourceMode) => setFormCaptureConfig(prev => ({ ...prev, sourceMode }))}
+              onIntegrationIdChange={(selectedIntegrationId) => setFormCaptureConfig(prev => ({ ...prev, selectedIntegrationId }))}
               onFormTypeSelect={(formType) => setFormCaptureConfig(prev => ({ ...prev, formType }))}
               onMessageTemplateChange={(messageTemplate) => setFormCaptureConfig(prev => ({ ...prev, messageTemplate }))}
               onAvatarChange={(avatar) => setFormCaptureConfig(prev => ({ ...prev, avatar }))}
@@ -624,8 +641,11 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
                 ? announcementConfig
                 : hasFormHook()
                   ? {
-                      form_type: formCaptureConfig.formType,
-                      message_template: formCaptureConfig.messageTemplate,
+                      source_mode: formCaptureConfig.sourceMode,
+                      integration_id: formCaptureConfig.sourceMode === 'integration' ? formCaptureConfig.selectedIntegrationId : null,
+                      preserve_original_message: formCaptureConfig.sourceMode === 'all',
+                      form_type: formCaptureConfig.sourceMode === 'type' ? formCaptureConfig.formType : null,
+                      message_template: formCaptureConfig.sourceMode !== 'all' ? formCaptureConfig.messageTemplate : null,
                       avatar: formCaptureConfig.avatar,
                       field_mappings: formCaptureConfig.fieldMappings,
                     }
@@ -640,8 +660,11 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
                 ? announcementConfig
                 : hasFormHook()
                   ? {
-                      form_type: formCaptureConfig.formType,
-                      message_template: formCaptureConfig.messageTemplate,
+                      source_mode: formCaptureConfig.sourceMode,
+                      integration_id: formCaptureConfig.sourceMode === 'integration' ? formCaptureConfig.selectedIntegrationId : null,
+                      preserve_original_message: formCaptureConfig.sourceMode === 'all',
+                      form_type: formCaptureConfig.sourceMode === 'type' ? formCaptureConfig.formType : null,
+                      message_template: formCaptureConfig.sourceMode !== 'all' ? formCaptureConfig.messageTemplate : null,
                       avatar: formCaptureConfig.avatar,
                       field_mappings: formCaptureConfig.fieldMappings,
                     }

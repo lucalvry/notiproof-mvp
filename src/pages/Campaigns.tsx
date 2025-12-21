@@ -114,12 +114,23 @@ export default function Campaigns() {
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
-      const { error } = await supabase
+      // Update campaign status
+      const { error: campaignError } = await supabase
         .from("campaigns")
         .update({ status: newStatus })
         .eq("id", id);
 
-      if (error) throw error;
+      if (campaignError) throw campaignError;
+      
+      // Also update associated widget status to sync with campaign
+      const { error: widgetError } = await supabase
+        .from("widgets")
+        .update({ status: newStatus })
+        .eq("campaign_id", id);
+      
+      if (widgetError) {
+        console.warn("Failed to update widget status:", widgetError);
+      }
       
       if (newStatus === "active") {
         confetti({

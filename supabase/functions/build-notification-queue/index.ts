@@ -386,8 +386,37 @@ async function fetchGroupedEvents(
         console.log(`[Queue Builder] Fetched and processed ${testimonials?.length || 0} testimonial events`);
       }
     } else if (eventType === 'form_capture') {
-      // Step 1: Fetch form_capture events without the problematic join
-      const { data: formEvents, error } = await supabase
+      // Step 1: Find active campaigns with form_capture settings (they are stored as campaign_type='notification')
+      const { data: allActiveCampaigns } = await supabase
+        .from('campaigns')
+        .select('id, integration_settings, native_config, data_sources')
+        .eq('website_id', config.websiteId)
+        .eq('status', 'active');
+      
+      // Filter to find campaigns that have form_capture/form_hook data source or form capture settings
+      const formCaptureCampaigns = (allActiveCampaigns || []).filter((c: any) => {
+        // Check if it has form_hook in data_sources
+        const dataSources = Array.isArray(c.data_sources) ? c.data_sources : [];
+        const hasFormHook = dataSources.some((ds: any) => ds.provider === 'form_hook');
+        
+        // Or check if it has form capture settings in integration_settings/native_config
+        const settings = c.integration_settings || c.native_config || {};
+        const hasFormSettings = settings.source_mode || settings.form_type;
+        
+        return hasFormHook || hasFormSettings;
+      });
+      
+      // Get the primary campaign settings (first active form_capture campaign)
+      const primaryCampaign = formCaptureCampaigns?.[0];
+      const campaignSettings = primaryCampaign?.integration_settings || primaryCampaign?.native_config || {};
+      const sourceMode = campaignSettings.source_mode || 'type';
+      const preserveOriginalMessage = sourceMode === 'all';
+      const filterIntegrationId = sourceMode === 'integration' ? campaignSettings.integration_id : null;
+      
+      console.log(`[Queue Builder] Form capture source_mode: ${sourceMode}, preserve_original: ${preserveOriginalMessage}, found ${formCaptureCampaigns.length} form capture campaigns`);
+      
+      // Step 2: Build query - for 'all' mode, fetch all form_capture events for the website
+      let query = supabase
         .from('events')
         .select('*')
         .eq('website_id', config.websiteId)
@@ -398,50 +427,61 @@ async function fetchGroupedEvents(
         .order('created_at', { ascending: false })
         .limit(weightConfig.max_per_queue);
       
+      // Only filter by widget_ids if NOT in "all" mode
+      if (sourceMode !== 'all' && config.widgetIds.length > 0) {
+        query = query.in('widget_id', config.widgetIds);
+      }
+      
+      // Filter by specific integration if source_mode = 'integration'
+      if (filterIntegrationId) {
+        query = query.contains('event_data', { integration_id: filterIntegrationId });
+      }
+      
+      const { data: formEvents, error } = await query;
+      
       if (error) {
         console.error(`[Queue Builder] Error fetching form_capture events:`, error);
         grouped[eventType] = [];
       } else {
-        // Step 2: Fetch form capture campaign settings AND widget style_config for this website
-        const { data: formCaptureCampaign } = await supabase
+        // Step 3: Build a map of widget_id -> campaign settings for proper per-event settings
+        const widgetIds = [...new Set((formEvents || []).map((e: any) => e.widget_id).filter(Boolean))];
+        
+        // Fetch widgets with their campaign_ids
+        const { data: widgetCampaigns } = await supabase
+          .from('widgets')
+          .select('id, campaign_id, style_config')
+          .in('id', widgetIds.length > 0 ? widgetIds : ['00000000-0000-0000-0000-000000000000']);
+        
+        // Build lookup: widget_id -> widget data
+        const widgetMap = new Map<string, any>();
+        (widgetCampaigns || []).forEach((w: any) => widgetMap.set(w.id, w));
+        
+        // Fetch all relevant campaigns' settings
+        const campaignIds = [...new Set((widgetCampaigns || []).map((w: any) => w.campaign_id).filter(Boolean))];
+        
+        const { data: campaigns } = await supabase
           .from('campaigns')
-          .select('id, integration_settings')
-          .eq('website_id', config.websiteId)
-          .not('integration_settings->form_type', 'is', null)
-          .limit(1)
-          .maybeSingle();
+          .select('id, integration_settings, native_config')
+          .in('id', campaignIds.length > 0 ? campaignIds : ['00000000-0000-0000-0000-000000000000']);
         
-        const campaignSettings = formCaptureCampaign?.integration_settings || {};
-        const defaultAvatar = campaignSettings.avatar || '📧';
-        const defaultMessageTemplate = campaignSettings.message_template || '{{name}} just signed up';
-        const contentAlignment = campaignSettings.content_alignment || 'top';
-        
-        // Fetch widget style_config for additional design settings
-        let widgetStyleConfig: Record<string, any> = {};
-        if (formCaptureCampaign?.id) {
-          const { data: widgetData } = await supabase
-            .from('widgets')
-            .select('id, style_config')
-            .eq('campaign_id', formCaptureCampaign.id)
-            .maybeSingle();
-          
-          if (widgetData?.style_config) {
-            widgetStyleConfig = widgetData.style_config as Record<string, any>;
-          }
-        }
-        
-        console.log(`[Queue Builder] Form capture campaign settings:`, { 
-          avatar: defaultAvatar, 
-          template: defaultMessageTemplate,
-          contentAlignment,
-          widgetStyleConfig,
-          found: !!formCaptureCampaign 
+        // Build lookup: campaign_id -> campaign settings
+        const campaignMap = new Map<string, any>();
+        (campaigns || []).forEach((c: any) => {
+          const settings = c.integration_settings || c.native_config || {};
+          campaignMap.set(c.id, settings);
         });
         
-        // Step 3: Transform events with campaign settings, widget styles, and normalize field names
+        console.log(`[Queue Builder] Form capture: ${widgetIds.length} widgets, ${campaignIds.length} campaigns, sourceMode: ${sourceMode}`);
+        
+        // Step 4: Transform events - respect source_mode for message handling
         const transformedEvents = (formEvents || []).map((e: any) => {
-          // Always use campaign's current message_template so template updates apply immediately
-          const messageTemplate = defaultMessageTemplate;
+          const widget = widgetMap.get(e.widget_id);
+          const eventCampaignSettings = widget?.campaign_id ? campaignMap.get(widget.campaign_id) : {};
+          const widgetStyleConfig = (widget?.style_config || {}) as Record<string, any>;
+          
+          const avatar = eventCampaignSettings?.avatar || '📧';
+          const contentAlignment = eventCampaignSettings?.content_alignment || 'top';
+          
           const eventData = e.event_data || {};
           const flatData = eventData.flattened_fields || eventData;
           
@@ -454,6 +494,16 @@ async function fetchGroupedEvents(
             location: flatData.location || flatData.city || e.user_location || '',
           };
           
+          // Determine message template based on source_mode
+          let messageTemplate: string;
+          if (preserveOriginalMessage && e.message_template) {
+            // source_mode = 'all': Use the event's original message_template (from integration rule)
+            messageTemplate = e.message_template;
+          } else {
+            // source_mode = 'type' or 'integration': Use campaign's configured template
+            messageTemplate = eventCampaignSettings?.message_template || '{{name}} just signed up';
+          }
+          
           const renderedMessage = renderTemplate(messageTemplate, normalizedData);
           
           return {
@@ -462,25 +512,26 @@ async function fetchGroupedEvents(
             // Design settings at top-level for widget.js to read correctly
             design_settings: {
               contentAlignment: widgetStyleConfig.contentAlignment || contentAlignment,
-              backgroundColor: widgetStyleConfig.backgroundColor || campaignSettings.backgroundColor,
-              textColor: widgetStyleConfig.textColor || campaignSettings.textColor,
-              primaryColor: widgetStyleConfig.primaryColor || campaignSettings.primaryColor,
-              borderRadius: widgetStyleConfig.borderRadius || campaignSettings.borderRadius,
-              shadow: widgetStyleConfig.shadow || campaignSettings.shadow,
-              fontSize: widgetStyleConfig.fontSize || campaignSettings.fontSize,
-              fontFamily: widgetStyleConfig.fontFamily || campaignSettings.fontFamily,
+              backgroundColor: widgetStyleConfig.backgroundColor || eventCampaignSettings?.backgroundColor,
+              textColor: widgetStyleConfig.textColor || eventCampaignSettings?.textColor,
+              primaryColor: widgetStyleConfig.primaryColor || eventCampaignSettings?.primaryColor,
+              borderRadius: widgetStyleConfig.borderRadius || eventCampaignSettings?.borderRadius,
+              shadow: widgetStyleConfig.shadow || eventCampaignSettings?.shadow,
+              fontSize: widgetStyleConfig.fontSize || eventCampaignSettings?.fontSize,
+              fontFamily: widgetStyleConfig.fontFamily || eventCampaignSettings?.fontFamily,
             },
             event_data: {
               ...e.event_data,
-              avatar: defaultAvatar,
+              avatar: avatar,
               rendered_message: renderedMessage,
               normalized: normalizedData,
+              source_mode: sourceMode,
             }
           };
         });
         
         grouped[eventType] = transformedEvents;
-        console.log(`[Queue Builder] Fetched and processed ${formEvents?.length || 0} form_capture events`);
+        console.log(`[Queue Builder] Fetched and processed ${formEvents?.length || 0} form_capture events (source_mode: ${sourceMode})`);
       }
     } else if (eventType === 'live_visitors') {
       // Generate synthetic live_visitors events from active campaigns

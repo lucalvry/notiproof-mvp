@@ -157,8 +157,31 @@ export function FormCaptureRuleDialog({
     }
   };
 
+  const normalizeTargetUrl = (input: string): string => {
+    const trimmed = input.trim();
+    if (!trimmed) return '';
+    
+    // Remove domain if user included it
+    let path = trimmed;
+    if (websiteDomain && path.includes(websiteDomain)) {
+      path = path.replace(new RegExp(`https?://${websiteDomain}`, 'i'), '');
+      path = path.replace(websiteDomain, '');
+    }
+    
+    // Ensure path starts with /
+    if (path && !path.startsWith('/')) {
+      path = '/' + path;
+    }
+    
+    return path || '/';
+  };
+
   const handleSave = () => {
-    onSave(formData);
+    const normalizedData = {
+      ...formData,
+      targetUrl: normalizeTargetUrl(formData.targetUrl)
+    };
+    onSave(normalizedData);
     onOpenChange(false);
   };
 

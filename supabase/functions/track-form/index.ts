@@ -86,6 +86,64 @@ function extractUserEmail(sanitizedData: Record<string, any>, flattened: Record<
     null;
 }
 
+// Extract location from various field patterns
+function extractLocationFromFormData(sanitizedData: Record<string, any>, flattened: Record<string, any>): string | null {
+  return sanitizedData.city || 
+    flattened.city || 
+    sanitizedData.location || 
+    flattened.location || 
+    sanitizedData.state || 
+    flattened.state ||
+    sanitizedData.country ||
+    flattened.country ||
+    null;
+}
+
+// Get location from IP address using ip-api.com (free tier: 45 requests/minute)
+async function getLocationFromIP(ip: string): Promise<string | null> {
+  if (!ip || ip === 'unknown' || ip === '127.0.0.1' || ip === '::1') {
+    return null;
+  }
+  
+  try {
+    // Use ip-api.com free tier (HTTP only, but fast and reliable)
+    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,city,regionName,country`, {
+      signal: AbortSignal.timeout(3000) // 3 second timeout
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.status === 'success') {
+        if (data.city && data.country) {
+          return `${data.city}, ${data.country}`;
+        }
+        if (data.regionName && data.country) {
+          return `${data.regionName}, ${data.country}`;
+        }
+        return data.country || null;
+      }
+    }
+  } catch (error) {
+    console.log('[track-form] IP geolocation failed (non-critical):', error);
+  }
+  return null;
+}
+
+// Extract client IP from request headers
+function getClientIP(req: Request): string | null {
+  // Try various headers in order of reliability
+  const forwarded = req.headers.get('x-forwarded-for');
+  if (forwarded) {
+    // x-forwarded-for can contain multiple IPs, take the first (original client)
+    return forwarded.split(',')[0].trim();
+  }
+  
+  return req.headers.get('x-real-ip') || 
+         req.headers.get('cf-connecting-ip') || // Cloudflare
+         req.headers.get('true-client-ip') || // Akamai/Cloudflare Enterprise
+         null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -130,7 +188,9 @@ serve(async (req) => {
       });
     }
 
-    console.log('[track-form] Processing form submission:', { campaign_id, integration_id, website_id, page_url })
+    // Extract client IP for geolocation fallback
+    const clientIP = getClientIP(req);
+    console.log('[track-form] Processing form submission:', { campaign_id, integration_id, website_id, page_url, clientIP })
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -182,6 +242,28 @@ serve(async (req) => {
       
       // Get the widget for the SPECIFIC campaign that uses this integration
       if (campaignId) {
+        // Fetch the campaign's native_config/integration_settings to get the correct message template and form type
+        const { data: campaignConfig } = await supabase
+          .from('campaigns')
+          .select('native_config, integration_settings')
+          .eq('id', campaignId)
+          .single();
+        
+        if (campaignConfig) {
+          // Merge campaign config with integration config, prioritizing campaign settings
+          const campaignNativeConfig = (campaignConfig.native_config || campaignConfig.integration_settings) as any;
+          if (campaignNativeConfig) {
+            nativeConfig = {
+              ...nativeConfig,
+              ...campaignNativeConfig, // Campaign's form_type and message_template take priority
+            };
+            console.log('[track-form] Merged campaign config:', { 
+              form_type: nativeConfig.form_type,
+              message_template: nativeConfig.message_template 
+            });
+          }
+        }
+        
         const { data: campaignWidget } = await supabase
           .from('widgets')
           .select('id')
@@ -277,12 +359,26 @@ serve(async (req) => {
     console.log('[track-form] Flattened form data fields:', Object.keys(flattened));
     
     // 4. Extract location, name, email, and company using helper functions
-    const location = sanitizedData.city || flattened.city || sanitizedData.location || flattened.location || sanitizedData.state || flattened.state || 'Unknown'
+    // First try to get location from form fields
+    let location = extractLocationFromFormData(sanitizedData, flattened);
+    
+    // If no location from form data, try IP-based geolocation
+    if (!location && clientIP) {
+      console.log('[track-form] No location in form data, trying IP geolocation for:', clientIP);
+      location = await getLocationFromIP(clientIP);
+      if (location) {
+        console.log('[track-form] IP geolocation success:', location);
+      }
+    }
+    
+    // Final fallback
+    location = location || 'Unknown';
+    
     const userName = extractUserName(sanitizedData, flattened);
     const userEmail = extractUserEmail(sanitizedData, flattened);
     const companyName = extractCompany(sanitizedData, flattened);
     
-    console.log('[track-form] Extracted userName:', userName, 'userEmail:', userEmail, 'company:', companyName);
+    console.log('[track-form] Extracted - userName:', userName, 'userEmail:', userEmail, 'company:', companyName, 'location:', location);
 
     // 5. Build message from template
     let message = nativeConfig.message_template || `${userName || 'Someone'} just submitted a form`

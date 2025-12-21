@@ -769,7 +769,7 @@ Deno.serve(async (req) => {
         });
       } catch (err) {
         console.error('[widget-api] Campaign view tracking error:', identifier, err);
-        return new Response(JSON.stringify({ success: false, error: err?.message || 'Failed to track view' }), {
+        return new Response(JSON.stringify({ success: false, error: (err as Error)?.message || 'Failed to track view' }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });

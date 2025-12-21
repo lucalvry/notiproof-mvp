@@ -926,6 +926,15 @@
       
       log('Active Visitors notification displayed:', visitorCount);
       
+      // Track campaign view for Visitors Pulse
+      const avCampaignId = event.campaign_id || data.campaign_id;
+      if (avCampaignId) {
+        trackCampaignView(avCampaignId);
+        log('[Visitors Pulse] Tracked campaign view:', avCampaignId);
+      }
+      incrementPageImpressions();
+      incrementSessionImpressions();
+      
       // === HOVER PAUSE FOR ACTIVE VISITORS ===
       let avAutoHideTimeout = null;
       let avStartTime = Date.now();
@@ -937,6 +946,16 @@
         setTimeout(() => notification.remove(), 300);
       };
       
+      // Click handler for tracking
+      notification.addEventListener('click', (e) => {
+        if (e.target.closest('[data-close]')) return;
+        if (avCampaignId) {
+          trackCampaignClick(avCampaignId);
+          log('[Visitors Pulse] Tracked campaign click:', avCampaignId);
+        }
+        storeInteraction(event.id, avCampaignId, 'click');
+      });
+      
       // Hover pause
       notification.addEventListener('mouseenter', () => {
         notificationEngaged = true;
@@ -946,7 +965,7 @@
           avRemainingTime = Math.max(1000, config.displayDuration - elapsed);
           log('Active Visitors paused on hover');
         }
-        storeInteraction(event.id, event.campaign_id, 'hover');
+        storeInteraction(event.id, avCampaignId, 'hover');
         trackHover(event.id);
         
         // Apply hover effect
