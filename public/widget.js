@@ -1,8 +1,8 @@
 (function() {
   'use strict';
   
-  const WIDGET_VERSION = 15; // v15: Enhanced campaign view tracking with detailed logging
-  const BUILD_TIMESTAMP = '2025-12-21T05:30:00Z'; // Build timestamp for version tracking
+  const WIDGET_VERSION = 16; // v16: Early verification ping for debugging
+  const BUILD_TIMESTAMP = '2025-12-26T12:00:00Z'; // Build timestamp for version tracking
   // Version logging moved to debug mode only
   
   const API_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
@@ -10,6 +10,18 @@
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3eW12eGhwa3N3aHNpcmRyanViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTY0NDksImV4cCI6MjA3MDU3MjQ0OX0.ToRbUm37-ZnYkmmCfLW7am38rUGgFAppNxcZ2tar9mc';
   const DEBUG = window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
   const debugMode = window.location.search.includes('notiproof_debug=1'); // Enable with ?notiproof_debug=1
+  
+  // IMMEDIATE verification ping - fire before any other logic
+  // This helps debug whether the script is loading at all
+  const script = document.currentScript;
+  const siteToken = script?.getAttribute('data-site-token');
+  if (siteToken) {
+    fetch(`${API_BASE}/verify?token=${siteToken}&ping=1&origin=${encodeURIComponent(window.location.origin)}`, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit'
+    }).catch(function() {}); // Fire-and-forget, ignore errors
+  }
   
   // Impact Board: Store notification interactions for attribution
   const INTERACTION_KEY = 'notiproof_last_interaction';

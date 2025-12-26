@@ -642,12 +642,26 @@ export default function Websites() {
             <Button variant="outline" onClick={() => setSnippetDialogOpen(false)}>
               Close
             </Button>
-            <Button 
+            <Button
               variant="outline"
               onClick={async () => {
+                // First, test if the endpoint is accessible
+                try {
+                  const testResponse = await fetch(
+                    `https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api/verify?token=${selectedWebsite?.verification_token}&test=1`
+                  );
+                  if (!testResponse.ok) {
+                    toast.error("Script endpoint returned an error. Please check the token is correct.");
+                    return;
+                  }
+                } catch (e) {
+                  toast.error("Network error reaching the script endpoint. Please check your connection.");
+                  return;
+                }
+                
                 const { data } = await supabase
                   .from('websites')
-                  .select('is_verified, id')
+                  .select('is_verified, id, verification_attempts')
                   .eq('id', selectedWebsite?.id)
                   .single();
                 
@@ -665,7 +679,8 @@ export default function Websites() {
                   toast.info("✅ Website verified! Now create a widget to display notifications.");
                   window.location.reload();
                 } else {
-                  toast.error("❌ Not verified yet. The script must be installed on your live website and someone must visit a page with the script for verification to complete. If you've already installed it, try visiting your website in a new tab.");
+                  const attempts = data?.verification_attempts || 0;
+                  toast.error(`❌ Not verified yet (${attempts} attempt${attempts !== 1 ? 's' : ''} recorded). The script must be installed on your live website and someone must visit a page with the script. Try visiting your website in a new browser tab.`);
                 }
               }}
             >

@@ -570,6 +570,18 @@ Deno.serve(async (req) => {
     // GET /verify - Website verification endpoint with improved error handling
     if (req.method === 'GET' && resource === 'verify') {
       const token = url.searchParams.get('token');
+      const ping = url.searchParams.get('ping'); // Early initialization ping
+      const originParam = url.searchParams.get('origin');
+      const testMode = url.searchParams.get('test'); // Dashboard test button
+      const reqOrigin = req.headers.get('origin') || req.headers.get('referer') || 'unknown';
+      
+      console.log('[verify] Request received:', { 
+        token: token?.substring(0, 8) + '...', 
+        ping, 
+        testMode,
+        origin: originParam || reqOrigin,
+        userAgent: req.headers.get('user-agent')?.substring(0, 50)
+      });
       
       if (!token) {
         console.log('[verify] No token provided');
@@ -584,7 +596,7 @@ Deno.serve(async (req) => {
       // Add timeout for database query
       const queryPromise = supabase
         .from('websites')
-        .select('id, domain, is_verified')
+        .select('id, domain, is_verified, verification_attempts')
         .eq('verification_token', token)
         .single();
 
@@ -598,11 +610,26 @@ Deno.serve(async (req) => {
           timeoutPromise
         ]) as any;
 
+        // Always increment verification attempts for debugging
+        if (token) {
+          await supabase
+            .from('websites')
+            .update({ 
+              verification_attempts: (website?.verification_attempts || 0) + 1,
+              last_verification_at: new Date().toISOString()
+            })
+            .eq('verification_token', token);
+        }
+
         if (websiteError || !website) {
           console.log('[verify] Website not found for token:', token, websiteError);
-          return new Response('/* NotiProof: Invalid verification token */', {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'Invalid verification token',
+            token_prefix: token?.substring(0, 8)
+          }), {
             status: 404,
-            headers: { ...corsHeaders, 'Content-Type': 'application/javascript' },
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
 
@@ -621,6 +648,20 @@ Deno.serve(async (req) => {
           } else {
             console.log('[verify] Website verified successfully:', website.domain);
           }
+        } else {
+          console.log('[verify] Website already verified:', website.domain);
+        }
+
+        // Return JSON for test mode, script otherwise
+        if (testMode === '1') {
+          return new Response(JSON.stringify({
+            success: true,
+            domain: website.domain,
+            is_verified: true,
+            message: 'Endpoint accessible'
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
         }
 
         // Return a simple verification script
