@@ -129,7 +129,7 @@ export default function Login() {
             </Button>
             <p className="text-center text-sm text-muted-foreground">
               Don't have an account?{" "}
-              <Link to={returnTo ? `/register?returnTo=${encodeURIComponent(returnTo)}` : "/register"} className="text-primary hover:underline">
+              <Link to="/ltd" className="text-primary hover:underline">
                 Create an account
               </Link>
             </p>
