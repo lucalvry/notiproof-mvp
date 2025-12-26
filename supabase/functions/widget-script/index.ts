@@ -9,7 +9,7 @@ const corsHeaders = {
   'X-Content-Type-Options': 'nosniff',
 };
 
-const WIDGET_VERSION = '9'; // v9: Enhanced campaign view tracking with detailed logging
+const WIDGET_VERSION = '10'; // v10: Early verification ping for debugging
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
