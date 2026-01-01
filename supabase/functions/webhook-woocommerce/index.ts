@@ -306,8 +306,8 @@ serve(async (req) => {
         },
         source: 'woocommerce',
         integration_type: 'woocommerce',
-        status: 'pending',
-        moderation_status: 'pending',
+        status: 'approved',
+        moderation_status: 'approved',
       })
       .select()
       .single();

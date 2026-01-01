@@ -1269,15 +1269,47 @@
       }
     } else {
       // Regular event - existing logic with product linkification
-      const linkedMessage = linkifyMessage(event.message_template || 'New activity', event.event_data);
-      contentHTML += `<div style="font-weight: 600; margin-bottom: 4px; line-height: 1.4;">
-        ${linkedMessage}
-      </div>`;
+      const messageContent = event.message_template || 'New activity';
+      
+      // Detect if message_template is a pre-rendered HTML card (from WooCommerce/Shopify templates)
+      // These templates already include time, location, and styling - don't wrap them or add duplicate metadata
+      const isPreRenderedHtml = /<div[^>]*class=["']?noti-card|<div[^>]*style=["'][^"']*display:\s*flex|<div[^>]*style=["'][^"']*background:\s*#fff/.test(messageContent);
+      
+      if (isPreRenderedHtml) {
+        // Pre-rendered HTML template - render directly without wrapping
+        // The template already has its own structure, time, location, etc.
+        contentHTML += messageContent;
+        
+        // Inject verification badge if not already present and should show
+        const showEventVerifiedInTemplate = event.show_verified || event.event_data?.show_verified;
+        if (showEventVerifiedInTemplate && !messageContent.includes('NotiProof Verified')) {
+          // Insert badge before the last closing div
+          const lastDivMatch = contentHTML.lastIndexOf('</div>');
+          if (lastDivMatch !== -1) {
+            const badgeHtml = ' <span style="color: #2563eb; font-size: 11px; font-weight: 500;">• ✓ NotiProof Verified</span>';
+            contentHTML = contentHTML.slice(0, lastDivMatch) + badgeHtml + contentHTML.slice(lastDivMatch);
+          }
+        }
+      } else {
+        // Plain text message - apply linkification and wrap
+        const linkedMessage = linkifyMessage(messageContent, event.event_data);
+        contentHTML += `<div style="font-weight: 600; margin-bottom: 4px; line-height: 1.4;">
+          ${linkedMessage}
+        </div>`;
+      }
     }
     
-    // Metadata (time + location + verification badge) - Skip for announcements with CTA and testimonials (they have their own footer)
+    // Detect if we rendered a pre-rendered HTML template (to skip duplicate metadata)
+    const messageContent = event.message_template || '';
+    const isPreRenderedTemplate = /<div[^>]*class=["']?noti-card|<div[^>]*style=["'][^"']*display:\s*flex|<div[^>]*style=["'][^"']*background:\s*#fff/.test(messageContent);
+    
+    // Metadata (time + location + verification badge) - Skip for:
+    // - Announcements with CTA (they have their own footer)
+    // - Testimonials (they have their own footer)
+    // - Pre-rendered HTML templates (already contain time/location)
     const skipMetadata = (event.event_type === 'announcement' && event.event_data?.cta_text && event.event_data?.cta_url) || 
-                         event.event_type === 'testimonial';
+                         event.event_type === 'testimonial' ||
+                         isPreRenderedTemplate;
     const showEventVerified = event.show_verified || event.event_data?.show_verified;
     
     if (!skipMetadata && (config.showTimestamp || (config.showLocation && event.user_location) || showEventVerified)) {
