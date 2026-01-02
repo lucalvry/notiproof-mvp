@@ -9,6 +9,7 @@ interface DeployResult {
   success: boolean;
   url?: string;
   storage_url?: string;
+  widget_version?: string;
   error?: string;
   details?: {
     file_size: number;
@@ -16,6 +17,7 @@ interface DeployResult {
     cdn_url?: string;
     storage_url: string;
     source: string;
+    widget_version?: string;
   };
 }
 
@@ -125,6 +127,12 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Extract and log widget version for debugging
+    const versionMatch = widgetContent.match(/WIDGET_VERSION\s*=\s*(\d+)/);
+    const widgetVersion = versionMatch ? versionMatch[1] : 'unknown';
+    console.log('[Deploy Widget] Widget version detected:', widgetVersion);
+    console.log('[Deploy Widget] Content preview (first 200 chars):', widgetContent.substring(0, 200));
+
     // Upload to Supabase Storage (primary source)
     console.log('[Deploy Widget] Uploading to Supabase Storage...');
     const widgetBlob = new Blob([widgetContent], { type: 'application/javascript' });
@@ -188,14 +196,18 @@ Deno.serve(async (req) => {
       success: true,
       url: cdnUrl || storageUrl,
       storage_url: storageUrl,
+      widget_version: widgetVersion,
       details: {
         file_size: widgetContent.length,
         upload_time_ms: uploadTime,
         cdn_url: cdnUrl,
         storage_url: storageUrl,
         source: 'admin-upload',
+        widget_version: widgetVersion,
       },
     };
+    
+    console.log('[Deploy Widget] Deployment complete! Version:', widgetVersion, 'Size:', widgetContent.length, 'bytes');
 
     return new Response(JSON.stringify(result), {
       status: 200,

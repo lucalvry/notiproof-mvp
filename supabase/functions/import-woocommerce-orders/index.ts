@@ -275,13 +275,8 @@ Deno.serve(async (req) => {
         'template.time_ago': timeAgo,
       };
 
-      // Render HTML template
-      let messageTemplate: string;
-      if (template?.html_template) {
-        messageTemplate = renderTemplate(template.html_template, normalizedData);
-      } else {
-        messageTemplate = `${customerName} from ${location || 'your store'} purchased ${productNames}`;
-      }
+      // Always use simple text message - widget.js handles all styling
+      const messageTemplate = `${customerName} purchased ${productNames}`;
 
       return {
         widget_id: widget.id,

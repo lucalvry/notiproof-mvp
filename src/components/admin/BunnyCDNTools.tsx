@@ -34,11 +34,13 @@ interface MigrationResult {
 interface DeployResult {
   success: boolean;
   url?: string;
+  widget_version?: string;
   error?: string;
   details?: {
     file_size: number;
     upload_time_ms: number;
     cdn_url: string;
+    widget_version?: string;
   };
 }
 
@@ -112,8 +114,13 @@ export function BunnyCDNTools() {
       if (!widgetContent.includes('NotiProof') || widgetContent.includes('<!DOCTYPE')) {
         throw new Error('Invalid widget content - file does not appear to be widget.js');
       }
+      
+      // Extract version for logging
+      const versionMatch = widgetContent.match(/WIDGET_VERSION\s*=\s*(\d+)/);
+      const widgetVersion = versionMatch ? versionMatch[1] : 'unknown';
 
-      console.log('[Deploy Widget] Fetched widget.js, size:', widgetContent.length, 'bytes');
+      console.log('[Deploy Widget] Fetched widget.js, version:', widgetVersion, 'size:', widgetContent.length, 'bytes');
+      console.log('[Deploy Widget] First 200 chars:', widgetContent.substring(0, 200));
 
       // Send to edge function with content
       const { data, error } = await supabase.functions.invoke('deploy-widget-to-bunny', {
@@ -125,7 +132,8 @@ export function BunnyCDNTools() {
       setDeployResult(data);
       
       if (data.success) {
-        toast.success(`Widget deployed successfully: ${data.url}`);
+        const version = data.widget_version || data.details?.widget_version || 'unknown';
+        toast.success(`Widget v${version} deployed successfully!`);
       } else {
         toast.error(data.error || 'Widget deployment failed');
       }
@@ -344,6 +352,12 @@ export function BunnyCDNTools() {
 
               {deployResult.success && deployResult.details && (
                 <div className="space-y-2 text-sm">
+                  <p>
+                    <span className="text-muted-foreground">Widget Version:</span>{' '}
+                    <Badge variant="secondary" className="text-xs">
+                      v{deployResult.widget_version || deployResult.details?.widget_version || 'unknown'}
+                    </Badge>
+                  </p>
                   <p>
                     <span className="text-muted-foreground">CDN URL:</span>{' '}
                     <code className="bg-background px-1 rounded text-xs">{deployResult.url}</code>

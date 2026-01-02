@@ -1,22 +1,8 @@
 import { BaseAdapter } from '../BaseAdapter';
 import { CanonicalEvent, NormalizedField } from '../types';
 
-// Default WooCommerce template HTML (fallback)
-const DEFAULT_WOOCOMMERCE_TEMPLATE = `<div class="noti-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 340px;">
-  {{#template.product_image}}
-  <img src="{{template.product_image}}" alt="" style="width: 48px; height: 48px; border-radius: 6px; object-fit: cover; flex-shrink: 0;" />
-  {{/template.product_image}}
-  {{^template.product_image}}
-  <div style="width: 48px; height: 48px; border-radius: 6px; background: linear-gradient(135deg, #7C3AED 0%, #2563EB 100%); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-    <span style="font-size: 20px;">🛒</span>
-  </div>
-  {{/template.product_image}}
-  <div style="flex: 1; min-width: 0;">
-    <div style="font-weight: 600; font-size: 13px; color: #1f2937; margin-bottom: 2px;">{{template.customer_name}}</div>
-    <div style="font-size: 12px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">purchased <strong style="color: #1f2937;">{{template.product_name}}</strong></div>
-    <div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">{{template.customer_location}} • {{template.time_ago}}</div>
-  </div>
-</div>`;
+// Default WooCommerce template - simple text (widget.js handles styling)
+const DEFAULT_WOOCOMMERCE_TEMPLATE = `{{template.customer_name}} purchased {{template.product_name}}`;
 
 export class WooCommerceAdapter extends BaseAdapter {
   provider = 'woocommerce';

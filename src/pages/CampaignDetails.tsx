@@ -686,9 +686,30 @@ export default function CampaignDetails() {
                               time: "Just now",
                             };
                           }
+                          // WooCommerce/Purchase campaigns - extract structured data
+                          if (isWooCommerceCampaign && sampleEvent) {
+                            const eventData = sampleEvent.event_data || {};
+                            return {
+                              userName: sampleEvent.user_name || 'Someone',
+                              productImage: eventData.product_image,
+                              message: `purchased ${eventData.product_name || 'a product'}`,
+                              location: sampleEvent.user_location,
+                              time: formatDistanceToNow(new Date(sampleEvent.created_at), { addSuffix: true }),
+                            };
+                          }
+                          // WooCommerce fallback when no data
+                          if (isWooCommerceCampaign) {
+                            return {
+                              userName: "Jane Smith",
+                              message: "purchased Premium Sneakers",
+                              location: "Lagos, Nigeria",
+                              time: "Just now",
+                            };
+                          }
                           // Default fallback for other campaign types
                           if (sampleEvent) {
                             return {
+                              userName: sampleEvent.user_name,
                               message: sampleEvent.message_template || "Someone just took action",
                               location: sampleEvent.user_location || "Unknown",
                               time: formatDistanceToNow(new Date(sampleEvent.created_at), { addSuffix: true }),

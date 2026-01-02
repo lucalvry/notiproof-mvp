@@ -1,7 +1,7 @@
 (function() {
   'use strict';
   
-  const WIDGET_VERSION = 16; // v16: Early verification ping for debugging
+  const WIDGET_VERSION = 17; // v17: Fix duplicate const declarations that broke widget
   const BUILD_TIMESTAMP = '2025-12-26T12:00:00Z'; // Build timestamp for version tracking
   // Version logging moved to debug mode only
   
@@ -11,10 +11,13 @@
   const DEBUG = window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
   const debugMode = window.location.search.includes('notiproof_debug=1'); // Enable with ?notiproof_debug=1
   
-  // IMMEDIATE verification ping - fire before any other logic
-  // This helps debug whether the script is loading at all
+  // Script configuration - must happen immediately before IIFE closure
   const script = document.currentScript;
   const siteToken = script?.getAttribute('data-site-token');
+  const widgetId = script?.getAttribute('data-widget-id');
+  
+  // IMMEDIATE verification ping - fire before any other logic
+  // This helps debug whether the script is loading at all
   if (siteToken) {
     fetch(`${API_BASE}/verify?token=${siteToken}&ping=1&origin=${encodeURIComponent(window.location.origin)}`, {
       method: 'GET',
@@ -149,10 +152,7 @@
     }
   }
   
-  const script = document.currentScript;
-  const widgetId = script.getAttribute('data-widget-id');
-  const siteToken = script.getAttribute('data-site-token');
-  
+  // Branding configuration (script, widgetId, siteToken already declared at top)
   let hideBranding = script.getAttribute('data-hide-branding') === 'true';
   let customBrandName = script.getAttribute('data-brand-name') || 'NotiProof';
   let customLogoUrl = script.getAttribute('data-logo-url') || '';
