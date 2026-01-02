@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Validate widget content
+    // Validate widget content - basic checks
     if (!widgetContent.includes('NotiProof') || widgetContent.includes('<!DOCTYPE')) {
       return new Response(JSON.stringify({ 
         error: 'Invalid widget content',
@@ -123,6 +123,52 @@ Deno.serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // Validate minimum file size (widget should be at least 10KB)
+    if (widgetContent.length < 10000) {
+      return new Response(JSON.stringify({ 
+        error: 'Widget file too small',
+        hint: `Expected at least 10KB, got ${(widgetContent.length / 1024).toFixed(1)}KB. This may indicate corrupted or incomplete content.`
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate JavaScript syntax before deploying
+    console.log('[Deploy Widget] Validating JavaScript syntax...');
+    try {
+      // Use Function constructor to check syntax (doesn't execute the code)
+      new Function(widgetContent);
+      console.log('[Deploy Widget] Syntax validation passed');
+    } catch (syntaxError) {
+      console.error('[Deploy Widget] Syntax validation FAILED:', syntaxError);
+      return new Response(JSON.stringify({ 
+        error: 'Widget has JavaScript syntax errors',
+        hint: syntaxError instanceof Error ? syntaxError.message : 'Unknown syntax error',
+        details: 'The widget file failed syntax validation and was NOT deployed to prevent breaking customer sites.'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check for duplicate const declarations that would crash at runtime
+    const duplicateConstMatch = widgetContent.match(/const\s+(script|siteToken|widgetId)\s*=/g);
+    if (duplicateConstMatch && duplicateConstMatch.length > 1) {
+      const duplicates = duplicateConstMatch.filter((v, i, a) => a.indexOf(v) !== i);
+      if (duplicates.length > 0) {
+        console.error('[Deploy Widget] Duplicate const declarations detected:', duplicates);
+        return new Response(JSON.stringify({ 
+          error: 'Widget has duplicate variable declarations',
+          hint: `Found duplicate declarations: ${duplicates.join(', ')}. This would crash the widget.`,
+          details: 'Fix the duplicate declarations in public/widget.js before deploying.'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     // Upload to Supabase Storage (primary source)

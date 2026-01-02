@@ -149,11 +149,10 @@
     }
   }
   
-  const script = document.currentScript;
-  const widgetId = script.getAttribute('data-widget-id');
-  const siteToken = script.getAttribute('data-site-token');
+  // Use the script/siteToken from early verification ping (lines 16-17)
+  const widgetId = script?.getAttribute('data-widget-id');
   
-  let hideBranding = script.getAttribute('data-hide-branding') === 'true';
+  let hideBranding = script?.getAttribute('data-hide-branding') === 'true';
   let customBrandName = script.getAttribute('data-brand-name') || 'NotiProof';
   let customLogoUrl = script.getAttribute('data-logo-url') || '';
   
