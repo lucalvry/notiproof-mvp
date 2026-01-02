@@ -1020,128 +1020,6 @@
       return; // Exit early for active_visitors
     }
     
-    // PRE-RENDERED HTML TEMPLATE DETECTION (WooCommerce, Shopify, etc.)
-    // These templates already include their own complete card structure with image, time, location
-    // Render them directly without wrapping in widget's flex container
-    const messageContent = event.message_template || '';
-    const isPreRenderedHtmlCard = messageContent.includes('class="noti-card"') || 
-                                   messageContent.includes("class='noti-card'") ||
-                                   (messageContent.includes('<div') && messageContent.includes('box-shadow') && messageContent.includes('border-radius'));
-    
-    if (isPreRenderedHtmlCard) {
-      // Reset contentHTML - only keep the close button, then add the pre-rendered template
-      contentHTML = `<div style="position: relative;">`;
-      
-      // Close button
-      contentHTML += `
-        <div style="position: absolute; top: 8px; right: 8px; cursor: pointer; opacity: 0.5; z-index: 10; transition: opacity 0.2s;" data-close>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M1 1L13 13M1 13L13 1" stroke="${config.textColor}" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-      `;
-      
-      // Render the pre-rendered HTML template directly
-      contentHTML += messageContent;
-      
-      // Inject verification badge if needed and not already present
-      const showEventVerifiedInCard = event.show_verified || event.event_data?.show_verified;
-      if (showEventVerifiedInCard && !messageContent.includes('NotiProof Verified')) {
-        // Find the last closing div in the template and inject badge before it
-        const lastDivIndex = contentHTML.lastIndexOf('</div>');
-        if (lastDivIndex !== -1) {
-          const badgeHtml = '<span style="color: #2563eb; font-size: 11px; font-weight: 500; margin-left: 6px;">✓ NotiProof Verified</span>';
-          contentHTML = contentHTML.slice(0, lastDivIndex) + badgeHtml + contentHTML.slice(lastDivIndex);
-        }
-      }
-      
-      contentHTML += '</div>';
-      notification.innerHTML = contentHTML;
-      container.appendChild(notification);
-      
-      // Animate in
-      setTimeout(() => {
-        notification.style.opacity = '1';
-        notification.style.transform = 'translateY(0) scale(1)';
-      }, 10);
-      
-      log('Pre-rendered HTML template displayed:', event.event_type, event.id);
-      
-      // Track view
-      trackView(event.id);
-      incrementPageImpressions();
-      incrementSessionImpressions();
-      
-      // Add branding footer
-      if (!document.querySelector('[data-notiproof-branding]')) {
-        createBrandingFooter();
-      }
-      
-      // Setup hover pause and click handling for pre-rendered templates
-      let preRenderedAutoHideTimeout = null;
-      let preRenderedStartTime = Date.now();
-      let preRenderedRemainingTime = config.displayDuration;
-      
-      const hidePreRenderedNotification = () => {
-        notification.style.opacity = '0';
-        notification.style.transform = config.animation === 'slide' ? 'translateY(20px)' : 'scale(0.95)';
-        setTimeout(() => notification.remove(), 300);
-      };
-      
-      // Click handler
-      notification.addEventListener('click', (e) => {
-        if (e.target.closest('[data-close]')) {
-          e.stopPropagation();
-          if (config.pauseAfterClose) isPaused = true;
-          if (preRenderedAutoHideTimeout) clearTimeout(preRenderedAutoHideTimeout);
-          hidePreRenderedNotification();
-          return;
-        }
-        if (!config.makeClickable) return;
-        trackClick(event.id);
-        storeInteraction(event.id, event.campaign_id, 'click');
-        
-        // Navigate to product URL if available
-        const productUrl = event.event_data?.product_url;
-        if (productUrl) {
-          window.open(productUrl, '_blank');
-        }
-      });
-      
-      // Hover pause
-      notification.addEventListener('mouseenter', () => {
-        notificationEngaged = true;
-        if (preRenderedAutoHideTimeout) {
-          clearTimeout(preRenderedAutoHideTimeout);
-          const elapsed = Date.now() - preRenderedStartTime;
-          preRenderedRemainingTime = Math.max(1000, config.displayDuration - elapsed);
-        }
-        storeInteraction(event.id, event.campaign_id, 'hover');
-        trackHover(event.id);
-      });
-      
-      notification.addEventListener('mouseleave', () => {
-        notificationEngaged = false;
-        preRenderedAutoHideTimeout = setTimeout(hidePreRenderedNotification, preRenderedRemainingTime);
-      });
-      
-      // Close button
-      const closeBtn = notification.querySelector('[data-close]');
-      if (closeBtn) {
-        closeBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (config.pauseAfterClose) isPaused = true;
-          if (preRenderedAutoHideTimeout) clearTimeout(preRenderedAutoHideTimeout);
-          hidePreRenderedNotification();
-        });
-      }
-      
-      // Start auto-hide timer
-      preRenderedAutoHideTimeout = setTimeout(hidePreRenderedNotification, config.displayDuration);
-      
-      return; // Exit early for pre-rendered HTML templates
-    }
-    
     // ANNOUNCEMENT-SPECIFIC IMAGE HANDLING
     if (event.event_type === 'announcement') {
       if (debugMode) {
@@ -1390,8 +1268,7 @@
         contentHTML += '</div>';
       }
     } else {
-      // Regular event - plain text message with product linkification
-      // (Pre-rendered HTML templates are handled earlier with early return)
+      // Regular event - existing logic with product linkification
       const linkedMessage = linkifyMessage(event.message_template || 'New activity', event.event_data);
       contentHTML += `<div style="font-weight: 600; margin-bottom: 4px; line-height: 1.4;">
         ${linkedMessage}
@@ -1399,7 +1276,6 @@
     }
     
     // Metadata (time + location + verification badge) - Skip for announcements with CTA and testimonials (they have their own footer)
-    // Note: Pre-rendered HTML templates are handled earlier with early return, so they won't reach here
     const skipMetadata = (event.event_type === 'announcement' && event.event_data?.cta_text && event.event_data?.cta_url) || 
                          event.event_type === 'testimonial';
     const showEventVerified = event.show_verified || event.event_data?.show_verified;

@@ -29,7 +29,7 @@ interface QueueConfig {
 }
 
 const DEFAULT_WEIGHTS: Record<string, NotificationWeight> = {
-  'purchase': { event_type: 'purchase', weight: 10, max_per_queue: 20, ttl_days: 30 },
+  'purchase': { event_type: 'purchase', weight: 10, max_per_queue: 20, ttl_days: 7 },
   'testimonial': { event_type: 'testimonial', weight: 8, max_per_queue: 15, ttl_days: 180 },
   'form_capture': { event_type: 'form_capture', weight: 7, max_per_queue: 20, ttl_days: 14 },
   'signup': { event_type: 'signup', weight: 6, max_per_queue: 20, ttl_days: 14 },

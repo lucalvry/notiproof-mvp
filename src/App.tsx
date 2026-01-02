@@ -73,80 +73,20 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { inject } from "@vercel/analytics";
 import ReactGA from "react-ga4";
 import { useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
-// Extend Window interface for gtag
-declare global {
-  interface Window {
-    gtag?: (...args: unknown[]) => void;
-  }
-}
-
-// GA Initializer component - ensures GA is initialized after DOM is ready
-const GAInitializer = () => {
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    try {
-      ReactGA.initialize("G-PM00N0M1DQ", {
-        testMode: import.meta.env.DEV, // Enable test mode in development
-      });
-      setInitialized(true);
-      console.log('[GA4] Google Analytics initialized');
-    } catch (error) {
-      console.error('[GA4] Failed to initialize:', error);
-    }
-
-    // Check if gtag loaded (might be blocked by ad blockers)
-    const checkGtagLoaded = () => {
-      if (typeof window.gtag === 'undefined') {
-        console.warn('[GA4] gtag not available - may be blocked by ad blocker');
-        return false;
-      }
-      console.log('[GA4] gtag is available');
-      return true;
-    };
-
-    // Wait a moment for script to load
-    const timer = setTimeout(checkGtagLoaded, 2000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  return null;
-};
+// Initialize Google Analytics
+ReactGA.initialize("G-PM00N0M1DQ");
 
 // Track page views on route change
 const TrackPageViews = () => {
   const location = useLocation();
 
   useEffect(() => {
-    try {
-      ReactGA.send({ 
-        hitType: "pageview", 
-        page: location.pathname + location.search 
-      });
-      console.log('[GA4] Pageview tracked:', location.pathname + location.search);
-    } catch (error) {
-      console.error('[GA4] Failed to track pageview:', error);
-    }
+    ReactGA.send({ hitType: "pageview", page: location.pathname + location.search });
   }, [location]);
 
   return null;
-};
-
-// Utility function to track custom events
-export const trackGAEvent = (category: string, action: string, label?: string, value?: number) => {
-  try {
-    ReactGA.event({
-      category,
-      action,
-      label,
-      value,
-    });
-    console.log('[GA4] Event tracked:', { category, action, label, value });
-  } catch (error) {
-    console.error('[GA4] Failed to track event:', error);
-  }
 };
 
 
@@ -170,9 +110,8 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <GAInitializer />
           <WebsiteProvider>
-            <TrackPageViews />
+            <TrackPageViews /> {/* 👈 this line */}
           <Routes>
         <Route path="/login" element={<Login />} />
         {/* LTD Campaign: Redirect all signup routes to /ltd */}
