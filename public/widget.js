@@ -1,8 +1,8 @@
 (function() {
   'use strict';
   
-  const WIDGET_VERSION = 17; // v17: Bulletproof script resolver - handles GTM, async loading, document.currentScript===null
-  const BUILD_TIMESTAMP = '2026-01-02T10:00:00Z'; // Build timestamp for version tracking
+  const WIDGET_VERSION = 16; // v16: Early verification ping for debugging
+  const BUILD_TIMESTAMP = '2025-12-26T12:00:00Z'; // Build timestamp for version tracking
   // Version logging moved to debug mode only
   
   const API_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
@@ -11,47 +11,16 @@
   const DEBUG = window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
   const debugMode = window.location.search.includes('notiproof_debug=1'); // Enable with ?notiproof_debug=1
   
-  // Robust script resolver - handles GTM, async loading, and other edge cases
-  function resolveWidgetScript() {
-    // Method 1: Prefer document.currentScript (works for sync scripts)
-    if (document.currentScript) {
-      return document.currentScript;
-    }
-    // Method 2: Find script by data-site-token attribute
-    const byToken = document.querySelector('script[data-site-token]');
-    if (byToken) {
-      return byToken;
-    }
-    // Method 3: Find script by src containing widget.js or widget-script
-    const bySrc = document.querySelector('script[src*="widget.js"], script[src*="widget-script"]');
-    if (bySrc) {
-      return bySrc;
-    }
-    // Method 4: Last resort - return null and use defaults
-    return null;
-  }
-  
-  const script = resolveWidgetScript();
-  
-  // Safe attribute getter with fallback
-  function getAttr(name, fallback) {
-    if (!script) return fallback;
-    const val = script.getAttribute(name);
-    return val !== null ? val : fallback;
-  }
-  
-  const siteToken = getAttr('data-site-token', null);
-  
   // IMMEDIATE verification ping - fire before any other logic
   // This helps debug whether the script is loading at all
+  const script = document.currentScript;
+  const siteToken = script?.getAttribute('data-site-token');
   if (siteToken) {
     fetch(`${API_BASE}/verify?token=${siteToken}&ping=1&origin=${encodeURIComponent(window.location.origin)}`, {
       method: 'GET',
       mode: 'cors',
       credentials: 'omit'
     }).catch(function() {}); // Fire-and-forget, ignore errors
-  } else {
-    console.warn('[NotiProof] No data-site-token found on script tag. Widget will not load.');
   }
   
   // Impact Board: Store notification interactions for attribution
@@ -180,12 +149,14 @@
     }
   }
   
-  // Use the script/siteToken from early verification ping (uses getAttr helper)
-  const widgetId = getAttr('data-widget-id', null);
+  const script = document.currentScript;
+  const widgetId = script.getAttribute('data-widget-id');
+  const siteToken = script.getAttribute('data-site-token');
   
-  let hideBranding = getAttr('data-hide-branding', 'false') === 'true';
-  let customBrandName = getAttr('data-brand-name', 'NotiProof');
-  let customLogoUrl = getAttr('data-logo-url', '');
+  let hideBranding = script.getAttribute('data-hide-branding') === 'true';
+  let customBrandName = script.getAttribute('data-brand-name') || 'NotiProof';
+  let customLogoUrl = script.getAttribute('data-logo-url') || '';
+  
   
   // URL matching helper with wildcard support
   function matchesUrlPattern(url, pattern) {
@@ -315,7 +286,7 @@
   }
   
   function log(...args) {
-    const isDebugMode = DEBUG || debugMode || getAttr('data-debug-mode', 'false') === 'true';
+    const isDebugMode = DEBUG || debugMode || script.getAttribute('data-debug-mode') === 'true';
     if (isDebugMode) {
       console.log('[NotiProof]', ...args);
     }
@@ -397,60 +368,60 @@
   const PAGE_KEY = 'notiproof_page_' + window.location.pathname;
   
   // Widget Configuration from data attributes with versioning support
-  const widgetVersion = parseInt(getAttr('data-version', '2'), 10);
+  const widgetVersion = parseInt(script.getAttribute('data-version') || '2', 10);
   
   const config = {
     version: widgetVersion,
-    initialDelay: parseInt(getAttr('data-initial-delay', '0'), 10) * 1000,
-    displayDuration: parseInt(getAttr('data-display-duration', '5'), 10) * 1000,
-    interval: parseInt(getAttr('data-interval', '8'), 10) * 1000,
-    maxPerPage: parseInt(getAttr('data-max-per-page', '5'), 10),
-    maxPerSession: parseInt(getAttr('data-max-per-session', '20'), 10),
-    position: getAttr('data-position', 'bottom-left'),
-    animation: getAttr('data-animation', 'slide'),
-    primaryColor: getAttr('data-primary-color', '#667eea'),
-    backgroundColor: getAttr('data-bg-color', '#ffffff'),
-    textColor: getAttr('data-text-color', '#1a1a1a'),
-    borderRadius: parseInt(getAttr('data-border-radius', '8'), 10),
-    shadow: getAttr('data-shadow', 'md'),
-    fontSize: parseInt(getAttr('data-font-size', '14'), 10),
-    showAvatar: getAttr('data-show-avatar', 'true') !== 'false',
-    showTimestamp: getAttr('data-show-timestamp', 'true') !== 'false',
-    showLocation: getAttr('data-show-location', 'true') !== 'false',
-    showCTA: getAttr('data-show-cta', 'false') === 'true',
-    ctaText: getAttr('data-cta-text', 'Learn More'),
-    ctaUrl: getAttr('data-cta-url', ''),
-    showActiveVisitors: getAttr('data-show-active-visitors', 'false') === 'true',
-    pauseAfterClick: getAttr('data-pause-after-click', 'false') === 'true',
-    pauseAfterClose: getAttr('data-pause-after-close', 'false') === 'true',
-    makeClickable: getAttr('data-make-clickable', 'true') !== 'false',
-    debugMode: getAttr('data-debug-mode', 'false') === 'true',
+    initialDelay: parseInt(script.getAttribute('data-initial-delay') || '0', 10) * 1000,
+    displayDuration: parseInt(script.getAttribute('data-display-duration') || '5', 10) * 1000,
+    interval: parseInt(script.getAttribute('data-interval') || '8', 10) * 1000,
+    maxPerPage: parseInt(script.getAttribute('data-max-per-page') || '5', 10),
+    maxPerSession: parseInt(script.getAttribute('data-max-per-session') || '20', 10),
+    position: script.getAttribute('data-position') || 'bottom-left',
+    animation: script.getAttribute('data-animation') || 'slide',
+    primaryColor: script.getAttribute('data-primary-color') || '#667eea',
+    backgroundColor: script.getAttribute('data-bg-color') || '#ffffff',
+    textColor: script.getAttribute('data-text-color') || '#1a1a1a',
+    borderRadius: parseInt(script.getAttribute('data-border-radius') || '8', 10),
+    shadow: script.getAttribute('data-shadow') || 'md',
+    fontSize: parseInt(script.getAttribute('data-font-size') || '14', 10),
+    showAvatar: script.getAttribute('data-show-avatar') !== 'false',
+    showTimestamp: script.getAttribute('data-show-timestamp') !== 'false',
+    showLocation: script.getAttribute('data-show-location') !== 'false',
+    showCTA: script.getAttribute('data-show-cta') === 'true',
+    ctaText: script.getAttribute('data-cta-text') || 'Learn More',
+    ctaUrl: script.getAttribute('data-cta-url') || '',
+    showActiveVisitors: script.getAttribute('data-show-active-visitors') === 'true',
+    pauseAfterClick: script.getAttribute('data-pause-after-click') === 'true',
+    pauseAfterClose: script.getAttribute('data-pause-after-close') === 'true',
+    makeClickable: script.getAttribute('data-make-clickable') !== 'false',
+    debugMode: script.getAttribute('data-debug-mode') === 'true',
     
     // NEW: Enhanced styling options
-    borderColor: getAttr('data-border-color', 'transparent'),
-    borderWidth: parseInt(getAttr('data-border-width', '0'), 10),
-    textAlignment: getAttr('data-text-alignment', 'left'),
-    lineHeight: parseFloat(getAttr('data-line-height', '1.4')),
-    hoverEffect: getAttr('data-hover-effect', 'subtle'),
-    notificationPadding: parseInt(getAttr('data-padding', '16'), 10),
-    contentAlignment: getAttr('data-content-alignment', 'top'),
+    borderColor: script.getAttribute('data-border-color') || 'transparent',
+    borderWidth: parseInt(script.getAttribute('data-border-width') || '0', 10),
+    textAlignment: script.getAttribute('data-text-alignment') || 'left',
+    lineHeight: parseFloat(script.getAttribute('data-line-height') || '1.4'),
+    hoverEffect: script.getAttribute('data-hover-effect') || 'subtle',
+    notificationPadding: parseInt(script.getAttribute('data-padding') || '16', 10),
+    contentAlignment: script.getAttribute('data-content-alignment') || 'top',
     
     // PHASE 4: Product image display settings with version check
     showProductImages: (() => {
       if (widgetVersion >= 2) {
-        return getAttr('data-show-product-images', 'true') !== 'false';
+        return script.getAttribute('data-show-product-images') !== 'false';
       }
       return false; // Disabled for v1 widgets
     })(),
     
     linkifyProducts: (() => {
       if (widgetVersion >= 2) {
-        return getAttr('data-linkify-products', 'true') !== 'false';
+        return script.getAttribute('data-linkify-products') !== 'false';
       }
       return false; // Disabled for v1 widgets
     })(),
     
-    fallbackIcon: getAttr('data-fallback-icon', 'default')
+    fallbackIcon: script.getAttribute('data-fallback-icon') || 'default'
   };
   
   log('Widget version:', config.version);
