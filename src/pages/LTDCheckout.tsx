@@ -204,7 +204,7 @@ export default function LTDCheckout() {
           <Card className="border-2">
             <CardHeader>
               <div className="flex items-baseline gap-2">
-                <span className="text-5xl font-bold">$79</span>
+                <span className="text-5xl font-bold">$29</span>
                 <span className="text-muted-foreground line-through text-xl">$228/yr</span>
               </div>
               <CardDescription className="text-base">
@@ -305,7 +305,7 @@ export default function LTDCheckout() {
                       "Redirecting to checkout..."
                     ) : (
                       <>
-                        Get Lifetime Access for $79
+                        Get Lifetime Access for $29
                         <Zap className="ml-2 h-5 w-5" />
                       </>
                     )}
@@ -400,7 +400,7 @@ export default function LTDCheckout() {
                       "Creating account..."
                     ) : (
                       <>
-                        Get Lifetime Access for $79
+                        Get Lifetime Access for $29
                         <Zap className="ml-2 h-5 w-5" />
                       </>
                     )}

@@ -31,6 +31,18 @@ export default function Login() {
 
       if (!data.user) throw new Error("Login failed");
 
+      // Check if user is a super admin first
+      const { data: isSuperAdmin } = await supabase.rpc('is_superadmin', { 
+        _user_id: data.user.id 
+      });
+
+      if (isSuperAdmin) {
+        // Super admins skip all subscription checks - they have unrestricted access
+        toast.success("Welcome back!");
+        navigate(returnTo || "/websites");
+        return;
+      }
+
       toast.success("Logged in successfully!");
 
       // If returnTo is set, redirect there
