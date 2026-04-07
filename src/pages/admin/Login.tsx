@@ -50,7 +50,11 @@ export default function AdminLogin() {
       navigate("/admin/dashboard");
     } catch (error: any) {
       console.error("Login error:", error);
-      toast.error(error.message || "Failed to login");
+      if (error.message === "{}" || error.name === "AuthRetryableFetchError" || error.status === 504) {
+        toast.error("Server is temporarily unavailable. Please try again in a moment.");
+      } else {
+        toast.error(error.message || "Failed to login");
+      }
     } finally {
       setLoading(false);
     }

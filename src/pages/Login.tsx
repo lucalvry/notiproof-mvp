@@ -75,7 +75,9 @@ export default function Login() {
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      if (error.message?.includes("Invalid login credentials")) {
+      if (error.message === "{}" || error.name === "AuthRetryableFetchError" || error.status === 504) {
+        toast.error("Server is temporarily unavailable. Please try again in a moment.");
+      } else if (error.message?.includes("Invalid login credentials")) {
         toast.error("Invalid email or password");
       } else {
         toast.error(error.message || "Failed to login");
@@ -90,7 +92,9 @@ export default function Login() {
       {/* Branding Panel – hidden on mobile */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-gradient-to-br from-primary via-primary/90 to-primary/70 p-12 text-primary-foreground">
         <div>
-          <img src={logo} alt="NotiProof" className="h-10 brightness-0 invert" />
+          <a href="https://notiproof.com" target="_blank" rel="noopener noreferrer">
+            <img src={logo} alt="NotiProof" className="h-10 brightness-0 invert" />
+          </a>
         </div>
 
         <div className="space-y-6">
@@ -127,7 +131,9 @@ export default function Login() {
         <Card className="w-full max-w-md border-0 shadow-none sm:border sm:shadow-sm">
           <CardHeader className="space-y-3 text-center sm:text-left">
             <div className="lg:hidden mx-auto sm:mx-0">
-              <img src={logo} alt="NotiProof" className="h-10" />
+              <a href="https://notiproof.com" target="_blank" rel="noopener noreferrer">
+                <img src={logo} alt="NotiProof" className="h-10" />
+              </a>
             </div>
             <CardTitle className="text-2xl">Welcome back</CardTitle>
             <CardDescription>Sign in to your NotiProof account</CardDescription>

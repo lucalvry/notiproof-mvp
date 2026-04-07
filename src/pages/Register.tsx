@@ -9,6 +9,7 @@ import { PasswordStrengthMeter, evaluatePasswordStrength } from "@/components/ui
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Building2, Shield, BarChart3, Zap } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import logo from "@/assets/NotiProof_Logo.png";
 
 type AccountType = "individual" | "organization";
@@ -25,9 +26,15 @@ export default function Register() {
   const [accountType, setAccountType] = useState<AccountType>("individual");
   const [organizationName, setOrganizationName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!agreedToTerms) {
+      toast.error("Please agree to the Terms of Service and Privacy Policy");
+      return;
+    }
 
     if (!fullName || !email || !password) {
       toast.error("Please fill in all fields");
@@ -154,7 +161,9 @@ export default function Register() {
       {/* Branding Panel */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-gradient-to-br from-primary via-primary/90 to-primary/70 p-12 text-primary-foreground">
         <div>
-          <img src={logo} alt="NotiProof" className="h-10 brightness-0 invert" />
+          <a href="https://notiproof.com" target="_blank" rel="noopener noreferrer">
+            <img src={logo} alt="NotiProof" className="h-10 brightness-0 invert" />
+          </a>
         </div>
 
         <div className="space-y-6">
@@ -196,7 +205,9 @@ export default function Register() {
         <Card className="w-full max-w-md border-0 shadow-none sm:border sm:shadow-sm">
           <CardHeader className="space-y-3 text-center sm:text-left">
             <div className="lg:hidden mx-auto sm:mx-0">
-              <img src={logo} alt="NotiProof" className="h-10" />
+              <a href="https://notiproof.com" target="_blank" rel="noopener noreferrer">
+                <img src={logo} alt="NotiProof" className="h-10" />
+              </a>
             </div>
             <CardTitle className="text-2xl">Create Your Account</CardTitle>
             <CardDescription>
@@ -291,7 +302,23 @@ export default function Register() {
                 <PasswordStrengthMeter password={password} />
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              <div className="flex items-start space-x-2">
+                <Checkbox
+                  id="terms"
+                  checked={agreedToTerms}
+                  onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
+                  disabled={loading}
+                  className="mt-0.5"
+                />
+                <label htmlFor="terms" className="text-sm text-muted-foreground leading-snug cursor-pointer">
+                  I agree to the{" "}
+                  <a href="https://notiproof.com/terms-of-service/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Terms of Service</a>
+                  {" "}and{" "}
+                  <a href="https://notiproof.com/privacy-policy/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Privacy Policy</a>
+                </label>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={loading || !agreedToTerms}>
                 {loading
                   ? "Creating Account..."
                   : isFreeFlow
