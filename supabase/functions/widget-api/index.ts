@@ -232,6 +232,10 @@ Deno.serve(async (req) => {
         custom_brand_name: ""
       };
 
+      // Check if website owner is superadmin (bypass all limits)
+      const { data: isOwnerSuperAdmin } = await supabase
+        .rpc('is_superadmin', { _user_id: website.user_id });
+
       // Fetch user's subscription and check if blocked
       let subscriptionInfo = null;
       let isBlocked = false;
@@ -250,8 +254,11 @@ Deno.serve(async (req) => {
         .limit(1)
         .single();
       
-      // Check subscription status
-      if (!subscription) {
+      // Check subscription status (skip for superadmins)
+      if (isOwnerSuperAdmin) {
+        console.log('[widget-api] Superadmin bypass for user:', website.user_id);
+        subscriptionInfo = { plan_name: 'Superadmin' };
+      } else if (!subscription) {
         // No subscription = blocked
         isBlocked = true;
         blockReason = 'no_subscription';
@@ -269,7 +276,7 @@ Deno.serve(async (req) => {
         } else if (status === 'cancelled') {
           isBlocked = true;
           blockReason = 'subscription_cancelled';
-        } else if (status === 'active' || status === 'trialing') {
+        } else if (status === 'active' || status === 'trialing' || status === 'lifetime') {
           // Valid subscription
           const plans = subscription.subscription_plans as { name: string } | { name: string }[];
           const planName = Array.isArray(plans) ? plans[0]?.name : plans.name;

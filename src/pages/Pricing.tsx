@@ -39,22 +39,18 @@ const formatVideoDuration = (seconds: number): string => {
 const generatePlanFeatures = (plan: Plan): string[] => {
   const features: string[] = [];
   
-  // Limits (the differentiators)
-  features.push(`${plan.max_websites} website${plan.max_websites > 1 ? 's' : ''}`);
+  const websiteLabel = plan.max_websites >= 999 ? 'Unlimited websites' : `${plan.max_websites} website${plan.max_websites > 1 ? 's' : ''}`;
+  features.push(websiteLabel);
   features.push(plan.max_events_per_month 
     ? `${(plan.max_events_per_month / 1000).toFixed(0)}K views/month`
     : 'Unlimited views');
   features.push(formatStorage(plan.storage_limit_bytes));
   features.push(formatVideoDuration(plan.video_max_duration_seconds));
   
-  // Global features (all plans)
   features.push("All 38+ integrations");
   features.push("All campaign templates");
   features.push("Unlimited testimonials & forms");
-  features.push("Wall of Testimonials builder");
-  features.push("AI analysis & insights");
   
-  // Premium features based on plan
   if (plan.can_remove_branding) features.push("Remove NotiProof branding");
   if (plan.custom_domain_enabled) features.push("Custom domain for forms");
   if (plan.has_api) features.push("API & Webhook access");
@@ -74,7 +70,6 @@ export default function Pricing() {
         .from('subscription_plans')
         .select('*')
         .eq('is_active', true)
-        .gt('price_monthly', 0) // Exclude Free plan
         .order('price_monthly');
 
       if (error) throw error;
@@ -82,15 +77,14 @@ export default function Pricing() {
     },
   });
 
-  // Feature comparison table with new structure
   const featureComparison = [
     {
-      category: "Usage Limits (The Differentiators)",
+      category: "Usage Limits",
       features: [
-        { name: "Websites", free: "1", starter: "3", standard: "5", pro: "10", business: "20" },
-        { name: "Monthly Views", free: "1K", starter: "10K", standard: "45K", pro: "100K", business: "Unlimited" },
-        { name: "Storage", free: "100MB", starter: "1GB", standard: "5GB", pro: "20GB", business: "100GB" },
-        { name: "Video Recording", free: "30sec", starter: "3min", standard: "3min", pro: "5min", business: "5min" },
+        { name: "Websites", free: "1", starter: "3", standard: "Unlimited", professional: "Unlimited" },
+        { name: "Monthly Views", free: "5K", starter: "30K", standard: "100K", professional: "400K" },
+        { name: "Storage", free: "100MB", starter: "300MB", standard: "500MB", professional: "1GB" },
+        { name: "Video Recording", free: "30sec", starter: "3min", standard: "5min", professional: "10min" },
       ]
     },
     {
@@ -102,34 +96,37 @@ export default function Pricing() {
         { name: "Unlimited Forms", all: true, tooltip: "Create unlimited testimonial collection forms" },
         { name: "Wall of Testimonials Builder", all: true, tooltip: "Beautiful testimonial showcase pages" },
         { name: "AI Testimonial Analysis", all: true, tooltip: "Automatic sentiment analysis and insights" },
-        { name: "Testimonial Tags & Search", all: true, tooltip: "Organize and find testimonials easily" },
-        { name: "Testimonial Widgets", all: true, tooltip: "Embed testimonials anywhere on your site" },
       ]
     },
     {
       category: "Premium Features",
       features: [
-        { name: "Remove NotiProof Branding", free: false, starter: true, standard: true, pro: true, business: true },
-        { name: "Custom Domain for Forms", free: false, starter: true, standard: true, pro: true, business: true },
-        { name: "API Access", free: false, starter: false, standard: true, pro: true, business: true },
-        { name: "Webhooks", free: false, starter: false, standard: true, pro: true, business: true },
-        { name: "White Label", free: false, starter: false, standard: "Partial", pro: "Full", business: "Full" },
-        { name: "A/B Testing", free: false, starter: false, standard: false, pro: true, business: true },
+        { name: "Remove NotiProof Branding", free: false, starter: true, standard: true, professional: true },
+        { name: "Custom Domain for Forms", free: false, starter: false, standard: true, professional: true },
+        { name: "API & Webhook Access", free: false, starter: false, standard: true, professional: true },
+        { name: "White Label", free: false, starter: false, standard: false, professional: true },
+        { name: "A/B Testing", free: false, starter: false, standard: false, professional: true },
+        { name: "Advanced Targeting Rules", free: false, starter: false, standard: false, professional: true },
       ]
     },
     {
-      category: "Team & Support",
+      category: "Support",
       features: [
-        { name: "Team Seats", free: "1", starter: "1 + buy more", standard: "1 + buy more", pro: "1 + buy more", business: "1 + buy more", tooltip: "$3/month per additional seat" },
-        { name: "Support Level", free: "Basic Email", starter: "Standard", standard: "Priority", pro: "Priority + Chat", business: "24/7 + Manager" },
+        { name: "Support Level", free: "Community", starter: "Priority", standard: "Priority", professional: "Priority + Chat" },
       ]
     }
   ];
 
-  const handleSelectPlan = (plan: any) => {
-    // All plans now go to plan selection (no more Free)
-    navigate('/select-plan');
+  const handleSelectPlan = (plan: Plan) => {
+    if (plan.price_monthly === 0) {
+      navigate('/register?plan=free');
+    } else {
+      navigate(`/register?plan=${plan.id}&billing=${billingPeriod}`);
+    }
   };
+
+  const planOrder = ['Free', 'Starter', 'Standard', 'Professional'];
+  const sortedPlans = [...allPlans].sort((a, b) => planOrder.indexOf(a.name) - planOrder.indexOf(b.name));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -141,7 +138,7 @@ export default function Pricing() {
             Everything You Need to Build Trust
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-            All plans include unlimited integrations, templates, and testimonials. Upgrade for more capacity and advanced features.
+            Start free, upgrade when you're ready. All plans include unlimited integrations, templates, and testimonials.
           </p>
 
           {/* Billing Toggle */}
@@ -155,7 +152,7 @@ export default function Pricing() {
               onCheckedChange={(checked) => setBillingPeriod(checked ? 'yearly' : 'monthly')}
             />
             <Label htmlFor="billing-toggle" className={billingPeriod === 'yearly' ? 'font-semibold' : ''}>
-              Yearly <span className="text-success ml-1">(Save 20%)</span>
+              Yearly <span className="text-success ml-1">(Save 17%)</span>
             </Label>
           </div>
         </div>
@@ -163,10 +160,11 @@ export default function Pricing() {
 
       {/* Pricing Cards */}
       <div className="container max-w-7xl mx-auto px-4 py-12">
-        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6 mb-16">
-          {allPlans.map((plan, index) => {
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+          {sortedPlans.map((plan) => {
             const price = billingPeriod === 'monthly' ? plan.price_monthly : plan.price_yearly;
-            const isPopular = plan.name === 'Pro';
+            const isPopular = plan.name === 'Standard';
+            const isFree = plan.price_monthly === 0;
             const features = generatePlanFeatures(plan);
 
             return (
@@ -183,13 +181,17 @@ export default function Pricing() {
                 <CardHeader>
                   <CardTitle className="text-2xl">{plan.name}</CardTitle>
                   <div className="flex items-baseline gap-1 mt-4">
-                    <span className="text-4xl font-bold">${price}</span>
-                    <span className="text-muted-foreground">
-                      /{billingPeriod === 'monthly' ? 'mo' : 'yr'}
+                    <span className="text-4xl font-bold">
+                      {isFree ? 'Free' : `$${price}`}
                     </span>
+                    {!isFree && (
+                      <span className="text-muted-foreground">
+                        /{billingPeriod === 'monthly' ? 'mo' : 'yr'}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    14-day free trial
+                    {isFree ? 'No credit card required' : 'Billed ' + billingPeriod}
                   </p>
                 </CardHeader>
 
@@ -208,7 +210,7 @@ export default function Pricing() {
                     variant={isPopular ? 'default' : 'outline'}
                     onClick={() => handleSelectPlan(plan)}
                   >
-                    Start 14-Day Trial
+                    {isFree ? 'Start Free' : 'Get Started'}
                   </Button>
                 </CardContent>
               </Card>
@@ -284,9 +286,8 @@ export default function Pricing() {
                             <th className="text-left py-3 px-4 font-medium">Feature</th>
                             <th className="text-center py-3 px-4 font-medium">Free</th>
                             <th className="text-center py-3 px-4 font-medium">Starter</th>
-                            <th className="text-center py-3 px-4 font-medium">Standard</th>
-                            <th className="text-center py-3 px-4 font-medium bg-primary/5">Pro</th>
-                            <th className="text-center py-3 px-4 font-medium">Business</th>
+                            <th className="text-center py-3 px-4 font-medium bg-primary/5">Standard</th>
+                            <th className="text-center py-3 px-4 font-medium">Professional</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -306,7 +307,7 @@ export default function Pricing() {
                                 )}
                               </td>
                               {feature.all ? (
-                                <td colSpan={5} className="text-center py-3 px-4">
+                                <td colSpan={4} className="text-center py-3 px-4">
                                   <Check className="h-5 w-5 text-success mx-auto" />
                                 </td>
                               ) : (
@@ -325,25 +326,18 @@ export default function Pricing() {
                                       feature.starter
                                     )}
                                   </td>
-                                  <td className="text-center py-3 px-4">
+                                  <td className="text-center py-3 px-4 bg-primary/5">
                                     {typeof feature.standard === 'boolean' ? (
                                       feature.standard ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
                                     ) : (
-                                      feature.standard
-                                    )}
-                                  </td>
-                                  <td className="text-center py-3 px-4 bg-primary/5">
-                                    {typeof feature.pro === 'boolean' ? (
-                                      feature.pro ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
-                                    ) : (
-                                      <span className="font-semibold">{feature.pro}</span>
+                                      <span className="font-semibold">{feature.standard}</span>
                                     )}
                                   </td>
                                   <td className="text-center py-3 px-4">
-                                    {typeof feature.business === 'boolean' ? (
-                                      feature.business ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
+                                    {typeof feature.professional === 'boolean' ? (
+                                      feature.professional ? <Check className="h-4 w-4 text-success mx-auto" /> : <X className="h-4 w-4 text-muted-foreground mx-auto" />
                                     ) : (
-                                      feature.business
+                                      feature.professional
                                     )}
                                   </td>
                                 </>
@@ -361,79 +355,21 @@ export default function Pricing() {
           </Card>
         </div>
 
-        {/* Add-ons Section */}
-        <div className="mb-16">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-2">Flexible Add-ons</h2>
-            <p className="text-muted-foreground">
-              Need more? Add extra capacity to any plan
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Extra Team Seats</CardTitle>
-                <CardDescription>Add collaborators to your account</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-3xl font-bold">$3</span>
-                  <span className="text-muted-foreground">/seat/month</span>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  or $30/seat/year (save 17%)
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Extra Storage</CardTitle>
-                <CardDescription>Add more space for videos and images</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  <li className="flex justify-between text-sm">
-                    <span>+5GB storage</span>
-                    <span className="font-semibold">$3/mo</span>
-                  </li>
-                  <li className="flex justify-between text-sm">
-                    <span>+20GB storage</span>
-                    <span className="font-semibold">$7/mo</span>
-                  </li>
-                  <li className="flex justify-between text-sm">
-                    <span>+50GB storage</span>
-                    <span className="font-semibold">$12/mo</span>
-                  </li>
-                  <li className="flex justify-between text-sm">
-                    <span>+100GB storage</span>
-                    <span className="font-semibold">$19/mo</span>
-                  </li>
-                </ul>
-              </CardContent>
-            </Card>
+        {/* CTA */}
+        <div className="text-center py-16">
+          <h2 className="text-3xl font-bold mb-4">Ready to Get Started?</h2>
+          <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
+            Start with our Free plan — no credit card required. Upgrade anytime as your business grows.
+          </p>
+          <div className="flex items-center justify-center gap-4">
+            <Button size="lg" onClick={() => navigate('/register?plan=free')}>
+              Start Free
+            </Button>
+            <Button size="lg" variant="outline" onClick={() => navigate('/login')}>
+              Log In
+            </Button>
           </div>
         </div>
-
-        {/* CTA Section */}
-        <Card className="text-center bg-gradient-to-r from-primary/10 to-accent/10 border-primary/20">
-          <CardContent className="p-12">
-            <Sparkles className="h-12 w-12 text-primary mx-auto mb-4" />
-            <h2 className="text-3xl font-bold mb-4">Ready to Boost Your Conversions?</h2>
-            <p className="text-lg text-muted-foreground mb-6 max-w-2xl mx-auto">
-              Start with everything included. Upgrade as you grow. No hidden limits on features.
-            </p>
-            <div className="flex gap-4 justify-center">
-              <Button size="lg" onClick={() => navigate('/register')}>
-                Start Free Today
-              </Button>
-              <Button size="lg" variant="outline" onClick={() => navigate('/help')}>
-                Talk to Sales
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

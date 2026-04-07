@@ -3,10 +3,11 @@ import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { PasswordInput } from "@/components/ui/password-input";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-
+import { Shield, BarChart3, Zap } from "lucide-react";
 import logo from "@/assets/NotiProof_Logo.png";
 
 export default function Login() {
@@ -31,13 +32,11 @@ export default function Login() {
 
       if (!data.user) throw new Error("Login failed");
 
-      // Check if user is a super admin first
-      const { data: isSuperAdmin } = await supabase.rpc('is_superadmin', { 
-        _user_id: data.user.id 
+      const { data: isSuperAdmin } = await supabase.rpc('is_superadmin', {
+        _user_id: data.user.id,
       });
 
       if (isSuperAdmin) {
-        // Super admins skip all subscription checks - they have unrestricted access
         toast.success("Welcome back!");
         navigate(returnTo || "/websites");
         return;
@@ -45,13 +44,11 @@ export default function Login() {
 
       toast.success("Logged in successfully!");
 
-      // If returnTo is set, redirect there
       if (returnTo) {
         navigate(returnTo);
         return;
       }
 
-      // Check subscription status intelligently
       const { data: subscriptions } = await supabase
         .from('user_subscriptions')
         .select('id, status, plan_id')
@@ -60,24 +57,19 @@ export default function Login() {
         .limit(1);
 
       const subscription = subscriptions?.[0];
-      
+
       if (!subscription) {
-        // No subscription at all - first time user
         toast.info("Please select a plan to continue");
         navigate('/select-plan');
-      } else if (['active', 'trialing', 'past_due'].includes(subscription.status)) {
-        // Active subscription - proceed to dashboard
+      } else if (['active', 'trialing', 'past_due', 'lifetime', 'free'].includes(subscription.status)) {
         navigate("/websites");
       } else if (['incomplete', 'incomplete_expired'].includes(subscription.status)) {
-        // Payment failed but can be retried
         toast.error("Your payment didn't complete. Please try again.");
         navigate(`/select-plan?retry=true&subscription_id=${subscription.id}`);
       } else if (subscription.status === 'canceled' || subscription.status === 'cancelled') {
-        // Cancelled subscription - offer reactivation
         toast.info("Your subscription was cancelled. Select a plan to reactivate.");
         navigate(`/select-plan?reactivate=true`);
       } else {
-        // Unknown status - redirect to select plan
         toast.info("Please complete your subscription setup");
         navigate('/select-plan');
       }
@@ -94,60 +86,100 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-4 text-center">
-          <div className="mx-auto">
-            <img src={logo} alt="NotiProof" className="h-12" />
+    <div className="flex min-h-screen">
+      {/* Branding Panel – hidden on mobile */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-gradient-to-br from-primary via-primary/90 to-primary/70 p-12 text-primary-foreground">
+        <div>
+          <img src={logo} alt="NotiProof" className="h-10 brightness-0 invert" />
+        </div>
+
+        <div className="space-y-6">
+          <h1 className="text-4xl font-bold leading-tight">
+            Turn visitors into customers with real-time social proof.
+          </h1>
+          <p className="text-lg text-primary-foreground/80 max-w-md">
+            Join thousands of businesses using NotiProof to boost conversions, build trust, and grow revenue.
+          </p>
+
+          <div className="grid grid-cols-2 gap-4 pt-4">
+            {[
+              { icon: BarChart3, stat: "32%", desc: "Avg. conversion lift" },
+              { icon: Shield, stat: "10K+", desc: "Websites powered" },
+              { icon: Zap, stat: "<1s", desc: "Notification speed" },
+              { icon: Shield, stat: "99.9%", desc: "Uptime guarantee" },
+            ].map((item, i) => (
+              <div key={i} className="rounded-lg bg-primary-foreground/10 p-4 backdrop-blur-sm">
+                <item.icon className="h-5 w-5 mb-2 text-primary-foreground/70" />
+                <p className="text-2xl font-bold">{item.stat}</p>
+                <p className="text-sm text-primary-foreground/70">{item.desc}</p>
+              </div>
+            ))}
           </div>
-          <div>
+        </div>
+
+        <p className="text-sm text-primary-foreground/50">
+          © {new Date().getFullYear()} NotiProof. All rights reserved.
+        </p>
+      </div>
+
+      {/* Form Panel */}
+      <div className="flex flex-1 items-center justify-center p-6 sm:p-10 bg-background">
+        <Card className="w-full max-w-md border-0 shadow-none sm:border sm:shadow-sm">
+          <CardHeader className="space-y-3 text-center sm:text-left">
+            <div className="lg:hidden mx-auto sm:mx-0">
+              <img src={logo} alt="NotiProof" className="h-10" />
+            </div>
             <CardTitle className="text-2xl">Welcome back</CardTitle>
             <CardDescription>Sign in to your NotiProof account</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <Link
-                  to="/forgot-password"
-                  className="text-sm text-primary hover:underline"
-                >
-                  Forgot?
-                </Link>
+          </CardHeader>
+
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
-            </Button>
-            <p className="text-center text-sm text-muted-foreground">
-              Don't have an account?{" "}
-              <Link to="/ltd" className="text-primary hover:underline">
-                Create an account
-              </Link>
-            </p>
-          </form>
-        </CardContent>
-      </Card>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <Link
+                    to="/forgot-password"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Forgot?
+                  </Link>
+                </div>
+                <PasswordInput
+                  id="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Signing in..." : "Sign in"}
+              </Button>
+
+              <p className="text-center text-sm text-muted-foreground">
+                Don't have an account?{" "}
+                <Link to="/register" className="text-primary hover:underline font-medium">
+                  Create an account
+                </Link>
+              </p>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

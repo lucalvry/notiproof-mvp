@@ -343,7 +343,7 @@ export type Database = {
           assisted_conversions: number | null
           assisted_revenue: number | null
           avg_conversion_value: number | null
-          avg_time_to_conversion: unknown
+          avg_time_to_conversion: string | null
           campaign_id: string
           currency: string | null
           direct_conversions: number | null
@@ -362,7 +362,7 @@ export type Database = {
           assisted_conversions?: number | null
           assisted_revenue?: number | null
           avg_conversion_value?: number | null
-          avg_time_to_conversion?: unknown
+          avg_time_to_conversion?: string | null
           campaign_id: string
           currency?: string | null
           direct_conversions?: number | null
@@ -381,7 +381,7 @@ export type Database = {
           assisted_conversions?: number | null
           assisted_revenue?: number | null
           avg_conversion_value?: number | null
-          avg_time_to_conversion?: unknown
+          avg_time_to_conversion?: string | null
           campaign_id?: string
           currency?: string | null
           direct_conversions?: number | null
@@ -1748,7 +1748,7 @@ export type Database = {
           event_id: string | null
           id: string
           session_id: string | null
-          time_to_conversion: unknown
+          time_to_conversion: string | null
           touchpoints_count: number | null
           user_id: string
           utm_campaign: string | null
@@ -1769,7 +1769,7 @@ export type Database = {
           event_id?: string | null
           id?: string
           session_id?: string | null
-          time_to_conversion?: unknown
+          time_to_conversion?: string | null
           touchpoints_count?: number | null
           user_id: string
           utm_campaign?: string | null
@@ -1790,7 +1790,7 @@ export type Database = {
           event_id?: string | null
           id?: string
           session_id?: string | null
-          time_to_conversion?: unknown
+          time_to_conversion?: string | null
           touchpoints_count?: number | null
           user_id?: string
           utm_campaign?: string | null

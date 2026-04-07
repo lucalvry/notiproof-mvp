@@ -243,18 +243,20 @@ export default function Websites() {
           </CardContent>
         </Card>
       ) : (
+        <>
+        <h2 className="text-xl font-semibold">Active Websites</h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {websites.map((site) => (
             <Card key={site.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <div className="flex items-start justify-between min-w-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0">
                       <Globe className="h-5 w-5 text-primary" />
                     </div>
-                    <div>
-                      <CardTitle className="text-lg">{site.name}</CardTitle>
-                      <CardDescription>{site.domain}</CardDescription>
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <CardTitle className="text-lg truncate">{site.name}</CardTitle>
+                      <CardDescription className="truncate">{site.domain}</CardDescription>
                     </div>
                   </div>
                   <DropdownMenu>
@@ -383,6 +385,7 @@ export default function Websites() {
             </Card>
           ))}
         </div>
+        </>
       )}
 
       {/* Archived Websites Section */}

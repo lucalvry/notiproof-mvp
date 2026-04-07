@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Shield } from "lucide-react";
@@ -25,10 +26,8 @@ export default function AdminLogin() {
       });
 
       if (error) throw error;
-
       if (!data.user) throw new Error("No user data");
 
-      // Check if user has admin role
       const { data: roles, error: roleError } = await supabase
         .from("user_roles")
         .select("role")
@@ -37,7 +36,9 @@ export default function AdminLogin() {
 
       if (roleError) throw roleError;
 
-      const isAdmin = roles?.some(r => r.role === "admin" || r.role === "superadmin");
+      const isAdmin = roles?.some(
+        (r) => r.role === "admin" || r.role === "superadmin",
+      );
 
       if (!isAdmin) {
         await supabase.auth.signOut();
@@ -82,9 +83,9 @@ export default function AdminLogin() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
+                placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

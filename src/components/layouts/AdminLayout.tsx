@@ -103,7 +103,15 @@ export function AdminLayout() {
         })}
       </div>
 
-      <div className="border-t p-4">
+      <div className="border-t p-4 space-y-1">
+        <Button
+          variant="ghost"
+          className="w-full justify-start"
+          onClick={() => { navigate("/dashboard"); setSidebarOpen(false); }}
+        >
+          <LayoutDashboard className="mr-2 h-4 w-4" />
+          Back to Dashboard
+        </Button>
         <Button
           variant="ghost"
           className="w-full justify-start text-destructive"

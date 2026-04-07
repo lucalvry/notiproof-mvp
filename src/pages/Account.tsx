@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,16 +20,26 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { lazy, Suspense } from "react";
+
+const Team = lazy(() => import("@/pages/Team"));
+const Billing = lazy(() => import("@/pages/Billing"));
 
 export default function Account() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const activeTab = searchParams.get("tab") || "profile";
+
+  const handleTabChange = (value: string) => {
+    setSearchParams({ tab: value });
+  };
   
   // Profile info
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [company, setCompany] = useState("");
   
   // Password fields
   const [newPassword, setNewPassword] = useState("");
@@ -53,7 +64,6 @@ export default function Account() {
 
       setEmail(user.email || "");
 
-      // Get profile data
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("*")
@@ -68,7 +78,6 @@ export default function Account() {
         setFullName(profile.name || "");
       }
 
-      // Get or create email preferences
       let { data: prefs, error: prefsError } = await supabase
         .from("email_preferences")
         .select("*")
@@ -190,13 +199,7 @@ export default function Account() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
-
-      // Note: This requires admin privileges or a database function
-      // For now, we'll just sign out and show a message
       toast.error("Please contact support to delete your account");
-      
-      // In production, you would call an edge function here:
-      // await supabase.functions.invoke('delete-account')
     } catch (error: any) {
       console.error("Error deleting account:", error);
       toast.error("Failed to delete account");
@@ -205,7 +208,7 @@ export default function Account() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-[400px]">
         <p className="text-muted-foreground">Loading account data...</p>
       </div>
     );
@@ -216,175 +219,172 @@ export default function Account() {
       <div>
         <h1 className="text-3xl font-bold">Account Settings</h1>
         <p className="text-muted-foreground">
-          Manage your account information and preferences
+          Manage your account, team, and billing
         </p>
       </div>
 
-      {/* Profile Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile Information</CardTitle>
-          <CardDescription>
-            Update your personal details
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="full-name">Full Name</Label>
-            <Input 
-              id="full-name" 
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
-            <Input 
-              id="email" 
-              type="email" 
-              value={email}
-              disabled
-            />
-            <p className="text-sm text-muted-foreground">
-              Contact support to change your email
-            </p>
-          </div>
-          <Button onClick={handleSaveProfile} disabled={saving}>
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
-        </CardContent>
-      </Card>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="team">Team</TabsTrigger>
+          <TabsTrigger value="billing">Billing</TabsTrigger>
+        </TabsList>
 
-      {/* Password */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Change Password</CardTitle>
-          <CardDescription>
-            Update your password to keep your account secure
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="new-password">New Password</Label>
-            <Input 
-              id="new-password" 
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="At least 6 characters"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirm-password">Confirm New Password</Label>
-            <Input 
-              id="confirm-password" 
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Re-enter new password"
-            />
-          </div>
-          <Button 
-            onClick={handlePasswordChange} 
-            disabled={saving || !newPassword || !confirmPassword}
-          >
-            {saving ? "Updating..." : "Update Password"}
-          </Button>
-        </CardContent>
-      </Card>
+        <TabsContent value="profile" className="space-y-6 mt-6">
+          {/* Profile Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile Information</CardTitle>
+              <CardDescription>Update your personal details</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="full-name">Full Name</Label>
+                <Input 
+                  id="full-name" 
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  value={email}
+                  disabled
+                />
+                <p className="text-sm text-muted-foreground">
+                  Contact support to change your email
+                </p>
+              </div>
+              <Button onClick={handleSaveProfile} disabled={saving}>
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </CardContent>
+          </Card>
 
-      {/* Notifications */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Email Notifications</CardTitle>
-          <CardDescription>
-            Choose which emails you want to receive
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Weekly Reports</Label>
-              <p className="text-sm text-muted-foreground">
-                Receive weekly analytics summaries
-              </p>
-            </div>
-            <Switch
-              checked={weeklyReports}
-              onCheckedChange={setWeeklyReports}
-            />
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Marketing Emails</Label>
-              <p className="text-sm text-muted-foreground">
-                Receive tips and product updates
-              </p>
-            </div>
-            <Switch
-              checked={marketingEmails}
-              onCheckedChange={setMarketingEmails}
-            />
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Security Alerts</Label>
-              <p className="text-sm text-muted-foreground">
-                Important security notifications
-              </p>
-            </div>
-            <Switch
-              checked={securityAlerts}
-              onCheckedChange={setSecurityAlerts}
-            />
-          </div>
-          <Button onClick={handleSavePreferences} disabled={saving}>
-            {saving ? "Saving..." : "Save Preferences"}
-          </Button>
-        </CardContent>
-      </Card>
+          {/* Password */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Change Password</CardTitle>
+              <CardDescription>Update your password to keep your account secure</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-password">New Password</Label>
+                <Input 
+                  id="new-password" 
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="At least 6 characters"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm New Password</Label>
+                <Input 
+                  id="confirm-password" 
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter new password"
+                />
+              </div>
+              <Button 
+                onClick={handlePasswordChange} 
+                disabled={saving || !newPassword || !confirmPassword}
+              >
+                {saving ? "Updating..." : "Update Password"}
+              </Button>
+            </CardContent>
+          </Card>
 
-      {/* Danger Zone */}
-      <Card className="border-destructive">
-        <CardHeader>
-          <CardTitle className="text-destructive">Danger Zone</CardTitle>
-          <CardDescription>
-            Irreversible actions for your account
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Delete Account</p>
-              <p className="text-sm text-muted-foreground">
-                Permanently delete your account and all data
-              </p>
-            </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">Delete Account</Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete your
-                    account and remove all your data from our servers.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    Delete Account
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </CardContent>
-      </Card>
+          {/* Email Notifications */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Email Notifications</CardTitle>
+              <CardDescription>Choose which emails you want to receive</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Weekly Reports</Label>
+                  <p className="text-sm text-muted-foreground">Receive weekly analytics summaries</p>
+                </div>
+                <Switch checked={weeklyReports} onCheckedChange={setWeeklyReports} />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Marketing Emails</Label>
+                  <p className="text-sm text-muted-foreground">Receive tips and product updates</p>
+                </div>
+                <Switch checked={marketingEmails} onCheckedChange={setMarketingEmails} />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Security Alerts</Label>
+                  <p className="text-sm text-muted-foreground">Important security notifications</p>
+                </div>
+                <Switch checked={securityAlerts} onCheckedChange={setSecurityAlerts} />
+              </div>
+              <Button onClick={handleSavePreferences} disabled={saving}>
+                {saving ? "Saving..." : "Save Preferences"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Danger Zone */}
+          <Card className="border-destructive">
+            <CardHeader>
+              <CardTitle className="text-destructive">Danger Zone</CardTitle>
+              <CardDescription>Irreversible actions for your account</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Delete Account</p>
+                  <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
+                </div>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive">Delete Account</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete your
+                        account and remove all your data from our servers.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Delete Account
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="team" className="mt-6">
+          <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><p className="text-muted-foreground">Loading team...</p></div>}>
+            <Team />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="billing" className="mt-6">
+          <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><p className="text-muted-foreground">Loading billing...</p></div>}>
+            <Billing />
+          </Suspense>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

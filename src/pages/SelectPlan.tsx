@@ -11,11 +11,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import logoImage from "@/assets/NotiProof_Logo.png";
 
-interface UserData {
-  fullName: string;
-  email: string;
-}
-
 interface Plan {
   id: string;
   name: string;
@@ -29,6 +24,8 @@ interface Plan {
   custom_domain_enabled?: boolean;
   has_white_label?: boolean;
   has_api?: boolean;
+  stripe_price_id_monthly?: string;
+  stripe_price_id_yearly?: string;
 }
 
 const formatStorage = (bytes: number): string => {
@@ -44,14 +41,12 @@ const formatVideoDuration = (seconds: number): string => {
 const generatePlanFeatures = (plan: Plan): string[] => {
   const features: string[] = [];
   
-  // Limits (the differentiators)
-  features.push(`${plan.max_websites} website${plan.max_websites > 1 ? 's' : ''}`);
+  const websiteLabel = plan.max_websites >= 999 ? 'Unlimited websites' : `${plan.max_websites} website${plan.max_websites > 1 ? 's' : ''}`;
+  features.push(websiteLabel);
   features.push(plan.max_events_per_month 
     ? `${(plan.max_events_per_month / 1000).toFixed(0)}K views/mo`
     : 'Unlimited views'
   );
-  
-  // Global features (all plans)
   features.push("All 38+ integrations");
   features.push("All templates");
   features.push("Unlimited testimonials");
@@ -63,22 +58,28 @@ export default function SelectPlan() {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState<any>(null);
-  const [plans, setPlans] = useState<any[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [loading, setLoading] = useState(false);
   const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<{ message: string; planId: string } | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   
-  // Check for retry/reactivate params
   const searchParams = new URLSearchParams(location.search);
   const isRetry = searchParams.get('retry') === 'true';
   const subscriptionId = searchParams.get('subscription_id');
   const isReactivate = searchParams.get('reactivate') === 'true';
+  const highlightPlanId = searchParams.get('plan');
+  const billingParam = searchParams.get('billing');
+
+  useEffect(() => {
+    if (billingParam === 'yearly') {
+      setBillingPeriod('yearly');
+    }
+  }, [billingParam]);
 
   useEffect(() => {
     const loadPlans = async () => {
-      // Use getSession for more reliable auth check
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session?.user) {
@@ -89,7 +90,6 @@ export default function SelectPlan() {
 
       setUser(session.user);
 
-      // Load plans
       const { data, error } = await supabase
         .from('subscription_plans')
         .select('*')
@@ -107,9 +107,34 @@ export default function SelectPlan() {
     loadPlans();
   }, [navigate]);
 
-  const handleStartTrial = async (plan: any, isRetry = false) => {
-    // Clear previous error when starting new attempt
-    if (!isRetry) {
+  const handleSelectFreePlan = async () => {
+    setLoading(true);
+    try {
+      const freePlan = plans.find(p => p.price_monthly === 0);
+      if (!freePlan) {
+        toast.error("Free plan not available");
+        return;
+      }
+
+      await supabase
+        .from('user_subscriptions')
+        .insert({
+          user_id: user.id,
+          plan_id: freePlan.id,
+          status: 'free',
+        });
+
+      toast.success("Welcome to NotiProof! Your free plan is active.");
+      navigate("/websites");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to activate free plan");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCheckout = async (plan: Plan, isRetryAttempt = false) => {
+    if (!isRetryAttempt) {
       setErrorDetails(null);
       setRetryCount(0);
     }
@@ -123,14 +148,13 @@ export default function SelectPlan() {
         : plan.stripe_price_id_yearly;
 
       if (!priceId) {
-        throw new Error("This plan is not available. Please contact support.");
+        throw new Error("This plan is not available for checkout. Please contact support.");
       }
 
       const loadingToast = toast.loading(
-        isRetry ? "Retrying checkout..." : "Preparing secure checkout..."
+        isRetryAttempt ? "Retrying checkout..." : "Preparing secure checkout..."
       );
 
-      // Create Stripe checkout session with user already logged in
       const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
         body: {
           priceId,
@@ -139,7 +163,7 @@ export default function SelectPlan() {
           customerName: user.user_metadata?.full_name || user.email,
           userId: user.id,
           returnUrl: window.location.origin,
-          isRetry: isRetry || isReactivate,
+          isRetry: isRetryAttempt || isReactivate,
           existingSubscriptionId: subscriptionId || null,
         },
       });
@@ -157,7 +181,6 @@ export default function SelectPlan() {
 
       if (data?.url) {
         toast.success("Redirecting to checkout...", { duration: 2000 });
-        // Small delay to show success message
         setTimeout(() => {
           window.location.assign(data.url);
         }, 500);
@@ -166,9 +189,8 @@ export default function SelectPlan() {
       }
 
     } catch (error: any) {
-      console.error('Error starting trial:', error);
+      console.error('Error starting checkout:', error);
       
-      // Determine if error is retryable based on error type
       const isRetryable = 
         error.message?.includes('timeout') ||
         error.message?.includes('network') ||
@@ -176,7 +198,6 @@ export default function SelectPlan() {
         error.message?.includes('503') ||
         retryCount < 2;
       
-      // User-friendly error messages
       let userMessage = "We couldn't complete your request.";
       
       if (error.message?.includes('Stripe')) {
@@ -187,22 +208,15 @@ export default function SelectPlan() {
         userMessage = error.message;
       }
       
-      setErrorDetails({
-        message: userMessage,
-        planId: plan.id
-      });
-      
+      setErrorDetails({ message: userMessage, planId: plan.id });
       toast.error(userMessage + (isRetryable ? " Please try again." : ""));
       
-      // Only auto-retry for transient errors (max 2 retries)
       if (isRetryable && retryCount < 2) {
         const delay = Math.min(1000 * Math.pow(2, retryCount), 4000);
-        
         setTimeout(() => {
           setRetryCount(prev => prev + 1);
-          handleStartTrial(plan, true);
+          handleCheckout(plan, true);
         }, delay);
-        
         toast.info(`Retrying automatically in ${delay / 1000}s...`, { duration: delay });
       }
     } finally {
@@ -216,9 +230,13 @@ export default function SelectPlan() {
     navigate('/login');
   };
 
+  const paidPlans = plans.filter(p => p.price_monthly > 0);
+  const planOrder = ['Starter', 'Standard', 'Professional'];
+  const sortedPaidPlans = [...paidPlans].sort((a, b) => planOrder.indexOf(a.name) - planOrder.indexOf(b.name));
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
-      {/* Header with Logo */}
+      {/* Header */}
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-4">
           <Link to="/" className="flex items-center gap-2">
@@ -253,7 +271,7 @@ export default function SelectPlan() {
           </Alert>
         )}
 
-        {/* Error Alert with Retry */}
+        {/* Error Alert */}
         {errorDetails && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
@@ -264,9 +282,7 @@ export default function SelectPlan() {
                 size="sm"
                 onClick={() => {
                   const plan = plans.find(p => p.id === errorDetails.planId);
-                  if (plan) {
-                    handleStartTrial(plan);
-                  }
+                  if (plan) handleCheckout(plan);
                 }}
                 disabled={loading}
               >
@@ -288,15 +304,27 @@ export default function SelectPlan() {
             <div className="text-center mb-12">
               <div className="flex items-center justify-center gap-2 mb-4">
                 <Sparkles className="h-8 w-8 text-primary" />
-                <h1 className="text-4xl font-bold">Start Your 14-Day Free Trial</h1>
+                <h1 className="text-4xl font-bold">Choose Your Plan</h1>
               </div>
               <p className="text-lg text-muted-foreground">
-                Choose your plan and start building social proof today.
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Add your payment method now, but you won't be charged for 14 days.
+                Start free or pick a plan that fits your needs.
               </p>
             </div>
+
+            {/* Free Plan Option */}
+            <Card className="p-6 mb-8 border-dashed">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <h3 className="text-xl font-bold">Free Plan</h3>
+                  <p className="text-muted-foreground text-sm">
+                    1 website • 5K views/mo • All integrations • No credit card required
+                  </p>
+                </div>
+                <Button variant="outline" onClick={handleSelectFreePlan} disabled={loading}>
+                  Start Free
+                </Button>
+              </div>
+            </Card>
 
             <div className="flex items-center justify-center gap-4 mb-8">
               <Label htmlFor="billing-toggle">Monthly</Label>
@@ -306,72 +334,74 @@ export default function SelectPlan() {
                 onCheckedChange={(checked) => setBillingPeriod(checked ? 'yearly' : 'monthly')}
               />
               <Label htmlFor="billing-toggle">
-                Yearly <span className="text-success">(Save 20%)</span>
+                Yearly <span className="text-success">(Save 17%)</span>
               </Label>
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
-              {plans.filter(p => p.name !== 'Free').map((plan) => {
-            const price = billingPeriod === 'monthly' ? plan.price_monthly : plan.price_yearly;
-            const isPopular = plan.name === 'Pro';
-            const features = generatePlanFeatures(plan);
+              {sortedPaidPlans.map((plan) => {
+                const price = billingPeriod === 'monthly' ? plan.price_monthly : plan.price_yearly;
+                const isPopular = plan.name === 'Standard';
+                const isHighlighted = highlightPlanId === plan.id;
+                const features = generatePlanFeatures(plan);
 
-            return (
-              <Card key={plan.id} className={`relative p-6 ${isPopular ? 'border-primary' : ''}`}>
-                {isPopular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="bg-primary text-primary-foreground text-xs px-3 py-1 rounded-full">
-                      Most Popular
-                    </span>
-                  </div>
-                )}
+                return (
+                  <Card 
+                    key={plan.id} 
+                    className={`relative p-6 ${isPopular || isHighlighted ? 'border-primary ring-2 ring-primary/20' : ''}`}
+                  >
+                    {isPopular && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                        <span className="bg-primary text-primary-foreground text-xs px-3 py-1 rounded-full">
+                          Most Popular
+                        </span>
+                      </div>
+                    )}
 
-                <div className="bg-success/10 text-success text-xs font-semibold px-3 py-1 rounded-full inline-block mb-4">
-                  ✨ 14-Day Free Trial
-                </div>
+                    <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
 
-                <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
+                    <div className="mb-4">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-bold">${price}</span>
+                        <span className="text-muted-foreground">
+                          /{billingPeriod === 'monthly' ? 'mo' : 'yr'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Billed {billingPeriod}
+                      </p>
+                    </div>
 
-                <div className="mb-4">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold">${price}</span>
-                    <span className="text-muted-foreground">
-                      /{billingPeriod === 'monthly' ? 'mo' : 'yr'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">after trial ends</p>
-                </div>
+                    <ul className="space-y-2 mb-6">
+                      {features.map((feature, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm">
+                          <Check className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
 
-                <ul className="space-y-2 mb-6">
-                  {features.map((feature, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-sm">
-                      <Check className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <Button
-                  className="w-full"
-                  variant={isPopular ? 'default' : 'outline'}
-                  onClick={() => handleStartTrial(plan)}
-                  disabled={loading}
-                >
-                  {processingPlanId === plan.id ? (
-                    <span className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-                      Processing...
-                    </span>
-                  ) : (
-                    'Start Free Trial'
-                  )}
-                </Button>
-              </Card>
-            );
+                    <Button
+                      className="w-full"
+                      variant={isPopular || isHighlighted ? 'default' : 'outline'}
+                      onClick={() => handleCheckout(plan)}
+                      disabled={loading}
+                    >
+                      {processingPlanId === plan.id ? (
+                        <span className="flex items-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                          Processing...
+                        </span>
+                      ) : (
+                        'Get Started'
+                      )}
+                    </Button>
+                  </Card>
+                );
               })}
             </div>
 
-            {/* Compare All Features Section */}
+            {/* Compare Features */}
             <Collapsible className="mt-12">
               <CollapsibleTrigger asChild>
                 <Button variant="outline" className="w-full">
@@ -386,25 +416,29 @@ export default function SelectPlan() {
                       <thead>
                         <tr className="border-b">
                           <th className="text-left py-3 px-4 font-semibold">Feature</th>
-                          {plans.filter(p => p.name !== 'Free').map(plan => (
-                            <th key={plan.id} className="text-center py-3 px-4 font-semibold">{plan.name}</th>
+                          {sortedPaidPlans.map(plan => (
+                            <th key={plan.id} className={`text-center py-3 px-4 font-semibold ${plan.name === 'Standard' ? 'bg-primary/5' : ''}`}>
+                              {plan.name}
+                            </th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         <tr className="border-b bg-muted/30">
-                          <td className="py-3 px-4 font-medium" colSpan={plans.length + 1}>Limits</td>
+                          <td className="py-3 px-4 font-medium" colSpan={sortedPaidPlans.length + 1}>Limits</td>
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">Websites</td>
-                          {plans.filter(p => p.name !== 'Free').map(plan => (
-                            <td key={plan.id} className="text-center py-3 px-4">{plan.max_websites}</td>
+                          {sortedPaidPlans.map(plan => (
+                            <td key={plan.id} className={`text-center py-3 px-4 ${plan.name === 'Standard' ? 'bg-primary/5' : ''}`}>
+                              {plan.max_websites >= 999 ? 'Unlimited' : plan.max_websites}
+                            </td>
                           ))}
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">Monthly Views</td>
-                          {plans.filter(p => p.name !== 'Free').map(plan => (
-                            <td key={plan.id} className="text-center py-3 px-4">
+                          {sortedPaidPlans.map(plan => (
+                            <td key={plan.id} className={`text-center py-3 px-4 ${plan.name === 'Standard' ? 'bg-primary/5' : ''}`}>
                               {plan.max_events_per_month 
                                 ? `${(plan.max_events_per_month / 1000).toFixed(0)}K`
                                 : 'Unlimited'
@@ -414,48 +448,52 @@ export default function SelectPlan() {
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">Storage</td>
-                          {plans.filter(p => p.name !== 'Free').map(plan => (
-                            <td key={plan.id} className="text-center py-3 px-4">{formatStorage(plan.storage_limit_bytes)}</td>
+                          {sortedPaidPlans.map(plan => (
+                            <td key={plan.id} className={`text-center py-3 px-4 ${plan.name === 'Standard' ? 'bg-primary/5' : ''}`}>
+                              {formatStorage(plan.storage_limit_bytes)}
+                            </td>
                           ))}
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">Video Recording</td>
-                          {plans.filter(p => p.name !== 'Free').map(plan => (
-                            <td key={plan.id} className="text-center py-3 px-4">{formatVideoDuration(plan.video_max_duration_seconds)}</td>
+                          {sortedPaidPlans.map(plan => (
+                            <td key={plan.id} className={`text-center py-3 px-4 ${plan.name === 'Standard' ? 'bg-primary/5' : ''}`}>
+                              {formatVideoDuration(plan.video_max_duration_seconds)}
+                            </td>
                           ))}
                         </tr>
                         
                         <tr className="border-b bg-muted/30">
-                          <td className="py-3 px-4 font-medium" colSpan={plans.length + 1}>Premium Features</td>
+                          <td className="py-3 px-4 font-medium" colSpan={sortedPaidPlans.length + 1}>Premium Features</td>
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">Remove Branding</td>
-                          {plans.filter(p => p.name !== 'Free').map(plan => (
-                            <td key={plan.id} className="text-center py-3 px-4">
+                          {sortedPaidPlans.map(plan => (
+                            <td key={plan.id} className={`text-center py-3 px-4 ${plan.name === 'Standard' ? 'bg-primary/5' : ''}`}>
                               {plan.can_remove_branding ? <Check className="h-4 w-4 text-success mx-auto" /> : '—'}
                             </td>
                           ))}
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">Custom Domain</td>
-                          {plans.filter(p => p.name !== 'Free').map(plan => (
-                            <td key={plan.id} className="text-center py-3 px-4">
+                          {sortedPaidPlans.map(plan => (
+                            <td key={plan.id} className={`text-center py-3 px-4 ${plan.name === 'Standard' ? 'bg-primary/5' : ''}`}>
                               {plan.custom_domain_enabled ? <Check className="h-4 w-4 text-success mx-auto" /> : '—'}
                             </td>
                           ))}
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">API & Webhooks</td>
-                          {plans.filter(p => p.name !== 'Free').map(plan => (
-                            <td key={plan.id} className="text-center py-3 px-4">
+                          {sortedPaidPlans.map(plan => (
+                            <td key={plan.id} className={`text-center py-3 px-4 ${plan.name === 'Standard' ? 'bg-primary/5' : ''}`}>
                               {plan.has_api ? <Check className="h-4 w-4 text-success mx-auto" /> : '—'}
                             </td>
                           ))}
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-4">White Label</td>
-                          {plans.filter(p => p.name !== 'Free').map(plan => (
-                            <td key={plan.id} className="text-center py-3 px-4">
+                          {sortedPaidPlans.map(plan => (
+                            <td key={plan.id} className={`text-center py-3 px-4 ${plan.name === 'Standard' ? 'bg-primary/5' : ''}`}>
                               {plan.has_white_label ? <Check className="h-4 w-4 text-success mx-auto" /> : '—'}
                             </td>
                           ))}
@@ -474,13 +512,12 @@ export default function SelectPlan() {
       <footer className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 mt-16">
         <div className="container py-8 px-4 text-center">
           <p className="text-sm text-muted-foreground mb-4">
-            💳 Your payment method will be securely stored by Stripe.<br />
-            You can cancel anytime during your trial with no charge.
+            💳 Payments are securely processed by Stripe.
           </p>
           <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground">
             <span>🔒 Secure Checkout</span>
-            <span>✅ No Charges for 14 Days</span>
             <span>❌ Cancel Anytime</span>
+            <span>💰 Money-back Guarantee</span>
           </div>
         </div>
       </footer>

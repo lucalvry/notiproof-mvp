@@ -27,6 +27,7 @@ export const useWebsites = (userId: string | undefined) => {
         .from('websites')
         .select('*')
         .eq('user_id', userId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -114,6 +115,23 @@ export const useWebsites = (userId: string | undefined) => {
             throw new Error(`You've reached your plan limit of ${maxWebsites} website${maxWebsites !== 1 ? 's' : ''}. Please upgrade to add more.`);
           }
         }
+      }
+
+      // Normalize domain and check for duplicates
+      const normalizedDomain = data.domain.toLowerCase()
+        .replace(/^(https?:\/\/)?(www\.)?/, '')
+        .replace(/\/+$/, '');
+
+      const { data: existingWebsite } = await supabase
+        .from('websites')
+        .select('id, domain')
+        .eq('user_id', user.id)
+        .ilike('domain', `%${normalizedDomain}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingWebsite) {
+        throw new Error(`This website (${normalizedDomain}) is already added to your account.`);
       }
 
       const { data: newWebsite, error } = await supabase

@@ -114,10 +114,9 @@ const App = () => (
             <TrackPageViews /> {/* 👈 this line */}
           <Routes>
         <Route path="/login" element={<Login />} />
-        {/* LTD Campaign: Redirect all signup routes to /ltd */}
-        <Route path="/register" element={<Navigate to="/ltd" replace />} />
-        <Route path="/signup" element={<Navigate to="/ltd" replace />} />
-        <Route path="/get-started" element={<Navigate to="/ltd" replace />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/signup" element={<Navigate to="/register" replace />} />
+        <Route path="/get-started" element={<Navigate to="/register" replace />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/select-plan" element={<SelectPlan />} />
         <Route path="/ltd" element={<LTDCheckout />} />

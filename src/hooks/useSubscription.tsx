@@ -123,11 +123,12 @@ export const useSubscription = (userId: string | undefined) => {
   const isPaymentFailed = status === 'past_due';
   const isCancelled = status === 'cancelled';
   const isLifetime = status === 'lifetime';
+  const isFreeStatus = status === 'free';
   const isExpired = isTrialExpired || isCancelled;
   
   // User is blocked if no subscription, expired, or payment failed
-  // Lifetime users are NEVER blocked
-  const isBlocked = !isLifetime && (hasNoSubscription || isExpired || isPaymentFailed);
+  // Lifetime and Free users are NEVER blocked
+  const isBlocked = !isLifetime && !isFreeStatus && (hasNoSubscription || isExpired || isPaymentFailed);
   
   // Determine block reason
   let blockReason: BlockReason | null = null;
