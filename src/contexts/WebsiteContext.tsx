@@ -45,11 +45,12 @@ export const WebsiteProvider = ({ children }: { children: ReactNode }) => {
 
     // Listen for auth state changes to handle session refresh failures
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'TOKEN_REFRESHED') {
-        setUserId(session?.user?.id);
-      } else if (event === 'SIGNED_OUT') {
+      if (event === 'SIGNED_OUT') {
         setUserId(undefined);
         localStorage.removeItem("selectedWebsiteId");
+      } else if (session?.user?.id) {
+        setUserId(session.user.id);
+        setUserIdLoading(false);
       }
     });
 

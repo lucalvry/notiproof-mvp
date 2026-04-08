@@ -19,11 +19,12 @@ serve(async (req) => {
 
     console.log('[process-announcements] Starting scheduled announcement processing...')
 
-    // 1. Get active announcement campaigns
+    // 1. Get active announcement campaigns (only for non-archived websites)
     const { data: campaigns, error: campaignsError } = await supabase
       .from('campaigns')
-      .select('*')
-      .eq('status', 'active');
+      .select('*, websites!inner(id, deleted_at)')
+      .eq('status', 'active')
+      .is('websites.deleted_at', null);
     
     if (campaignsError) {
       console.error('[process-announcements] Error fetching campaigns:', campaignsError)

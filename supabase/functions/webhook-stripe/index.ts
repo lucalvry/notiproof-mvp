@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { checkRateLimit } from '../_shared/rate-limit.ts';
+import { checkPayloadSize } from '../_shared/validation.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,6 +19,9 @@ Deno.serve(async (req) => {
     );
 
     const rawBody = await req.text();
+    const sizeError = checkPayloadSize(rawBody, 500_000, corsHeaders);
+    if (sizeError) return sizeError;
+
     const stripeSignature = req.headers.get('stripe-signature');
     
     // Verify Stripe webhook signature - MANDATORY

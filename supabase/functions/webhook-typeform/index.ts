@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkRateLimit } from '../_shared/rate-limit.ts';
+import { checkPayloadSize, isPlainObject, sanitizeString } from '../_shared/validation.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -65,7 +66,23 @@ serve(async (req) => {
       });
     }
 
-    const payload = await req.json();
+    const rawPayload = await req.text();
+    const sizeError = checkPayloadSize(rawPayload, 100_000, corsHeaders);
+    if (sizeError) return sizeError;
+
+    let payload: any;
+    try { payload = JSON.parse(rawPayload); } catch {
+      return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!isPlainObject(payload)) {
+      return new Response(JSON.stringify({ error: 'Payload must be a JSON object' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     console.log('Typeform webhook received', { 
       connector_id: connector.id,
       event_type: payload.event_type
@@ -115,7 +132,7 @@ serve(async (req) => {
     }
 
     // Extract form response details
-    const formResponse = payload.form_response;
+    const formResponse = (payload as Record<string, any>).form_response as Record<string, any> | undefined;
     const answers = formResponse?.answers || [];
     
     // Try to find name and email from answers
@@ -124,15 +141,15 @@ serve(async (req) => {
     
     for (const answer of answers) {
       if (answer.type === 'email' && answer.email) {
-        userEmail = answer.email;
+        userEmail = sanitizeString(answer.email, 255);
       }
       if ((answer.field?.ref?.includes('name') || answer.field?.title?.toLowerCase().includes('name')) && answer.text) {
-        userName = answer.text;
+        userName = sanitizeString(answer.text, 100);
       }
     }
 
-    const formTitle = payload.form_response?.definition?.title || 'a form';
-    const message = `${userName} just submitted ${formTitle}`;
+    const formTitle = sanitizeString(formResponse?.definition?.title || 'a form', 200);
+    const message = sanitizeString(`${userName} just submitted ${formTitle}`, 500);
 
     // Create event
     const { data: event, error: eventError } = await supabaseClient

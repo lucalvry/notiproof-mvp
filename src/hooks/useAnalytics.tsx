@@ -81,66 +81,58 @@ export const useAnalytics = (userId: string | undefined, days: number = 30, webs
 
       const websiteIds = websites.map(w => w.id);
 
-      // Run all independent queries in parallel
-      const [
-        widgetsResult,
-        campaignsResult,
-        eventsResult,
-        previousEventsResult,
-        campaignStatsResult,
-        previousCampaignStatsResult,
-      ] = await Promise.all([
-        // Get widgets for user's websites
+      // First fetch campaigns to get IDs for filtered queries
+      const [widgetsResult, campaignsResult, eventsResult, previousEventsResult] = await Promise.all([
         supabase
           .from('widgets')
           .select('id, name, status, campaign_id')
           .in('website_id', websiteIds),
-        // Get campaigns
         supabase
           .from('campaigns')
           .select('id, name, campaign_type, status, updated_at, data_sources')
           .in('website_id', websiteIds),
-        // Get current period events
         supabase
           .from('events')
           .select('id, widget_id, views, clicks, created_at, event_type')
           .in('website_id', websiteIds)
           .gte('created_at', startDate)
           .order('created_at', { ascending: true }),
-        // Get previous period events for comparison
         supabase
           .from('events')
           .select('id, views, clicks')
           .in('website_id', websiteIds)
           .gte('created_at', prevStart)
           .lt('created_at', prevEnd),
-        // Get current period campaign stats (for Visitors Pulse etc)
-        supabase
-          .from('campaign_stats')
-          .select('campaign_id, date, views, clicks')
-          .gte('date', startDate.split('T')[0])
-          .order('date', { ascending: true }),
-        // Get previous period campaign stats
-        supabase
-          .from('campaign_stats')
-          .select('campaign_id, views, clicks')
-          .gte('date', prevStart.split('T')[0])
-          .lt('date', prevEnd.split('T')[0]),
       ]);
 
       const widgets = widgetsResult.data || [];
       const campaigns = campaignsResult.data || [];
       const events = eventsResult.data || [];
       const previousEvents = previousEventsResult.data || [];
-      const campaignStats = campaignStatsResult.data || [];
-      const previousCampaignStats = previousCampaignStatsResult.data || [];
-
-      // Get campaign IDs for this user's websites
       const userCampaignIds = campaigns.map(c => c.id);
-      
-      // Filter campaign stats to only include user's campaigns
-      const userCampaignStats = campaignStats.filter(cs => userCampaignIds.includes(cs.campaign_id));
-      const userPreviousCampaignStats = previousCampaignStats.filter(cs => userCampaignIds.includes(cs.campaign_id));
+
+      // Fetch campaign_stats filtered by user's campaign IDs at the DB level
+      let userCampaignStats: Array<{ campaign_id: string; date: string; views: number | null; clicks: number | null }> = [];
+      let userPreviousCampaignStats: Array<{ campaign_id: string; views: number | null; clicks: number | null }> = [];
+
+      if (userCampaignIds.length > 0) {
+        const [csResult, prevCsResult] = await Promise.all([
+          supabase
+            .from('campaign_stats')
+            .select('campaign_id, date, views, clicks')
+            .in('campaign_id', userCampaignIds)
+            .gte('date', startDate.split('T')[0])
+            .order('date', { ascending: true }),
+          supabase
+            .from('campaign_stats')
+            .select('campaign_id, views, clicks')
+            .in('campaign_id', userCampaignIds)
+            .gte('date', prevStart.split('T')[0])
+            .lt('date', prevEnd.split('T')[0]),
+        ]);
+        userCampaignStats = csResult.data || [];
+        userPreviousCampaignStats = prevCsResult.data || [];
+      }
 
       // Calculate campaign stats totals
       const campaignStatsViews = userCampaignStats.reduce((sum, cs) => sum + (cs.views || 0), 0);

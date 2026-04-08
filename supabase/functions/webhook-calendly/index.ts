@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createHmac } from "https://deno.land/std@0.168.0/node/crypto.ts";
 import { checkRateLimit } from '../_shared/rate-limit.ts';
+import { checkPayloadSize, isPlainObject, sanitizeString } from '../_shared/validation.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,6 +21,9 @@ serve(async (req) => {
     );
 
     const payload = await req.text();
+    const sizeError = checkPayloadSize(payload, 100_000, corsHeaders);
+    if (sizeError) return sizeError;
+
     const signature = req.headers.get('calendly-webhook-signature');
     
     if (!signature) {
@@ -31,7 +35,19 @@ serve(async (req) => {
     }
 
     // Parse payload
-    const data = JSON.parse(payload);
+    let data: any;
+    try { data = JSON.parse(payload); } catch {
+      return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!isPlainObject(data)) {
+      return new Response(JSON.stringify({ error: 'Payload must be a JSON object' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     console.log('Calendly webhook received', { 
       event: data.event
     });
@@ -146,15 +162,15 @@ serve(async (req) => {
     let eventCategory = 'conversion';
 
     if (eventType === 'invitee.created') {
-      const invitee = data.payload;
-      const name = invitee.name || 'Someone';
-      const eventName = invitee.event?.name || 'a meeting';
-      message = `${name} just scheduled ${eventName}`;
+      const invitee = data.payload as Record<string, any>;
+      const name = sanitizeString(invitee?.name || 'Someone', 100);
+      const eventName = sanitizeString(invitee?.event?.name || 'a meeting', 200);
+      message = sanitizeString(`${name} just scheduled ${eventName}`, 500);
       eventCategory = 'conversion';
     } else if (eventType === 'invitee.canceled') {
-      const invitee = data.payload;
-      const name = invitee.name || 'Someone';
-      message = `${name} canceled their appointment`;
+      const invitee = data.payload as Record<string, any>;
+      const name = sanitizeString(invitee?.name || 'Someone', 100);
+      message = sanitizeString(`${name} canceled their appointment`, 500);
       eventCategory = 'visitor';
     } else {
       message = 'New Calendly activity';
@@ -167,15 +183,15 @@ serve(async (req) => {
         widget_id: widget.id,
         event_type: eventCategory,
         message_template: message,
-        user_name: data.payload?.name || null,
+        user_name: (data.payload as Record<string, any>)?.name || null,
         user_location: null,
         page_url: connector.websites.domain,
         event_data: {
           event_type: eventType,
-          invitee_email: data.payload?.email,
-          event_name: data.payload?.event?.name,
-          scheduled_at: data.payload?.scheduled_event?.start_time,
-          calendly_uri: data.payload?.uri
+          invitee_email: (data.payload as Record<string, any>)?.email,
+          event_name: (data.payload as Record<string, any>)?.event?.name,
+          scheduled_at: (data.payload as Record<string, any>)?.scheduled_event?.start_time,
+          calendly_uri: (data.payload as Record<string, any>)?.uri
         },
         source: 'integration',
         integration_type: 'calendly',

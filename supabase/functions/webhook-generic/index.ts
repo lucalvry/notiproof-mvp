@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkRateLimit } from '../_shared/rate-limit.ts';
 import { markConnectorVerified, updateConnectorSync } from '../_shared/webhook-verification.ts';
+import { checkPayloadSize, isPlainObject, sanitizeString } from '../_shared/validation.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -48,7 +49,23 @@ serve(async (req) => {
       });
     }
 
-    const payload = await req.json();
+    const rawPayload = await req.text();
+    const sizeError = checkPayloadSize(rawPayload, 100_000, corsHeaders);
+    if (sizeError) return sizeError;
+
+    let payload: unknown;
+    try { payload = JSON.parse(rawPayload); } catch {
+      return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!isPlainObject(payload)) {
+      return new Response(JSON.stringify({ error: 'Payload must be a JSON object' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     console.log('Generic webhook received', { 
       connector_id: connector.id,
       website_id: connector.website_id,
@@ -122,7 +139,7 @@ serve(async (req) => {
     const extractField = (path: string, defaultValue: any = null) => {
       if (!path) return defaultValue;
       const keys = path.split('.');
-      let value = payload;
+      let value: any = payload;
       for (const key of keys) {
         if (value && typeof value === 'object' && key in value) {
           value = value[key];
@@ -134,11 +151,11 @@ serve(async (req) => {
     };
 
     const eventData = {
-      event_type: extractField(fieldMapping.event_type, 'conversion'),
-      message_template: extractField(fieldMapping.message, 'New activity detected'),
-      user_name: extractField(fieldMapping.user_name, null),
-      user_location: extractField(fieldMapping.user_location, null),
-      page_url: extractField(fieldMapping.page_url, null),
+      event_type: sanitizeString(extractField(fieldMapping.event_type, 'conversion'), 50),
+      message_template: sanitizeString(extractField(fieldMapping.message, 'New activity detected'), 500),
+      user_name: sanitizeString(extractField(fieldMapping.user_name, null), 100) || null,
+      user_location: sanitizeString(extractField(fieldMapping.user_location, null), 200) || null,
+      page_url: sanitizeString(extractField(fieldMapping.page_url, null), 2000) || null,
       event_data: {
         raw_payload: payload,
         ...Object.entries(fieldMapping.custom_fields || {}).reduce((acc, [key, path]) => {

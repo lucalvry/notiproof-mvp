@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { checkRateLimit } from './rate-limit.ts';
 import { fetchTestimonialEvents } from './testimonial-handler.ts';
+import { isValidUUID, validateUUID } from '../_shared/validation.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -152,8 +153,9 @@ Deno.serve(async (req) => {
       // Find website by verification token (siteToken)
       const { data: website, error: websiteError } = await supabase
         .from('websites')
-        .select('id, domain, is_verified, user_id')
+        .select('id, domain, is_verified, user_id, deleted_at')
         .eq('verification_token', siteToken)
+        .is('deleted_at', null)
         .single();
 
       if (websiteError || !website) {
@@ -462,6 +464,9 @@ Deno.serve(async (req) => {
 
     // GET /events/:widgetId - Fetch approved events
     if (req.method === 'GET' && resource === 'events' && identifier) {
+      const uuidErr = validateUUID(identifier, 'widgetId', corsHeaders);
+      if (uuidErr) return uuidErr;
+
       const { data: widget, error: widgetError } = await supabase
         .from('widgets')
         .select('id, status, display_rules, allowed_event_sources, campaign_id')
@@ -552,6 +557,9 @@ Deno.serve(async (req) => {
 
     // POST /events/:eventId/view - Track event view
     if (req.method === 'POST' && resource === 'events' && action === 'view' && identifier) {
+      const uuidErr = validateUUID(identifier, 'eventId', corsHeaders);
+      if (uuidErr) return uuidErr;
+
       await supabase.rpc('increment_event_counter', {
         event_id: identifier,
         counter_type: 'views'
@@ -564,6 +572,9 @@ Deno.serve(async (req) => {
 
     // POST /events/:eventId/click - Track event click
     if (req.method === 'POST' && resource === 'events' && action === 'click' && identifier) {
+      const uuidErr = validateUUID(identifier, 'eventId', corsHeaders);
+      if (uuidErr) return uuidErr;
+
       await supabase.rpc('increment_event_counter', {
         event_id: identifier,
         counter_type: 'clicks'
@@ -603,8 +614,9 @@ Deno.serve(async (req) => {
       // Add timeout for database query
       const queryPromise = supabase
         .from('websites')
-        .select('id, domain, is_verified, verification_attempts')
+        .select('id, domain, is_verified, verification_attempts, deleted_at')
         .eq('verification_token', token)
+        .is('deleted_at', null)
         .single();
 
       const timeoutPromise = new Promise((_, reject) => 
@@ -801,6 +813,9 @@ Deno.serve(async (req) => {
 
     // POST /campaigns/:campaignId/view - Track campaign view (for Visitors Pulse)
     if (req.method === 'POST' && resource === 'campaigns' && action === 'view' && identifier) {
+      const uuidErr = validateUUID(identifier, 'campaignId', corsHeaders);
+      if (uuidErr) return uuidErr;
+
       console.log('[widget-api] Received campaign view request for:', identifier);
       try {
         const { data, error } = await supabase.rpc('increment_campaign_view', { p_campaign_id: identifier });
@@ -826,6 +841,9 @@ Deno.serve(async (req) => {
 
     // POST /campaigns/:campaignId/click - Track campaign click (for Visitors Pulse)
     if (req.method === 'POST' && resource === 'campaigns' && action === 'click' && identifier) {
+      const uuidErr = validateUUID(identifier, 'campaignId', corsHeaders);
+      if (uuidErr) return uuidErr;
+
       try {
         await supabase.rpc('increment_campaign_click', { p_campaign_id: identifier });
         console.log('[widget-api] Campaign click tracked:', identifier);

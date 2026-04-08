@@ -14,7 +14,7 @@ import { ConversionsTable } from "@/components/impact/ConversionsTable";
 
 export default function ImpactBoard() {
   const navigate = useNavigate();
-  const { currentWebsite } = useWebsiteContext();
+  const { currentWebsite, isLoading: websiteLoading } = useWebsiteContext();
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
@@ -33,7 +33,7 @@ export default function ImpactBoard() {
     checkAuth();
   }, [navigate]);
 
-  if (loading) {
+  if (loading || websiteLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-muted-foreground">Loading...</p>

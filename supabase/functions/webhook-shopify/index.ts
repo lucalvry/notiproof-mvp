@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { checkRateLimit } from '../_shared/rate-limit.ts';
+import { checkPayloadSize, sanitizeString } from '../_shared/validation.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,6 +19,9 @@ Deno.serve(async (req) => {
     );
 
     const rawBody = await req.text();
+    const sizeError = checkPayloadSize(rawBody, 500_000, corsHeaders);
+    if (sizeError) return sizeError;
+
     const hmacHeader = req.headers.get('x-shopify-hmac-sha256');
     const topic = req.headers.get('x-shopify-topic');
     
@@ -163,7 +167,7 @@ async function handleOrderEvent(supabase: any, order: any) {
   
   const eventData = {
     event_type: 'purchase',
-    message_template: `${order.customer?.first_name || 'Someone'} from ${order.shipping_address?.city || 'Unknown'} just purchased ${firstLineItem?.title || 'a product'}`,
+    message_template: sanitizeString(`${order.customer?.first_name || 'Someone'} from ${order.shipping_address?.city || 'Unknown'} just purchased ${firstLineItem?.title || 'a product'}`, 500),
     user_name: order.customer?.first_name,
     user_location: order.shipping_address?.city,
     event_data: {

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createHmac } from "https://deno.land/std@0.168.0/node/crypto.ts";
 import { checkRateLimit } from '../_shared/rate-limit.ts';
+import { checkPayloadSize, sanitizeString } from '../_shared/validation.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -103,6 +104,9 @@ serve(async (req) => {
     );
 
     const payload = await req.text();
+    const sizeError = checkPayloadSize(payload, 500_000, corsHeaders);
+    if (sizeError) return sizeError;
+
     const signature = req.headers.get('x-wc-webhook-signature');
     
     if (!signature) {
@@ -222,7 +226,7 @@ serve(async (req) => {
       .single();
 
     // Extract order details
-    const customerName = `${data.billing?.first_name || ''} ${data.billing?.last_name || ''}`.trim() || 'Someone';
+    const customerName = sanitizeString(`${data.billing?.first_name || ''} ${data.billing?.last_name || ''}`.trim() || 'Someone', 100);
     const location = [data.billing?.city, data.billing?.country].filter(Boolean).join(', ') || null;
     const firstProduct = data.line_items?.[0];
     const productNames = data.line_items?.map((item: any) => item.name).join(', ') || 'products';

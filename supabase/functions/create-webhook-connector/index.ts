@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isSuperAdmin } from "../_shared/super-admin.ts";
+import { isValidUUID, sanitizeString, validateString, validateEnum, validationResponse, checkPayloadSize } from "../_shared/validation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,7 +40,20 @@ serve(async (req) => {
       });
     }
 
-    const { website_id, name, integration_type, field_mapping } = await req.json();
+    const rawBody = await req.text();
+    const sizeError = checkPayloadSize(rawBody, 50_000, corsHeaders);
+    if (sizeError) return sizeError;
+
+    const { website_id, name, integration_type, field_mapping } = JSON.parse(rawBody);
+
+    // Validate inputs
+    const ALLOWED_TYPES = ['webhook', 'zapier', 'typeform', 'calendly', 'shopify', 'stripe', 'woocommerce', 'form_hook'];
+    const errors = validationResponse({
+      website_id: isValidUUID(website_id) ? null : 'website_id must be a valid UUID',
+      name: validateString(name, 'name', { min: 1, max: 255 }),
+      integration_type: validateEnum(integration_type, 'integration_type', ALLOWED_TYPES),
+    }, corsHeaders);
+    if (errors) return errors;
 
     console.log('Creating webhook connector', { 
       user_id: user.id, 

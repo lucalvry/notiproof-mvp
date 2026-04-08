@@ -978,6 +978,22 @@ Deno.serve(async (req) => {
 
     console.log('[Queue Builder] Building queue for website:', websiteId);
 
+    // Check if website is archived (soft-deleted)
+    const { data: websiteCheck } = await supabase
+      .from('websites')
+      .select('id, deleted_at')
+      .eq('id', websiteId)
+      .is('deleted_at', null)
+      .single();
+
+    if (!websiteCheck) {
+      console.log('[Queue Builder] Website not found or archived:', websiteId);
+      return new Response(
+        JSON.stringify({ error: 'Website not found or archived', queue: [] }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Fetch notification weights for this website
     const { data: customWeights } = await supabase
       .from('notification_weights')
