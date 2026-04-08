@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { WIDGET_SCRIPT_URL } from "@/lib/widget-url";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Play, Pause, BarChart, Settings, Activity, Edit, Copy, Code, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -837,7 +838,7 @@ export default function CampaignDetails() {
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          const code = `<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-widget-id="${widget.id}"></script>`;
+                          const code = `<script src="${WIDGET_SCRIPT_URL}" data-widget-id="${widget.id}"></script>`;
                           navigator.clipboard.writeText(code);
                           toast.success("Widget code copied!");
                         }}
@@ -848,7 +849,7 @@ export default function CampaignDetails() {
                     </div>
                     <div className="rounded-lg bg-muted p-4">
                       <code className="text-sm break-all font-mono">
-                        {`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-widget-id="${widget.id}"></script>`}
+                        {`<script src="${WIDGET_SCRIPT_URL}" data-widget-id="${widget.id}"></script>`}
                       </code>
                     </div>
                   </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { WIDGET_SCRIPT_URL } from "@/lib/widget-url";
 import { Plus, Globe, CheckCircle2, Clock, XCircle, MoreVertical, AlertCircle, Copy, RefreshCw, Archive } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -472,7 +473,7 @@ export default function Websites() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    const code = `<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`;
+                    const code = `<script src="${WIDGET_SCRIPT_URL}" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`;
                     navigator.clipboard.writeText(code);
                     toast.success("Code copied to clipboard!");
                   }}
@@ -483,7 +484,7 @@ export default function Websites() {
               </div>
               <div className="rounded-lg bg-muted p-4">
                 <code className="text-sm break-all font-mono">
-                  {`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`}
+                  {`<script src="${WIDGET_SCRIPT_URL}" data-site-token="${selectedWebsite?.verification_token || 'YOUR-TOKEN'}"></script>`}
                 </code>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -584,7 +585,7 @@ export default function Websites() {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      const code = `<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-site-token="${selectedWebsite?.verification_token}"></script>`;
+                      const code = `<script src="${WIDGET_SCRIPT_URL}" data-site-token="${selectedWebsite?.verification_token}"></script>`;
                       navigator.clipboard.writeText(code);
                       toast.success("Code copied to clipboard!");
                     }}
@@ -595,7 +596,7 @@ export default function Websites() {
               </div>
               <div className="rounded-lg bg-muted p-4">
                 <code className="text-sm break-all font-mono">
-                  {`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-site-token="${selectedWebsite?.verification_token || 'TOKEN'}"></script>`}
+                  {`<script src="${WIDGET_SCRIPT_URL}" data-site-token="${selectedWebsite?.verification_token || 'TOKEN'}"></script>`}
                 </code>
               </div>
               <p className="text-sm text-muted-foreground">

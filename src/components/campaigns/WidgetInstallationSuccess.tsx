@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { WIDGET_SCRIPT_URL } from "@/lib/widget-url";
 
 interface WidgetInstallationSuccessProps {
   open: boolean;
@@ -25,8 +26,8 @@ export function WidgetInstallationSuccess({
   campaignName,
   campaignId,
 }: WidgetInstallationSuccessProps) {
-  const unifiedCode = `<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-site-token="YOUR-SITE-TOKEN" data-show-active-visitors="true"></script>`;
-  const legacyCode = `<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-widget-id="${widgetId}" data-show-active-visitors="true"></script>`;
+  const unifiedCode = `<script src="${WIDGET_SCRIPT_URL}" data-site-token="YOUR-SITE-TOKEN" data-show-active-visitors="true"></script>`;
+  const legacyCode = `<script src="${WIDGET_SCRIPT_URL}" data-widget-id="${widgetId}" data-show-active-visitors="true"></script>`;
 
   const handleCopyUnifiedCode = () => {
     navigator.clipboard.writeText(unifiedCode);

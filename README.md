@@ -1,99 +1,83 @@
-# Welcome to your Lovable project
+# NotiProof
 
-## Project info
-
-**URL**: https://lovable.dev/projects/de58a950-16c7-4103-b0a4-bf74be535956
+**Website**: notiproof.com  |  **App:** app.notiproof.com
+An intelligent notification campaign platform with smart template matching and auto-generation.
 
 ## Campaign Template System
-
-This project includes an intelligent campaign template matching system that automatically recommends the best notification templates based on your campaign type.
+NotiProof includes an intelligent campaign template matching system that automatically recommends the best notification templates based on your campaign type.
 
 ### Key Features
-- **Smart Filtering**: Templates are automatically filtered by campaign type
-- **Auto-Generation**: Fallback templates are generated for unmapped campaign types
-- **Best Match Indicators**: Top-ranked templates are highlighted for easy selection
-- **Show All Toggle**: Option to browse all templates regardless of campaign type
-- **Comprehensive Documentation**: See `CAMPAIGN_TEMPLATES.md` for user guide
+- **Smart Filtering** – Templates are automatically filtered by campaign type
+- **Auto-Generation** – Fallback templates are generated for unmapped campaign types
+- **Best Match Indicators** – Top-ranked templates are highlighted for easy selection
+- **Show All Toggle** – Option to browse all templates regardless of campaign type
+- **Comprehensive Documentation** – See CAMPAIGN_TEMPLATES.md for the full user guide
 
-### For Administrators
-- Template management guide: `ADMIN_TEMPLATES_GUIDE.md`
-- Implementation details: `TEMPLATE_SYSTEM_IMPLEMENTATION.md`
-- Rollback procedures: `ROLLBACK_PLAN.md`
 
-## How can I edit this code?
+### Getting Started
+**Prerequisites**
+- Node.js & npm (install via nvm recommended)
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/de58a950-16c7-4103-b0a4-bf74be535956) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
+**Installation**
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Step 1: Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
+# Step 2: Navigate to the project directory
 cd <YOUR_PROJECT_NAME>
 
-# Step 3: Install the necessary dependencies.
+# Step 3: Install dependencies
 npm i
 
 # Step 4: Set up environment variables
 cp .env.example .env
-# Then edit .env and fill in your Supabase credentials
+# Edit .env and fill in your Supabase credentials
 
-# Step 5: Start the development server with auto-reloading and an instant preview.
+# Step 5: Start the development server
 npm run dev
 ```
+**Environment Setup**
+- Copy .env.example to .env
+- Fill in your Supabase credentials from the Supabase Dashboard
+- Never commit the .env file — it contains sensitive credentials
 
-## Environment Setup
 
-1. Copy `.env.example` to `.env`
-2. Fill in your Supabase credentials from the [Supabase Dashboard](https://supabase.com/dashboard)
-3. **Never commit the `.env` file** - it contains sensitive credentials
+Tech Stack
+TechnologyRoleViteBuild tool & dev serverTypeScriptType safetyReactUI frameworkshadcn/uiComponent libraryTailwind CSSUtility-first styling
 
-**Edit a file directly in GitHub**
+How to Edit the Code
+Using your preferred IDE
+Clone the repo and push changes directly. Any pushed changes will be reflected in your deployment.
+Edit directly in GitHub
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Navigate to the file you want to edit
+Click the pencil (edit) icon at the top right
+Make your changes and commit
 
-**Use GitHub Codespaces**
+Using GitHub Codespaces
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Go to the main page of the repository
+Click the green Code button
+Select the Codespaces tab
+Click New codespace
+Edit files and commit/push when done
 
-## What technologies are used for this project?
 
-This project is built with:
+Deployment
+Build for production:
+bashnpm run build
+The output will be in the dist/ folder, ready to be deployed.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Main site: notiproof.com
+App: app.notiproof.com
 
-## How can I deploy this project?
+Custom Domain
+Configure your custom domain through your hosting provider's domain settings.
 
-Simply open [Lovable](https://lovable.dev/projects/de58a950-16c7-4103-b0a4-bf74be535956) and click on Share -> Publish.
+Contributing
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Fork the repository
+Create a feature branch (git checkout -b feature/my-feature)
+Commit your changes (git commit -m 'Add my feature')
+Push to the branch (git push origin feature/my-feature)
+Open a Pull Request

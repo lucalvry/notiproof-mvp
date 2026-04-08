@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { WIDGET_SCRIPT_URL } from "@/lib/widget-url";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -419,7 +420,7 @@ export default function Settings() {
               <div className="space-y-2">
                 <Label>Installation Code</Label>
                 <div className="bg-muted p-4 rounded-md font-mono text-xs overflow-x-auto">
-                  {`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-website="${currentWebsite.id}"></script>`}
+                  {`<script src="${WIDGET_SCRIPT_URL}" data-website="${currentWebsite.id}"></script>`}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Paste this code before the closing &lt;/body&gt; tag on your website
@@ -428,7 +429,7 @@ export default function Settings() {
                   variant="outline" 
                   size="sm"
                   onClick={() => {
-                    navigator.clipboard.writeText(`<script src="https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-script" data-website="${currentWebsite.id}"></script>`);
+                    navigator.clipboard.writeText(`<script src="${WIDGET_SCRIPT_URL}" data-website="${currentWebsite.id}"></script>`);
                     toast.success("Code copied to clipboard!");
                   }}
                 >
