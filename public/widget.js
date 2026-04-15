@@ -902,6 +902,12 @@
         ${displayMessage}
       </div>`;
       
+      // Time ago display
+      const timeAgo = data.time_ago;
+      if (timeAgo) {
+        contentHTML += `<div style="font-size: 11px; opacity: 0.6; margin-bottom: 2px;">${escapeHtml(timeAgo)}</div>`;
+      }
+      
       // Optional sub-text for urgency styles
       if (templateStyle === 'checkout') {
         contentHTML += `<div style="font-size: 11px; color: #dc2626; font-weight: 500; margin-top: 2px;">Complete your order now!</div>`;
@@ -911,7 +917,7 @@
       
       // Footer line with location and verification badge on same line
       const hasLocation = showLocation && location;
-      const showVisitorVerified = event.show_verified || data.show_verified || (data.mode === 'real');
+      const showVisitorVerified = data.show_verification_badge || event.show_verified || data.show_verified || (data.mode === 'real');
       
       if (hasLocation || showVisitorVerified) {
         contentHTML += `<div style="font-size: 12px; opacity: 0.85; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">`;
@@ -920,7 +926,7 @@
         }
         if (showVisitorVerified) {
           if (hasLocation) contentHTML += `<span style="opacity: 0.5;">•</span>`;
-          contentHTML += `<span style="color: #2563eb; font-weight: 500; opacity: 1;">✓ NotiProof Verified</span>`;
+          contentHTML += `<span style="color: #2563eb; font-weight: 500; opacity: 1;">✓ ${escapeHtml(data.verification_text || 'Verified by ActiveProof')}</span>`;
         }
         contentHTML += '</div>';
       }
@@ -2265,105 +2271,161 @@
     return result;
   }
   
-  // NATIVE INTEGRATIONS - Active Visitors (Simulated Visitor Count) with Media+Text Format
+  // Curated country pool for simulated mode (weighted)
+  var SIMULATED_COUNTRIES = [
+    'United States', 'United States', 'United States',
+    'United Kingdom', 'United Kingdom',
+    'Canada', 'Canada',
+    'Germany', 'Germany',
+    'France', 'Australia', 'Netherlands', 'Brazil',
+    'India', 'Japan', 'Spain', 'Italy', 'Sweden',
+    'Mexico', 'Singapore', 'South Korea'
+  ];
+
+  // Time-ago strings weighted toward recent
+  var TIME_AGO_OPTIONS = [
+    'just now', 'just now', 'just now', 'just now', 'just now', 'just now',
+    '2 minutes ago', '2 minutes ago', '2 minutes ago',
+    '5 minutes ago', '3 minutes ago'
+  ];
+
+  function getRandomTimeAgo() {
+    return TIME_AGO_OPTIONS[Math.floor(Math.random() * TIME_AGO_OPTIONS.length)];
+  }
+
+  function getRandomCountry() {
+    // Use real visitor country if available, otherwise pick from pool
+    if (visitorCountry && visitorCountry !== 'Unknown') {
+      // 40% chance to use the real visitor's country, 60% random for variety
+      if (Math.random() < 0.4) return visitorCountry;
+    }
+    return SIMULATED_COUNTRIES[Math.floor(Math.random() * SIMULATED_COUNTRIES.length)];
+  }
+
+  // NATIVE INTEGRATIONS - Active Visitors (Conversion-Focused Social Proof)
   function initActiveVisitors(campaignId, config, template) {
-    const { 
-      mode = 'simulated',
-      min_count = 5, 
-      max_count = 50,
-      update_interval_seconds = 10,
-      scope = 'site',
-      // New customization fields
-      template_style = 'social_proof',
-      message_template = '{{count}} people are viewing this page',
-      icon = '👥',
-      show_location = true
-    } = config;
-    
-    let currentCount = getRandomCount(min_count, max_count);
-    
-    // Check if we have a custom template from the campaigns table
-    const hasCustomTemplate = template && template.html_template;
-    
-    log('[Active Visitors] Template config:', { 
-      hasCustomTemplate, 
-      templateName: template?.name,
-      templateKey: template?.template_key
+    var mode = config.mode || 'simulated';
+    var min_count = config.min_count || 5;
+    var max_count = config.max_count || 50;
+    var update_interval_seconds = config.update_interval_seconds || 10;
+    var scope = config.scope || 'site';
+    var template_style = config.template_style || 'social_proof';
+    var message_template = config.message_template || 'Someone from {{country}} just viewed {{page_name}}';
+    var icon = config.icon || '👥';
+    var show_location = config.show_location !== false;
+    var destination_pages = config.destination_pages || [];
+
+    var currentCount = getRandomCount(min_count, max_count);
+    var hasCustomTemplate = template && template.html_template;
+
+    log('[Active Visitors] Config:', {
+      hasCustomTemplate: !!hasCustomTemplate,
+      destination_pages: destination_pages.length,
+      message_template: message_template
     });
-    
-    // Render message template with placeholders
+
+    // Pick a random enabled destination page
+    function pickDestination() {
+      var enabled = destination_pages.filter(function(p) { return p.enabled !== false; });
+      if (enabled.length === 0) return null;
+      return enabled[Math.floor(Math.random() * enabled.length)];
+    }
+
+    // Render message template with destination-based placeholders
     function renderVisitorMessage(count) {
-      const pageName = document.title || window.location.pathname;
-      const pageUrl = window.location.href;
-      const location = visitorCountry || 'Multiple locations';
-      
+      var dest = pickDestination();
+      var pageName = dest ? dest.name : (document.title || 'this page');
+      var pageUrl = dest ? (dest.url.indexOf('http') === 0 ? dest.url : window.location.origin + dest.url) : window.location.href;
+      var country = getRandomCountry();
+      var timeAgo = getRandomTimeAgo();
+
       // If we have a custom HTML template, use it
       if (hasCustomTemplate) {
-        return renderMustacheTemplate(template.html_template, {
-          count: count,
-          visitor_count: count,
-          page_name: pageName,
-          page_url: pageUrl,
-          location: location
-        });
+        return {
+          html: renderMustacheTemplate(template.html_template, {
+            count: count,
+            visitor_count: count,
+            page_name: pageName,
+            page_url: pageUrl,
+            country: country,
+            location: country,
+            time_ago: timeAgo
+          }),
+          pageName: pageName,
+          pageUrl: pageUrl,
+          country: country,
+          timeAgo: timeAgo
+        };
       }
-      
-      // Otherwise use the config message_template
-      return message_template
+
+      // Use the message_override from the destination if available
+      var tpl = (dest && dest.message_override) ? dest.message_override : message_template;
+
+      var rendered = tpl
         .replace(/\{\{count\}\}/g, count.toString())
         .replace(/\{\{visitor_count\}\}/g, count.toString())
-        .replace(/\{\{page_name\}\}/g, pageName)
-        .replace(/\{\{page_url\}\}/g, pageUrl)
-        .replace(/\{\{location\}\}/g, location);
-    }
-    
-    // Create visitor count notification with media+text format
-    function createVisitorNotification() {
-      const renderedMessage = renderVisitorMessage(currentCount);
-      const pageName = document.title || window.location.pathname;
-      const pageUrl = window.location.href;
-      
+        .replace(/\{\{country\}\}/g, country)
+        .replace(/\{\{location\}\}/g, country)
+        .replace(/\{\{time_ago\}\}/g, timeAgo)
+        .replace(/\{\{page_name\}\}/g, '<a href="' + pageUrl + '" style="color: inherit; text-decoration: underline; font-weight: 600;">' + pageName + '</a>')
+        .replace(/\{\{page_url\}\}/g, pageUrl);
+
       return {
-        id: `visitor-${Date.now()}`,
+        html: rendered,
+        pageName: pageName,
+        pageUrl: pageUrl,
+        country: country,
+        timeAgo: timeAgo
+      };
+    }
+
+    // Create visitor count notification
+    function createVisitorNotification() {
+      var result = renderVisitorMessage(currentCount);
+
+      return {
+        id: 'visitor-' + Date.now(),
+        campaign_id: campaignId,
         event_type: 'active_visitors',
-        message_template: renderedMessage,
+        message_template: result.html,
         created_at: new Date().toISOString(),
         is_simulated: mode === 'simulated',
-        event_data: { 
-          visitor_count: currentCount, 
-          mode, 
-          scope,
-          // Style config for rendering
+        event_data: {
+          visitor_count: currentCount,
+          mode: mode,
+          scope: scope,
           template_style: hasCustomTemplate ? (template.style_variant || template_style) : template_style,
-          icon,
-          show_location,
-          location: visitorCountry || null,
-          page_name: pageName,
-          page_url: pageUrl,
-          rendered_message: renderedMessage,
-          // Pass template info for custom rendering
-          has_custom_template: hasCustomTemplate,
-          custom_html: hasCustomTemplate ? renderedMessage : null
+          icon: icon,
+          show_location: show_location,
+          location: result.country,
+          country: result.country,
+          time_ago: result.timeAgo,
+          page_name: result.pageName,
+          page_url: result.pageUrl,
+          rendered_message: result.html,
+          has_custom_template: !!hasCustomTemplate,
+          custom_html: hasCustomTemplate ? result.html : null,
+          show_verification_badge: config.show_verification_badge,
+          verification_text: config.verification_text,
+          content_alignment: config.content_alignment
         }
       };
     }
-    
-    // Show initial count
-    const initialNotif = createVisitorNotification();
-    eventQueue.push(initialNotif);
-    log('[Active Visitors] Initial count:', currentCount, 'Style:', hasCustomTemplate ? 'custom' : template_style);
-    
-    // Update count periodically
-    setInterval(() => {
-      // Fluctuate count within range (±10%)
-      const variance = Math.floor(currentCount * 0.1);
+
+    // Show initial notification
+    var initialNotif = createVisitorNotification();
+    eventQueue.unshift(initialNotif);
+    log('[Active Visitors] Initial:', currentCount, 'destinations:', destination_pages.length);
+
+    // Update periodically
+    setInterval(function() {
+      var variance = Math.floor(currentCount * 0.1);
       currentCount = Math.max(
         min_count,
         Math.min(max_count, currentCount + getRandomInt(-variance, variance))
       );
-      
-      const notif = createVisitorNotification();
-      eventQueue.push(notif);
+      var notif = createVisitorNotification();
+      eventQueue.unshift(notif);
       log('[Active Visitors] Updated count:', currentCount);
     }, update_interval_seconds * 1000);
   }
@@ -2385,7 +2447,13 @@
     for (const campaign of campaigns) {
       const nativeConfig = campaign.native_config || {};
       
-      switch (campaign.data_source) {
+      // Extract provider from data_sources array (API returns array of {provider, integration_id} objects)
+      const nativeProviders = ['instant_capture', 'live_visitors', 'announcements'];
+      const dataSources = campaign.data_sources || [];
+      const sourceObj = dataSources.find(ds => ds && nativeProviders.includes(ds.provider));
+      const provider = sourceObj ? sourceObj.provider : campaign.data_source; // fallback for legacy
+      
+      switch (provider) {
         case 'instant_capture':
           initInstantCapture(campaign.id, websiteId, nativeConfig);
           log('[Native] Instant Capture initialized for campaign', campaign.id);
@@ -2576,13 +2644,7 @@
     await fetchEvents();
     trackSession();
     
-    if (eventQueue.length === 0) {
-      log('No events to display');
-    }
-    
-    startDisplayLoop();
-    
-    // Initialize native integrations if in site mode
+    // Initialize native campaigns BEFORE display loop so Visitors Pulse notifications queue first
     let nativeCampaignsData = null;
     if (mode === 'site' && siteToken) {
       try {
@@ -2613,6 +2675,14 @@
         log('Failed to initialize native campaigns:', err);
       }
     }
+    
+    if (eventQueue.length === 0) {
+      log('No events to display');
+    }
+    
+    startDisplayLoop();
+    
+    // Native campaigns already initialized above (before display loop)
     
     // Visitors Pulse now flows through the unified queue via initActiveVisitors()
     // which is called when processing campaigns with live_visitors data source

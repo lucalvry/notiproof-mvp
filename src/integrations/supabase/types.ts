@@ -4272,6 +4272,18 @@ export type Database = {
         Args: { _user_id: string; _website_id: string }
         Returns: boolean
       }
+      verify_invitation_token: {
+        Args: { _token: string }
+        Returns: {
+          accepted_at: string
+          email: string
+          expires_at: string
+          id: string
+          organization_id: string
+          organization_name: string
+          role: string
+        }[]
+      }
       verify_website: {
         Args: {
           _ip_address?: string

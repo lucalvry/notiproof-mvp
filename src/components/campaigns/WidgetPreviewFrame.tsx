@@ -481,6 +481,28 @@ export function WidgetPreviewFrame({
             
             const integrationSettings = settings.integration_settings || {};
             
+            // Check if this is a Visitors Pulse (live_visitors) campaign
+            const isLiveVisitorsCampaign = campaignType === 'live-visitor' || 
+              (settings.data_sources && settings.data_sources.some(ds => ds.provider === 'live_visitors'));
+            const hasVisitorConfig = !!(integrationSettings.message_template && integrationSettings.destination_pages);
+            
+            if (isLiveVisitorsCampaign || hasVisitorConfig) {
+              const icon = integrationSettings.icon || '👥';
+              let msg = integrationSettings.message_template || '{{count}} people are viewing {{page_name}}';
+              const destPages = (integrationSettings.destination_pages || []).filter(p => p.enabled !== false);
+              const samplePage = destPages.length > 0 ? destPages[0] : { name: 'this page', url: '#' };
+              const sampleCount = String(Math.floor(((integrationSettings.min_count || 5) + (integrationSettings.max_count || 50)) / 2));
+              
+              msg = msg.replace(/\{\{count\}\}/g, sampleCount);
+              msg = msg.replace(/\{\{page_name\}\}/g, samplePage.name || 'this page');
+              msg = msg.replace(/\{\{page_url\}\}/g, samplePage.url || '#');
+              
+              const linkHtml = samplePage.url && samplePage.url !== '#' 
+                ? '<div class="notification-subtext" style="color: #2563EB; text-decoration: underline; cursor: pointer;">' + escapeHtml(samplePage.name || samplePage.url) + '</div>' 
+                : '<div class="notification-subtext">Just now</div>';
+              return '<div class="notification-content"><div class="notification-headline">' + escapeHtml(msg) + '</div>' + linkHtml + '</div>';
+            }
+            
             // Check if this is a form capture campaign
             const isFormCapture = !!(integrationSettings.message_template && integrationSettings.form_type);
             if (isFormCapture) {

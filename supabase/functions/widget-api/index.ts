@@ -367,13 +367,16 @@ Deno.serve(async (req) => {
               .eq('id', liveVisitorSource.integration_id)
               .maybeSingle();
             
-            // Merge credentials into native_config
+            // SECURITY: Only extract display-safe fields from credentials
+            // Never spread raw credentials - they may contain API keys, OAuth tokens, secrets
+            const safeCredentials = integration?.credentials as Record<string, unknown> | null;
             enrichedCampaigns.push({
               ...campaign,
               native_config: {
                 ...campaign.native_config,
-                ...integration?.credentials,
-                mode: integration?.credentials?.mode || 'simulated',
+                mode: (safeCredentials?.mode as string) || 'simulated',
+                threshold: safeCredentials?.threshold,
+                message: safeCredentials?.message,
               }
             });
             

@@ -25,23 +25,22 @@ export function VisitorsPulseCampaignEditor({
 }: VisitorsPulseCampaignEditorProps) {
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState({
-    mode: 'real' as 'real' | 'simulated',
+    mode: 'simulated' as 'real' | 'simulated',
     scope: 'site' as 'site' | 'page',
     min_count: 5,
     max_count: 50,
     variance_percent: 30,
-    update_interval_seconds: 30,
+    update_interval_seconds: 10,
     target_pages: [] as string[],
     template_style: 'social_proof',
-    message_template: '{{count}} people are viewing this page',
+    message_template: 'Someone from {{country}} just viewed {{page_name}}',
     icon: '👥',
     show_location: true,
-    // New enhanced fields
     urgency_level: 'social_proof' as 'informational' | 'social_proof' | 'fomo' | 'scarcity',
     page_rules: [] as any[],
     excluded_pages: [] as string[],
     content_alignment: 'top' as 'top' | 'center' | 'bottom',
-    // Styling options
+    destination_pages: [] as any[],
     backgroundColor: '#ffffff',
     textColor: '#1a1a1a',
     linkColor: '#667eea',
@@ -52,30 +51,29 @@ export function VisitorsPulseCampaignEditor({
     borderColor: '#e5e7eb',
     shadow: 'md' as 'none' | 'sm' | 'md' | 'lg' | 'xl',
     show_verification_badge: true,
-    verification_text: 'Real-time data',
+    verification_text: 'Verified by ActiveProof',
   });
 
   // Initialize config from integrationSettings when dialog opens
   useEffect(() => {
     if (open && integrationSettings) {
       setConfig({
-        mode: integrationSettings.mode || 'real',
+        mode: integrationSettings.mode || 'simulated',
         scope: integrationSettings.scope || 'site',
         min_count: integrationSettings.min_count ?? 5,
         max_count: integrationSettings.max_count ?? 50,
         variance_percent: integrationSettings.variance_percent ?? 30,
-        update_interval_seconds: integrationSettings.update_interval_seconds ?? 30,
+        update_interval_seconds: integrationSettings.update_interval_seconds ?? 10,
         target_pages: integrationSettings.target_pages || [],
         template_style: integrationSettings.template_style || 'social_proof',
-        message_template: integrationSettings.message_template || '{{count}} people are viewing this page',
+        message_template: integrationSettings.message_template || 'Someone from {{country}} just viewed {{page_name}}',
         icon: integrationSettings.icon || '👥',
         show_location: integrationSettings.show_location ?? true,
-        // New enhanced fields
         urgency_level: integrationSettings.urgency_level || 'social_proof',
         page_rules: integrationSettings.page_rules || [],
         excluded_pages: integrationSettings.excluded_pages || [],
         content_alignment: integrationSettings.content_alignment || 'top',
-        // Styling options
+        destination_pages: integrationSettings.destination_pages || [],
         backgroundColor: integrationSettings.backgroundColor || '#ffffff',
         textColor: integrationSettings.textColor || '#1a1a1a',
         linkColor: integrationSettings.linkColor || '#667eea',
@@ -86,7 +84,7 @@ export function VisitorsPulseCampaignEditor({
         borderColor: integrationSettings.borderColor || '#e5e7eb',
         shadow: integrationSettings.shadow || 'md',
         show_verification_badge: integrationSettings.show_verification_badge ?? true,
-        verification_text: integrationSettings.verification_text || 'Real-time data',
+        verification_text: integrationSettings.verification_text || 'Verified by ActiveProof',
       });
     }
   }, [open, integrationSettings]);
@@ -134,7 +132,7 @@ export function VisitorsPulseCampaignEditor({
           .eq("id", widget.id);
       }
 
-      toast.success("Visitors Pulse notification updated successfully");
+      toast.success("Active Visitors notification updated successfully");
       onSave();
       onClose();
     } catch (error) {
@@ -149,7 +147,7 @@ export function VisitorsPulseCampaignEditor({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Visitors Pulse Notification</DialogTitle>
+          <DialogTitle>Edit Active Visitors Notification</DialogTitle>
           <CardDescription>
             Configure how visitor counts are displayed on your site
           </CardDescription>

@@ -707,6 +707,24 @@ export default function CampaignDetails() {
                               time: "Just now",
                             };
                           }
+                          // Visitors Pulse campaigns - show visitor count preview
+                          if (isVisitorsPulseCampaign) {
+                            const config = (campaign as any).native_config || (campaign as any).integration_settings || {};
+                            const visitorCount = Math.floor(
+                              Math.random() * ((config.max_count || 50) - (config.min_count || 5) + 1)
+                            ) + (config.min_count || 5);
+                            const messageTemplate = config.message_template || '{{count}} people are viewing this page';
+                            const message = messageTemplate
+                              .replace('{{count}}', String(visitorCount))
+                              .replace('{{country}}', 'United States')
+                              .replace('{{page_name}}', 'this page');
+                            return {
+                              userName: config.icon || '👥',
+                              message: message,
+                              time: 'Just now',
+                              isVisitorsPulse: true,
+                            };
+                          }
                           // Default fallback for other campaign types
                           if (sampleEvent) {
                             return {

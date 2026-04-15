@@ -57,6 +57,21 @@ export const useWebsites = (userId: string | undefined) => {
             totalViews = events?.reduce((sum, e) => sum + (e.views || 0), 0) || 0;
           }
 
+          // Also include views from campaign_stats (e.g. Visitors Pulse)
+          const { data: campaigns } = await supabase
+            .from('campaigns')
+            .select('id')
+            .eq('website_id', website.id);
+
+          if (campaigns && campaigns.length > 0) {
+            const campaignIds = campaigns.map(c => c.id);
+            const { data: campaignStats } = await supabase
+              .from('campaign_stats')
+              .select('views')
+              .in('campaign_id', campaignIds);
+            totalViews += campaignStats?.reduce((sum, s) => sum + (s.views || 0), 0) || 0;
+          }
+
           return {
             ...website,
             widgetCount: widgetCount || 0,

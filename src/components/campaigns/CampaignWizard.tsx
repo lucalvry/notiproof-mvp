@@ -14,6 +14,7 @@ import { FormCaptureTemplateStep } from './steps/FormCaptureTemplateStep';
 import { RulesTargeting } from './RulesTargeting';
 import { ReviewActivate } from './ReviewActivate';
 import { AnnouncementConfig } from './native/AnnouncementConfig';
+import { LiveVisitorConfig } from './native/LiveVisitorConfig';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { adapterRegistry } from '@/lib/integrations/AdapterRegistry';
@@ -101,6 +102,37 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
     messageTemplate: '',
     avatar: '✅',
     fieldMappings: {} as Record<string, string>,
+  });
+
+  // Visitors Pulse Config (for live_visitors / visitors_pulse integration)
+  const [visitorsPulseConfig, setVisitorsPulseConfig] = useState({
+    mode: 'simulated' as 'real' | 'simulated',
+    scope: 'site' as 'site' | 'page',
+    min_count: 5,
+    max_count: 50,
+    variance_percent: 30,
+    update_interval_seconds: 10,
+    target_pages: [] as string[],
+    template_style: 'social_proof',
+    message_template: 'Someone from {{country}} just viewed {{page_name}}',
+    icon: '👥',
+    show_location: true,
+    urgency_level: 'social_proof' as 'informational' | 'social_proof' | 'fomo' | 'scarcity',
+    page_rules: [] as any[],
+    excluded_pages: [] as string[],
+    content_alignment: 'top' as 'top' | 'center' | 'bottom',
+    destination_pages: [] as any[],
+    backgroundColor: '#ffffff',
+    textColor: '#1a1a1a',
+    linkColor: '#667eea',
+    fontSize: 14,
+    fontFamily: 'system-ui',
+    borderRadius: 12,
+    borderWidth: 0,
+    borderColor: '#e5e7eb',
+    shadow: 'md' as 'none' | 'sm' | 'md' | 'lg' | 'xl',
+    show_verification_badge: true,
+    verification_text: 'Verified by ActiveProof',
   });
   
   // Step 4: Orchestration
@@ -197,6 +229,12 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
     return selected.some(i => i.provider === 'form_hook');
   };
 
+  // Helper to check if live_visitors / visitors_pulse integration is selected
+  const hasLiveVisitors = () => {
+    const selected = integrations.filter(i => selectedIntegrationIds.includes(i.id));
+    return selected.some(i => i.provider === 'visitors_pulse' || i.provider === 'live_visitors');
+  };
+
   // Helper to intelligently detect campaign type based on selected integration
   const getCampaignType = () => {
     const selected = integrations.filter(i => selectedIntegrationIds.includes(i.id));
@@ -254,9 +292,20 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
     }
   };
 
+  // Steps that are skipped for Visitors Pulse
+  const getSkippedSteps = (): number[] => {
+    if (hasLiveVisitors()) return [3, 5, 6]; // template, design, orchestration
+    return [];
+  };
+
   const handleBack = () => {
     if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
+      const skipped = getSkippedSteps();
+      let prev = currentStep - 1;
+      while (prev > 0 && skipped.includes(prev)) {
+        prev--;
+      }
+      setCurrentStep(prev);
     }
   };
 
@@ -293,6 +342,35 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
       messageTemplate: '',
       avatar: '✅',
       fieldMappings: {},
+    });
+    setVisitorsPulseConfig({
+      mode: 'simulated',
+      scope: 'site',
+      min_count: 5,
+      max_count: 50,
+      variance_percent: 30,
+      update_interval_seconds: 10,
+      target_pages: [],
+      template_style: 'social_proof',
+      message_template: 'Someone from {{country}} just viewed {{page_name}}',
+      icon: '👥',
+      show_location: true,
+      urgency_level: 'social_proof',
+      page_rules: [],
+      excluded_pages: [],
+      content_alignment: 'top',
+      destination_pages: [],
+      backgroundColor: '#ffffff',
+      textColor: '#1a1a1a',
+      linkColor: '#667eea',
+      fontSize: 14,
+      fontFamily: 'system-ui',
+      borderRadius: 12,
+      borderWidth: 0,
+      borderColor: '#e5e7eb',
+      shadow: 'md',
+      show_verification_badge: true,
+      verification_text: 'Verified by ActiveProof',
     });
     setPriority(50);
     setFrequencyCap({ per_user: 3, per_session: 1, cooldown_seconds: 600 });
@@ -396,6 +474,8 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
         // Connection step - skip if not needed or already complete
         return !needsConnection || connectionComplete;
       case 3:
+        // Visitors Pulse skips template selection entirely
+        if (hasLiveVisitors()) return true;
         // For form_hook, we use FormCaptureTemplateStep instead
         if (hasFormHook()) {
           if (formCaptureConfig.sourceMode === 'all') {
@@ -416,6 +496,10 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
           return true;
         }
         
+        // For Visitors Pulse, always allow proceed
+        if (hasLiveVisitors()) {
+          return true;
+        }
         // For announcements, check if title and message are filled
         if (hasOnlyAnnouncements()) {
           return announcementConfig.title.length > 0 && 
@@ -443,8 +527,10 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
           field => field in fieldMapping && fieldMapping[field]
         );
       case 5:
+        if (hasLiveVisitors()) return true; // Skip design for Visitors Pulse
         return true; // Design step always allows proceed
       case 6:
+        if (hasLiveVisitors()) return true; // Skip orchestration for Visitors Pulse
         return true; // Orchestration always allows proceed
       case 7:
         return true; // Rules always allows proceed
@@ -509,6 +595,15 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
         );
       
       case 3:
+        // Visitors Pulse skips template selection — auto-advance
+        if (hasLiveVisitors()) {
+          setTimeout(() => handleNext(), 0);
+          return (
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground">Visitors Pulse uses built-in templates, proceeding...</p>
+            </div>
+          );
+        }
         // For form_hook integrations, show FormCaptureTemplateStep
         if (hasFormHook()) {
           return (
@@ -551,6 +646,16 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
           );
         }
         
+        // For Visitors Pulse, show LiveVisitorConfig
+        if (hasLiveVisitors()) {
+          return (
+            <LiveVisitorConfig
+              config={visitorsPulseConfig}
+              onChange={setVisitorsPulseConfig}
+            />
+          );
+        }
+        
         if (!selectedTemplate) return null;
         
         // Check if all integrations are announcements
@@ -584,6 +689,15 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
         );
       
       case 5:
+        // Visitors Pulse already has full styling in LiveVisitorConfig — skip design
+        if (hasLiveVisitors()) {
+          setTimeout(() => handleNext(), 0);
+          return (
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground">Design configured in previous step, proceeding...</p>
+            </div>
+          );
+        }
         return (
           <DesignStep
             selectedIntegrationIds={selectedIntegrationIds}
@@ -596,6 +710,15 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
         );
       
       case 6:
+        // Visitors Pulse handles update frequency in its own config — skip orchestration
+        if (hasLiveVisitors()) {
+          setTimeout(() => handleNext(), 0);
+          return (
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground">Orchestration configured in Visitors Pulse settings, proceeding...</p>
+            </div>
+          );
+        }
         return (
           <OrchestrationStep
             priority={priority}
@@ -649,13 +772,15 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
                       avatar: formCaptureConfig.avatar,
                       field_mappings: formCaptureConfig.fieldMappings,
                     }
-                  : integrations.some(i => i.provider === 'testimonials')
-                    ? { 
-                        display_mode: displayMode,
-                        testimonial_ids: displayMode === 'specific' ? selectedTestimonialIds : null,
-                        testimonial_filters: displayMode === 'filtered' ? testimonialFilters : null
-                      }
-                    : {},
+                  : hasLiveVisitors()
+                    ? visitorsPulseConfig
+                    : integrations.some(i => i.provider === 'testimonials')
+                      ? { 
+                          display_mode: displayMode,
+                          testimonial_ids: displayMode === 'specific' ? selectedTestimonialIds : null,
+                          testimonial_filters: displayMode === 'filtered' ? testimonialFilters : null
+                        }
+                      : {},
               integration_settings: hasOnlyAnnouncements()
                 ? announcementConfig
                 : hasFormHook()
@@ -668,13 +793,15 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
                       avatar: formCaptureConfig.avatar,
                       field_mappings: formCaptureConfig.fieldMappings,
                     }
-                  : integrations.some(i => i.provider === 'testimonials')
-                    ? { 
-                        display_mode: displayMode,
-                        testimonial_ids: displayMode === 'specific' ? selectedTestimonialIds : null,
-                        testimonial_filters: displayMode === 'filtered' ? testimonialFilters : null
-                      }
-                    : {},
+                  : hasLiveVisitors()
+                    ? visitorsPulseConfig
+                    : integrations.some(i => i.provider === 'testimonials')
+                      ? { 
+                          display_mode: displayMode,
+                          testimonial_ids: displayMode === 'specific' ? selectedTestimonialIds : null,
+                          testimonial_filters: displayMode === 'filtered' ? testimonialFilters : null
+                        }
+                      : {},
             }}
             selectedTemplate={selectedTemplate}
             onComplete={() => {
@@ -689,7 +816,10 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
     }
   };
 
-  const progress = ((currentStep + 1) / WIZARD_STEPS.length) * 100;
+  const skippedSteps = getSkippedSteps();
+  const effectiveSteps = WIZARD_STEPS.filter((_, i) => !skippedSteps.includes(i));
+  const effectiveCurrentIndex = WIZARD_STEPS.slice(0, currentStep + 1).filter((_, i) => !skippedSteps.includes(i)).length;
+  const progress = (effectiveCurrentIndex / effectiveSteps.length) * 100;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -703,7 +833,7 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
         <DialogHeader>
           <DialogTitle>Create Notification</DialogTitle>
           <DialogDescription>
-            Step {currentStep + 1} of {WIZARD_STEPS.length}: {WIZARD_STEPS[currentStep]}
+            Step {effectiveCurrentIndex} of {effectiveSteps.length}: {WIZARD_STEPS[currentStep]}
           </DialogDescription>
         </DialogHeader>
 

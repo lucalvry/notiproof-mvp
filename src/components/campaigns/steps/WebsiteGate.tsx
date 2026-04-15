@@ -38,6 +38,8 @@ export function WebsiteGate({ selectedWebsiteId, onWebsiteSelect }: WebsiteGateP
         .from('websites')
         .select('id, name, domain, is_verified')
         .eq('user_id', user.id)
+        .eq('status', 'active')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

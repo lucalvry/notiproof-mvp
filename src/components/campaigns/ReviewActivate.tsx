@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,109 @@ import { supabase } from "@/integrations/supabase/client";
 import { WidgetInstallationSuccess } from "./WidgetInstallationSuccess";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
+import { cn } from "@/lib/utils";
+import { 
+  URGENCY_LEVELS, 
+  SIMULATED_COUNTRIES, 
+  TIME_AGO_OPTIONS,
+} from "@/lib/visitorsPulsePresets";
+
+const SHADOW_VALUES: Record<string, string> = {
+  none: 'none',
+  sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+  md: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+  lg: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+  xl: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+};
+
+function VisitorsPulseReviewPreview({ config }: { config: any }) {
+  const c = {
+    message_template: config.message_template || 'Someone from {{country}} just viewed {{page_name}}',
+    icon: config.icon || '👥',
+    urgency_level: config.urgency_level || 'social_proof',
+    destination_pages: config.destination_pages || [],
+    backgroundColor: config.backgroundColor || '#ffffff',
+    textColor: config.textColor || '#1a1a1a',
+    linkColor: config.linkColor || '#667eea',
+    fontSize: config.fontSize ?? 14,
+    fontFamily: config.fontFamily || 'system-ui',
+    borderRadius: config.borderRadius ?? 12,
+    borderWidth: config.borderWidth ?? 0,
+    borderColor: config.borderColor || '#e5e7eb',
+    shadow: config.shadow || 'md',
+    show_verification_badge: config.show_verification_badge ?? true,
+    verification_text: config.verification_text || 'Verified by ActiveProof',
+    content_alignment: config.content_alignment || 'top',
+    min_count: config.min_count ?? 5,
+    max_count: config.max_count ?? 50,
+  };
+
+  const previewCountry = useMemo(() => SIMULATED_COUNTRIES[Math.floor(Math.random() * SIMULATED_COUNTRIES.length)], []);
+  const previewTimeAgo = useMemo(() => TIME_AGO_OPTIONS[Math.floor(Math.random() * TIME_AGO_OPTIONS.length)], []);
+  const previewCount = useMemo(() => Math.floor(Math.random() * (c.max_count - c.min_count) + c.min_count), [c.min_count, c.max_count]);
+  
+  const urgency = URGENCY_LEVELS.find(u => u.id === c.urgency_level) || URGENCY_LEVELS[1];
+
+  const destPage = c.destination_pages.find((p: any) => p.enabled);
+  const pageName = destPage?.name || 'Pricing Plans';
+  const pageUrl = destPage?.url || '/pricing';
+  const template = destPage?.message_override || c.message_template;
+  const renderedMessage = template
+    .replace(/\{\{country\}\}/g, previewCountry)
+    .replace(/\{\{count\}\}/g, previewCount.toString())
+    .replace(/\{\{time_ago\}\}/g, previewTimeAgo)
+    .replace(
+      /\{\{page_name\}\}/g,
+      `<a href="${pageUrl}" style="color: ${c.linkColor}; text-decoration: underline; font-weight: 600;">${pageName}</a>`
+    );
+
+  return (
+    <div className="bg-muted/30 rounded-lg p-6 flex items-center justify-center">
+      <div
+        className={cn("p-4 transition-all max-w-sm w-full", urgency.animation === 'pulse' && "animate-pulse")}
+        style={{
+          backgroundColor: c.backgroundColor,
+          borderRadius: `${c.borderRadius}px`,
+          border: `${c.borderWidth}px solid ${c.borderColor}`,
+          boxShadow: SHADOW_VALUES[c.shadow] || 'none',
+          fontFamily: c.fontFamily,
+          fontSize: `${c.fontSize}px`,
+          color: c.textColor,
+        }}
+      >
+        <div className={cn(
+          "flex gap-4",
+          c.content_alignment === 'top' && "items-start",
+          c.content_alignment === 'center' && "items-center",
+          c.content_alignment === 'bottom' && "items-end"
+        )}>
+          <div className={cn(
+            "flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-2xl",
+            `bg-gradient-to-br ${urgency.colorClass}`
+          )}>
+            <span>{c.icon}</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div
+              className="font-semibold"
+              style={{ color: c.textColor, fontSize: `${c.fontSize}px` }}
+              dangerouslySetInnerHTML={{ __html: renderedMessage }}
+            />
+            <div className="mt-0.5 opacity-60" style={{ fontSize: `${Math.max(c.fontSize - 2, 11)}px` }}>
+              {previewTimeAgo}
+            </div>
+            {c.show_verification_badge && (
+              <div className="flex items-center gap-1 mt-1.5" style={{ fontSize: `${Math.max(c.fontSize - 3, 10)}px`, color: '#16a34a' }}>
+                <span>✓</span>
+                <span>{c.verification_text}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface ReviewActivateProps {
   campaignData: any;
@@ -29,6 +132,7 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
   const [createdWidget, setCreatedWidget] = useState<{ id: string; campaignId: string } | null>(null);
   const [previewTestimonial, setPreviewTestimonial] = useState<any>(null);
   const [templateFromDb, setTemplateFromDb] = useState<any>(null);
+  const [siteToken, setSiteToken] = useState<string>("");
 
   // Fetch preview testimonial and template for live preview
   useEffect(() => {
@@ -302,12 +406,16 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
         websiteId = websites[0].id;
       }
 
-      // Get business type for demo events
+      // Get business type and verification token for demo events and installation code
       const { data: website } = await supabase
         .from("websites")
-        .select("business_type")
+        .select("business_type, verification_token")
         .eq("id", websiteId)
         .single();
+
+      if (website?.verification_token) {
+        setSiteToken(website.verification_token);
+      }
 
       // Create campaign with start/end dates
       // STEP 5: Log what we're about to save to the database
@@ -636,6 +744,7 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
         widgetId={createdWidget?.id || ""}
         campaignName={campaignName}
         campaignId={createdWidget?.campaignId || ""}
+        siteToken={siteToken}
       />
     <div className="space-y-6">
       <Card>
@@ -758,42 +867,54 @@ export function ReviewActivate({ campaignData, onComplete, selectedTemplate }: R
           <CardDescription>Exactly how your notification will appear on your website</CardDescription>
         </CardHeader>
         <CardContent>
-          <WidgetPreviewFrame
-            settings={{
-              ...campaignData.display_rules,
-              integration_settings: campaignData.integration_settings || campaignData.native_config,
-              headline: campaignData.integration_settings?.title || campaignData.native_config?.title,
-              subtext: campaignData.integration_settings?.message || campaignData.native_config?.message,
-              icon: campaignData.integration_settings?.icon || campaignData.integration_settings?.emoji || 
-                    campaignData.native_config?.icon || campaignData.native_config?.emoji,
-              cta_text: campaignData.integration_settings?.cta_text || campaignData.native_config?.cta_text,
-              cta_url: campaignData.integration_settings?.cta_url || campaignData.native_config?.cta_url,
-              testimonialData: previewTestimonial ? {
-                author_name: previewTestimonial.author_name,
-                author_avatar: previewTestimonial.author_avatar_url,
-                author_position: previewTestimonial.metadata?.position || previewTestimonial.author_position,
-                author_company: previewTestimonial.metadata?.company || previewTestimonial.author_company,
-                rating: previewTestimonial.rating,
-                rating_stars: '★'.repeat(previewTestimonial.rating) + '☆'.repeat(5 - previewTestimonial.rating),
-                message: previewTestimonial.message,
-                verified: previewTestimonial.metadata?.verified_purchase,
-                image_url: previewTestimonial.image_url,
-                video_url: previewTestimonial.video_url,
-              } : null,
-            }}
-            messageTemplate={
-              campaignData.integration_settings?.title || 
-              campaignData.native_config?.title || 
-              campaignData.integration_settings?.message || 
-              campaignData.native_config?.message || 
-              "Your notification preview"
+          {(() => {
+            const primaryProvider = Array.isArray(campaignData.data_sources) && campaignData.data_sources.length > 0
+              ? (campaignData.data_sources[0] as any).provider
+              : 'manual';
+            
+            if (primaryProvider === 'live_visitors') {
+              return <VisitorsPulseReviewPreview config={campaignData.integration_settings || campaignData.native_config || {}} />;
             }
-            campaignType={campaignData.type}
-            websiteDomain={campaignData.website_id || "your-site.com"}
-            position={campaignData.display_rules?.position || "bottom-left"}
-            animation={campaignData.display_rules?.animation || "slide"}
-            selectedTemplate={templateFromDb || selectedTemplate}
-          />
+            
+            return (
+              <WidgetPreviewFrame
+                settings={{
+                  ...campaignData.display_rules,
+                  integration_settings: campaignData.integration_settings || campaignData.native_config,
+                  headline: campaignData.integration_settings?.title || campaignData.native_config?.title,
+                  subtext: campaignData.integration_settings?.message || campaignData.native_config?.message,
+                  icon: campaignData.integration_settings?.icon || campaignData.integration_settings?.emoji || 
+                        campaignData.native_config?.icon || campaignData.native_config?.emoji,
+                  cta_text: campaignData.integration_settings?.cta_text || campaignData.native_config?.cta_text,
+                  cta_url: campaignData.integration_settings?.cta_url || campaignData.native_config?.cta_url,
+                  testimonialData: previewTestimonial ? {
+                    author_name: previewTestimonial.author_name,
+                    author_avatar: previewTestimonial.author_avatar_url,
+                    author_position: previewTestimonial.metadata?.position || previewTestimonial.author_position,
+                    author_company: previewTestimonial.metadata?.company || previewTestimonial.author_company,
+                    rating: previewTestimonial.rating,
+                    rating_stars: '★'.repeat(previewTestimonial.rating) + '☆'.repeat(5 - previewTestimonial.rating),
+                    message: previewTestimonial.message,
+                    verified: previewTestimonial.metadata?.verified_purchase,
+                    image_url: previewTestimonial.image_url,
+                    video_url: previewTestimonial.video_url,
+                  } : null,
+                }}
+                messageTemplate={
+                  campaignData.integration_settings?.title || 
+                  campaignData.native_config?.title || 
+                  campaignData.integration_settings?.message || 
+                  campaignData.native_config?.message || 
+                  "Your notification preview"
+                }
+                campaignType={campaignData.type}
+                websiteDomain={campaignData.website_id || "your-site.com"}
+                position={campaignData.display_rules?.position || "bottom-left"}
+                animation={campaignData.display_rules?.animation || "slide"}
+                selectedTemplate={templateFromDb || selectedTemplate}
+              />
+            );
+          })()}
         </CardContent>
       </Card>
 

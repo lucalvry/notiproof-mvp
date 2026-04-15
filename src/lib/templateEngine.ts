@@ -155,8 +155,20 @@ export function renderTemplatePreview(
   try {
     console.log('[TemplateEngine] 🎨 Rendering preview for template:', template.template_key);
     
+    // Normalize flat keys: auto-prefix with "template." if not already prefixed
+    // This handles legacy preview_json that uses flat keys like "count" instead of "template.visitor_count"
+    const normalizedPreviewJson: Record<string, any> = { ...template.preview_json };
+    for (const [key, value] of Object.entries(normalizedPreviewJson)) {
+      if (!key.includes('.') && typeof value !== 'object') {
+        const mappedKey = key === 'count' ? 'template.visitor_count' : `template.${key}`;
+        if (!(mappedKey in normalizedPreviewJson)) {
+          normalizedPreviewJson[mappedKey] = value;
+        }
+      }
+    }
+    
     // Convert flat keys to nested structure for Mustache
-    const nestedData = flatToNested(template.preview_json);
+    const nestedData = flatToNested(normalizedPreviewJson);
     
     // Render using Mustache
     let rendered = Mustache.render(template.html_template, nestedData);

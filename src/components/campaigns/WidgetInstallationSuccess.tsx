@@ -17,6 +17,7 @@ interface WidgetInstallationSuccessProps {
   widgetId: string;
   campaignName: string;
   campaignId: string;
+  siteToken?: string;
 }
 
 export function WidgetInstallationSuccess({
@@ -25,13 +26,15 @@ export function WidgetInstallationSuccess({
   widgetId,
   campaignName,
   campaignId,
+  siteToken,
 }: WidgetInstallationSuccessProps) {
-  const unifiedCode = `<script src="${WIDGET_SCRIPT_URL}" data-site-token="YOUR-SITE-TOKEN" data-show-active-visitors="true"></script>`;
+  const actualToken = siteToken || "YOUR-SITE-TOKEN";
+  const unifiedCode = `<script src="${WIDGET_SCRIPT_URL}" data-site-token="${actualToken}" data-show-active-visitors="true"></script>`;
   const legacyCode = `<script src="${WIDGET_SCRIPT_URL}" data-widget-id="${widgetId}" data-show-active-visitors="true"></script>`;
 
   const handleCopyUnifiedCode = () => {
     navigator.clipboard.writeText(unifiedCode);
-    toast.success("Unified script copied! Replace YOUR-SITE-TOKEN with your actual site token.");
+    toast.success(siteToken ? "Unified script copied to clipboard!" : "Unified script copied! Replace YOUR-SITE-TOKEN with your actual site token.");
   };
 
   const handleCopyLegacyCode = () => {

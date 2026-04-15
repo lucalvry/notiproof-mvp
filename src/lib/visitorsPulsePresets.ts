@@ -43,43 +43,67 @@ export const URGENCY_LEVELS: UrgencyConfig[] = [
   },
 ];
 
-// Message presets organized by urgency level - with time context for better UX
+// Destination page preset for quick-add
+export interface DestinationPagePreset {
+  name: string;
+  url: string;
+  icon: string;
+}
+
+export const DESTINATION_PAGE_PRESETS: DestinationPagePreset[] = [
+  { name: 'Pricing Plans', url: '/pricing', icon: '💰' },
+  { name: 'Products', url: '/products', icon: '🛍️' },
+  { name: 'Sign Up', url: '/signup', icon: '✍️' },
+  { name: 'Blog', url: '/blog', icon: '📝' },
+  { name: 'Features', url: '/features', icon: '⭐' },
+  { name: 'Demo', url: '/demo', icon: '🎥' },
+  { name: 'Checkout', url: '/checkout', icon: '🛒' },
+  { name: 'Free Trial', url: '/trial', icon: '🎁' },
+];
+
+// Destination page config stored per campaign
+export interface DestinationPage {
+  id: string;
+  name: string;
+  url: string;
+  message_override?: string;
+  enabled: boolean;
+}
+
+// Conversion-focused message templates using {{country}}, {{page_name}}, {{time_ago}}, {{count}}
 export const MESSAGE_PRESETS: Record<UrgencyLevel, string[]> = {
   informational: [
-    '{{count}} visitors in the last hour',
-    '{{count}} people viewing this page now',
-    '{{count}} active readers right now',
+    'Someone from {{country}} viewed {{page_name}} {{time_ago}}',
+    '{{count}} visitors checked out {{page_name}} recently',
+    'A visitor from {{country}} browsed {{page_name}}',
   ],
   social_proof: [
-    '{{count}} people viewed this in the last hour',
-    '{{count}} visitors are here right now',
-    '{{count}} others exploring this page',
-    'Join {{count}} people browsing now',
+    'Someone from {{country}} just viewed {{page_name}}',
+    '{{count}} people viewed {{page_name}} in the last hour',
+    'A visitor from {{country}} is viewing {{page_name}} right now',
+    'Join {{count}} others who checked out {{page_name}}',
   ],
   fomo: [
-    '{{count}} people just viewed this!',
-    '{{count}} visitors in the last 30 mins',
-    'Trending: {{count}} viewing now!',
-    '⏰ {{count}} others looking right now',
-    'Popular! {{count}} people interested',
+    '🔥 Someone from {{country}} just viewed {{page_name}}!',
+    '{{count}} people checked out {{page_name}} in the last 30 mins',
+    'Trending: {{page_name}} — {{count}} visitors right now!',
+    'Don\'t miss out — {{count}} people viewing {{page_name}}',
   ],
   scarcity: [
-    '🔥 {{count}} people checking this out!',
-    '{{count}} active shoppers right now',
-    'Hot! {{count}} viewing this moment',
-    '⚡ {{count}} people watching - act fast!',
-    'Hurry! {{count}} interested right now',
+    '🔥 {{count}} people viewing {{page_name}} right now!',
+    'Hot! Someone from {{country}} just viewed {{page_name}}',
+    '⚡ {{page_name}} is trending — {{count}} visitors!',
+    'Hurry! {{count}} people interested in {{page_name}}',
   ],
 };
 
-// Page-specific message presets
+// Page-specific message presets (legacy, kept for backward compat)
 export const PAGE_PRESETS: Record<string, { label: string; messages: string[] }> = {
   pricing: {
     label: 'Pricing Page',
     messages: [
       '{{count}} comparing pricing plans',
       '{{count}} people evaluating options',
-      '{{count}} considering an upgrade',
     ],
   },
   checkout: {
@@ -87,7 +111,6 @@ export const PAGE_PRESETS: Record<string, { label: string; messages: string[] }>
     messages: [
       '{{count}} completing their purchase',
       '{{count}} shoppers checking out now',
-      '{{count}} in checkout - don\'t miss out!',
     ],
   },
   product: {
@@ -95,21 +118,6 @@ export const PAGE_PRESETS: Record<string, { label: string; messages: string[] }>
     messages: [
       '{{count}} looking at this item',
       '{{count}} interested in this product',
-      '{{count}} people have this in their sights',
-    ],
-  },
-  cart: {
-    label: 'Cart',
-    messages: [
-      '{{count}} people have items in cart',
-      '{{count}} ready to complete their order',
-    ],
-  },
-  landing: {
-    label: 'Landing Page',
-    messages: [
-      '{{count}} exploring right now',
-      '{{count}} visitors discovering this',
     ],
   },
 };
@@ -148,36 +156,54 @@ export const ICON_OPTIONS: Record<UrgencyLevel, string[]> = {
   scarcity: ['🔥', '💥', '🚀', '⚠️', '🏃'],
 };
 
+// Curated country pool for simulated mode (weighted by likelihood)
+export const SIMULATED_COUNTRIES = [
+  'United States', 'United States', 'United States', // 3x weight
+  'United Kingdom', 'United Kingdom',
+  'Canada', 'Canada',
+  'Germany', 'Germany',
+  'France',
+  'Australia',
+  'Netherlands',
+  'Brazil',
+  'India',
+  'Japan',
+  'Spain',
+  'Italy',
+  'Sweden',
+  'Mexico',
+  'Singapore',
+  'South Korea',
+];
+
+// Time ago strings with weights (60% just now, 25% 2 min, 15% 5 min)
+export const TIME_AGO_OPTIONS = [
+  'just now', 'just now', 'just now', 'just now', 'just now', 'just now',
+  '2 minutes ago', '2 minutes ago', '2 minutes ago',
+  '5 minutes ago',
+  '3 minutes ago',
+];
+
 // Get suggested icon based on urgency level
 export function getSuggestedIcon(urgency: UrgencyLevel): string {
   return URGENCY_LEVELS.find(u => u.id === urgency)?.icon || '👥';
 }
 
-// Get message suggestions based on urgency and optional page type
+// Get message suggestions based on urgency
 export function getMessageSuggestions(urgency: UrgencyLevel, pageType?: string): string[] {
-  const urgencyMessages = MESSAGE_PRESETS[urgency] || MESSAGE_PRESETS.social_proof;
-  
-  if (pageType && PAGE_PRESETS[pageType]) {
-    return [...PAGE_PRESETS[pageType].messages, ...urgencyMessages];
-  }
-  
-  return urgencyMessages;
+  return MESSAGE_PRESETS[urgency] || MESSAGE_PRESETS.social_proof;
 }
 
 // Detect page type from URL pattern
 export function detectPageType(urlPattern: string): string | null {
   const lowerPattern = urlPattern.toLowerCase();
-  
   if (lowerPattern.includes('pricing') || lowerPattern.includes('plans')) return 'pricing';
   if (lowerPattern.includes('checkout') || lowerPattern.includes('payment')) return 'checkout';
   if (lowerPattern.includes('product') || lowerPattern.includes('item')) return 'product';
-  if (lowerPattern.includes('cart') || lowerPattern.includes('basket')) return 'cart';
-  if (lowerPattern === '/' || lowerPattern.includes('landing')) return 'landing';
-  
   return null;
 }
 
-// Generate a unique ID for page rules
+// Generate a unique ID for page rules / destination pages
 export function generateRuleId(): string {
   return `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
