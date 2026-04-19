@@ -66,6 +66,8 @@ interface OnboardingContextType {
   shouldShowOnboarding: boolean;
   websiteCount: number;
   campaignCount: number;
+  verifiedWidgetCount: number;
+  eventCount: number;
 }
 
 const OnboardingContext = createContext<OnboardingContextType | null>(null);
@@ -117,6 +119,52 @@ export function OnboardingProvider({ children, userId }: { children: React.React
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId);
       
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !!userId,
+  });
+
+  // Fetch verified widget count (widget installed = website verified + active widget)
+  const { data: verifiedWidgetCount = 0 } = useQuery({
+    queryKey: ['verified-widgets-count', userId],
+    queryFn: async () => {
+      if (!userId) return 0;
+      const { data: verifiedSites, error: sitesErr } = await supabase
+        .from('websites')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('is_verified', true);
+      if (sitesErr) throw sitesErr;
+      const ids = (verifiedSites || []).map(w => w.id);
+      if (ids.length === 0) return 0;
+      const { count, error } = await supabase
+        .from('widgets')
+        .select('*', { count: 'exact', head: true })
+        .in('website_id', ids)
+        .eq('status', 'active');
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !!userId,
+  });
+
+  // Fetch event count (first conversion = any event recorded)
+  const { data: eventCount = 0 } = useQuery({
+    queryKey: ['events-count', userId],
+    queryFn: async () => {
+      if (!userId) return 0;
+      const { data: sites, error: sitesErr } = await supabase
+        .from('websites')
+        .select('id')
+        .eq('user_id', userId);
+      if (sitesErr) throw sitesErr;
+      const ids = (sites || []).map(w => w.id);
+      if (ids.length === 0) return 0;
+      const { count, error } = await supabase
+        .from('events')
+        .select('*', { count: 'exact', head: true })
+        .in('website_id', ids);
       if (error) throw error;
       return count || 0;
     },
@@ -215,7 +263,13 @@ export function OnboardingProvider({ children, userId }: { children: React.React
     if (campaignCount > 0 && !progress.campaign_created) {
       updateMilestone('campaign_created', true);
     }
-  }, [userId, websiteCount, campaignCount, progress.website_added, progress.campaign_created, profileLoading, updateMilestone]);
+    if (verifiedWidgetCount > 0 && !progress.widget_installed) {
+      updateMilestone('widget_installed', true);
+    }
+    if (eventCount > 0 && !progress.first_conversion) {
+      updateMilestone('first_conversion', true);
+    }
+  }, [userId, websiteCount, campaignCount, verifiedWidgetCount, eventCount, progress.website_added, progress.campaign_created, progress.widget_installed, progress.first_conversion, profileLoading, updateMilestone]);
 
   // Show onboarding for new users
   useEffect(() => {
@@ -239,6 +293,8 @@ export function OnboardingProvider({ children, userId }: { children: React.React
     shouldShowOnboarding,
     websiteCount,
     campaignCount,
+    verifiedWidgetCount,
+    eventCount,
   };
 
   return (

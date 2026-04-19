@@ -132,7 +132,7 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
     borderColor: '#e5e7eb',
     shadow: 'md' as 'none' | 'sm' | 'md' | 'lg' | 'xl',
     show_verification_badge: true,
-    verification_text: 'Verified by ActiveProof',
+    verification_text: 'NotiProof Verified',
   });
   
   // Step 4: Orchestration
@@ -370,7 +370,7 @@ export function CampaignWizard({ open, onClose, onComplete, websiteId }: Campaig
       borderColor: '#e5e7eb',
       shadow: 'md',
       show_verification_badge: true,
-      verification_text: 'Verified by ActiveProof',
+      verification_text: 'NotiProof Verified',
     });
     setPriority(50);
     setFrequencyCap({ per_user: 3, per_session: 1, cooldown_seconds: 600 });

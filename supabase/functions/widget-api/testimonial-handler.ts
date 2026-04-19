@@ -91,10 +91,16 @@ function normalizeTestimonial(testimonial: any): CanonicalEvent {
       // image_url: check direct field first, then metadata
       'template.image_url': testimonial.image_url || testimonial.metadata?.product_image_url || null,
       'template.video_url': testimonial.video_url || null,
+      'template.video_fallback_url': testimonial.metadata?.video_fallback_url || null,
       // video_thumbnail: for video testimonials, use avatar as thumbnail
       'template.video_thumbnail': testimonial.video_url ? (testimonial.author_avatar_url || testimonial.avatar_url || authorAvatar) : null,
       'template.time_ago': timeAgo,
       'template.verified': !!testimonial.metadata?.verified_purchase,
+      // Conversion CTA — drives Impact Goal attribution
+      'template.cta_enabled': !!testimonial.cta_enabled,
+      'template.cta_text': testimonial.cta_text || null,
+      'template.cta_url': testimonial.cta_url || null,
+      'template.testimonial_id': testimonial.id,
       'meta.source': testimonial.source || 'form',
       'meta.status': testimonial.status || 'pending',
     },

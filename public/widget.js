@@ -1,8 +1,8 @@
 (function() {
   'use strict';
   
-  const WIDGET_VERSION = 17; // v17: Fix duplicate const declarations that broke widget
-  const BUILD_TIMESTAMP = '2025-12-26T12:00:00Z'; // Build timestamp for version tracking
+  const WIDGET_VERSION = 18; // v18: Testimonial CTA + impact-goal attribution
+  const BUILD_TIMESTAMP = '2026-04-18T15:00:00Z'; // Build timestamp for version tracking
   // Version logging moved to debug mode only
   
   const API_BASE = 'https://ewymvxhpkswhsirdrjub.supabase.co/functions/v1/widget-api';
@@ -107,11 +107,13 @@
         
         if (!matches) continue;
         
-        // Check interaction type
-        const validInteraction = 
+        // Check interaction type (treat testimonial CTA clicks as standard clicks for goal matching)
+        const normalizedInteraction = interaction_type === 'testimonial_cta_click' ? 'click' : interaction_type;
+        const validInteraction =
           goal.interaction_type === 'click_or_hover' ||
+          goal.interaction_type === normalizedInteraction ||
           goal.interaction_type === interaction_type;
-        
+
         if (!validInteraction) continue;
         
         // Check conversion window
@@ -337,6 +339,8 @@
   let isPaused = false;
   let notificationEngaged = false; // NEW: Track if user is hovering on a notification
   let activeNotificationTimers = new Map(); // NEW: Track notification timers for pause/resume
+  let nativeCampaignIntervals = {}; // campaignId -> intervalId (for native campaigns like Visitors Pulse)
+  let activeCampaignIds = new Set(); // currently active campaign IDs returned from server
   const sessionId = generateSessionId();
   let maxPerPage = 5;
   let maxPerSession = 20;
@@ -926,7 +930,7 @@
         }
         if (showVisitorVerified) {
           if (hasLocation) contentHTML += `<span style="opacity: 0.5;">•</span>`;
-          contentHTML += `<span style="color: #2563eb; font-weight: 500; opacity: 1;">✓ ${escapeHtml(data.verification_text || 'Verified by ActiveProof')}</span>`;
+          contentHTML += `<span style="color: #2563eb; font-weight: 500; opacity: 1;">✓ NotiProof Verified</span>`;
         }
         contentHTML += '</div>';
       }
@@ -1658,7 +1662,45 @@
     const overlay = modal.querySelector('.notiproof-modal-overlay');
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
     if (overlay) overlay.addEventListener('click', closeModal);
-    
+
+    // Wire conversion CTA click → record interaction for impact attribution
+    const ctaBtn = modal.querySelector('.notiproof-modal-cta');
+    if (ctaBtn) {
+      ctaBtn.addEventListener('click', function(e) {
+        try {
+          const testimonialId = ctaBtn.getAttribute('data-testimonial-id') || event.id;
+          const ctaUrl = ctaBtn.getAttribute('data-cta-url') || ctaBtn.href;
+          // notification_id = testimonial event id (used as the source of conversion)
+          storeInteraction(testimonialId, event.campaign_id || null, 'testimonial_cta_click');
+          log('Testimonial CTA clicked', { testimonialId, ctaUrl });
+
+          // Best-effort beacon to record the click immediately (does not block navigation)
+          try {
+            const beaconBody = JSON.stringify({
+              website_id: currentWebsiteId,
+              notification_id: testimonialId,
+              campaign_id: event.campaign_id || null,
+              visitor_id: typeof sessionId !== 'undefined' ? sessionId : null,
+              interaction_type: 'testimonial_cta_click',
+              destination_url: ctaUrl,
+              page_url: window.location.href,
+              timestamp: new Date().toISOString()
+            });
+            if (navigator.sendBeacon) {
+              const blob = new Blob([beaconBody], { type: 'application/json' });
+              navigator.sendBeacon(`${SUPABASE_URL}/functions/v1/widget-api/track-interaction`, blob);
+            }
+          } catch (beaconErr) {
+            log('Beacon failed (non-fatal):', beaconErr);
+          }
+        } catch (err) {
+          log('CTA tracking failed (non-fatal):', err);
+        }
+        // Close modal after a brief delay so the click is registered before navigation
+        setTimeout(closeModal, 100);
+      });
+    }
+
     // ESC key to close
     const handleEsc = (e) => {
       if (e.key === 'Escape') {
@@ -1667,7 +1709,7 @@
       }
     };
     document.addEventListener('keydown', handleEsc);
-    
+
     log('Testimonial modal opened', { eventId: event.id });
   }
   
@@ -1685,22 +1727,42 @@
     const verified = data['template.verified'] || data.verified || false;
     const imageUrl = data['template.image_url'] || data.image_url;
     const videoUrl = data['template.video_url'] || data.video_url;
-    
+    const videoFallbackUrl = data['template.video_fallback_url'] || data.video_fallback_url || '';
+
+    // Conversion CTA support
+    const ctaEnabled = data['template.cta_enabled'] || data.cta_enabled || false;
+    const ctaText = data['template.cta_text'] || data.cta_text || '';
+    const ctaUrl = data['template.cta_url'] || data.cta_url || '';
+    const testimonialId = data['template.testimonial_id'] || data.testimonial_id || '';
+    const showCta = ctaEnabled && ctaText && ctaUrl;
+
     return `
       <div class="notiproof-testimonial-modal-card">
         ${videoUrl ? `
           <div class="notiproof-modal-media">
-            <video src="${videoUrl}" controls class="notiproof-modal-video" autoplay muted></video>
+            <video
+              controls
+              playsinline
+              preload="metadata"
+              crossorigin="anonymous"
+              class="notiproof-modal-video"
+              data-fallback="${escapeHtml(videoFallbackUrl)}"
+              data-primary="${escapeHtml(videoUrl)}"
+              onerror="(function(v){var fb=v.dataset.fallback;if(fb&&v.src!==fb){v.src=fb;v.load();return;}var primary=v.dataset.primary||'';v.parentElement.innerHTML='&lt;div class=&quot;notiproof-modal-video-error&quot;&gt;Video unavailable.'+(primary?' &lt;a href=&quot;'+primary+'&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;Open in new tab&lt;/a&gt;':'')+'&lt;/div&gt;';})(this)"
+            >
+              <source src="${escapeHtml(videoUrl)}" type="video/webm">
+              ${videoFallbackUrl ? `<source src="${escapeHtml(videoFallbackUrl)}" type="video/webm">` : ''}
+            </video>
           </div>
         ` : imageUrl ? `
           <div class="notiproof-modal-media">
             <img src="${imageUrl}" alt="Testimonial" class="notiproof-modal-image" />
           </div>
         ` : ''}
-        
+
         <div class="notiproof-modal-rating">${rating}</div>
         <p class="notiproof-modal-message">"${message}"</p>
-        
+
         <div class="notiproof-modal-author">
           <img src="${avatar}" alt="${name}" class="notiproof-modal-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=2563EB&color=fff'" />
           <div class="notiproof-modal-author-info">
@@ -1709,7 +1771,18 @@
             ${verified ? '<p class="notiproof-modal-verified">✓ Verified Customer</p>' : ''}
           </div>
         </div>
-        
+
+        ${showCta ? `
+          <a
+            href="${escapeHtml(ctaUrl)}"
+            class="notiproof-modal-cta"
+            data-testimonial-id="${escapeHtml(testimonialId)}"
+            data-cta-url="${escapeHtml(ctaUrl)}"
+            target="_blank"
+            rel="noopener noreferrer"
+          >${escapeHtml(ctaText)}</a>
+        ` : ''}
+
         <p class="notiproof-modal-time">${timeAgo}</p>
       </div>
     `;
@@ -1802,6 +1875,18 @@
         object-fit: cover;
         display: block;
       }
+      .notiproof-modal-video-error {
+        padding: 40px 20px;
+        text-align: center;
+        color: #6b7280;
+        background: #f5f5f5;
+        border-radius: 12px;
+      }
+      .notiproof-modal-video-error a {
+        color: #2563EB;
+        text-decoration: underline;
+        font-weight: 500;
+      }
       .notiproof-modal-rating {
         color: #f59e0b;
         font-size: 24px;
@@ -1855,6 +1940,29 @@
         text-align: center;
         margin: 0;
       }
+      .notiproof-modal-cta {
+        display: inline-block;
+        width: 100%;
+        text-align: center;
+        background: linear-gradient(135deg, #2563EB 0%, #1d4ed8 100%);
+        color: #fff !important;
+        text-decoration: none !important;
+        font-size: 15px;
+        font-weight: 600;
+        padding: 14px 24px;
+        border-radius: 10px;
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+        transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+        cursor: pointer;
+      }
+      .notiproof-modal-cta:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+        opacity: 0.97;
+      }
+      .notiproof-modal-cta:active {
+        transform: translateY(0);
+      }
       
       @media (max-width: 640px) {
         .notiproof-modal {
@@ -1891,7 +1999,24 @@
           throw new Error(`Failed to fetch site data: ${response.status} - ${errorText}`);
         }
         const data = await response.json();
-        eventQueue = data.events || [];
+        const newEvents = data.events || [];
+        
+        // Reconcile active campaign IDs from the fresh server response.
+        // The server already filters out paused campaigns, so anything not present is inactive.
+        const newActiveIds = new Set(newEvents.map(e => e.campaign_id).filter(Boolean));
+        // Preserve native campaign IDs (Visitors Pulse) — those come from the campaigns endpoint
+        Object.keys(nativeCampaignIntervals).forEach(id => newActiveIds.add(id));
+        
+        // Drop any queued events whose campaign is no longer active
+        const beforeLen = eventQueue.length;
+        eventQueue = eventQueue.filter(e => !e.campaign_id || newActiveIds.has(e.campaign_id));
+        const droppedStale = beforeLen - eventQueue.length;
+        
+        // Merge in new events (avoid duplicates by id)
+        const existingIds = new Set(eventQueue.map(e => e.id));
+        newEvents.forEach(e => { if (!existingIds.has(e.id)) eventQueue.push(e); });
+        
+        activeCampaignIds = newActiveIds;
         
         // Debug: Show event breakdown by type
         if (debugMode) {
@@ -1899,7 +2024,7 @@
           eventQueue.forEach(e => {
             eventsByType[e.event_type] = (eventsByType[e.event_type] || 0) + 1;
           });
-          log('Events fetched:', { total: eventQueue.length, by_type: eventsByType });
+          log('Events fetched:', { total: eventQueue.length, by_type: eventsByType, dropped_stale: droppedStale });
         }
         
         // Apply display settings from API
@@ -1970,7 +2095,13 @@
           throw new Error(`Failed to fetch events: ${response.status} - ${errorText}`);
         }
         const data = await response.json();
-        eventQueue = data.events || [];
+        const newEvents = data.events || [];
+        const newActiveIds = new Set(newEvents.map(e => e.campaign_id).filter(Boolean));
+        Object.keys(nativeCampaignIntervals).forEach(id => newActiveIds.add(id));
+        eventQueue = eventQueue.filter(e => !e.campaign_id || newActiveIds.has(e.campaign_id));
+        const existingIds = new Set(eventQueue.map(e => e.id));
+        newEvents.forEach(e => { if (!existingIds.has(e.id)) eventQueue.push(e); });
+        activeCampaignIds = newActiveIds;
         log('Events fetched', { count: eventQueue.length });
       }
     } catch (err) {
@@ -2083,6 +2214,11 @@
     
     // Initial delay before first notification
     setTimeout(() => {
+      // Drop any leading queue items whose campaign has been paused
+      while (eventQueue.length > 0 && eventQueue[0].campaign_id && activeCampaignIds.size > 0 && !activeCampaignIds.has(eventQueue[0].campaign_id)) {
+        const stale = eventQueue.shift();
+        if (debugMode) log('Skipping paused-campaign notification:', stale.campaign_id);
+      }
       if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused && !notificationEngaged) {
         const event = eventQueue.shift();
         if (debugMode) log('Showing notification:', event.event_type, event.id);
@@ -2095,6 +2231,12 @@
         if (notificationEngaged) {
           log('Queue paused - user engaged with notification');
           return;
+        }
+        
+        // Drop any leading queue items whose campaign has been paused
+        while (eventQueue.length > 0 && eventQueue[0].campaign_id && activeCampaignIds.size > 0 && !activeCampaignIds.has(eventQueue[0].campaign_id)) {
+          const stale = eventQueue.shift();
+          if (debugMode) log('Skipping paused-campaign notification:', stale.campaign_id);
         }
         
         if (eventQueue.length > 0 && checkFrequencyLimits() && !isPaused) {
@@ -2302,6 +2444,24 @@
     return SIMULATED_COUNTRIES[Math.floor(Math.random() * SIMULATED_COUNTRIES.length)];
   }
 
+  // Match a path against a pattern with `*` wildcard support
+  function matchesPagePattern(path, pattern) {
+    if (!pattern) return false;
+    var p = String(pattern).trim();
+    if (!p) return false;
+    // Strip protocol/host if user pasted full URL
+    try {
+      if (p.indexOf('http') === 0) {
+        var u = new URL(p);
+        p = u.pathname + (u.search || '');
+      }
+    } catch (e) {}
+    // Escape regex chars except *
+    var escaped = p.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+    var re = new RegExp('^' + escaped + '$');
+    return re.test(path);
+  }
+
   // NATIVE INTEGRATIONS - Active Visitors (Conversion-Focused Social Proof)
   function initActiveVisitors(campaignId, config, template) {
     var mode = config.mode || 'simulated';
@@ -2314,6 +2474,23 @@
     var icon = config.icon || '👥';
     var show_location = config.show_location !== false;
     var destination_pages = config.destination_pages || [];
+    var target_pages = config.target_pages || [];
+    var excluded_pages = config.excluded_pages || [];
+
+    // Page targeting: skip if current page is excluded or not in target list
+    var currentPath = window.location.pathname;
+    var isExcluded = excluded_pages.some(function(p) { return matchesPagePattern(currentPath, p); });
+    if (isExcluded) {
+      log('[Active Visitors] Skipped — current page is excluded:', currentPath);
+      return;
+    }
+    if (target_pages.length > 0) {
+      var isTargeted = target_pages.some(function(p) { return matchesPagePattern(currentPath, p); });
+      if (!isTargeted) {
+        log('[Active Visitors] Skipped — current page not in target list:', currentPath);
+        return;
+      }
+    }
 
     var currentCount = getRandomCount(min_count, max_count);
     var hasCustomTemplate = template && template.html_template;
@@ -2406,7 +2583,7 @@
           has_custom_template: !!hasCustomTemplate,
           custom_html: hasCustomTemplate ? result.html : null,
           show_verification_badge: config.show_verification_badge,
-          verification_text: config.verification_text,
+          verification_text: 'NotiProof Verified',
           content_alignment: config.content_alignment
         }
       };
@@ -2417,8 +2594,8 @@
     eventQueue.unshift(initialNotif);
     log('[Active Visitors] Initial:', currentCount, 'destinations:', destination_pages.length);
 
-    // Update periodically
-    setInterval(function() {
+    // Update periodically — track interval handle so it can be cleared on pause
+    nativeCampaignIntervals[campaignId] = setInterval(function() {
       var variance = Math.floor(currentCount * 0.1);
       currentCount = Math.max(
         min_count,
@@ -2438,11 +2615,14 @@
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
   
-  // NATIVE INTEGRATIONS - Initialize all native campaigns
+  // NATIVE INTEGRATIONS - Initialize all native campaigns (idempotent + reconciling)
   async function initNativeCampaigns(campaigns, websiteId) {
-    if (!campaigns || campaigns.length === 0) return;
+    campaigns = campaigns || [];
     
-    log('[Native] Initializing native campaigns...', campaigns.length);
+    log('[Native] Reconciling native campaigns...', campaigns.length);
+    
+    // Build set of native campaign IDs returned by the server (these are still active)
+    const serverNativeIds = new Set();
     
     for (const campaign of campaigns) {
       const nativeConfig = campaign.native_config || {};
@@ -2452,6 +2632,17 @@
       const dataSources = campaign.data_sources || [];
       const sourceObj = dataSources.find(ds => ds && nativeProviders.includes(ds.provider));
       const provider = sourceObj ? sourceObj.provider : campaign.data_source; // fallback for legacy
+      
+      // Track this as an active native campaign
+      if (['instant_capture', 'live_visitors', 'announcements'].includes(provider)) {
+        serverNativeIds.add(campaign.id);
+        activeCampaignIds.add(campaign.id);
+      }
+      
+      // Skip if already initialized (avoid duplicate intervals on refresh)
+      if (nativeCampaignIntervals[campaign.id]) {
+        continue;
+      }
       
       switch (provider) {
         case 'instant_capture':
@@ -2473,6 +2664,35 @@
           // Not a native integration
           break;
       }
+    }
+    
+    // Reconciliation: clear intervals + queue items for native campaigns no longer returned by server (paused/deleted)
+    Object.keys(nativeCampaignIntervals).forEach(id => {
+      if (!serverNativeIds.has(id)) {
+        clearInterval(nativeCampaignIntervals[id]);
+        delete nativeCampaignIntervals[id];
+        const before = eventQueue.length;
+        eventQueue = eventQueue.filter(e => e.campaign_id !== id);
+        log('[Native] Cleared paused campaign', id, '— removed', before - eventQueue.length, 'queued notifications');
+      }
+    });
+  }
+  
+  // Re-fetch native campaigns from the site endpoint and reconcile state
+  async function refreshNativeCampaigns() {
+    if (mode !== 'site' || !siteToken) return;
+    try {
+      const response = await fetch(`${API_BASE}/site/${siteToken}`);
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data.campaigns) {
+        await initNativeCampaigns(data.campaigns, data.website_id);
+      } else {
+        // No campaigns at all — clear everything
+        await initNativeCampaigns([], null);
+      }
+    } catch (err) {
+      log('[Native] Refresh failed:', err);
     }
   }
   
@@ -2691,7 +2911,10 @@
     // Branding footer is now added after first notification displays (see showNotification function)
     
     // Refresh events every minute
-    setInterval(fetchEvents, 60000);
+    setInterval(() => {
+      fetchEvents();
+      refreshNativeCampaigns();
+    }, 60000);
     // Update session every 30 seconds
     setInterval(trackSession, 30000);
     

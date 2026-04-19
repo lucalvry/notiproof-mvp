@@ -4,6 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -20,6 +22,9 @@ interface Testimonial {
   message: string;
   avatar_url: string | null;
   video_url: string | null;
+  cta_enabled?: boolean | null;
+  cta_text?: string | null;
+  cta_url?: string | null;
   metadata: any;
 }
 
@@ -46,6 +51,9 @@ export function EditTestimonialDialog({
     message: '',
     avatar_url: '',
     video_url: '',
+    cta_enabled: false,
+    cta_text: '',
+    cta_url: '',
   });
 
   useEffect(() => {
@@ -59,6 +67,9 @@ export function EditTestimonialDialog({
         message: testimonial.message || '',
         avatar_url: testimonial.avatar_url || '',
         video_url: testimonial.video_url || '',
+        cta_enabled: !!testimonial.cta_enabled,
+        cta_text: testimonial.cta_text || '',
+        cta_url: testimonial.cta_url || '',
       });
     }
   }, [testimonial]);
@@ -80,6 +91,9 @@ export function EditTestimonialDialog({
           author_avatar_url: formData.avatar_url || null,
           image_url: formData.avatar_url || null,
           video_url: formData.video_url || null,
+          cta_enabled: formData.cta_enabled,
+          cta_text: formData.cta_enabled ? (formData.cta_text || null) : null,
+          cta_url: formData.cta_enabled ? (formData.cta_url || null) : null,
         })
         .eq('id', testimonial.id);
 
@@ -202,6 +216,52 @@ export function EditTestimonialDialog({
               onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
               placeholder="https://youtube.com/watch?v=..."
             />
+          </div>
+
+          <Separator />
+
+          {/* Conversion-driving CTA */}
+          <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="cta-enabled" className="text-sm font-semibold">
+                  Conversion CTA
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Add a clickable button under the testimonial to drive viewers to a specific page.
+                  Clicks are attributed to your Impact Goals.
+                </p>
+              </div>
+              <Switch
+                id="cta-enabled"
+                checked={formData.cta_enabled}
+                onCheckedChange={(checked) => setFormData({ ...formData, cta_enabled: checked })}
+              />
+            </div>
+
+            {formData.cta_enabled && (
+              <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="cta-text">Button Text</Label>
+                  <Input
+                    id="cta-text"
+                    value={formData.cta_text}
+                    onChange={(e) => setFormData({ ...formData, cta_text: e.target.value })}
+                    placeholder="Shop the Look"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cta-url">Destination URL</Label>
+                  <Input
+                    id="cta-url"
+                    type="url"
+                    value={formData.cta_url}
+                    onChange={(e) => setFormData({ ...formData, cta_url: e.target.value })}
+                    placeholder="https://yoursite.com/products/123"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

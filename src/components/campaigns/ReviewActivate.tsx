@@ -43,7 +43,7 @@ function VisitorsPulseReviewPreview({ config }: { config: any }) {
     borderColor: config.borderColor || '#e5e7eb',
     shadow: config.shadow || 'md',
     show_verification_badge: config.show_verification_badge ?? true,
-    verification_text: config.verification_text || 'Verified by ActiveProof',
+    verification_text: config.verification_text || 'NotiProof Verified',
     content_alignment: config.content_alignment || 'top',
     min_count: config.min_count ?? 5,
     max_count: config.max_count ?? 50,

@@ -1636,6 +1636,7 @@ export type Database = {
           created_at: string | null
           deleted_at: string | null
           duration_seconds: number | null
+          fallback_url: string | null
           file_size: number
           id: string
           mime_type: string | null
@@ -1650,6 +1651,7 @@ export type Database = {
           created_at?: string | null
           deleted_at?: string | null
           duration_seconds?: number | null
+          fallback_url?: string | null
           file_size: number
           id?: string
           mime_type?: string | null
@@ -1664,6 +1666,7 @@ export type Database = {
           created_at?: string | null
           deleted_at?: string | null
           duration_seconds?: number | null
+          fallback_url?: string | null
           file_size?: number
           id?: string
           mime_type?: string | null
@@ -2862,6 +2865,9 @@ export type Database = {
           author_email: string | null
           author_name: string
           created_at: string | null
+          cta_enabled: boolean
+          cta_text: string | null
+          cta_url: string | null
           form_id: string | null
           id: string
           image_url: string | null
@@ -2882,6 +2888,9 @@ export type Database = {
           author_email?: string | null
           author_name: string
           created_at?: string | null
+          cta_enabled?: boolean
+          cta_text?: string | null
+          cta_url?: string | null
           form_id?: string | null
           id?: string
           image_url?: string | null
@@ -2902,6 +2911,9 @@ export type Database = {
           author_email?: string | null
           author_name?: string
           created_at?: string | null
+          cta_enabled?: boolean
+          cta_text?: string | null
+          cta_url?: string | null
           form_id?: string | null
           id?: string
           image_url?: string | null

@@ -276,6 +276,33 @@ Deno.serve(async (req) => {
     const cdnUrl = `https://${BUNNY_CDN_HOSTNAME}/${path}`;
     console.log(`✅ Upload successful: ${cdnUrl}`);
 
+    // ===== Phase 7b: Upload videos to Supabase Storage as fallback =====
+    let fallbackUrl: string | null = null;
+    if (isVideo) {
+      try {
+        console.log('💾 Uploading video fallback to Supabase Storage...');
+        const fileBytes = new Uint8Array(await file.arrayBuffer());
+        const { error: storageError } = await supabase.storage
+          .from('testimonials')
+          .upload(path, fileBytes, {
+            contentType: mimeType,
+            upsert: true,
+          });
+
+        if (storageError) {
+          console.error('⚠️ Fallback upload failed (non-fatal):', storageError);
+        } else {
+          const { data: publicUrlData } = supabase.storage
+            .from('testimonials')
+            .getPublicUrl(path);
+          fallbackUrl = publicUrlData.publicUrl;
+          console.log(`✅ Fallback uploaded: ${fallbackUrl}`);
+        }
+      } catch (fallbackError) {
+        console.error('⚠️ Fallback upload exception (non-fatal):', fallbackError);
+      }
+    }
+
     // ===== Phase 8: Track Media in Database =====
     console.log('📝 Tracking media in database...');
     const mediaType = isVideo ? 'video' : 'avatar';
@@ -290,6 +317,7 @@ Deno.serve(async (req) => {
           file_size: fileSize,
           duration_seconds: duration,
           cdn_url: cdnUrl,
+          fallback_url: fallbackUrl,
           original_filename: originalFilename,
           mime_type: mimeType,
         });
@@ -333,6 +361,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         url: cdnUrl,
+        fallback_url: fallbackUrl,
         path,
       }),
       {

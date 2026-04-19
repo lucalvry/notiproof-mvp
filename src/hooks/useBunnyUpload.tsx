@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 export interface BunnyUploadResponse {
   success: boolean;
   url?: string;
+  fallback_url?: string | null;
   path?: string;
   error?: string;
   code?: string;
@@ -383,6 +384,7 @@ export function useBunnyUpload() {
       return {
         success: true,
         url: data.url,
+        fallback_url: data.fallback_url ?? null,
         path: data.path,
       };
     } catch (error) {

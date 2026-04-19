@@ -8,9 +8,10 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Star, Image, Video, Filter, CheckCircle, MessageSquare } from "lucide-react";
+import { Star, Image, Video, Filter, CheckCircle, MessageSquare, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { EditTestimonialDialog } from "@/components/testimonials/EditTestimonialDialog";
 
 interface TestimonialCampaignEditorProps {
   campaignId: string;
@@ -45,6 +46,9 @@ export function TestimonialCampaignEditor({
   const [selectedIds, setSelectedIds] = useState<string[]>(
     integrationSettings?.selectedTestimonialIds || []
   );
+
+  // Per-testimonial edit dialog
+  const [editingTestimonial, setEditingTestimonial] = useState<any | null>(null);
 
   // Load testimonials
   useEffect(() => {
@@ -336,11 +340,29 @@ export function TestimonialCampaignEditor({
                                     Video
                                   </Badge>
                                 )}
+                                {t.cta_enabled && (
+                                  <Badge variant="outline" className="text-xs">
+                                    CTA
+                                  </Badge>
+                                )}
                               </div>
                               <p className="text-xs text-muted-foreground line-clamp-2">
                                 {t.message}
                               </p>
                             </div>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingTestimonial(t);
+                              }}
+                              title="Edit testimonial (including CTA)"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -372,25 +394,44 @@ export function TestimonialCampaignEditor({
                     <div className="space-y-3">
                       {filteredTestimonials.slice(0, 10).map((t) => (
                         <div key={t.id} className="p-3 border rounded-lg">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-sm">{t.author_name}</span>
-                            {t.rating && (
-                              <div className="flex items-center gap-0.5">
-                                {Array.from({ length: t.rating }).map((_, i) => (
-                                  <Star key={i} className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                ))}
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <span className="font-medium text-sm">{t.author_name}</span>
+                                {t.rating && (
+                                  <div className="flex items-center gap-0.5">
+                                    {Array.from({ length: t.rating }).map((_, i) => (
+                                      <Star key={i} className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                    ))}
+                                  </div>
+                                )}
+                                {t.video_url && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    <Video className="h-2.5 w-2.5 mr-1" />
+                                    Video
+                                  </Badge>
+                                )}
+                                {t.cta_enabled && (
+                                  <Badge variant="outline" className="text-xs">
+                                    CTA
+                                  </Badge>
+                                )}
                               </div>
-                            )}
-                            {t.video_url && (
-                              <Badge variant="secondary" className="text-xs">
-                                <Video className="h-2.5 w-2.5 mr-1" />
-                                Video
-                              </Badge>
-                            )}
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {t.message}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 shrink-0"
+                              onClick={() => setEditingTestimonial(t)}
+                              title="Edit testimonial (including CTA)"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
-                          <p className="text-xs text-muted-foreground line-clamp-2">
-                            {t.message}
-                          </p>
                         </div>
                       ))}
                       {filteredTestimonials.length > 10 && (
@@ -415,6 +456,16 @@ export function TestimonialCampaignEditor({
           </Button>
         </div>
       </DialogContent>
+
+      <EditTestimonialDialog
+        testimonial={editingTestimonial}
+        open={!!editingTestimonial}
+        onOpenChange={(open) => !open && setEditingTestimonial(null)}
+        onSuccess={() => {
+          loadTestimonials();
+          setEditingTestimonial(null);
+        }}
+      />
     </Dialog>
   );
 }

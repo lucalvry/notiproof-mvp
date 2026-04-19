@@ -45,6 +45,9 @@ interface FormData {
   videoFile: File | null;
   avatarPreview: string | null;
   videoPreview: string | null;
+  cta_enabled: boolean;
+  cta_text: string;
+  cta_url: string;
 }
 
 export function TestimonialCollectionForm({
@@ -81,6 +84,9 @@ export function TestimonialCollectionForm({
     videoFile: null,
     avatarPreview: null,
     videoPreview: null,
+    cta_enabled: false,
+    cta_text: '',
+    cta_url: '',
   });
 
   // Track form view on mount
@@ -254,7 +260,11 @@ export function TestimonialCollectionForm({
     }
   };
 
-  const uploadFile = async (file: File, type: 'avatar' | 'video', retryCount = 0): Promise<string | null> => {
+  const uploadFile = async (
+    file: File,
+    type: 'avatar' | 'video',
+    retryCount = 0
+  ): Promise<{ url: string; fallback_url: string | null } | null> => {
     const maxRetries = 2;
     
     try {
@@ -281,8 +291,8 @@ export function TestimonialCollectionForm({
         throw new Error(result.error || 'Upload failed');
       }
 
-      console.log(`[Upload] Success! Bunny CDN URL:`, result.url);
-      return result.url;
+      console.log(`[Upload] Success! Bunny CDN URL:`, result.url, 'fallback:', result.fallback_url);
+      return { url: result.url, fallback_url: result.fallback_url ?? null };
     } catch (error) {
       console.error(`[Upload] Error uploading ${type} (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
       
@@ -344,17 +354,19 @@ export function TestimonialCollectionForm({
     try {
       let avatarUrl: string | null = null;
       let videoUrl: string | null = null;
+      let videoFallbackUrl: string | null = null;
 
       // Phase 1: Upload media files
       console.log('[Submit] Phase 1: Uploading media files...');
       
       if (formData.avatarFile) {
         console.log('[Submit] Uploading avatar...');
-        avatarUrl = await uploadFile(formData.avatarFile, 'avatar');
-        if (!avatarUrl) {
+        const avatarResult = await uploadFile(formData.avatarFile, 'avatar');
+        if (!avatarResult) {
           console.warn('[Submit] Avatar upload failed, continuing without avatar...');
           toast.error('Avatar upload failed, but submitting your testimonial anyway');
         } else {
+          avatarUrl = avatarResult.url;
           console.log('[Submit] Avatar uploaded successfully:', avatarUrl);
         }
       } else {
@@ -364,9 +376,11 @@ export function TestimonialCollectionForm({
       if (formData.videoFile) {
         console.log('[Submit] Uploading video...');
         try {
-          videoUrl = await uploadFile(formData.videoFile, 'video');
-          if (videoUrl) {
-            console.log('[Submit] Video uploaded successfully:', videoUrl);
+          const videoResult = await uploadFile(formData.videoFile, 'video');
+          if (videoResult) {
+            videoUrl = videoResult.url;
+            videoFallbackUrl = videoResult.fallback_url;
+            console.log('[Submit] Video uploaded successfully:', videoUrl, 'fallback:', videoFallbackUrl);
           } else {
             console.warn('[Submit] Video upload failed, continuing without video...');
             toast.error('Video upload failed, but submitting your testimonial anyway');
@@ -409,6 +423,7 @@ export function TestimonialCollectionForm({
           negative_feedback: formData.negative_feedback,
           questions: formData.questions,
           consented: formData.consented,
+          video_fallback_url: videoFallbackUrl,
         },
         status: 'pending' as const,
       };
@@ -435,6 +450,14 @@ export function TestimonialCollectionForm({
           negative_feedback: formData.negative_feedback,
           questions: formData.questions,
           consented: formData.consented,
+          video_fallback_url: videoFallbackUrl,
+          submitted_cta: formData.cta_enabled
+            ? {
+                enabled: true,
+                text: formData.cta_text || null,
+                url: formData.cta_url || null,
+              }
+            : null,
         },
       });
 
@@ -631,6 +654,12 @@ export function TestimonialCollectionForm({
             onVideoChange={(file, preview) =>
               setFormData({ ...formData, videoFile: file, videoPreview: preview })
             }
+            ctaEnabled={formData.cta_enabled}
+            ctaText={formData.cta_text}
+            ctaUrl={formData.cta_url}
+            onCtaEnabledChange={(enabled) => setFormData({ ...formData, cta_enabled: enabled })}
+            onCtaTextChange={(text) => setFormData({ ...formData, cta_text: text })}
+            onCtaUrlChange={(url) => setFormData({ ...formData, cta_url: url })}
             onNext={goNext}
             onBack={goBack}
           />

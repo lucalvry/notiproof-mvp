@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Activity, MousePointer, Eye } from "lucide-react";
+import { Activity, MousePointer, Eye, MessageSquare } from "lucide-react";
 
 interface ConversionsTableProps {
   websiteId: string;
@@ -40,9 +40,20 @@ export function ConversionsTable({ websiteId, userId }: ConversionsTableProps) {
   });
 
   const getInteractionIcon = (type: string) => {
+    if (type === "testimonial_cta_click") return <MessageSquare className="h-3 w-3" />;
     if (type === "click") return <MousePointer className="h-3 w-3" />;
     if (type === "hover") return <Eye className="h-3 w-3" />;
     return <Activity className="h-3 w-3" />;
+  };
+
+  const getInteractionLabel = (type: string) => {
+    if (type === "testimonial_cta_click") return "Testimonial";
+    return type;
+  };
+
+  const getInteractionVariant = (type: string): "outline" | "secondary" => {
+    if (type === "testimonial_cta_click") return "secondary";
+    return "outline";
   };
 
   if (isLoading) {
@@ -83,9 +94,9 @@ export function ConversionsTable({ websiteId, userId }: ConversionsTableProps) {
               {(conversion.campaign as any)?.name || "-"}
             </TableCell>
             <TableCell>
-              <Badge variant="outline" className="gap-1">
+              <Badge variant={getInteractionVariant(conversion.interaction_type)} className="gap-1">
                 {getInteractionIcon(conversion.interaction_type)}
-                {conversion.interaction_type}
+                {getInteractionLabel(conversion.interaction_type)}
               </Badge>
             </TableCell>
             <TableCell>

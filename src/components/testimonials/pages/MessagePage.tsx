@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ChevronRight, X, Image as ImageIcon, Video as VideoIcon, Camera } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { ChevronRight, X, Image as ImageIcon, Video as VideoIcon, Camera, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBunnyUpload } from '@/hooks/useBunnyUpload';
 
@@ -15,6 +17,12 @@ interface MessagePageProps {
   videoPreview: string | null;
   onAvatarChange: (file: File | null, preview: string | null) => void;
   onVideoChange: (file: File | null, preview: string | null) => void;
+  ctaEnabled: boolean;
+  ctaText: string;
+  ctaUrl: string;
+  onCtaEnabledChange: (enabled: boolean) => void;
+  onCtaTextChange: (text: string) => void;
+  onCtaUrlChange: (url: string) => void;
   onNext: () => void;
   onBack: () => void;
 }
@@ -28,6 +36,12 @@ export function MessagePage({
   videoPreview,
   onAvatarChange,
   onVideoChange,
+  ctaEnabled,
+  ctaText,
+  ctaUrl,
+  onCtaEnabledChange,
+  onCtaTextChange,
+  onCtaUrlChange,
   onNext,
   onBack,
 }: MessagePageProps) {
@@ -211,6 +225,51 @@ export function MessagePage({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Optional CTA */}
+      <div className="space-y-3 border-t pt-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="cta-toggle" className="text-sm flex items-center gap-2">
+              <Link2 className="h-3.5 w-3.5" />
+              Add a call-to-action (Optional)
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Add a button under your testimonial linking to a page you'd like to recommend.
+            </p>
+          </div>
+          <Switch
+            id="cta-toggle"
+            checked={ctaEnabled}
+            onCheckedChange={onCtaEnabledChange}
+          />
+        </div>
+
+        {ctaEnabled && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="cta-text" className="text-xs">Button Text</Label>
+              <Input
+                id="cta-text"
+                value={ctaText}
+                onChange={(e) => onCtaTextChange(e.target.value)}
+                placeholder="Shop the Look"
+                maxLength={40}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cta-url" className="text-xs">Destination URL</Label>
+              <Input
+                id="cta-url"
+                type="url"
+                value={ctaUrl}
+                onChange={(e) => onCtaUrlChange(e.target.value)}
+                placeholder="https://example.com/product"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-between pt-4">

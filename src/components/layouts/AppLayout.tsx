@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ConnectivityBanner } from "@/components/ConnectivityBanner";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { LayoutDashboard, Megaphone, BarChart, Settings, Menu, ChevronDown, Globe, User, MessageSquare, Plug, Plus, ListOrdered, Target, LogOut, Shield, ChevronUp, CheckCircle2, Circle, Sparkles, Compass, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -364,6 +365,7 @@ function AppLayoutInner() {
 
   return (
     <div className="flex min-h-screen w-full">
+      <ConnectivityBanner />
       {/* Desktop Sidebar - Fixed */}
       <aside
         className={cn(

@@ -51,7 +51,6 @@ export function VisitorsPulseCampaignEditor({
     borderColor: '#e5e7eb',
     shadow: 'md' as 'none' | 'sm' | 'md' | 'lg' | 'xl',
     show_verification_badge: true,
-    verification_text: 'Verified by ActiveProof',
   });
 
   // Initialize config from integrationSettings when dialog opens
@@ -84,7 +83,6 @@ export function VisitorsPulseCampaignEditor({
         borderColor: integrationSettings.borderColor || '#e5e7eb',
         shadow: integrationSettings.shadow || 'md',
         show_verification_badge: integrationSettings.show_verification_badge ?? true,
-        verification_text: integrationSettings.verification_text || 'Verified by ActiveProof',
       });
     }
   }, [open, integrationSettings]);

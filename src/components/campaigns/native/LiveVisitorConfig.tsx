@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -59,7 +60,6 @@ interface LiveVisitorConfigProps {
     page_rules?: any[];
     excluded_pages?: string[];
     show_verification_badge?: boolean;
-    verification_text?: string;
     content_alignment?: ContentAlignment;
     destination_pages?: DestinationPage[];
     // Styling options
@@ -93,7 +93,6 @@ export function LiveVisitorConfig({ config, onChange }: LiveVisitorConfigProps) 
     page_rules: config.page_rules || [],
     excluded_pages: config.excluded_pages || [],
     show_verification_badge: config.show_verification_badge ?? true,
-    verification_text: config.verification_text || 'Verified by ActiveProof',
     content_alignment: config.content_alignment || 'top',
     destination_pages: config.destination_pages || [],
     backgroundColor: config.backgroundColor || '#ffffff',
@@ -440,7 +439,7 @@ export function LiveVisitorConfig({ config, onChange }: LiveVisitorConfigProps) 
                   {safeConfig.show_verification_badge && (
                     <div className="flex items-center gap-1 mt-1.5" style={{ fontSize: `${Math.max(safeConfig.fontSize - 3, 10)}px`, color: '#16a34a' }}>
                       <span>✓</span>
-                      <span>{safeConfig.verification_text}</span>
+                      <span>NotiProof Verified</span>
                     </div>
                   )}
                 </div>
@@ -537,13 +536,12 @@ export function LiveVisitorConfig({ config, onChange }: LiveVisitorConfigProps) 
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-sm">Verification Badge</Label>
-                <p className="text-xs text-muted-foreground">Show trust indicator below message</p>
+                <p className="text-xs text-muted-foreground">
+                  Show <span className="font-medium text-foreground">✓ NotiProof Verified</span> below message
+                </p>
               </div>
               <input type="checkbox" checked={safeConfig.show_verification_badge} onChange={(e) => onChange({ ...safeConfig, show_verification_badge: e.target.checked })} className="h-4 w-4" />
             </div>
-            {safeConfig.show_verification_badge && (
-              <Input value={safeConfig.verification_text} onChange={(e) => onChange({ ...safeConfig, verification_text: e.target.value })} placeholder="Verified by ActiveProof" className="h-8 text-sm" />
-            )}
           </CollapsibleContent>
         </Collapsible>
 
@@ -587,26 +585,46 @@ export function LiveVisitorConfig({ config, onChange }: LiveVisitorConfigProps) 
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm">Show On</Label>
-              <RadioGroup value={safeConfig.scope} onValueChange={(v: any) => onChange({ ...safeConfig, scope: v })}>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="site" id="scope-site" />
-                  <Label htmlFor="scope-site" className="text-sm">All Pages</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="page" id="scope-page" />
-                  <Label htmlFor="scope-page" className="text-sm">Specific Pages Only</Label>
-                </div>
-              </RadioGroup>
-              {safeConfig.scope === 'page' && (
-                <Input
-                  placeholder="e.g., /products, /pricing"
-                  value={safeConfig.target_pages?.join(', ') || ''}
-                  onChange={(e) => onChange({ ...safeConfig, target_pages: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                  className="text-sm"
+            {/* Page Targeting */}
+            <div className="space-y-4 pt-2 border-t">
+              <div>
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  Page Targeting
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Control which pages this notification appears on. Use one path per line. Supports <code className="bg-muted px-1 rounded">*</code> wildcards (e.g. <code className="bg-muted px-1 rounded">/blog/*</code>).
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Show only on these pages</Label>
+                <Textarea
+                  placeholder={"Leave empty to show on all pages\n/pricing\n/products/*"}
+                  value={(safeConfig.target_pages || []).join('\n')}
+                  onChange={(e) => onChange({
+                    ...safeConfig,
+                    target_pages: e.target.value.split('\n').map(s => s.trim()).filter(Boolean),
+                    scope: e.target.value.trim() ? 'page' : 'site',
+                  })}
+                  className="text-sm font-mono min-h-[80px]"
                 />
-              )}
+                <p className="text-xs text-muted-foreground">If empty, shows on all pages (subject to exclusions below).</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Hide on these pages</Label>
+                <Textarea
+                  placeholder={"/checkout\n/account/*\n/admin/*"}
+                  value={(safeConfig.excluded_pages || []).join('\n')}
+                  onChange={(e) => onChange({
+                    ...safeConfig,
+                    excluded_pages: e.target.value.split('\n').map(s => s.trim()).filter(Boolean),
+                  })}
+                  className="text-sm font-mono min-h-[80px]"
+                />
+                <p className="text-xs text-muted-foreground">Notifications will never show on these pages, even if matched above.</p>
+              </div>
             </div>
           </CollapsibleContent>
         </Collapsible>

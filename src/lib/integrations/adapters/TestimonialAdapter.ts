@@ -89,6 +89,27 @@ export class TestimonialAdapter extends BaseAdapter {
         example: true,
         required: false,
       },
+      {
+        key: 'template.cta_enabled',
+        label: 'CTA Enabled',
+        type: 'boolean',
+        description: 'Whether this testimonial shows a clickable CTA button',
+        example: true,
+      },
+      {
+        key: 'template.cta_text',
+        label: 'CTA Button Text',
+        type: 'string',
+        description: 'Label shown on the conversion CTA button',
+        example: 'Shop the Look',
+      },
+      {
+        key: 'template.cta_url',
+        label: 'CTA Destination URL',
+        type: 'url',
+        description: 'Where the CTA button sends visitors (used for Impact Goals attribution)',
+        example: 'https://yoursite.com/products/123',
+      },
     ];
   }
   
@@ -130,6 +151,10 @@ export class TestimonialAdapter extends BaseAdapter {
         'template.video_url': testimonial.video_url,
         'template.time_ago': timeAgo,
         'template.verified': !!testimonial.metadata?.verified_purchase,
+        'template.cta_enabled': !!testimonial.cta_enabled,
+        'template.cta_text': testimonial.cta_text || null,
+        'template.cta_url': testimonial.cta_url || null,
+        'template.testimonial_id': testimonial.id,
         'meta.source': testimonial.source || 'form',
         'meta.status': testimonial.status || 'pending',
       },

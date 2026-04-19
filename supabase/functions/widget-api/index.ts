@@ -64,7 +64,74 @@ Deno.serve(async (req) => {
     const websiteIdParam = url.searchParams.get('website_id');
     const widgetIdParam = url.searchParams.get('widget_id');
     const siteTokenParam = url.searchParams.get('site_token');
-    
+
+    // POST /track-interaction — record an outbound click for impact-goal attribution
+    // (used by testimonial CTA buttons; uses sendBeacon, so always returns 200 quickly)
+    if (req.method === 'POST' && resource === 'track-interaction') {
+      try {
+        const body = await req.json().catch(() => ({}));
+        const {
+          website_id,
+          notification_id,
+          campaign_id,
+          visitor_id,
+          interaction_type,
+          destination_url,
+          page_url,
+          timestamp,
+        } = body || {};
+
+        if (!website_id || !notification_id || !visitor_id || !interaction_type) {
+          return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Best-effort: record a lightweight event row that downstream goal-checking can attribute against.
+        // We use the existing `events` table with source='widget' so it integrates with reporting.
+        await supabase.from('events').insert({
+          website_id,
+          widget_id: notification_id, // events.widget_id is non-null; reuse the testimonial id as the surface id
+          event_type: 'testimonial_cta_click',
+          event_data: {
+            notification_id,
+            campaign_id,
+            visitor_id,
+            destination_url,
+            page_url,
+            interaction_type,
+            timestamp: timestamp || new Date().toISOString(),
+          },
+          source: 'widget',
+          status: 'approved',
+          page_url: destination_url || page_url || null,
+          message_template: null,
+        }).then(({ error: insErr }) => {
+          if (insErr) console.error('[track-interaction] insert error:', insErr);
+        });
+
+        // Increment campaign click counter when we have a campaign_id
+        if (campaign_id) {
+          await supabase.rpc('increment_campaign_click', { p_campaign_id: campaign_id })
+            .then(({ error: rpcErr }) => {
+              if (rpcErr) console.error('[track-interaction] click counter error:', rpcErr);
+            });
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (err) {
+        console.error('[track-interaction] Unexpected error:', err);
+        return new Response(JSON.stringify({ error: 'Internal error' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     // PHASE 8: Playlist API - Returns active playlist and campaigns
     if (req.method === 'GET' && playlistMode && websiteIdParam) {
       try {

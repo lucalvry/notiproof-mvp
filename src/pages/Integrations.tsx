@@ -19,6 +19,7 @@ import { getIntegrationMetadata } from "@/lib/integrationMetadata";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWebsiteContext } from "@/contexts/WebsiteContext";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { safeQuery } from "@/lib/resilientFetch";
 
 interface Integration {
   id: string;
@@ -102,52 +103,76 @@ export default function Integrations() {
       return;
     }
 
+    setLoading(true);
+
+    // Each query is independent and resilient: a single transient
+    // network failure must NEVER make this page look "wiped". On
+    // failure we fall back to safe defaults and keep prior state.
+    const subscription = await safeQuery(
+      async () => {
+        const { data } = await supabase
+          .from('user_subscriptions')
+          .select('plan:subscription_plans(*)')
+          .eq('user_id', currentUserId)
+          .eq('status', 'active')
+          .maybeSingle();
+        return data;
+      },
+      null as any,
+      { label: 'user_subscriptions' }
+    );
+    const userPlan = subscription?.plan?.name?.toLowerCase() || 'free';
+
+    const configs = await safeQuery(
+      async () => {
+        const { data } = await supabase
+          .from('integrations_config')
+          .select('*')
+          .eq('is_active', true);
+        return data ?? [];
+      },
+      [] as any[],
+      { label: 'integrations_config' }
+    );
+
+    const connectors = await safeQuery(
+      async () => {
+        const { data, error } = await supabase
+          .from('integration_connectors')
+          .select('*')
+          .eq('website_id', currentWebsite.id);
+        if (error) throw error;
+        return data ?? [];
+      },
+      [] as any[],
+      { label: 'integration_connectors' }
+    );
+
+    const nativeIntegrations = await safeQuery(
+      async () => {
+        const { data, error } = await supabase
+          .from('integrations')
+          .select('*')
+          .eq('website_id', currentWebsite.id)
+          .eq('user_id', currentUserId);
+        if (error) throw error;
+        return data ?? [];
+      },
+      [] as any[],
+      { label: 'integrations' }
+    );
+
     try {
-      setLoading(true);
-
-      // Get user's subscription plan
-      const { data: subscription } = await supabase
-        .from('user_subscriptions')
-        .select('plan:subscription_plans(*)')
-        .eq('user_id', currentUserId)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      const userPlan = subscription?.plan?.name?.toLowerCase() || 'free';
-
-      // Fetch integration configs - only active integrations from database
-      const { data: configs } = await supabase
-        .from('integrations_config')
-        .select('*')
-        .eq('is_active', true);
-
-      // Fetch user's integration connectors (for webhook/oauth integrations)
-      const { data: connectors, error: connectorsError } = await supabase
-        .from("integration_connectors")
-        .select("*")
-        .eq("website_id", currentWebsite.id);
-
-      if (connectorsError) throw connectorsError;
-
-      // Fetch user's native integrations (from integrations table)
-      const { data: nativeIntegrations, error: nativeError } = await supabase
-        .from("integrations")
-        .select("*")
-        .eq("website_id", currentWebsite.id)
-        .eq("user_id", currentUserId);
-
-      if (nativeError) throw nativeError;
-
-      const mappedIntegrations: Array<Integration & { 
-        popularityScore: number; 
-        isTrending: boolean; 
+      const mappedIntegrations: Array<Integration & {
+        popularityScore: number;
+        isTrending: boolean;
         connectorType?: string;
         isNative?: boolean;
       }> = [];
 
       // Add native integrations (testimonials, announcements, live_visitors, form_hook)
       const nativeIntegrationTypes = ['testimonials', 'announcements', 'live_visitors', 'form_hook'];
-      
+
       // Provider aliases to handle database inconsistencies
       const getProviderAliases = (type: string): string[] => {
         const aliases: Record<string, string[]> = {
@@ -156,14 +181,14 @@ export default function Integrations() {
         };
         return aliases[type] || [type];
       };
-      
+
       nativeIntegrationTypes.forEach(integrationType => {
         const metadata = getIntegrationMetadata(integrationType);
         const aliases = getProviderAliases(integrationType);
-        const nativeConnection = nativeIntegrations?.find(ni => 
+        const nativeConnection = nativeIntegrations?.find((ni: any) =>
           aliases.includes(ni.provider)
         );
-        
+
         mappedIntegrations.push({
           id: integrationType,
           name: metadata.displayName,
@@ -184,14 +209,11 @@ export default function Integrations() {
       // Filter out native integration types to avoid duplicates
       if (configs && configs.length > 0) {
         configs
-          .filter(config => !nativeIntegrationTypes.includes(config.integration_type))
-          .forEach(config => {
+          .filter((config: any) => !nativeIntegrationTypes.includes(config.integration_type))
+          .forEach((config: any) => {
             const metadata = getIntegrationMetadata(config.integration_type);
-            const connector = connectors?.find(c => c.integration_type === config.integration_type);
-            const configData = config.config as any;
-            const quota = configData?.quota_per_plan?.[userPlan] || 1;
-            const used = connectors?.filter(c => c.integration_type === config.integration_type).length || 0;
-            
+            const connector = connectors?.find((c: any) => c.integration_type === config.integration_type);
+
             mappedIntegrations.push({
               id: config.integration_type,
               name: metadata.displayName,
@@ -211,30 +233,38 @@ export default function Integrations() {
 
       // Calculate quotas for each integration
       const quotas: Record<string, { quota: number; used: number }> = {};
-      
+
       // Native integrations - unlimited
       nativeIntegrationTypes.forEach(type => {
         quotas[type] = { quota: 999, used: 0 };
       });
-      
+
       // Database integrations - from config
-      configs?.forEach(config => {
+      configs?.forEach((config: any) => {
         const configData = config.config as any;
         const quota = configData?.quota_per_plan?.[userPlan] || 1;
-        const used = connectors?.filter(c => c.integration_type === config.integration_type).length || 0;
+        const used = connectors?.filter((c: any) => c.integration_type === config.integration_type).length || 0;
         quotas[config.integration_type] = { quota, used };
       });
-      
+
       setIntegrationQuotas(quotas);
 
-      setIntegrations(mappedIntegrations);
+      // Only replace integrations list if we got meaningful results.
+      // If everything failed to fetch, retain previous state so the
+      // user never sees an empty page from a transient blip.
+      if (mappedIntegrations.length > 0) {
+        setIntegrations(mappedIntegrations);
+      } else if (integrations.length === 0) {
+        // First load and nothing came back — set to empty and let UI handle it
+        setIntegrations([]);
+      }
     } catch (error) {
-      console.error("Error fetching integrations:", error);
-      toast.error("Failed to load integrations");
+      console.error("Error mapping integrations:", error);
+      // Don't clear existing state on a mapping error
     } finally {
       setLoading(false);
     }
-  }, [currentWebsite?.id, currentUserId]);
+  }, [currentWebsite?.id, currentUserId, integrations.length]);
 
   // Refetch integrations when website changes
   useEffect(() => {

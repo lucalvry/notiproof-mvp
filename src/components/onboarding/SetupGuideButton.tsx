@@ -10,7 +10,7 @@ interface SetupGuideButtonProps {
 }
 
 export function SetupGuideButton({ userId, onOpenOnboarding }: SetupGuideButtonProps) {
-  const { progress, isLoading, websiteCount, campaignCount } = useOnboarding();
+  const { progress, isLoading, websiteCount, campaignCount, verifiedWidgetCount, eventCount } = useOnboarding();
 
   if (isLoading) return null;
 
@@ -18,8 +18,8 @@ export function SetupGuideButton({ userId, onOpenOnboarding }: SetupGuideButtonP
   const realMilestones = {
     website_added: websiteCount > 0 || progress.website_added,
     campaign_created: campaignCount > 0 || progress.campaign_created,
-    widget_installed: progress.widget_installed,
-    first_conversion: progress.first_conversion,
+    widget_installed: verifiedWidgetCount > 0 || progress.widget_installed,
+    first_conversion: eventCount > 0 || progress.first_conversion,
   };
 
   const completedCount = Object.values(realMilestones).filter(Boolean).length;

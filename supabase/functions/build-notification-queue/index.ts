@@ -245,47 +245,116 @@ async function fetchGroupedEvents(
     
     // Special handling for testimonials - fetch from testimonials table
     if (eventType === 'testimonial') {
-      // First, find the testimonial campaign to get the correct widget
+      // Find ALL active campaigns that use the testimonials provider.
+      // Each campaign defines its own form/integration filter, so we must
+      // scope testimonial fetches per-campaign — otherwise testimonials
+      // tied to a paused campaign's form leak through another active campaign.
       const { data: allCampaigns } = await supabase
         .from('campaigns')
-        .select('id, data_sources')
+        .select('id, data_sources, native_config, integration_settings')
         .eq('website_id', config.websiteId)
         .eq('status', 'active');
-      
-      // Find the campaign with testimonials provider in data_sources
-      let testimonialCampaignId: string | null = null;
-      for (const camp of (allCampaigns || [])) {
-        const sources = Array.isArray(camp.data_sources) ? camp.data_sources : [];
-        if (sources.some((ds: any) => ds.provider === 'testimonials')) {
-          testimonialCampaignId = camp.id;
-          break;
-        }
+
+      const testimonialCampaigns = (allCampaigns || []).filter((c: any) => {
+        const sources = Array.isArray(c.data_sources) ? c.data_sources : [];
+        return sources.some((ds: any) => ds.provider === 'testimonials');
+      });
+
+      // Safety guard: if no active testimonial campaign exists, skip entirely.
+      if (testimonialCampaigns.length === 0) {
+        console.log('[Queue Builder] No active testimonial campaigns — skipping testimonials');
+        grouped[eventType] = [];
+        continue;
       }
-      
-      // Get the widget for the testimonial campaign
-      let testimonialWidgetId = config.widgetIds[0]; // fallback
-      if (testimonialCampaignId) {
-        const { data: testimonialWidget } = await supabase
+
+      // Collect testimonials per-campaign, each restricted to its own form/config.
+      const collected: any[] = [];
+      const seenTestimonialIds = new Set<string>();
+      let primaryWidgetIdForFallback: string | undefined = config.widgetIds[0];
+
+      for (const camp of testimonialCampaigns) {
+        const sources = Array.isArray(camp.data_sources) ? camp.data_sources : [];
+        const testimonialSource = sources.find((ds: any) => ds.provider === 'testimonials') || {};
+        const nativeCfg = camp.native_config || {};
+        const intSettings = camp.integration_settings || {};
+
+        // Resolve campaign's widget
+        const { data: campWidget } = await supabase
           .from('widgets')
           .select('id')
-          .eq('campaign_id', testimonialCampaignId)
-          .single();
-        
-        if (testimonialWidget?.id) {
-          testimonialWidgetId = testimonialWidget.id;
-          console.log('[Queue Builder] Found testimonial campaign widget:', { testimonialCampaignId, testimonialWidgetId });
+          .eq('campaign_id', camp.id)
+          .maybeSingle();
+        const campWidgetId = campWidget?.id || primaryWidgetIdForFallback;
+        if (campWidget?.id) primaryWidgetIdForFallback = campWidget.id;
+
+        // Extract per-campaign filters
+        const formId =
+          testimonialSource.integration_id ||
+          testimonialSource.form_id ||
+          nativeCfg.formId ||
+          nativeCfg.form_id ||
+          intSettings.form_id ||
+          null;
+        const displayMode = nativeCfg.displayMode || nativeCfg.display_mode || intSettings.displayMode;
+        const specificIds: string[] = nativeCfg.testimonialIds || nativeCfg.testimonial_ids || [];
+        const minRating = nativeCfg.minRating ?? nativeCfg.min_rating ?? 0;
+        const mediaFilter = nativeCfg.mediaType || nativeCfg.media_type || nativeCfg.mediaFilter;
+        const onlyVerified = !!(nativeCfg.onlyVerified ?? nativeCfg.only_verified);
+
+        let q = supabase
+          .from('testimonials')
+          .select('*')
+          .eq('website_id', config.websiteId)
+          .eq('status', 'approved')
+          .gte('created_at', ttlDate)
+          .order('created_at', { ascending: false })
+          .limit(weightConfig.max_per_queue);
+
+        if (displayMode === 'specific' && specificIds.length > 0) {
+          q = q.in('id', specificIds);
+        } else if (formId) {
+          q = q.eq('form_id', formId);
         }
+
+        if (minRating && minRating > 0) {
+          q = q.gte('rating', minRating);
+        }
+        if (onlyVerified) {
+          q = q.eq('metadata->>verified_purchase', true);
+        }
+
+        const { data: campTestimonials, error: campErr } = await q;
+        if (campErr) {
+          console.error(`[Queue Builder] Error fetching testimonials for campaign ${camp.id}:`, campErr);
+          continue;
+        }
+
+        let filtered = campTestimonials || [];
+        if (mediaFilter && mediaFilter !== 'all') {
+          filtered = filtered.filter((t: any) => {
+            switch (mediaFilter) {
+              case 'text_only': return !t.image_url && !t.video_url;
+              case 'with_image': return !!t.image_url;
+              case 'with_video': return !!t.video_url;
+              default: return true;
+            }
+          });
+        }
+
+        for (const t of filtered) {
+          if (seenTestimonialIds.has(t.id)) continue;
+          seenTestimonialIds.add(t.id);
+          collected.push({ testimonial: t, widgetId: campWidgetId, campaignId: camp.id });
+        }
+
+        console.log(`[Queue Builder] Campaign ${camp.id} (form_id=${formId || 'n/a'}) → ${filtered.length} testimonials`);
       }
-      
-      const { data: testimonials, error } = await supabase
-        .from('testimonials')
-        .select('*')
-        .eq('website_id', config.websiteId)
-        .eq('status', 'approved')
-        .gte('created_at', ttlDate)
-        .order('created_at', { ascending: false })
-        .limit(weightConfig.max_per_queue);
-      
+
+      // Use collected list for downstream transform, mimicking previous shape
+      const testimonials = collected.map((c) => c.testimonial);
+      const widgetByTestimonialId = new Map(collected.map((c) => [c.testimonial.id, c.widgetId]));
+      const error = null;
+
       if (error) {
         console.error(`[Queue Builder] Error fetching testimonials:`, error);
         grouped[eventType] = [];
@@ -348,14 +417,17 @@ async function fetchGroupedEvents(
             </div>`;
           }
           
+          // Resolve the per-campaign widget for this testimonial
+          const perTestimonialWidgetId = widgetByTestimonialId.get(t.id) || primaryWidgetIdForFallback;
+
           // Get or create the actual event record using the CORRECT testimonial widget
           let eventId: string;
           
-          if (testimonialWidgetId) {
+          if (perTestimonialWidgetId) {
             eventId = await getOrCreateTestimonialEvent(
               supabase,
               t,
-              testimonialWidgetId,
+              perTestimonialWidgetId,
               config.websiteId,
               messageTemplate,
               normalized,
@@ -374,7 +446,7 @@ async function fetchGroupedEvents(
             user_location: null,
             created_at: createdAt,
             event_data: normalized,
-            widget_id: testimonialWidgetId,
+            widget_id: perTestimonialWidgetId,
             moderation_status: 'approved',
             status: 'approved',
             // Include original testimonial ID for reference
