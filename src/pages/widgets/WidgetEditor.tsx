@@ -30,6 +30,7 @@ interface WidgetConfig extends SharedWidgetConfig {
   visitor_type?: "all" | "new" | "returning";
   load_delay?: number; // seconds
   frequency_cap?: number; // per visitor per day
+  cooldown_seconds?: number; // min seconds between shows for the same visitor
   // Proof source
   source_filter?: "all" | "selected";
   selected_proof_ids?: string[];
@@ -39,10 +40,12 @@ interface WidgetConfig extends SharedWidgetConfig {
   ab_variant_label?: string;
 }
 
-const variantToType: Record<"floating" | "inline" | "badge", WidgetType> = {
+const variantToType: Record<"floating" | "inline" | "badge" | "banner" | "wall", WidgetType> = {
   floating: "popup",
   inline: "inline",
   badge: "banner",
+  banner: "banner",
+  wall: "wall",
 };
 
 export default function WidgetEditor() {
@@ -73,6 +76,7 @@ export default function WidgetEditor() {
       visitor_type: "all",
       load_delay: 0,
       frequency_cap: 0,
+      cooldown_seconds: 30,
       source_filter: "all",
       rotation: "newest",
       ab_enabled: false,
@@ -106,7 +110,7 @@ export default function WidgetEditor() {
     setW({ ...w, config: { ...cfg, ...patch } as unknown as Json });
   const variant = cfg.variant ?? "floating";
 
-  const setVariant = (v: "floating" | "inline" | "badge") => {
+  const setVariant = (v: "floating" | "inline" | "badge" | "banner" | "wall") => {
     setW({ ...w, type: variantToType[v], config: { ...cfg, variant: v } as unknown as Json });
   };
 
@@ -173,11 +177,13 @@ export default function WidgetEditor() {
               <TabsContent value="general" className="space-y-4 mt-4">
                 <div className="space-y-2"><Label>Name</Label><Input value={w.name ?? ""} onChange={(e) => setW({ ...w, name: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Widget type</Label>
-                  <Select value={variant} onValueChange={(v) => setVariant(v as "floating" | "inline" | "badge")}>
+                  <Select value={variant} onValueChange={(v) => setVariant(v as "floating" | "inline" | "badge" | "banner" | "wall")}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="floating">Floating</SelectItem>
+                      <SelectItem value="floating">Floating popup</SelectItem>
+                      <SelectItem value="banner">Top banner</SelectItem>
                       <SelectItem value="inline">Inline</SelectItem>
+                      <SelectItem value="wall">Wall (badge + popup)</SelectItem>
                       <SelectItem value="badge">Badge</SelectItem>
                     </SelectContent>
                   </Select>
@@ -287,6 +293,11 @@ export default function WidgetEditor() {
                   <Label>Frequency cap (per visitor per day)</Label>
                   <Input type="number" min={0} value={cfg.frequency_cap ?? 0} onChange={(e) => updateConfig({ frequency_cap: Number(e.target.value) })} />
                   <p className="text-xs text-muted-foreground">0 = no cap.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Cooldown between shows (seconds)</Label>
+                  <Input type="number" min={0} max={3600} value={cfg.cooldown_seconds ?? 30} onChange={(e) => updateConfig({ cooldown_seconds: Number(e.target.value) })} />
+                  <p className="text-xs text-muted-foreground">Wait time before the same visitor sees the next proof. 0 = no cooldown.</p>
                 </div>
               </TabsContent>
 

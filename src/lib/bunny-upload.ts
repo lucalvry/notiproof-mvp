@@ -44,3 +44,38 @@ export async function uploadToBunny({ kind = "media", folder, filename, contentT
 
   return data.public_url as string;
 }
+
+export interface GeneratePosterOptions {
+  businessId: string;
+  mediaUrl: string;
+  proofId?: string;
+  authorName?: string | null;
+  brandColor?: string | null;
+  /** Optional public collection token for unauthenticated callers (testimonial submission flow). */
+  collectionToken?: string;
+}
+
+/**
+ * Asks the generate-video-poster edge function to produce a poster image
+ * for a video proof. Best-effort: never throws. Returns the poster URL or null.
+ */
+export async function generateVideoPoster(opts: GeneratePosterOptions): Promise<string | null> {
+  try {
+    const headers: Record<string, string> = {};
+    if (opts.collectionToken) headers["x-collection-token"] = opts.collectionToken;
+    const { data, error } = await supabase.functions.invoke("generate-video-poster", {
+      body: {
+        business_id: opts.businessId,
+        media_url: opts.mediaUrl,
+        proof_id: opts.proofId,
+        author_name: opts.authorName ?? undefined,
+        brand_color: opts.brandColor ?? undefined,
+      },
+      headers,
+    });
+    if (error || !data?.ok) return null;
+    return (data.poster_url as string) ?? null;
+  } catch {
+    return null;
+  }
+}

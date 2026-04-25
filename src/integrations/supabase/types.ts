@@ -271,11 +271,18 @@ export type Database = {
           ai_confidence: number | null
           ai_summary: string | null
           author_avatar_url: string | null
+          author_company: string | null
+          author_company_logo_url: string | null
           author_email: string | null
           author_name: string | null
+          author_photo_url: string | null
+          author_role: string | null
+          author_website_url: string | null
           business_id: string
           content: string | null
           created_at: string
+          cta_label: string | null
+          cta_url: string | null
           customer_email_hash: string | null
           customer_handle: string | null
           external_ref_id: string | null
@@ -283,6 +290,7 @@ export type Database = {
           media_type: string | null
           media_url: string | null
           outcome_claim: string | null
+          poster_url: string | null
           product_reference: string | null
           proof_event_at: string | null
           proof_type: Database["public"]["Enums"]["proof_type"]
@@ -308,11 +316,18 @@ export type Database = {
           ai_confidence?: number | null
           ai_summary?: string | null
           author_avatar_url?: string | null
+          author_company?: string | null
+          author_company_logo_url?: string | null
           author_email?: string | null
           author_name?: string | null
+          author_photo_url?: string | null
+          author_role?: string | null
+          author_website_url?: string | null
           business_id: string
           content?: string | null
           created_at?: string
+          cta_label?: string | null
+          cta_url?: string | null
           customer_email_hash?: string | null
           customer_handle?: string | null
           external_ref_id?: string | null
@@ -320,6 +335,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           outcome_claim?: string | null
+          poster_url?: string | null
           product_reference?: string | null
           proof_event_at?: string | null
           proof_type: Database["public"]["Enums"]["proof_type"]
@@ -345,11 +361,18 @@ export type Database = {
           ai_confidence?: number | null
           ai_summary?: string | null
           author_avatar_url?: string | null
+          author_company?: string | null
+          author_company_logo_url?: string | null
           author_email?: string | null
           author_name?: string | null
+          author_photo_url?: string | null
+          author_role?: string | null
+          author_website_url?: string | null
           business_id?: string
           content?: string | null
           created_at?: string
+          cta_label?: string | null
+          cta_url?: string | null
           customer_email_hash?: string | null
           customer_handle?: string | null
           external_ref_id?: string | null
@@ -357,6 +380,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           outcome_claim?: string | null
+          poster_url?: string | null
           product_reference?: string | null
           proof_event_at?: string | null
           proof_type?: Database["public"]["Enums"]["proof_type"]
@@ -740,17 +764,33 @@ export type Database = {
         Args: { _token: string }
         Returns: boolean
       }
-      submit_testimonial_request: {
-        Args: {
-          _author_email: string
-          _author_name: string
-          _content: string
-          _media_url?: string
-          _rating?: number
-          _token: string
-        }
-        Returns: string
-      }
+      submit_testimonial_request:
+        | {
+            Args: {
+              _author_email: string
+              _author_name: string
+              _content: string
+              _media_url?: string
+              _rating?: number
+              _token: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              _author_company?: string
+              _author_email: string
+              _author_name: string
+              _author_photo_url?: string
+              _author_role?: string
+              _author_website_url?: string
+              _content: string
+              _media_url?: string
+              _rating?: number
+              _token: string
+            }
+            Returns: string
+          }
     }
     Enums: {
       app_role: "owner" | "editor" | "viewer"

@@ -19,7 +19,10 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { token, author_name, author_email, content, rating, media_url } = body ?? {};
+    const {
+      token, author_name, author_email, content, rating, media_url,
+      author_role, author_company, author_photo_url, author_website_url,
+    } = body ?? {};
 
     // Basic input validation
     if (!token || typeof token !== "string" || token.length < 8 || token.length > 128) {
@@ -41,6 +44,13 @@ Deno.serve(async (req) => {
     if (media_url && (typeof media_url !== "string" || media_url.length > 2000)) {
       return json({ error: "invalid media_url" }, 400);
     }
+    const optStr = (v: unknown, max = 200) =>
+      typeof v === "string" && v.trim().length > 0 && v.length <= max ? v.trim() : null;
+    const optUrl = (v: unknown) => {
+      if (typeof v !== "string" || v.length === 0 || v.length > 2000) return null;
+      if (!/^https?:\/\//i.test(v)) return null;
+      return v;
+    };
 
     const { data, error } = await supabase.rpc("submit_testimonial_request", {
       _token: token,
@@ -49,10 +59,25 @@ Deno.serve(async (req) => {
       _content: content,
       _rating: ratingNum,
       _media_url: media_url ?? null,
+      _author_role: optStr(author_role),
+      _author_company: optStr(author_company),
+      _author_photo_url: optUrl(author_photo_url),
+      _author_website_url: optUrl(author_website_url),
     });
     if (error) throw error;
 
-    return json({ ok: true, proof_object_id: data });
+    // Return the proof's business_id so the client can request a poster image.
+    let business_id: string | null = null;
+    if (data) {
+      const { data: proof } = await supabase
+        .from("proof_objects")
+        .select("business_id")
+        .eq("id", data)
+        .maybeSingle();
+      business_id = proof?.business_id ?? null;
+    }
+
+    return json({ ok: true, proof_object_id: data, business_id });
   } catch (e) {
     const msg = (e as Error).message ?? "unknown error";
     const status = /invalid|expired|at least|between/i.test(msg) ? 400 : 500;

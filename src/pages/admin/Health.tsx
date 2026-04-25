@@ -19,10 +19,12 @@ import {
   AlertTriangle,
   Database,
   HardDrive,
+  Image as ImageIcon,
   RefreshCw,
   RotateCcw,
   ShieldCheck,
 } from "lucide-react";
+import { generateVideoPoster } from "@/lib/bunny-upload";
 
 const db = supabase as any;
 
@@ -61,6 +63,47 @@ export default function Health() {
   const { toast } = useToast();
   const [info, setInfo] = useState<HealthInfo | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [backfilling, setBackfilling] = useState(false);
+
+  const backfillPosters = async () => {
+    setBackfilling(true);
+    try {
+      const { data, error } = await db
+        .from("proof_objects")
+        .select("id, business_id, media_url, author_name")
+        .is("poster_url", null)
+        .not("media_url", "is", null)
+        .or("type.eq.video,type.eq.testimonial")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      const candidates = (data ?? []).filter((p: { media_url: string }) =>
+        /\.(mp4|webm|mov|m4v)(\?|$)/i.test(p.media_url ?? "")
+      );
+      if (candidates.length === 0) {
+        toast({ title: "No videos need posters", description: "Everything is already up to date." });
+        return;
+      }
+      let ok = 0;
+      for (const p of candidates) {
+        const url = await generateVideoPoster({
+          businessId: p.business_id,
+          mediaUrl: p.media_url,
+          proofId: p.id,
+          authorName: p.author_name,
+        });
+        if (url) ok++;
+      }
+      toast({
+        title: "Backfill complete",
+        description: `${ok}/${candidates.length} posters generated.`,
+      });
+    } catch (e) {
+      toast({ title: "Backfill failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBackfilling(false);
+    }
+  };
 
   const load = async () => {
     setInfo(null);
@@ -122,9 +165,14 @@ export default function Health() {
             Service status, integration delivery rates, and replay tools.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={load}>
-          <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={backfillPosters} disabled={backfilling}>
+            <ImageIcon className="h-4 w-4 mr-1" /> {backfilling ? "Backfilling…" : "Backfill video posters"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={load}>
+            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">

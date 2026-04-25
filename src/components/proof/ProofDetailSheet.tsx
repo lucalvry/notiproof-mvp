@@ -129,7 +129,14 @@ export function ProofDetailSheet({ proofId, businessId, open, onOpenChange, onCh
         outcome_claim: proof.outcome_claim,
         tags: proof.tags ?? [],
         transcript: proof.transcript,
-      })
+        author_role: (proof as any).author_role ?? null,
+        author_company: (proof as any).author_company ?? null,
+        author_company_logo_url: (proof as any).author_company_logo_url ?? null,
+        author_photo_url: (proof as any).author_photo_url ?? null,
+        author_website_url: (proof as any).author_website_url ?? null,
+        cta_label: (proof as any).cta_label ?? null,
+        cta_url: (proof as any).cta_url ?? null,
+      } as any)
       .eq("id", proof.id);
     setSaving(false);
     if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
@@ -345,6 +352,75 @@ export function ProofDetailSheet({ proofId, businessId, open, onOpenChange, onCh
                     value={proof.media_url ?? ""}
                     onChange={(e) => setProof({ ...proof, media_url: e.target.value })}
                   />
+                </div>
+
+                {/* Rich attribution + CTA — power the lightbox modal */}
+                <div className="border-t pt-4 mt-4 space-y-3">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground font-mono">Attribution & CTA</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Role / position</Label>
+                      <Input
+                        value={(proof as any).author_role ?? ""}
+                        onChange={(e) => setProof({ ...proof, author_role: e.target.value } as any)}
+                        placeholder="Head of Marketing"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Company</Label>
+                      <Input
+                        value={(proof as any).author_company ?? ""}
+                        onChange={(e) => setProof({ ...proof, author_company: e.target.value } as any)}
+                        placeholder="Acme Inc."
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Author photo URL</Label>
+                    <Input
+                      type="url"
+                      value={(proof as any).author_photo_url ?? ""}
+                      onChange={(e) => setProof({ ...proof, author_photo_url: e.target.value } as any)}
+                      placeholder="https://…"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Company website</Label>
+                    <Input
+                      type="url"
+                      value={(proof as any).author_website_url ?? ""}
+                      onChange={(e) => setProof({ ...proof, author_website_url: e.target.value } as any)}
+                      placeholder="https://acme.com"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Company logo URL</Label>
+                    <Input
+                      type="url"
+                      value={(proof as any).author_company_logo_url ?? ""}
+                      onChange={(e) => setProof({ ...proof, author_company_logo_url: e.target.value } as any)}
+                      placeholder="https://…/logo.png"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>CTA label</Label>
+                      <Input
+                        value={(proof as any).cta_label ?? ""}
+                        onChange={(e) => setProof({ ...proof, cta_label: e.target.value } as any)}
+                        placeholder="Try it free"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>CTA URL</Label>
+                      <Input
+                        type="url"
+                        value={(proof as any).cta_url ?? ""}
+                        onChange={(e) => setProof({ ...proof, cta_url: e.target.value } as any)}
+                        placeholder="https://your-site.com/signup"
+                      />
+                    </div>
+                  </div>
                 </div>
               </TabsContent>
 

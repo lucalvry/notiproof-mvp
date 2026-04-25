@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Star, Video, Type, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { uploadToBunny } from "@/lib/bunny-upload";
+import { uploadToBunny, generateVideoPoster } from "@/lib/bunny-upload";
 
 interface CollectionContext {
   business_name: string;
@@ -30,6 +30,13 @@ export default function Collect() {
   const [content, setContent] = useState("");
   const [rating, setRating] = useState(5);
   const [submitting, setSubmitting] = useState(false);
+  // Optional "About you" details
+  const [role, setRole] = useState("");
+  const [company, setCompany] = useState("");
+  const [website, setWebsite] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [showAboutYou, setShowAboutYou] = useState(false);
   const [ctx, setCtx] = useState<CollectionContext | null>(null);
   const [ctxError, setCtxError] = useState<string | null>(null);
 
@@ -116,9 +123,24 @@ export default function Collect() {
         });
       }
 
+      let photoUrl: string | null = null;
+      if (photoFile) {
+        photoUrl = await uploadToBunny({
+          kind: "media",
+          folder: `testimonials/${token}`,
+          filename: `photo-${Date.now()}-${photoFile.name.replace(/[^a-z0-9.\-_]/gi, "_")}`,
+          contentType: photoFile.type || "image/jpeg",
+          blob: photoFile,
+        });
+      }
+
       const finalContent = mode === "video"
         ? (content.trim() || `Video testimonial from ${name}`)
         : content.trim();
+
+      const normalizedWebsite = website.trim()
+        ? (/^https?:\/\//i.test(website.trim()) ? website.trim() : `https://${website.trim()}`)
+        : null;
 
       const { data, error } = await supabase.functions.invoke("submit-testimonial", {
         body: {
@@ -128,10 +150,26 @@ export default function Collect() {
           content: finalContent,
           rating,
           media_url: mediaUrl,
+          author_role: role.trim() || null,
+          author_company: company.trim() || null,
+          author_photo_url: photoUrl,
+          author_website_url: normalizedWebsite,
         },
       });
       if (error) throw new Error(error.message);
       if (!data?.ok) throw new Error(data?.error ?? "Submission failed");
+
+      // Best-effort: generate a poster image so the widget thumbnail isn't black.
+      if (mode === "video" && mediaUrl && data?.proof_object_id && data?.business_id && token) {
+        void generateVideoPoster({
+          businessId: data.business_id,
+          mediaUrl,
+          proofId: data.proof_object_id,
+          authorName: name,
+          brandColor: ctx?.brand_color ?? undefined,
+          collectionToken: token,
+        });
+      }
 
       navigate(`/collect/${token}/done`);
     } catch (err) {
@@ -220,6 +258,45 @@ export default function Collect() {
                 </div>
               </div>
             )}
+
+            {/* Optional "About you" — collected to power the rich lightbox modal */}
+            <div className="border rounded-md">
+              <button
+                type="button"
+                onClick={() => setShowAboutYou((s) => !s)}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/30 rounded-md"
+              >
+                <span>About you <span className="text-muted-foreground font-normal">(optional, helps your testimonial stand out)</span></span>
+                <span className="text-muted-foreground text-lg leading-none">{showAboutYou ? "−" : "+"}</span>
+              </button>
+              {showAboutYou && (
+                <div className="px-4 pb-4 space-y-3 border-t pt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2"><Label>Role / position</Label><Input value={role} onChange={(e) => setRole(e.target.value)} maxLength={120} placeholder="Head of Marketing" /></div>
+                    <div className="space-y-2"><Label>Company</Label><Input value={company} onChange={(e) => setCompany(e.target.value)} maxLength={120} placeholder="Acme Inc." /></div>
+                  </div>
+                  <div className="space-y-2"><Label>Website (optional)</Label><Input value={website} onChange={(e) => setWebsite(e.target.value)} maxLength={300} placeholder="acme.com" /></div>
+                  <div className="space-y-2">
+                    <Label>Your photo (optional)</Label>
+                    <div className="flex items-center gap-3">
+                      {photoPreview && (
+                        <img src={photoPreview} alt="" className="h-14 w-14 rounded-full object-cover border" />
+                      )}
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] ?? null;
+                          setPhotoFile(f);
+                          if (photoPreview) URL.revokeObjectURL(photoPreview);
+                          setPhotoPreview(f ? URL.createObjectURL(f) : null);
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <Button type="submit" className="w-full" size="lg" disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

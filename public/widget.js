@@ -80,35 +80,60 @@
     if (document.getElementById("np-style")) return;
     var css = '' +
       '.np-root{position:fixed;z-index:2147483600;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}' +
-      '.np-pop{max-width:360px}' +
+      '.np-pop{max-width:420px}' +
       '.np-pos-bottom-left{left:20px;bottom:20px}' +
       '.np-pos-bottom-right{right:20px;bottom:20px}' +
       '.np-pos-top-left{left:20px;top:20px}' +
       '.np-pos-top-right{right:20px;top:20px}' +
       '.np-banner{left:0;right:0;top:0;max-width:none}' +
-      '.np-card{background:#fff;color:#0f172a;border:1px solid rgba(15,23,42,.06);border-radius:14px;box-shadow:0 12px 32px rgba(15,23,42,.18);padding:14px;display:flex;gap:12px;align-items:stretch;cursor:pointer;position:relative;transition:transform .25s ease, opacity .25s ease;opacity:0;transform:translateY(8px)}' +
+      '.np-card{background:#fff;color:#0f172a;border:1px solid rgba(15,23,42,.06);border-radius:14px;box-shadow:0 12px 32px rgba(15,23,42,.18);padding:14px;display:flex;gap:12px;align-items:stretch;cursor:pointer;position:relative;transition:transform .25s ease, opacity .25s ease;opacity:0;transform:translateY(8px);width:420px;max-width:420px;box-sizing:border-box}' +
       '.np-card.np-in{opacity:1;transform:translateY(0)}' +
-      '.np-media{align-self:stretch;aspect-ratio:1/1;min-height:84px;max-height:140px;border-radius:10px;flex-shrink:0;background:#eef2f7;overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center}' +
+      '.np-media{align-self:stretch;aspect-ratio:1/1;min-height:96px;max-height:140px;border-radius:10px;flex-shrink:0;background:#eef2f7;overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center}' +
       '.np-media img,.np-media video{width:100%;height:100%;object-fit:cover;display:block}' +
       '.np-initial{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:28px}' +
       '.np-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.28);pointer-events:none}' +
       '.np-play-btn{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.95);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}' +
-      '.np-body{flex:1;min-width:0;font-size:13px;line-height:1.45}' +
-      '.np-author{font-weight:600;color:#0f172a;display:flex;align-items:center;gap:6px;flex-wrap:wrap}' +
-      '.np-stars{display:inline-flex;gap:1px;margin-top:2px}' +
+      '.np-body{flex:1;min-width:0;font-size:13px;line-height:1.45;display:flex;flex-direction:column}' +
+      '.np-author-row{display:flex;align-items:center;gap:6px;min-width:0}' +
+      '.np-author{font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}' +
+      '.np-stars{display:inline-flex;gap:1px;flex-shrink:0}' +
       '.np-source{font-size:11px;color:#64748b;margin-top:1px}' +
-      '.np-text{color:#334155;margin-top:4px}' +
-      '.np-footer{margin-top:8px;text-align:right}' +
+      '.np-text{color:#334155;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}' +
+      '.np-footer{margin-top:auto;padding-top:4px;text-align:right}' +
       '.np-footer a{font-size:10px;color:#94a3b8;text-decoration:none}' +
       '.np-footer a:hover{color:#475569}' +
       '.np-close{position:absolute;top:4px;right:4px;width:24px;height:24px;background:none;border:0;font-size:18px;color:#94a3b8;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;border-radius:6px}' +
       '.np-close:hover{background:rgba(15,23,42,.06);color:#475569}' +
-      '.np-banner .np-card{border-radius:0;justify-content:center;text-align:center;max-width:none}' +
+      '.np-banner .np-card{border-radius:0;justify-content:center;text-align:center;max-width:none;width:auto}' +
       '.np-inline-host{display:block;margin:8px 0}' +
       '.np-badge{position:fixed;left:16px;bottom:16px;background:#0f172a;color:#fff;font-size:12px;padding:6px 10px;border-radius:999px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:2147483600}' +
-      '.np-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:20px}' +
-      '.np-lightbox video{max-width:min(960px,100%);max-height:90vh;border-radius:8px;background:#000}' +
-      '.np-lightbox-close{position:absolute;top:16px;right:16px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;border:0;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center}';
+      // Lightbox
+      '.np-lightbox{position:fixed;inset:0;background:rgba(8,11,20,.88);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;transition:opacity .18s ease-out;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}' +
+      '.np-lightbox.np-lb-in{opacity:1}' +
+      '.np-lb-frame{position:relative;width:min(880px,94vw);max-height:90vh;background:#fff;color:#0f172a;border-radius:18px;overflow:hidden;display:grid;grid-template-columns:1.1fr 1fr;transform:scale(.96);transition:transform .18s ease-out;box-shadow:0 30px 80px rgba(0,0,0,.5)}' +
+      '.np-lightbox.np-lb-in .np-lb-frame{transform:scale(1)}' +
+      '@media (max-width:720px){.np-lb-frame{grid-template-columns:1fr;max-height:92vh;overflow-y:auto}}' +
+      '.np-lb-media{background:#0f172a;display:flex;align-items:center;justify-content:center;min-height:280px;position:relative}' +
+      '.np-lb-media video{width:100%;height:100%;max-height:90vh;object-fit:cover;display:block}' +
+      '.np-lb-media img.np-lb-photo{width:100%;height:100%;max-height:90vh;object-fit:cover}' +
+      '.np-lb-info{padding:28px 28px 24px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;max-height:90vh}' +
+      '.np-lb-quote{font-size:18px;line-height:1.55;color:#0f172a;font-weight:500}' +
+      '.np-lb-quote::before{content:"\\201C";font-size:48px;color:#cbd5e1;line-height:0;vertical-align:-12px;margin-right:4px;font-family:Georgia,serif}' +
+      '.np-lb-attribution{display:flex;align-items:center;gap:12px;border-top:1px solid #e2e8f0;padding-top:14px;margin-top:auto}' +
+      '.np-lb-avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;background:#e2e8f0}' +
+      '.np-lb-avatar-fallback{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:20px;flex-shrink:0}' +
+      '.np-lb-who{min-width:0;flex:1}' +
+      '.np-lb-name{font-weight:700;color:#0f172a;font-size:15px}' +
+      '.np-lb-role{font-size:13px;color:#475569;margin-top:1px}' +
+      '.np-lb-role a{color:#475569;text-decoration:none}.np-lb-role a:hover{text-decoration:underline}' +
+      '.np-lb-company-logo{height:28px;max-width:90px;object-fit:contain;flex-shrink:0;margin-left:auto;opacity:.85}' +
+      '.np-lb-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}' +
+      '.np-lb-verified{font-size:11px;color:#16a34a;background:#dcfce7;padding:3px 9px;border-radius:999px;font-weight:600;display:inline-flex;align-items:center;gap:4px}' +
+      '.np-lb-cta{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;border-radius:10px;background:#0f172a;color:#fff;text-decoration:none;font-weight:600;font-size:14px;transition:transform .12s ease, box-shadow .12s ease;margin-top:4px}' +
+      '.np-lb-cta:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(15,23,42,.25)}' +
+      '.np-lightbox-close{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);color:#0f172a;border:0;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.4);transition:transform .15s ease;z-index:2}' +
+      '.np-lightbox-close:hover{transform:scale(1.06)}' +
+      '.np-lightbox-close:focus-visible{outline:3px solid #6366f1;outline-offset:2px}';
     var el = document.createElement("style");
     el.id = "np-style";
     el.textContent = css;
@@ -131,12 +156,17 @@
     var c = cfg();
     if (c.show_avatar === false) return '';
     var brand = c.brand_color || "#6366f1";
+    var playOverlay = '<div class="np-play"><div class="np-play-btn" style="box-shadow:0 0 0 2px ' + escapeHtml(brand) + '55, 0 2px 8px rgba(0,0,0,.3)">' +
+      '<svg width="14" height="14" viewBox="0 0 10 10" fill="#0f172a"><path d="M2 1l7 4-7 4z"/></svg>' +
+      '</div></div>';
     if (isVideoProof(proof) && proof.media_url) {
+      // Prefer pre-generated poster (no runtime decoding required).
+      if (proof.poster_url) {
+        return '<div class="np-media"><img src="' + escapeHtml(proof.poster_url) + '" alt="">' + playOverlay + '</div>';
+      }
       return '<div class="np-media" data-np-video="' + escapeHtml(proof.media_url) + '">' +
         '<video preload="metadata" muted playsinline crossorigin="anonymous" src="' + escapeHtml(proof.media_url) + '#t=0.1"></video>' +
-        '<div class="np-play"><div class="np-play-btn" style="box-shadow:0 0 0 2px ' + escapeHtml(brand) + '55, 0 2px 8px rgba(0,0,0,.3)">' +
-        '<svg width="14" height="14" viewBox="0 0 10 10" fill="#0f172a"><path d="M2 1l7 4-7 4z"/></svg>' +
-        '</div></div>' +
+        playOverlay +
         '</div>';
     }
     if (proof.author_avatar_url) {
@@ -179,35 +209,128 @@
   function renderCard(proof) {
     var c = cfg();
     var media = renderMedia(proof);
-    var name = proof.author_name ? '<div class="np-author">' + escapeHtml(proof.author_name) + '</div>' : '';
     var stars = (c.show_rating !== false && proof.rating) ? renderStars(proof.rating) : '';
+    var nameRow = (proof.author_name || stars)
+      ? '<div class="np-author-row">' +
+          (proof.author_name ? '<span class="np-author">' + escapeHtml(proof.author_name) + '</span>' : '') +
+          stars +
+        '</div>'
+      : '';
     var source = proof.source === 'testimonial_request' ? '<div class="np-source">Verified testimonial</div>' : '';
-    var text = proof.content ? '<div class="np-text">' + escapeHtml(proof.content).slice(0, 160) + (proof.content.length > 160 ? '…' : '') + '</div>' : '';
+    var rawText = proof.content ? String(proof.content) : '';
+    var text = rawText
+      ? '<div class="np-text">' + escapeHtml(rawText.slice(0, 110)) + (rawText.length > 110 ? '…' : '') + '</div>'
+      : '';
     var footer = (c.powered_by !== false && state.impressions >= 1)
       ? '<div class="np-footer"><a href="https://notiproof.com" target="_blank" rel="noopener">Powered by NotiProof</a></div>'
       : '';
     return '<div class="np-card" data-proof="' + escapeHtml(proof.id) + '">' +
       '<button class="np-close" aria-label="Close">×</button>' +
       media +
-      '<div class="np-body">' + name + stars + source + text + footer + '</div>' +
+      '<div class="np-body">' + nameRow + source + text + footer + '</div>' +
       '</div>';
   }
 
+  function safeUrl(u) {
+    if (!u || typeof u !== 'string') return null;
+    if (!/^https?:\/\//i.test(u)) return null;
+    return u;
+  }
+
   function openLightbox(proof) {
+    var c = cfg();
+    var brand = c.brand_color || '#6366f1';
+    var prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     var lb = document.createElement('div');
     lb.className = 'np-lightbox';
-    lb.innerHTML = '<button class="np-lightbox-close" aria-label="Close">×</button>' +
-      '<video controls autoplay playsinline src="' + escapeHtml(proof.media_url) + '"></video>';
+
+    var stars = (c.show_rating !== false && proof.rating) ? renderStars(proof.rating) : '';
+    var verified = proof.source === 'testimonial_request'
+      ? '<span class="np-lb-verified">✓ Verified</span>' : '';
+
+    var mediaHtml = '';
+    if (isVideoProof(proof) && proof.media_url) {
+      mediaHtml = '<video controls autoplay playsinline src="' + escapeHtml(proof.media_url) + '"></video>';
+    } else if (proof.author_photo_url) {
+      mediaHtml = '<img class="np-lb-photo" src="' + escapeHtml(proof.author_photo_url) + '" alt="">';
+    } else if (proof.author_avatar_url) {
+      mediaHtml = '<img class="np-lb-photo" src="' + escapeHtml(proof.author_avatar_url) + '" alt="">';
+    } else {
+      var initial = (proof.author_name || '?').trim().charAt(0).toUpperCase();
+      mediaHtml = '<div style="width:100%;height:100%;min-height:280px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:96px;font-weight:700;background:' + escapeHtml(brand) + '">' + escapeHtml(initial) + '</div>';
+    }
+
+    var avatarSrc = proof.author_photo_url || proof.author_avatar_url;
+    var avatarHtml = avatarSrc
+      ? '<img class="np-lb-avatar" src="' + escapeHtml(avatarSrc) + '" alt="">'
+      : '<div class="np-lb-avatar-fallback" style="background:' + escapeHtml(brand) + '">' +
+          escapeHtml((proof.author_name || '?').trim().charAt(0).toUpperCase()) + '</div>';
+
+    var roleParts = [];
+    if (proof.author_role) roleParts.push(escapeHtml(proof.author_role));
+    if (proof.author_company) {
+      var siteUrl = safeUrl(proof.author_website_url);
+      roleParts.push(siteUrl
+        ? '<a href="' + escapeHtml(siteUrl) + '" target="_blank" rel="noopener">' + escapeHtml(proof.author_company) + '</a>'
+        : escapeHtml(proof.author_company));
+    }
+    var roleHtml = roleParts.length ? '<div class="np-lb-role">' + roleParts.join(' · ') + '</div>' : '';
+
+    var companyLogo = proof.author_company_logo_url
+      ? '<img class="np-lb-company-logo" src="' + escapeHtml(proof.author_company_logo_url) + '" alt="">'
+      : '';
+
+    var ctaUrl = safeUrl(proof.cta_url);
+    var ctaLabel = proof.cta_label && proof.cta_label.trim() ? proof.cta_label.trim() : 'Learn more';
+    var ctaHtml = ctaUrl
+      ? '<a class="np-lb-cta" href="' + escapeHtml(ctaUrl) + '" target="_blank" rel="noopener" data-np-cta="1" style="background:' + escapeHtml(brand) + '">' +
+          escapeHtml(ctaLabel) +
+          ' <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M5 10h10m0 0l-4-4m4 4l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        '</a>'
+      : '';
+
+    var quoteText = proof.content ? escapeHtml(String(proof.content)) : '';
+    var quote = quoteText ? '<div class="np-lb-quote">' + quoteText + '</div>' : '';
+
+    lb.innerHTML =
+      '<div class="np-lb-frame" role="dialog" aria-modal="true">' +
+        '<button class="np-lightbox-close" aria-label="Close">×</button>' +
+        '<div class="np-lb-media">' + mediaHtml + '</div>' +
+        '<div class="np-lb-info">' +
+          (stars || verified ? '<div class="np-lb-meta">' + stars + verified + '</div>' : '') +
+          quote +
+          ctaHtml +
+          '<div class="np-lb-attribution">' +
+            avatarHtml +
+            '<div class="np-lb-who">' +
+              (proof.author_name ? '<div class="np-lb-name">' + escapeHtml(proof.author_name) + '</div>' : '') +
+              roleHtml +
+            '</div>' +
+            companyLogo +
+          '</div>' +
+        '</div>' +
+      '</div>';
     document.body.appendChild(lb);
+    requestAnimationFrame(function () { lb.classList.add('np-lb-in'); });
+    var btn = lb.querySelector('.np-lightbox-close');
+    if (btn) try { btn.focus(); } catch (_) {}
     track('interaction', proof.id);
+
     function close() {
-      if (lb.parentNode) lb.parentNode.removeChild(lb);
+      lb.classList.remove('np-lb-in');
+      document.body.style.overflow = prevOverflow;
       document.removeEventListener('keydown', onKey);
+      setTimeout(function () { if (lb.parentNode) lb.parentNode.removeChild(lb); }, 180);
     }
     function onKey(e) { if (e.key === 'Escape') close(); }
     document.addEventListener('keydown', onKey);
     lb.addEventListener('click', function (e) {
-      if (e.target === lb || (e.target.classList && e.target.classList.contains('np-lightbox-close'))) close();
+      var t = e.target;
+      if (t === lb || (t.classList && t.classList.contains('np-lightbox-close'))) close();
+      if (t && t.closest && t.closest('[data-np-cta]')) {
+        track('conversion', proof.id);
+      }
     });
   }
 
@@ -222,12 +345,47 @@
         if (host) host.innerHTML = "";
         return;
       }
-      if (isVideoProof(proof) && proof.media_url) {
-        openLightbox(proof);
-      } else {
-        track("interaction", proof.id);
-      }
+      // Open the rich lightbox for every proof (video, photo, or text).
+      openLightbox(proof);
     });
+  }
+
+  // --- Pacing helpers (cooldown + frequency cap) ---
+  function dayKey() {
+    var d = new Date();
+    return d.getUTCFullYear() + '-' + (d.getUTCMonth() + 1) + '-' + d.getUTCDate();
+  }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+
+  function canShow() {
+    var c = cfg();
+    var wid = (state.widget && state.widget.id) || 'w';
+    // Cooldown between consecutive shows for this visitor.
+    var cooldownSec = Number(c.cooldown_seconds);
+    if (cooldownSec > 0) {
+      var last = Number(lsGet('np_last_' + wid)) || 0;
+      if (Date.now() - last < cooldownSec * 1000) return false;
+    }
+    // Daily frequency cap per visitor.
+    var cap = Number(c.frequency_cap);
+    if (cap > 0) {
+      var k = 'np_count_' + wid + '_' + dayKey();
+      var n = Number(lsGet(k)) || 0;
+      if (n >= cap) return false;
+    }
+    return true;
+  }
+
+  function recordShow() {
+    var wid = (state.widget && state.widget.id) || 'w';
+    lsSet('np_last_' + wid, String(Date.now()));
+    var c = cfg();
+    if (Number(c.frequency_cap) > 0) {
+      var k = 'np_count_' + wid + '_' + dayKey();
+      var n = Number(lsGet(k)) || 0;
+      lsSet(k, String(n + 1));
+    }
   }
 
   function mountRotating(className, defaultIntervalMs) {
@@ -241,10 +399,12 @@
       : defaultIntervalMs;
     function tick() {
       if (!state.proofs.length) return;
+      if (!canShow()) { host.innerHTML = ''; return; }
       var p = state.proofs[state.idx % state.proofs.length];
       state.idx++;
       host.innerHTML = renderCard(p);
       bindCard(host.querySelector(".np-card"), p, host);
+      recordShow();
     }
     tick();
     setInterval(tick, interval);
