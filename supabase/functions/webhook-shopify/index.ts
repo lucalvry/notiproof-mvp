@@ -1,200 +1,109 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
-import { checkRateLimit } from '../_shared/rate-limit.ts';
-import { checkPayloadSize, sanitizeString } from '../_shared/validation.ts';
+// Shopify webhook receiver: verifies HMAC, stores events, creates proof_objects.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-shopify-hmac-sha256, x-shopify-topic',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shopify-hmac-sha256, x-shopify-topic, x-shopify-shop-domain",
 };
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SHOPIFY_CLIENT_SECRET = Deno.env.get("SHOPIFY_CLIENT_SECRET");
 
-  try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const rawBody = await req.text();
-    const sizeError = checkPayloadSize(rawBody, 500_000, corsHeaders);
-    if (sizeError) return sizeError;
-
-    const hmacHeader = req.headers.get('x-shopify-hmac-sha256');
-    const topic = req.headers.get('x-shopify-topic');
-    
-    // Verify Shopify webhook signature - MANDATORY
-    const secret = Deno.env.get('SHOPIFY_WEBHOOK_SECRET');
-    if (!secret) {
-      console.error('SHOPIFY_WEBHOOK_SECRET not configured');
-      return new Response(JSON.stringify({ error: 'Webhook secret not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (!hmacHeader) {
-      console.error('Missing HMAC signature header');
-      return new Response(JSON.stringify({ error: 'Missing signature' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Verify HMAC signature
-    {
-      const encoder = new TextEncoder();
-      const keyData = encoder.encode(secret);
-      const messageData = encoder.encode(rawBody);
-      
-      const cryptoKey = await crypto.subtle.importKey(
-        'raw',
-        keyData,
-        { name: 'HMAC', hash: 'SHA-256' },
-        false,
-        ['sign']
-      );
-      
-      const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
-      const calculatedHmac = btoa(String.fromCharCode(...new Uint8Array(signature)));
-      
-      if (hmacHeader !== calculatedHmac) {
-        console.error('Invalid Shopify webhook signature');
-        return new Response(JSON.stringify({ error: 'Invalid signature' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
-
-    const body = JSON.parse(rawBody);
-    
-    // Apply rate limiting (1000 requests per hour per shop)
-    const shopDomain = body.domain || body.shop_domain || 'unknown';
-    const rateLimitKey = `shopify:${shopDomain}`;
-    const rateLimit = await checkRateLimit(rateLimitKey, {
-      max_requests: 1000,
-      window_seconds: 3600 // 1 hour
-    });
-
-    if (!rateLimit.allowed) {
-      console.log('Rate limit exceeded for shop', shopDomain);
-      return new Response(JSON.stringify({
-        error: 'Rate limit exceeded',
-        retry_after: Math.ceil((rateLimit.reset - Date.now()) / 1000)
-      }), {
-        status: 429,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-          'X-RateLimit-Limit': '1000',
-          'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': rateLimit.reset.toString()
-        }
-      });
-    }
-    
-    // Check for duplicate webhook using idempotency key
-    const idempotencyKey = `shopify:${topic}:${body.id}`;
-
-    const { data: existing } = await supabase
-      .from('webhook_dedup')
-      .select('id, processed_at')
-      .eq('idempotency_key', idempotencyKey)
-      .single();
-
-    if (existing) {
-      console.log(`Duplicate webhook detected: ${idempotencyKey}, originally processed at ${existing.processed_at}`);
-      
-      await supabase.from('integration_logs').insert({
-        integration_type: 'shopify',
-        action: `webhook_${topic}_duplicate`,
-        status: 'skipped',
-        details: { 
-          topic, 
-          webhook_id: body.id,
-          original_processed_at: existing.processed_at 
-        },
-      });
-      
-      return new Response(JSON.stringify({ success: true, duplicate: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Store idempotency key BEFORE processing
-    await supabase.from('webhook_dedup').insert({
-      idempotency_key: idempotencyKey,
-      webhook_type: 'shopify',
-      payload: body
-    });
-    
-    await supabase.from('integration_logs').insert({
-      integration_type: 'shopify',
-      action: `webhook_${topic}`,
-      status: 'received',
-      details: { topic, webhook_id: body.id },
-    });
-
-    if (topic === 'orders/create' || topic === 'orders/updated') {
-      await handleOrderEvent(supabase, body);
-    }
-
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { 
-        ...corsHeaders, 
-        'Content-Type': 'application/json',
-        'X-RateLimit-Remaining': rateLimit.remaining.toString()
-      },
-    });
-
-  } catch (error) {
-    console.error('Shopify Webhook Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-});
-
-async function handleOrderEvent(supabase: any, order: any) {
-  const shopDomain = order.domain || order.shop_domain || '';
-  const firstLineItem = order.line_items?.[0];
-  const productId = firstLineItem?.product_id;
-  
-  const eventData = {
-    event_type: 'purchase',
-    message_template: sanitizeString(`${order.customer?.first_name || 'Someone'} from ${order.shipping_address?.city || 'Unknown'} just purchased ${firstLineItem?.title || 'a product'}`, 500),
-    user_name: order.customer?.first_name,
-    user_location: order.shipping_address?.city,
-    event_data: {
-      order_id: order.id,
-      total: order.total_price,
-      currency: order.currency,
-      product_name: firstLineItem?.title,
-      product_url: productId && shopDomain ? `https://${shopDomain}/products/${productId}` : null,
-      product_image: firstLineItem?.image_url,
-      quantity: firstLineItem?.quantity,
-      price: firstLineItem?.price,
-    },
-    source: 'integration',
-    integration_type: 'shopify',
-    moderation_status: 'approved',
-  };
-
-  const { data: widgets } = await supabase
-    .from('widgets')
-    .select('id')
-    .eq('integration', 'shopify')
-    .limit(1);
-
-  if (widgets && widgets.length > 0) {
-    await supabase.from('events').insert({
-      ...eventData,
-      widget_id: widgets[0].id,
-    });
-  }
+async function verifyHmac(raw: string, header: string | null, secret: string): Promise<boolean> {
+  if (!header) return false;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(raw));
+  const b64 = btoa(String.fromCharCode(...new Uint8Array(mac)));
+  if (b64.length !== header.length) return false;
+  let diff = 0;
+  for (let i = 0; i < b64.length; i++) diff |= b64.charCodeAt(i) ^ header.charCodeAt(i);
+  return diff === 0;
 }
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const url = new URL(req.url);
+  const integrationId = url.searchParams.get("integration_id");
+  const raw = await req.text();
+  const topic = req.headers.get("x-shopify-topic") ?? "unknown";
+  const shopDomain = req.headers.get("x-shopify-shop-domain");
+  const hmac = req.headers.get("x-shopify-hmac-sha256");
+
+  if (SHOPIFY_CLIENT_SECRET) {
+    const ok = await verifyHmac(raw, hmac, SHOPIFY_CLIENT_SECRET);
+    if (!ok) return new Response(JSON.stringify({ error: "Invalid HMAC" }), { status: 401, headers: corsHeaders });
+  }
+
+  let payload: any;
+  try { payload = JSON.parse(raw); } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: corsHeaders });
+  }
+
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+  // Resolve integration: by id (preferred) or by shop domain stored in config.
+  let integ: { id: string; business_id: string } | null = null;
+  if (integrationId) {
+    const { data } = await supabase.from("integrations").select("id, business_id, provider").eq("id", integrationId).maybeSingle();
+    if (data?.provider === "shopify") integ = { id: data.id, business_id: data.business_id };
+  }
+  if (!integ && shopDomain) {
+    const { data } = await supabase.from("integrations").select("id, business_id, config, provider").eq("provider", "shopify");
+    integ = data?.find((d: any) => (d.config?.shop ?? "") === shopDomain) ?? null;
+  }
+  if (!integ) {
+    return new Response(JSON.stringify({ error: "Integration not found" }), { status: 404, headers: corsHeaders });
+  }
+
+  const { data: evRow } = await supabase.from("integration_events").insert({
+    business_id: integ.business_id,
+    integration_id: integ.id,
+    event_type: topic,
+    payload,
+  }).select("id").single();
+
+  let proofId: string | null = null;
+  if (topic === "orders/create" || topic === "orders/paid") {
+    const total = payload.total_price ? `${payload.total_price} ${payload.currency ?? "USD"}` : "an order";
+    const customer = payload.customer ?? {};
+    const fullName = [customer.first_name, customer.last_name].filter(Boolean).join(" ") || null;
+    const { data: po } = await supabase.from("proof_objects").insert({
+      business_id: integ.business_id,
+      type: "purchase",
+      status: "approved",
+      verified: true,
+      author_name: fullName,
+      author_email: customer.email ?? payload.email ?? null,
+      content: `Ordered ${total}`,
+      source: "shopify",
+      source_metadata: { topic, order_id: payload.id },
+      published_at: new Date().toISOString(),
+    }).select("id").single();
+    proofId = po?.id ?? null;
+  }
+
+  if (evRow?.id) {
+    await supabase.from("integration_events").update({
+      processed_at: new Date().toISOString(),
+      proof_object_id: proofId,
+    }).eq("id", evRow.id);
+  }
+
+  await supabase.from("integrations").update({
+    status: "connected",
+    last_sync_at: new Date().toISOString(),
+  }).eq("id", integ.id);
+
+  return new Response(JSON.stringify({ received: true, proof_object_id: proofId }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+});

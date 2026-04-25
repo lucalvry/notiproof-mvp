@@ -1,525 +1,245 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
-import { checkRateLimit } from '../_shared/rate-limit.ts';
-import { checkPayloadSize } from '../_shared/validation.ts';
+// Stripe webhook receiver:
+//   1. Verifies signature.
+//   2. For BILLING events (subscription/checkout/invoice) → updates the
+//      business plan tier, limits, and subscription identifiers based on the
+//      Stripe customer ID. Does NOT require an integration_id query param.
+//   3. For INTEGRATION events (purchases, refunds, etc.) routed with an
+//      ?integration_id=... param, stores integration_events and creates
+//      proof_objects for qualifying events (legacy behavior, preserved).
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature",
 };
 
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+
+// Plan limits — keep in sync with src/lib/plans.ts
+const PLAN_LIMITS: Record<string, { proof: number; events: number }> = {
+  free:    { proof: 100,     events: 10_000 },
+  starter: { proof: 1_000,   events: 100_000 },
+  growth:  { proof: 10_000,  events: 1_000_000 },
+  scale:   { proof: 100_000, events: 10_000_000 },
+};
+
+// Map Stripe price IDs (read from secrets) to plan keys. Supports both
+// monthly and yearly price IDs per plan.
+function priceIdToPlan(priceId: string | null | undefined): string | null {
+  if (!priceId) return null;
+  const map: Record<string, string> = {};
+  const entries: Array<[string | undefined, string]> = [
+    [Deno.env.get("STRIPE_PRICE_STARTER_MONTHLY"), "starter"],
+    [Deno.env.get("STRIPE_PRICE_STARTER_YEARLY"), "starter"],
+    [Deno.env.get("STRIPE_PRICE_GROWTH_MONTHLY"), "growth"],
+    [Deno.env.get("STRIPE_PRICE_GROWTH_YEARLY"), "growth"],
+    [Deno.env.get("STRIPE_PRICE_SCALE_MONTHLY"), "scale"],
+    [Deno.env.get("STRIPE_PRICE_SCALE_YEARLY"), "scale"],
+    // Backwards-compat with single-interval secrets if still set.
+    [Deno.env.get("STRIPE_PRICE_STARTER"), "starter"],
+    [Deno.env.get("STRIPE_PRICE_GROWTH"), "growth"],
+    [Deno.env.get("STRIPE_PRICE_SCALE"), "scale"],
+  ];
+  for (const [id, plan] of entries) {
+    if (id) map[id] = plan;
+  }
+  return map[priceId] ?? null;
+}
+
+// Verify Stripe webhook signature (HMAC-SHA256) without the SDK.
+async function verify(payload: string, header: string | null, secret: string): Promise<boolean> {
+  if (!header) return false;
+  const parts = Object.fromEntries(header.split(",").map((p) => p.split("=") as [string, string]));
+  const t = parts["t"];
+  const v1 = parts["v1"];
+  if (!t || !v1) return false;
+  const signed = `${t}.${payload}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signed));
+  const hex = Array.from(new Uint8Array(mac)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  if (hex.length !== v1.length) return false;
+  let diff = 0;
+  for (let i = 0; i < hex.length; i++) diff |= hex.charCodeAt(i) ^ v1.charCodeAt(i);
+  return diff === 0;
+}
+
+const BILLING_EVENT_TYPES = new Set([
+  "checkout.session.completed",
+  "customer.subscription.created",
+  "customer.subscription.updated",
+  "customer.subscription.deleted",
+  "invoice.payment_failed",
+  "invoice.payment_succeeded",
+]);
+
+async function handleBillingEvent(
+  supabase: any,
+  event: { type: string; data: { object: Record<string, unknown> } },
+) {
+  const obj = event.data.object as Record<string, unknown>;
+  const customerId = (obj.customer as string) ?? null;
+  if (!customerId) return;
+
+  const { data: business } = await supabase
+    .from("businesses")
+    .select("id, plan, plan_tier")
+    .eq("stripe_customer_id", customerId)
+    .maybeSingle();
+  if (!business) return;
+
+  const updates: Record<string, unknown> = {};
+
+  if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
+    const items = (obj.items as { data?: Array<{ price?: { id?: string } }> } | undefined)?.data ?? [];
+    const priceId = items[0]?.price?.id ?? null;
+    const planKey = priceIdToPlan(priceId) ?? ((obj.metadata as Record<string, string> | undefined)?.plan_key ?? null);
+    const status = obj.status as string;
+
+    updates.stripe_subscription_id = obj.id as string;
+
+    if (status === "active" || status === "trialing") {
+      const key = planKey ?? "free";
+      updates.plan = key;
+      updates.plan_tier = key;
+      const limits = PLAN_LIMITS[key];
+      if (limits) {
+        updates.monthly_proof_limit = limits.proof;
+        updates.monthly_event_limit = limits.events;
+      }
+      const periodEnd = obj.current_period_end as number | undefined;
+      if (periodEnd) updates.plan_expires_at = new Date(periodEnd * 1000).toISOString();
+    } else if (status === "canceled" || status === "incomplete_expired" || status === "unpaid") {
+      updates.plan = "free";
+      updates.plan_tier = "free";
+      const limits = PLAN_LIMITS.free;
+      updates.monthly_proof_limit = limits.proof;
+      updates.monthly_event_limit = limits.events;
+      updates.plan_expires_at = null;
+    }
+  } else if (event.type === "customer.subscription.deleted") {
+    updates.plan = "free";
+    updates.plan_tier = "free";
+    updates.stripe_subscription_id = null;
+    updates.plan_expires_at = null;
+    const limits = PLAN_LIMITS.free;
+    updates.monthly_proof_limit = limits.proof;
+    updates.monthly_event_limit = limits.events;
+  } else if (event.type === "checkout.session.completed") {
+    // Persist the subscription id immediately so the UI can reflect changes
+    // before the subscription.updated event arrives.
+    const subId = (obj.subscription as string) ?? null;
+    if (subId) updates.stripe_subscription_id = subId;
+    const planKey = (obj.metadata as Record<string, string> | undefined)?.plan_key;
+    if (planKey && PLAN_LIMITS[planKey]) {
+      updates.plan = planKey;
+      updates.plan_tier = planKey;
+      updates.monthly_proof_limit = PLAN_LIMITS[planKey].proof;
+      updates.monthly_event_limit = PLAN_LIMITS[planKey].events;
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await supabase.from("businesses").update(updates).eq("id", business.id);
+  }
+}
+
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const url = new URL(req.url);
+  const integrationId = url.searchParams.get("integration_id");
+
+  const raw = await req.text();
+  const sigHeader = req.headers.get("stripe-signature");
+
+  if (STRIPE_WEBHOOK_SECRET) {
+    const ok = await verify(raw, sigHeader, STRIPE_WEBHOOK_SECRET);
+    if (!ok) {
+      return new Response(JSON.stringify({ error: "Invalid signature" }), { status: 401, headers: corsHeaders });
+    }
   }
 
-  try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const rawBody = await req.text();
-    const sizeError = checkPayloadSize(rawBody, 500_000, corsHeaders);
-    if (sizeError) return sizeError;
-
-    const stripeSignature = req.headers.get('stripe-signature');
-    
-    // Verify Stripe webhook signature - MANDATORY
-    const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
-    if (!webhookSecret) {
-      console.error('STRIPE_WEBHOOK_SECRET not configured');
-      return new Response(JSON.stringify({ error: 'Webhook secret not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (!stripeSignature) {
-      console.error('Missing Stripe signature header');
-      return new Response(JSON.stringify({ error: 'Missing signature' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Verify signature
-    {
-      const signatureElements = stripeSignature.split(',');
-      const timestamp = signatureElements.find(el => el.startsWith('t='))?.substring(2);
-      const signature = signatureElements.find(el => el.startsWith('v1='))?.substring(3);
-      
-      if (!timestamp || !signature) {
-        console.error('Invalid Stripe signature format');
-        return new Response(JSON.stringify({ error: 'Invalid signature format' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      const encoder = new TextEncoder();
-      const payloadData = encoder.encode(`${timestamp}.${rawBody}`);
-      const keyData = encoder.encode(webhookSecret);
-      
-      const cryptoKey = await crypto.subtle.importKey(
-        'raw',
-        keyData,
-        { name: 'HMAC', hash: 'SHA-256' },
-        false,
-        ['sign']
-      );
-      
-      const expectedSignature = await crypto.subtle.sign('HMAC', cryptoKey, payloadData);
-      const expectedHex = Array.from(new Uint8Array(expectedSignature))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
-      
-      if (signature !== expectedHex) {
-        console.error('Invalid Stripe webhook signature');
-        return new Response(JSON.stringify({ error: 'Invalid signature' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      // Verify timestamp to prevent replay attacks (within 5 minutes)
-      const currentTime = Math.floor(Date.now() / 1000);
-      if (Math.abs(currentTime - parseInt(timestamp)) > 300) {
-        return new Response(JSON.stringify({ error: 'Request timestamp too old' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
-
-    const body = JSON.parse(rawBody);
-    const eventType = body.type;
-
-    // Apply rate limiting (1000 requests per hour per account)
-    const accountId = body.account || body.data?.object?.customer || 'default';
-    const rateLimitKey = `stripe:${accountId}`;
-    const rateLimit = await checkRateLimit(rateLimitKey, {
-      max_requests: 1000,
-      window_seconds: 3600 // 1 hour
-    });
-
-    if (!rateLimit.allowed) {
-      console.log('Rate limit exceeded for account', accountId);
-      return new Response(JSON.stringify({
-        error: 'Rate limit exceeded',
-        retry_after: Math.ceil((rateLimit.reset - Date.now()) / 1000)
-      }), {
-        status: 429,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-          'X-RateLimit-Limit': '1000',
-          'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': rateLimit.reset.toString()
-        }
-      });
-    }
-
-    // Check for duplicate webhook using Stripe event ID
-    const idempotencyKey = `stripe:${body.id}`;
-
-    const { data: existing } = await supabase
-      .from('webhook_dedup')
-      .select('id, processed_at')
-      .eq('idempotency_key', idempotencyKey)
-      .single();
-
-    if (existing) {
-      console.log(`Duplicate Stripe webhook: ${body.id}`);
-      
-      await supabase.from('integration_logs').insert({
-        integration_type: 'stripe',
-        action: `webhook_${eventType}_duplicate`,
-        status: 'skipped',
-        details: { 
-          event_id: body.id, 
-          type: eventType,
-          original_processed_at: existing.processed_at 
-        },
-      });
-      
-      return new Response(JSON.stringify({ received: true, duplicate: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Store idempotency key
-    await supabase.from('webhook_dedup').insert({
-      idempotency_key: idempotencyKey,
-      webhook_type: 'stripe',
-      payload: body
-    });
-
-    await supabase.from('integration_logs').insert({
-      integration_type: 'stripe',
-      action: `webhook_${eventType}`,
-      status: 'received',
-      details: { event_id: body.id, type: eventType },
-    });
-
-    // Handle different webhook events
-    if (eventType === 'checkout.session.completed') {
-      const session = body.data.object;
-      // Check if this is an LTD purchase (one-time payment, not subscription)
-      if (session.mode === 'payment' && session.metadata?.plan_type === 'LTD') {
-        await handleLTDPurchase(supabase, session);
-      } else {
-        await handleCheckoutCompleted(supabase, session);
-      }
-    } else if (eventType === 'customer.subscription.created' || eventType === 'customer.subscription.updated') {
-      await handleSubscriptionUpdate(supabase, body.data.object);
-    } else if (eventType === 'customer.subscription.deleted') {
-      await handleSubscriptionDeleted(supabase, body.data.object);
-    } else if (eventType === 'invoice.payment_failed') {
-      await handlePaymentFailed(supabase, body.data.object);
-    } else if (eventType === 'payment_intent.succeeded') {
-      await handlePaymentSuccess(supabase, body.data.object);
-    }
-
-    return new Response(JSON.stringify({ received: true }), {
-      headers: { 
-        ...corsHeaders, 
-        'Content-Type': 'application/json',
-        'X-RateLimit-Remaining': rateLimit.remaining.toString()
-      },
-    });
-
-  } catch (error) {
-    console.error('Stripe Webhook Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+  let event: { type?: string; data?: { object?: Record<string, unknown> }; id?: string };
+  try { event = JSON.parse(raw); } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: corsHeaders });
   }
+
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+  // 1) Billing lifecycle: handle independently of integration_id.
+  if (event.type && BILLING_EVENT_TYPES.has(event.type)) {
+    try {
+      await handleBillingEvent(supabase, event as { type: string; data: { object: Record<string, unknown> } });
+    } catch (e) {
+      console.error("billing event error", e);
+    }
+  }
+
+  // 2) Integration-routed events (legacy path) — purchases as proof objects.
+  if (integrationId) {
+    const { data: integ } = await supabase
+      .from("integrations")
+      .select("id, business_id, provider")
+      .eq("id", integrationId)
+      .maybeSingle();
+
+    if (integ && integ.provider === "stripe") {
+      const { data: evRow } = await supabase.from("integration_events").insert({
+        business_id: integ.business_id,
+        integration_id: integ.id,
+        event_type: event.type ?? "unknown",
+        payload: event,
+      }).select("id").single();
+
+      let proofId: string | null = null;
+      const obj = (event?.data?.object ?? {}) as Record<string, unknown>;
+      if (event.type === "checkout.session.completed" || event.type === "payment_intent.succeeded") {
+        const amount = (obj.amount_total as number) ?? (obj.amount as number) ?? 0;
+        const currency = ((obj.currency as string) ?? "usd").toUpperCase();
+        const customerDetails = (obj.customer_details as Record<string, unknown> | undefined) ?? {};
+        const billingDetails = (obj.billing_details as Record<string, unknown> | undefined) ?? {};
+        const customerName = (customerDetails.name as string) ?? (billingDetails.name as string) ?? null;
+        const customerEmail = (customerDetails.email as string) ?? (billingDetails.email as string) ?? (obj.receipt_email as string) ?? null;
+        const display = amount ? `${(amount / 100).toFixed(2)} ${currency}` : "a purchase";
+        const { data: po } = await supabase.from("proof_objects").insert({
+          business_id: integ.business_id,
+          type: "purchase",
+          status: "approved",
+          verified: true,
+          author_name: customerName,
+          author_email: customerEmail,
+          content: `Purchased ${display}`,
+          source: "stripe",
+          source_metadata: { event_id: event.id, event_type: event.type },
+          published_at: new Date().toISOString(),
+        }).select("id").single();
+        proofId = po?.id ?? null;
+      }
+
+      if (evRow?.id) {
+        await supabase.from("integration_events").update({
+          processed_at: new Date().toISOString(),
+          proof_object_id: proofId,
+        }).eq("id", evRow.id);
+      }
+
+      await supabase.from("integrations").update({
+        status: "connected",
+        last_sync_at: new Date().toISOString(),
+      }).eq("id", integ.id);
+    }
+  }
+
+  return new Response(JSON.stringify({ received: true }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });
-
-async function handlePaymentSuccess(supabase: any, paymentIntent: any) {
-  const eventData = {
-    event_type: 'purchase',
-    message_template: `Someone just made a purchase of $${(paymentIntent.amount / 100).toFixed(2)}`,
-    event_data: {
-      payment_id: paymentIntent.id,
-      amount: paymentIntent.amount / 100,
-      currency: paymentIntent.currency,
-    },
-    source: 'integration',
-    integration_type: 'stripe',
-    moderation_status: 'approved',
-  };
-
-  const { data: widgets } = await supabase
-    .from('widgets')
-    .select('id')
-    .eq('integration', 'stripe')
-    .limit(1);
-
-  if (widgets && widgets.length > 0) {
-    await supabase.from('events').insert({
-      ...eventData,
-      widget_id: widgets[0].id,
-    });
-  }
-}
-
-async function handleCheckoutCompleted(supabase: any, session: any) {
-  console.log('Checkout completed:', session.id);
-  
-  const stripeCustomerId = session.customer;
-  const stripeSubscriptionId = session.subscription;
-  const customerEmail = session.metadata?.customer_email || session.customer_email;
-  
-  // Check if user account already exists
-  const { data: existingUser } = await supabase.auth.admin.getUserByEmail(customerEmail);
-  const userId = existingUser?.user?.id || null;
-  
-  // FIX: Check for orphaned subscriptions and link them
-  if (userId) {
-    const { data: orphanedSubs } = await supabase
-      .from('user_subscriptions')
-      .select('id')
-      .eq('stripe_customer_id', stripeCustomerId)
-      .is('user_id', null);
-    
-    if (orphanedSubs && orphanedSubs.length > 0) {
-      console.log('Linking orphaned subscriptions to user:', userId);
-      await supabase
-        .from('user_subscriptions')
-        .update({ user_id: userId })
-        .eq('stripe_customer_id', stripeCustomerId)
-        .is('user_id', null);
-    }
-  }
-  
-  console.log('Processing checkout:', {
-    email: customerEmail,
-    userExists: !!userId,
-    sessionId: session.id,
-  });
-
-  // Get subscription details from Stripe
-  const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
-  const subResponse = await fetch(`https://api.stripe.com/v1/subscriptions/${stripeSubscriptionId}`, {
-    headers: { 'Authorization': `Bearer ${stripeSecretKey}` },
-  });
-  
-  if (!subResponse.ok) {
-    console.error('Failed to fetch subscription from Stripe');
-    return;
-  }
-  
-  const subscription = await subResponse.json();
-  const priceId = subscription.items.data[0]?.price?.id;
-  
-  if (!priceId) {
-    console.error('No price ID found in subscription');
-    return;
-  }
-
-  // Find the plan by Stripe price ID
-  const { data: plans } = await supabase
-    .from('subscription_plans')
-    .select('id, name')
-    .or(`stripe_price_id_monthly.eq.${priceId},stripe_price_id_yearly.eq.${priceId}`)
-    .single();
-  
-  if (!plans) {
-    console.error('No matching plan found for price ID:', priceId);
-    return;
-  }
-
-  // Extract trial information from Stripe
-  const trialStart = subscription.trial_start 
-    ? new Date(subscription.trial_start * 1000).toISOString() 
-    : null;
-  const trialEnd = subscription.trial_end 
-    ? new Date(subscription.trial_end * 1000).toISOString() 
-    : null;
-
-  // Create or update user subscription with trial info
-  // Use stripe_subscription_id as conflict key to prevent duplicates
-  const { error } = await supabase
-    .from('user_subscriptions')
-    .upsert({
-      user_id: userId, // Will be null initially if user hasn't completed signup
-      plan_id: plans.id,
-      stripe_customer_id: stripeCustomerId,
-      stripe_subscription_id: stripeSubscriptionId,
-      status: subscription.status, // Will be 'trialing' during trial
-      current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-      cancel_at_period_end: subscription.cancel_at_period_end,
-      trial_start: trialStart,
-      trial_end: trialEnd,
-    }, {
-      onConflict: 'stripe_subscription_id',
-      ignoreDuplicates: false,
-    });
-
-  if (error) {
-    console.error('Error upserting subscription:', error);
-    return;
-  }
-
-  // Record trial start in history (only if user exists)
-  if (trialStart && userId) {
-    await supabase
-      .from('user_trial_history')
-      .insert({
-        user_id: userId,
-        email: customerEmail,
-        trial_started_at: trialStart,
-        trial_ended_at: trialEnd,
-      });
-  }
-
-  await supabase.from('integration_logs').insert({
-    integration_type: 'stripe',
-    action: 'checkout_completed_with_trial',
-    status: 'success',
-    details: { 
-      session_id: session.id,
-      subscription_id: stripeSubscriptionId,
-      plan_name: plans.name,
-      user_id: userId,
-      user_pending: !userId,
-      trial_start: trialStart,
-      trial_end: trialEnd,
-    },
-  });
-
-  if (userId) {
-    console.log(`Trial subscription created for user ${userId}, trial ends ${trialEnd}`);
-  } else {
-    console.log(`Trial subscription created (user pending), trial ends ${trialEnd}`);
-  }
-}
-
-async function handleSubscriptionUpdate(supabase: any, subscription: any) {
-  console.log('Subscription updated:', subscription.id, subscription.status);
-  
-  const trialStart = subscription.trial_start 
-    ? new Date(subscription.trial_start * 1000).toISOString() 
-    : null;
-  const trialEnd = subscription.trial_end 
-    ? new Date(subscription.trial_end * 1000).toISOString() 
-    : null;
-  
-  // Handle potentially null period dates
-  const currentPeriodStart = subscription.current_period_start 
-    ? new Date(subscription.current_period_start * 1000).toISOString()
-    : null;
-  const currentPeriodEnd = subscription.current_period_end 
-    ? new Date(subscription.current_period_end * 1000).toISOString()
-    : null;
-  
-  const updateData: any = {
-    status: subscription.status,
-    cancel_at_period_end: subscription.cancel_at_period_end,
-    trial_start: trialStart,
-    trial_end: trialEnd,
-  };
-  
-  // Only include period dates if they're valid
-  if (currentPeriodStart) updateData.current_period_start = currentPeriodStart;
-  if (currentPeriodEnd) updateData.current_period_end = currentPeriodEnd;
-  
-  const { error } = await supabase
-    .from('user_subscriptions')
-    .update(updateData)
-    .eq('stripe_subscription_id', subscription.id);
-
-  if (error) {
-    console.error('Error updating subscription:', error);
-  }
-
-  console.log(`Subscription ${subscription.id} transitioned to ${subscription.status}`);
-}
-
-async function handleSubscriptionDeleted(supabase: any, subscription: any) {
-  console.log('Subscription deleted:', subscription.id);
-  
-  const { error } = await supabase
-    .from('user_subscriptions')
-    .update({ status: 'cancelled' })
-    .eq('stripe_subscription_id', subscription.id);
-
-  if (error) {
-    console.error('Error updating subscription to cancelled:', error);
-  }
-}
-
-async function handlePaymentFailed(supabase: any, invoice: any) {
-  console.log('Payment failed for subscription:', invoice.subscription);
-  
-  if (!invoice.subscription) return;
-  
-  const { error } = await supabase
-    .from('user_subscriptions')
-    .update({ status: 'past_due' })
-    .eq('stripe_subscription_id', invoice.subscription);
-
-  if (error) {
-    console.error('Error updating subscription to past_due:', error);
-  }
-}
-
-async function handleLTDPurchase(supabase: any, session: any) {
-  console.log('🎉 LTD Purchase completed:', session.id);
-  
-  const stripeCustomerId = session.customer;
-  const paymentIntentId = session.payment_intent;
-  const customerEmail = session.metadata?.customer_email || session.customer_email;
-  const userId = session.metadata?.user_id || session.client_reference_id;
-  
-  console.log('Processing LTD purchase:', {
-    email: customerEmail,
-    userId,
-    paymentIntentId,
-    sessionId: session.id,
-  });
-
-  // Get the LTD plan ID
-  const { data: ltdPlan, error: planError } = await supabase
-    .from('subscription_plans')
-    .select('id, name')
-    .eq('name', 'LTD')
-    .single();
-  
-  if (planError || !ltdPlan) {
-    console.error('LTD plan not found:', planError);
-    return;
-  }
-
-  // Check if user account already exists by email if userId not provided
-  let finalUserId = userId;
-  if (!finalUserId && customerEmail) {
-    const { data: existingUser } = await supabase.auth.admin.getUserByEmail(customerEmail);
-    finalUserId = existingUser?.user?.id || null;
-  }
-
-  // Create or update user subscription with 'lifetime' status
-  const subscriptionData = {
-    user_id: finalUserId || null,
-    plan_id: ltdPlan.id,
-    stripe_customer_id: stripeCustomerId,
-    stripe_subscription_id: `ltd_${paymentIntentId}`, // Use payment intent as unique ID with prefix
-    status: 'lifetime', // Special status for LTD users
-    current_period_start: new Date().toISOString(),
-    current_period_end: null, // No end date for lifetime
-    cancel_at_period_end: false,
-    trial_start: null,
-    trial_end: null,
-  };
-
-  // Try to upsert by stripe_customer_id first
-  const { data: existingSub } = await supabase
-    .from('user_subscriptions')
-    .select('id')
-    .eq('stripe_customer_id', stripeCustomerId)
-    .single();
-
-  if (existingSub) {
-    // Update existing subscription
-    const { error } = await supabase
-      .from('user_subscriptions')
-      .update(subscriptionData)
-      .eq('id', existingSub.id);
-
-    if (error) {
-      console.error('Error updating to LTD subscription:', error);
-      return;
-    }
-  } else {
-    // Insert new subscription
-    const { error } = await supabase
-      .from('user_subscriptions')
-      .insert(subscriptionData);
-
-    if (error) {
-      console.error('Error creating LTD subscription:', error);
-      return;
-    }
-  }
-
-  // Log successful LTD purchase
-  await supabase.from('integration_logs').insert({
-    integration_type: 'stripe',
-    action: 'ltd_purchase_completed',
-    status: 'success',
-    user_id: finalUserId,
-    details: { 
-      session_id: session.id,
-      payment_intent_id: paymentIntentId,
-      plan_name: ltdPlan.name,
-      customer_email: customerEmail,
-      amount_paid: session.amount_total,
-    },
-  });
-
-  console.log(`✅ LTD subscription created for ${customerEmail || 'pending user'}`);
-}

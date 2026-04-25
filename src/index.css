@@ -2,400 +2,116 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
+/* NotiProof design system. All colors HSL. */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --background: 210 20% 98%;
+    --foreground: 217 60% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 217 60% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 217 60% 14%;
 
-    --primary: 217 91% 60%;
+    /* Brand: navy primary, sky accent */
+    --primary: 217 71% 23%;          /* #0F3460 navy */
     --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 71% 18%;
+
+    --accent: 199 89% 48%;            /* #0EA5E9 sky */
+    --accent-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary-foreground: 217 60% 14%;
 
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
 
-    --accent: 217 91% 60%;
-    --accent-foreground: 0 0% 100%;
+    --teal: 173 80% 40%;
+    --teal-foreground: 0 0% 100%;
+    --purple: 262 83% 58%;
+    --purple-foreground: 0 0% 100%;
+    --gold: 43 96% 56%;
+    --gold-foreground: 217 60% 14%;
+    --coral: 0 84% 65%;
+    --coral-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-
-    --success: 142 76% 36%;
+    --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
-
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-
-    --pending: 38 92% 50%;
-    --pending-foreground: 0 0% 100%;
+    --warning-foreground: 217 60% 14%;
 
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 217 91% 60%;
+    --ring: 199 89% 48%;
 
-    --radius: 1rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-background: 217 71% 23%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 199 89% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 96%;
-    --sidebar-accent-foreground: 222 47% 11%;
-    --sidebar-border: 214 32% 91%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 217 60% 18%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 217 60% 18%;
+    --sidebar-ring: 199 89% 48%;
   }
 
   .dark {
-    --background: 222 47% 11%;
+    --background: 217 60% 8%;
     --foreground: 210 40% 98%;
-
-    --card: 222 47% 14%;
+    --card: 217 50% 12%;
     --card-foreground: 210 40% 98%;
-
-    --popover: 222 47% 14%;
+    --popover: 217 50% 12%;
     --popover-foreground: 210 40% 98%;
-
-    --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 100%;
-
+    --primary: 199 89% 48%;
+    --primary-foreground: 217 60% 8%;
+    --primary-hover: 199 89% 55%;
+    --accent: 199 89% 48%;
+    --accent-foreground: 217 60% 8%;
     --secondary: 217 33% 18%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217 33% 18%;
-    --muted-foreground: 215 20% 65%;
-
-    --accent: 217 91% 60%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-
-    --success: 142 70% 45%;
-    --success-foreground: 0 0% 100%;
-
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-
-    --pending: 38 92% 50%;
-    --pending-foreground: 0 0% 100%;
-
-    --border: 217 33% 18%;
-    --input: 217 33% 18%;
-    --ring: 217 91% 60%;
-    
-    --sidebar-background: 222 47% 11%;
+    --muted-foreground: 215 20% 70%;
+    --border: 217 33% 22%;
+    --input: 217 33% 22%;
+    --ring: 199 89% 48%;
+    --sidebar-background: 217 60% 8%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary: 199 89% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 217 33% 18%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 18%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-border: 217 33% 22%;
+    --sidebar-ring: 199 89% 48%;
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+  h1, h2, h3, h4 { @apply font-semibold tracking-tight; }
+}
+
+@layer utilities {
+  /* Onboarding completion confetti */
+  @keyframes confetti-fall {
+    0%   { transform: translate3d(0, -20px, 0) rotate(0deg);   opacity: 0; }
+    10%  { opacity: 1; }
+    100% { transform: translate3d(0, 480px, 0) rotate(720deg); opacity: 0; }
   }
-
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-
-/* Custom scrollbar styles */
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* 3D transform utilities */
-.perspective-1000 {
-  perspective: 1000px;
-}
-
-.transform-style-3d {
-  transform-style: preserve-3d;
-}
-
-.backface-hidden {
-  backface-visibility: hidden;
-}
-
-.rotate-y-180 {
-  transform: rotateY(180deg);
-}
-
-/* Touch-friendly interactive elements for mobile */
-@media (hover: none) and (pointer: coarse) {
-  button,
-  a,
-  [role="button"] {
-    min-height: 44px;
-    min-width: 44px;
+  .confetti-piece {
+    position: absolute;
+    top: 0;
+    border-radius: 1px;
+    animation-name: confetti-fall;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+    animation-iteration-count: 1;
+    animation-fill-mode: forwards;
+    will-change: transform, opacity;
   }
 }
 
-/* Lazy loading animation */
-@keyframes shimmer {
-  0% {
-    background-position: -468px 0;
-  }
-  100% {
-    background-position: 468px 0;
-  }
-}
-
-.animate-shimmer {
-  animation: shimmer 1.2s ease-in-out infinite;
-  background: linear-gradient(
-    to right,
-    hsl(var(--muted)) 0%,
-    hsl(var(--muted) / 0.5) 50%,
-    hsl(var(--muted)) 100%
-  );
-  background-size: 800px 104px;
-}
-
-/* Responsive utilities */
-@media (max-width: 640px) {
-  .text-responsive-sm {
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-  }
-}
-
-/* ============================================
-   NotiProof Notification Standard Format
-   ============================================ */
-
-/* Standard notification container */
-.notiproof-notification {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 16px;
-  max-width: 350px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-/* Media section (left side) */
-.notiproof-media {
-  flex-shrink: 0;
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.notiproof-media.avatar {
-  border-radius: 50%;
-}
-
-/* Content section (right side) */
-.notiproof-content {
-  flex: 1;
-  min-width: 0;
-}
-
-/* Headline text */
-.notiproof-headline {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-  margin-bottom: 4px;
-}
-
-/* Subtext/description */
-.notiproof-subtext {
-  font-size: 12px;
-  opacity: 0.8;
-  line-height: 1.4;
-  margin-bottom: 4px;
-}
-
-/* Footer containing timestamp and verification */
-.notiproof-footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-}
-
-/* Timestamp */
-.notiproof-time {
-  font-size: 11px;
-  opacity: 0.6;
-}
-
-/* Verification badge - NotiProof blue */
-.notiproof-verified {
-  color: hsl(217 91% 60%); /* Primary blue from design system */
-  font-size: 11px;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-/* Dark mode adjustments for verification badge */
-.dark .notiproof-verified {
-  color: hsl(217 91% 65%);
-}
-
-/* Notification position utilities */
-.notiproof-position-bottom-left {
-  position: fixed;
-  bottom: 20px;
-  left: 20px;
-}
-
-.notiproof-position-bottom-right {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-}
-
-.notiproof-position-top-left {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-}
-
-.notiproof-position-top-right {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-}
-
-/* Animation utilities */
-@keyframes notiproof-slide-in-left {
-  from { transform: translateX(-100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes notiproof-slide-in-right {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes notiproof-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes notiproof-bounce-in {
-  0% { transform: scale(0.3); opacity: 0; }
-  50% { transform: scale(1.05); }
-  70% { transform: scale(0.9); }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.notiproof-animate-slide-left {
-  animation: notiproof-slide-in-left 0.3s ease-out;
-}
-
-.notiproof-animate-slide-right {
-  animation: notiproof-slide-in-right 0.3s ease-out;
-}
-
-.notiproof-animate-fade {
-  animation: notiproof-fade-in 0.3s ease-out;
-}
-
-.notiproof-animate-bounce {
-  animation: notiproof-bounce-in 0.5s ease-out;
-}
-
-/* NotiProof Verification Badge */
-.notiproof-verified {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  color: hsl(var(--primary));
-  font-size: 11px;
-  font-weight: 500;
-  margin-left: 8px;
-  white-space: nowrap;
-}
-
-.dark .notiproof-verified {
-  color: hsl(217 91% 70%);
-}
-
-/* NotiProof Standard Notification Layout */
-.notiproof-notification {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 16px;
-}
-
-.notiproof-media {
-  flex-shrink: 0;
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.notiproof-media img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.notiproof-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.notiproof-headline {
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 1.3;
-  margin-bottom: 2px;
-}
-
-.notiproof-subtext {
-  font-size: 13px;
-  color: hsl(var(--muted-foreground));
-  line-height: 1.4;
-  margin-bottom: 4px;
-}
-
-.notiproof-footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 11px;
-  color: hsl(var(--muted-foreground));
-}
-
-.notiproof-time {
-  opacity: 0.8;
-}

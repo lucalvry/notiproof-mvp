@@ -2,15 +2,43 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://ewymvxhpkswhsirdrjub.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3eW12eGhwa3N3aHNpcmRyanViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTY0NDksImV4cCI6MjA3MDU3MjQ0OX0.ToRbUm37-ZnYkmmCfLW7am38rUGgFAppNxcZ2tar9mc";
+const SUPABASE_URL = "https://ykpvxwwhhdzihjphlohh.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrcHZ4d3doaGR6aWhqcGhsb2hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NDc4ODYsImV4cCI6MjA5MjUyMzg4Nn0.4KA6X09LurY3t44Nw6HOahQ1tRQcws7l_dVK8revll0";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+// Custom storage that respects the "Remember me" preference.
+// When notiproof.remember === "false", the auth session is held in sessionStorage
+// (cleared when the tab closes). Otherwise it persists in localStorage.
+const REMEMBER_FLAG = "notiproof.remember";
+
+const rememberAwareStorage = {
+  getItem: (key: string) => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(key) ?? sessionStorage.getItem(key);
+  },
+  setItem: (key: string, value: string) => {
+    if (typeof window === "undefined") return;
+    const remember = localStorage.getItem(REMEMBER_FLAG) !== "false";
+    if (remember) {
+      localStorage.setItem(key, value);
+      sessionStorage.removeItem(key);
+    } else {
+      sessionStorage.setItem(key, value);
+      localStorage.removeItem(key);
+    }
+  },
+  removeItem: (key: string) => {
+    if (typeof window === "undefined") return;
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  },
+};
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: localStorage,
+    storage: rememberAwareStorage,
     persistSession: true,
     autoRefreshToken: true,
   }

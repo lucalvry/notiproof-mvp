@@ -1,0 +1,527 @@
+import { useEffect, useState } from "react";
+import { Link, useParams, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  ArrowLeft,
+  Save,
+  Trash2,
+  Loader2,
+  Copy,
+  ExternalLink,
+  Lock,
+  RefreshCw,
+} from "lucide-react";
+import type { Database } from "@/integrations/supabase/types";
+
+type Integration = Database["public"]["Tables"]["integrations"]["Row"];
+type Event = Database["public"]["Tables"]["integration_events"]["Row"];
+
+interface IntegrationConfig {
+  display_name?: string;
+  auto_request_enabled?: boolean;
+  auto_request_delay_minutes?: number;
+  shop?: string;
+}
+
+const SUPABASE_FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+
+export default function IntegrationDetail() {
+  const { id } = useParams<{ id: string }>();
+  const { currentBusinessId } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [integration, setIntegration] = useState<Integration | null>(null);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [shopDomain, setShopDomain] = useState("");
+  const [connecting, setConnecting] = useState(false);
+
+  const [displayName, setDisplayName] = useState("");
+  const [autoRequest, setAutoRequest] = useState(false);
+  const [delayMinutes, setDelayMinutes] = useState("0");
+
+  // Secure credential summary (masked) — never load the raw token to the browser.
+  const [maskedToken, setMaskedToken] = useState<string | null>(null);
+  const [hasToken, setHasToken] = useState(false);
+  const [newToken, setNewToken] = useState("");
+  const [credBusy, setCredBusy] = useState(false);
+
+  const loadEvents = async () => {
+    if (!id) return;
+    const { data } = await supabase
+      .from("integration_events")
+      .select("*")
+      .eq("integration_id", id)
+      .order("received_at", { ascending: false })
+      .limit(20);
+    setEvents(data ?? []);
+  };
+
+  const loadCredSummary = async () => {
+    if (!id) return;
+    const { data } = await supabase.functions.invoke("integration-credentials", {
+      body: { action: "summary", integration_id: id },
+    });
+    if (data?.ok) {
+      setHasToken(!!data.has_token);
+      setMaskedToken(data.masked_token ?? null);
+    }
+  };
+
+  useEffect(() => {
+    if (!id || !currentBusinessId) return;
+    Promise.all([
+      supabase
+        .from("integrations")
+        .select("*")
+        .eq("id", id)
+        .eq("business_id", currentBusinessId)
+        .maybeSingle(),
+      supabase
+        .from("integration_events")
+        .select("*")
+        .eq("integration_id", id)
+        .order("received_at", { ascending: false })
+        .limit(20),
+    ]).then(([i, e]) => {
+      if (i.data) {
+        setIntegration(i.data);
+        const cfg = (i.data.config ?? {}) as IntegrationConfig;
+        setDisplayName(cfg.display_name ?? "");
+        setAutoRequest(!!cfg.auto_request_enabled);
+        setDelayMinutes(String(cfg.auto_request_delay_minutes ?? 0));
+        setShopDomain(cfg.shop ?? "");
+      }
+      setEvents(e.data ?? []);
+      setLoading(false);
+    });
+    loadCredSummary();
+
+    const channel = supabase
+      .channel(`int-events-${id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "integration_events", filter: `integration_id=eq.${id}` },
+        () => loadEvents(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, currentBusinessId]);
+
+  const save = async () => {
+    if (!integration) return;
+    setSaving(true);
+    const cfg = (integration.config ?? {}) as IntegrationConfig;
+    const delay = Math.max(0, Math.min(10080, Number(delayMinutes) || 0));
+    const { error } = await supabase
+      .from("integrations")
+      .update({
+        config: {
+          ...cfg,
+          display_name: displayName,
+          auto_request_enabled: autoRequest,
+          auto_request_delay_minutes: delay,
+        },
+      })
+      .eq("id", integration.id);
+    setSaving(false);
+    if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
+    toast({ title: "Saved" });
+  };
+
+  const remove = async () => {
+    if (!integration) return;
+    const { error } = await supabase.from("integrations").delete().eq("id", integration.id);
+    if (error) return toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+    navigate("/integrations");
+  };
+
+  const setCredential = async () => {
+    if (!integration || !newToken.trim()) return;
+    setCredBusy(true);
+    const { data, error } = await supabase.functions.invoke("integration-credentials", {
+      body: { action: "set", integration_id: integration.id, access_token: newToken.trim() },
+    });
+    setCredBusy(false);
+    if (error || !data?.ok) {
+      return toast({
+        title: "Could not save credential",
+        description: error?.message ?? data?.error,
+        variant: "destructive",
+      });
+    }
+    setNewToken("");
+    setHasToken(true);
+    setMaskedToken(data.masked_token ?? null);
+    toast({ title: "Credential saved", description: "Stored securely server-side." });
+  };
+
+  const clearCredential = async () => {
+    if (!integration) return;
+    setCredBusy(true);
+    const { data, error } = await supabase.functions.invoke("integration-credentials", {
+      body: { action: "clear", integration_id: integration.id },
+    });
+    setCredBusy(false);
+    if (error || !data?.ok) {
+      return toast({
+        title: "Could not clear credential",
+        description: error?.message ?? data?.error,
+        variant: "destructive",
+      });
+    }
+    setHasToken(false);
+    setMaskedToken(null);
+    toast({ title: "Credential cleared" });
+  };
+
+  const copy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: `${label} copied` });
+  };
+
+  const startShopifyOAuth = async () => {
+    if (!integration) return;
+    setConnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("oauth-shopify-start", {
+        body: { shop: shopDomain, integration_id: integration.id },
+      });
+      if (error || !data?.install_url) throw new Error(error?.message ?? "Failed to start OAuth");
+      window.open(data.install_url, "_blank", "width=600,height=720");
+    } catch (e: any) {
+      toast({ title: "Connection failed", description: e.message, variant: "destructive" });
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  if (loading) return <Skeleton className="h-96 w-full max-w-3xl" />;
+  if (!integration) return <div className="text-muted-foreground">Integration not found.</div>;
+
+  const shopifyWebhookUrl = `${SUPABASE_FN_URL}/webhook-shopify?integration_id=${integration.id}`;
+
+  // Build a 14-day event chart from the loaded events list.
+  const days: { day: string; events: number }[] = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push({ day: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }), events: 0 });
+  }
+  const dayKey = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  events.forEach((e) => {
+    const k = dayKey(e.received_at);
+    const row = days.find((r) => r.day === k);
+    if (row) row.events += 1;
+  });
+  const proofImported = events.filter((e) => !!e.proof_object_id).length;
+
+  return (
+    <div className="space-y-6 animate-fade-in max-w-3xl">
+      <div>
+        <Button variant="ghost" size="sm" asChild className="mb-2 -ml-2">
+          <Link to="/integrations">
+            <ArrowLeft className="h-4 w-4 mr-1" /> Back to integrations
+          </Link>
+        </Button>
+        <div className="text-xs uppercase tracking-wider text-muted-foreground font-mono">INT-02</div>
+        <div className="flex items-center gap-3 mt-1">
+          <h1 className="text-3xl font-bold capitalize">{integration.provider.replace("_", " ")}</h1>
+          <Badge className="capitalize">{integration.status}</Badge>
+        </div>
+      </div>
+
+      {/* Activity chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center justify-between">
+            <span>Activity (last 14 days)</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              {proofImported} proof imported · {events.length} events
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {events.length === 0 ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">No events yet.</div>
+          ) : (
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={days}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: 8,
+                    }}
+                  />
+                  <Bar dataKey="events" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+{/* Stripe is internal billing only — not exposed as an integration in the UI. */}
+{integration.provider === "stripe" && (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-base">Stripe</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <p className="text-sm text-muted-foreground">
+        Stripe powers your NotiProof subscription billing. Manage your plan and payment method in{" "}
+        <Link to="/settings/billing" className="text-accent underline">Billing settings</Link>.
+      </p>
+    </CardContent>
+  </Card>
+)}
+
+      {integration.provider === "shopify" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Shopify connection</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-2">
+              <Label>Shop domain</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="your-store.myshopify.com"
+                  value={shopDomain}
+                  onChange={(e) => setShopDomain(e.target.value)}
+                />
+                <Button onClick={startShopifyOAuth} disabled={connecting || !shopDomain}>
+                  {connecting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                  )}
+                  {integration.status === "connected" ? "Reconnect" : "Connect"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                A new window will open for you to authorize NotiProof.
+              </p>
+            </div>
+            <div className="border-t pt-3 space-y-2">
+              <Label>Webhook URL (optional, for orders/create)</Label>
+              <div className="flex gap-2">
+                <Input readOnly value={shopifyWebhookUrl} className="font-mono text-xs" />
+                <Button variant="outline" size="sm" onClick={() => copy(shopifyWebhookUrl, "Webhook URL")}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Configuration</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Display name</Label>
+            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+          </div>
+
+          <div className="flex items-start justify-between gap-4 border-t pt-4">
+            <div>
+              <Label>Auto-request testimonials</Label>
+              <div className="text-xs text-muted-foreground">
+                Send a request automatically after qualifying events.
+              </div>
+            </div>
+            <Switch checked={autoRequest} onCheckedChange={setAutoRequest} />
+          </div>
+
+          {autoRequest && (
+            <div className="space-y-2">
+              <Label>Delay before sending (minutes)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={10080}
+                value={delayMinutes}
+                onChange={(e) => setDelayMinutes(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                0 = immediate. Up to 7 days (10,080 minutes).
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {integration.provider !== "shopify" && integration.provider !== "stripe" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Lock className="h-4 w-4" /> Credentials
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Tokens are stored server-side only. The browser never sees the saved value.
+            </p>
+            {hasToken && (
+              <div className="flex items-center justify-between rounded-md border p-3 text-sm">
+                <div>
+                  <div className="font-medium">Token saved</div>
+                  <div className="text-xs text-muted-foreground font-mono">{maskedToken ?? "••••"}</div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  onClick={clearCredential}
+                  disabled={credBusy}
+                >
+                  Clear
+                </Button>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>{hasToken ? "Replace token" : "Access token / API key"}</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  value={newToken}
+                  onChange={(e) => setNewToken(e.target.value)}
+                  placeholder="sk_…"
+                />
+                <Button onClick={setCredential} disabled={credBusy || !newToken.trim()}>
+                  {credBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Save
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Recent events</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {events.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No events received yet.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Processed</TableHead>
+                  <TableHead>Received</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {events.map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell className="font-mono text-xs">{e.event_type}</TableCell>
+                    <TableCell>
+                      {e.processed_at ? (
+                        <Badge variant="default">Yes</Badge>
+                      ) : (
+                        <Badge variant="secondary">Pending</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(e.received_at).toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center justify-between">
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+              <Trash2 className="h-4 w-4 mr-1" /> Disconnect
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Disconnect this integration?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Events will stop flowing into NotiProof.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={remove} className="bg-destructive hover:bg-destructive/90">
+                Disconnect
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <Button onClick={save} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+          Save
+        </Button>
+      </div>
+    </div>
+  );
+}
