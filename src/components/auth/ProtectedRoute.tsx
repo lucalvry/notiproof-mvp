@@ -29,10 +29,5 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/suspended" replace />;
   }
 
-  const isOnboardingRoute = location.pathname.startsWith("/onboarding");
-  if (currentBusiness && !currentBusiness.onboarding_completed && !isOnboardingRoute) {
-    return <Navigate to="/onboarding/connect" replace />;
-  }
-
   return <>{children}</>;
 }

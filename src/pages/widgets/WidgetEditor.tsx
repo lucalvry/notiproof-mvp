@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Save, Loader2, Code, Lock } from "lucide-react";
 import { PreviewRender, type WidgetConfig as SharedWidgetConfig } from "@/components/widgets/PreviewRender";
 import type { Database } from "@/integrations/supabase/types";
+import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
 
 type Widget = Database["public"]["Tables"]["widgets"]["Row"];
 type WidgetType = Database["public"]["Enums"]["widget_type"];
@@ -54,8 +55,9 @@ const variantToType: Record<"floating" | "inline" | "badge" | "banner" | "wall",
 export default function WidgetEditor() {
   const { id } = useParams<{ id: string }>();
   const isNew = !id;
-  const { currentBusinessId, businesses } = useAuth();
+  const { currentBusinessId, businesses, currentBusinessRole } = useAuth();
   const business = businesses.find((b) => b.id === currentBusinessId);
+  const canEdit = currentBusinessRole === "owner" || currentBusinessRole === "editor";
   // Treat anything not on a paid plan as free for the powered-by lock.
   // We don't have plan in BusinessSummary, so use businesses table later if needed.
   const isFreePlan = true;
@@ -156,13 +158,14 @@ export default function WidgetEditor() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <ReadOnlyBanner />
       <div className="flex items-center justify-between gap-3">
         <div>
           <Button variant="ghost" size="sm" asChild className="mb-2 -ml-2"><Link to="/widgets"><ArrowLeft className="h-4 w-4 mr-1" /> Back to widgets</Link></Button>
           <div className="text-xs uppercase tracking-wider text-muted-foreground font-mono">WID-02</div>
-          <h1 className="text-3xl font-bold mt-1">{isNew ? "New widget" : "Edit widget"}</h1>
+          <h1 className="text-3xl font-bold mt-1">{isNew ? "New widget" : canEdit ? "Edit widget" : "View widget"}</h1>
         </div>
-        <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Save</Button>
+        <Button onClick={save} disabled={saving || !canEdit}>{saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Save</Button>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -389,11 +392,16 @@ export default function WidgetEditor() {
             <div className="bg-card rounded-lg border h-96 flex items-center justify-center relative overflow-hidden">
               <PreviewRender
                 variant={variant}
-                cfg={cfg}
+                cfg={{ ...cfg, review_count: approvedProofs.length }}
                 sample={sample}
                 showPoweredBy={isFreePlan ? true : cfg.powered_by !== false}
               />
             </div>
+            {approvedProofs.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-3 text-center">
+                No approved proof yet. <Link to="/proof" className="text-foreground underline underline-offset-2 hover:no-underline">Add your first proof →</Link>
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

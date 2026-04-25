@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Save, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
+import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
 
 type Business = Database["public"]["Tables"]["businesses"]["Row"] & {
   brand_color?: string | null;
@@ -58,7 +59,8 @@ export function SettingsLayout() {
 }
 
 export default function ProfileSettings() {
-  const { currentBusinessId } = useAuth();
+  const { currentBusinessId, currentBusinessRole } = useAuth();
+  const canEdit = currentBusinessRole === "owner" || currentBusinessRole === "editor";
   const { toast } = useToast();
   const [b, setB] = useState<Business | null>(null);
   const [settings, setSettings] = useState<BusinessSettings>({});
@@ -102,18 +104,19 @@ export default function ProfileSettings() {
   if (loading || !b) return <Skeleton className="h-64 w-full max-w-2xl" />;
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl space-y-4">
+      <ReadOnlyBanner />
       <Card>
         <CardHeader><CardTitle className="text-base">Business profile</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2"><Label>Business name</Label><Input value={b.name} onChange={(e) => setB({ ...b, name: e.target.value })} /></div>
-          <div className="space-y-2"><Label>Logo URL</Label><Input value={b.logo_url ?? ""} onChange={(e) => setB({ ...b, logo_url: e.target.value })} placeholder="https://…" /></div>
+          <div className="space-y-2"><Label>Business name</Label><Input value={b.name} onChange={(e) => setB({ ...b, name: e.target.value })} disabled={!canEdit} /></div>
+          <div className="space-y-2"><Label>Logo URL</Label><Input value={b.logo_url ?? ""} onChange={(e) => setB({ ...b, logo_url: e.target.value })} placeholder="https://…" disabled={!canEdit} /></div>
           <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>Industry</Label><Input value={settings.industry ?? ""} onChange={(e) => setSettings({ ...settings, industry: e.target.value })} placeholder="SaaS, ecommerce…" /></div>
-            <div className="space-y-2"><Label>Brand color</Label><Input type="color" value={settings.brand_color ?? "#0EA5E9"} onChange={(e) => setSettings({ ...settings, brand_color: e.target.value })} className="h-10 w-20 p-1" /></div>
+            <div className="space-y-2"><Label>Industry</Label><Input value={settings.industry ?? ""} onChange={(e) => setSettings({ ...settings, industry: e.target.value })} placeholder="SaaS, ecommerce…" disabled={!canEdit} /></div>
+            <div className="space-y-2"><Label>Brand color</Label><Input type="color" value={settings.brand_color ?? "#0EA5E9"} onChange={(e) => setSettings({ ...settings, brand_color: e.target.value })} className="h-10 w-20 p-1" disabled={!canEdit} /></div>
           </div>
           <div className="space-y-2"><Label>Time zone</Label>
-            <Select value={settings.time_zone ?? "UTC"} onValueChange={(v) => setSettings({ ...settings, time_zone: v })}>
+            <Select value={settings.time_zone ?? "UTC"} onValueChange={(v) => setSettings({ ...settings, time_zone: v })} disabled={!canEdit}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="UTC">UTC</SelectItem>
@@ -125,7 +128,7 @@ export default function ProfileSettings() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex justify-end pt-2"><Button onClick={save} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Save</Button></div>
+          <div className="flex justify-end pt-2"><Button onClick={save} disabled={saving || !canEdit}>{saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Save</Button></div>
         </CardContent>
       </Card>
     </div>

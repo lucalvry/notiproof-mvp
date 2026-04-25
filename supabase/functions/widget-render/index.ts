@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     const { data: proofs, error: pErr } = await supabase
       .from("proof_objects")
       .select(
-        "id, type, content, author_name, author_avatar_url, author_photo_url, author_role, author_company, author_company_logo_url, author_website_url, cta_label, cta_url, rating, media_url, poster_url, source, created_at",
+        "id, type, content, highlight_phrase, author_name, author_avatar_url, author_photo_url, author_role, author_company, author_company_logo_url, author_website_url, cta_label, cta_url, rating, media_url, poster_url, source, created_at",
       )
       .eq("business_id", businessId)
       .eq("status", "approved")

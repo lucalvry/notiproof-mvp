@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Plus, MonitorSmartphone, Settings as SettingsIcon } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
 
 type Widget = Database["public"]["Tables"]["widgets"]["Row"];
 
@@ -18,7 +19,8 @@ const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
 };
 
 export default function WidgetsList() {
-  const { currentBusinessId } = useAuth();
+  const { currentBusinessId, currentBusinessRole } = useAuth();
+  const canEdit = currentBusinessRole === "owner" || currentBusinessRole === "editor";
   const { toast } = useToast();
   const [items, setItems] = useState<Widget[]>([]);
   const [impressions, setImpressions] = useState<Record<string, number>>({});
@@ -49,13 +51,14 @@ export default function WidgetsList() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <ReadOnlyBanner />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-wider text-muted-foreground font-mono">WID-01</div>
           <h1 className="text-3xl font-bold mt-1">Widgets</h1>
           <p className="text-muted-foreground mt-1">Build and manage widgets that display your social proof.</p>
         </div>
-        <Button asChild><Link to="/widgets/new"><Plus className="h-4 w-4 mr-2" /> New widget</Link></Button>
+        {canEdit && <Button asChild><Link to="/widgets/new"><Plus className="h-4 w-4 mr-2" /> New widget</Link></Button>}
       </div>
 
       <Card>
@@ -67,7 +70,7 @@ export default function WidgetsList() {
               <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent mb-4"><MonitorSmartphone className="h-6 w-6" /></div>
               <h3 className="font-semibold">No widgets yet</h3>
               <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">Create your first widget to start showing social proof on your site.</p>
-              <Button asChild className="mt-4"><Link to="/widgets/new"><Plus className="h-4 w-4 mr-2" /> Create widget</Link></Button>
+              {canEdit && <Button asChild className="mt-4"><Link to="/widgets/new"><Plus className="h-4 w-4 mr-2" /> Create widget</Link></Button>}
             </div>
           ) : (
             <div className="rounded-md border">
@@ -84,7 +87,7 @@ export default function WidgetsList() {
                       <TableCell className="text-sm text-muted-foreground">{(impressions[w.id] ?? 0).toLocaleString()}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(w.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
-                        <Button asChild size="sm" variant="outline"><Link to={`/widgets/${w.id}/edit`}><SettingsIcon className="h-3.5 w-3.5 mr-1" /> Edit</Link></Button>
+                        <Button asChild size="sm" variant="outline"><Link to={`/widgets/${w.id}/edit`}><SettingsIcon className="h-3.5 w-3.5 mr-1" /> {canEdit ? "Edit" : "View"}</Link></Button>
                       </TableCell>
                     </TableRow>
                   ))}

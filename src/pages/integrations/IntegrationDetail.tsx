@@ -56,6 +56,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import { WooCommerceConnectDialog } from "@/components/integrations/WooCommerceConnectDialog";
 
 type Integration = Database["public"]["Tables"]["integrations"]["Row"];
 type Event = Database["public"]["Tables"]["integration_events"]["Row"];
@@ -80,6 +81,17 @@ export default function IntegrationDetail() {
   const [saving, setSaving] = useState(false);
   const [shopDomain, setShopDomain] = useState("");
   const [connecting, setConnecting] = useState(false);
+
+  // WooCommerce-specific state
+  const [wooSummary, setWooSummary] = useState<{
+    has_credentials: boolean;
+    masked_key: string | null;
+    store_url: string;
+    webhook_url: string;
+    webhook_secret: string | null;
+  } | null>(null);
+  const [wooDialogOpen, setWooDialogOpen] = useState(false);
+  const [wooBusy, setWooBusy] = useState<"test" | "backfill" | "clear" | null>(null);
 
   const [displayName, setDisplayName] = useState("");
   const [autoRequest, setAutoRequest] = useState(false);
@@ -113,6 +125,14 @@ export default function IntegrationDetail() {
     }
   };
 
+  const loadWooSummary = async () => {
+    if (!id) return;
+    const { data } = await supabase.functions.invoke("integration-woocommerce", {
+      body: { action: "summary", integration_id: id },
+    });
+    if (data?.ok) setWooSummary(data);
+  };
+
   useEffect(() => {
     if (!id || !currentBusinessId) return;
     Promise.all([
@@ -141,6 +161,7 @@ export default function IntegrationDetail() {
       setLoading(false);
     });
     loadCredSummary();
+    if (currentBusinessId) loadWooSummary();
 
     const channel = supabase
       .channel(`int-events-${id}`)
@@ -246,6 +267,8 @@ export default function IntegrationDetail() {
 
   if (loading) return <Skeleton className="h-96 w-full max-w-3xl" />;
   if (!integration) return <div className="text-muted-foreground">Integration not found.</div>;
+
+  const isWoo = (integration as any).platform === "woocommerce" || (integration as any).provider === "woocommerce";
 
   const shopifyWebhookUrl = `${SUPABASE_FN_URL}/webhook-shopify?integration_id=${integration.id}`;
 
@@ -370,6 +393,140 @@ export default function IntegrationDetail() {
         </Card>
       )}
 
+      {isWoo && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">WooCommerce connection</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {wooSummary?.has_credentials ? (
+              <>
+                <div className="rounded-md border p-3 text-sm space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Store</span>
+                    <span className="font-medium truncate">{wooSummary.store_url}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">REST API key</span>
+                    <span className="font-mono text-xs">{wooSummary.masked_key}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Webhook delivery URL</Label>
+                  <div className="flex gap-2">
+                    <Input readOnly value={wooSummary.webhook_url} className="font-mono text-xs" />
+                    <Button variant="outline" size="sm" onClick={() => copy(wooSummary.webhook_url, "Webhook URL")}>
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {wooSummary.webhook_secret && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Webhook secret</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value={wooSummary.webhook_secret}
+                        className="font-mono text-xs"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copy(wooSummary.webhook_secret!, "Secret")}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2 border-t pt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={wooBusy !== null}
+                    onClick={async () => {
+                      setWooBusy("test");
+                      const { data } = await supabase.functions.invoke("integration-woocommerce", {
+                        body: { action: "test", integration_id: integration.id },
+                      });
+                      setWooBusy(null);
+                      if (data?.ok) toast({ title: "Connection OK" });
+                      else toast({ title: "Connection failed", variant: "destructive" });
+                    }}
+                  >
+                    {wooBusy === "test" ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                    )}
+                    Test connection
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={wooBusy !== null}
+                    onClick={async () => {
+                      setWooBusy("backfill");
+                      const { data, error } = await supabase.functions.invoke("integration-woocommerce", {
+                        body: { action: "backfill", integration_id: integration.id },
+                      });
+                      setWooBusy(null);
+                      if (error || !data?.ok) {
+                        toast({
+                          title: "Backfill failed",
+                          description: error?.message ?? data?.error,
+                          variant: "destructive",
+                        });
+                      } else {
+                        toast({
+                          title: `Imported ${data.imported} order${data.imported === 1 ? "" : "s"}`,
+                        });
+                        loadEvents();
+                      }
+                    }}
+                  >
+                    {wooBusy === "backfill" && (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    )}
+                    Backfill last 30 days
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive ml-auto"
+                    disabled={wooBusy !== null}
+                    onClick={async () => {
+                      setWooBusy("clear");
+                      await supabase.functions.invoke("integration-woocommerce", {
+                        body: { action: "clear", integration_id: integration.id },
+                      });
+                      setWooBusy(null);
+                      toast({ title: "Disconnected" });
+                      loadWooSummary();
+                    }}
+                  >
+                    Disconnect
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  This WooCommerce integration isn't configured yet. Run the guided setup to
+                  connect your store.
+                </p>
+                <Button onClick={() => setWooDialogOpen(true)}>
+                  <ExternalLink className="h-4 w-4 mr-2" /> Configure WooCommerce
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Configuration</CardTitle>
@@ -408,7 +565,10 @@ export default function IntegrationDetail() {
         </CardContent>
       </Card>
 
-      {integration.provider !== "shopify" && integration.provider !== "stripe" && (
+      {integration.provider !== "shopify" &&
+        integration.provider !== "stripe" &&
+        integration.provider !== "woocommerce" &&
+        !isWoo && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -522,6 +682,15 @@ export default function IntegrationDetail() {
           Save
         </Button>
       </div>
+
+      <WooCommerceConnectDialog
+        open={wooDialogOpen}
+        integrationId={integration.id}
+        onOpenChange={setWooDialogOpen}
+        onConnected={() => {
+          loadWooSummary();
+        }}
+      />
     </div>
   );
 }

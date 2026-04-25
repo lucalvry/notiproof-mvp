@@ -8,9 +8,13 @@ interface BusinessSummary {
   id: string;
   name: string;
   role: AppRole;
-  onboarding_completed?: boolean;
   install_verified?: boolean;
   suspended_at?: string | null;
+  logo_url?: string | null;
+  /** Plan column on `businesses`. */
+  plan?: string | null;
+  /** Legacy alias kept for older components reading `plan_tier`. */
+  plan_tier?: string | null;
 }
 
 interface UserProfile {
@@ -18,7 +22,6 @@ interface UserProfile {
   email: string;
   full_name: string | null;
   is_admin: boolean;
-  onboarding_completed: boolean;
 }
 
 interface AuthContextValue {
@@ -56,20 +59,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabase.from("users").select("*").eq("id", userId).maybeSingle(),
       supabase
         .from("business_users")
-        .select("role, business_id, businesses(id, name, onboarding_completed, install_verified, suspended_at)")
+        .select("role, business_id, businesses(id, name, install_verified, logo_url, plan)")
         .eq("user_id", userId),
     ]);
 
-    setProfile(profileData as UserProfile | null);
+    setProfile((profileData as UserProfile | null) ?? null);
 
     const list: BusinessSummary[] = (membershipData ?? [])
       .map((row: any) => row.businesses ? {
         id: row.businesses.id,
         name: row.businesses.name,
         role: row.role as AppRole,
-        onboarding_completed: row.businesses.onboarding_completed,
         install_verified: row.businesses.install_verified,
-        suspended_at: row.businesses.suspended_at,
+        suspended_at: row.businesses.suspended_at ?? null,
+        logo_url: row.businesses.logo_url,
+        plan: row.businesses.plan ?? null,
+        plan_tier: row.businesses.plan ?? null,
       } : null)
       .filter(Boolean) as BusinessSummary[];
     setBusinesses(list);

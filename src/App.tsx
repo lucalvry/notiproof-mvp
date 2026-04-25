@@ -101,6 +101,7 @@ const App = () => (
 
             <Route element={<SettingsLayout />}>
               <Route path="/settings" element={<ProfileSettings />} />
+              <Route path="/settings/profile" element={<ProfileSettings />} />
               <Route path="/settings/account" element={<AccountSettings />} />
               <Route path="/settings/team" element={<TeamSettings />} />
               <Route path="/settings/email" element={<EmailSettings />} />

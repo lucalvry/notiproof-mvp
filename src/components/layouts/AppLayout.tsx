@@ -10,6 +10,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   LayoutDashboard,
@@ -23,8 +25,9 @@ import {
   Menu,
   Check,
   Plus,
-  Building2,
   ChevronDown,
+  CreditCard,
+  Users,
 } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import {
@@ -41,6 +44,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIdleLogout } from "@/hooks/useIdleLogout";
+import { NotificationBell } from "./NotificationBell";
+import { UserAvatarMenu } from "./UserAvatarMenu";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -48,25 +53,81 @@ const nav = [
   { to: "/widgets", label: "Widgets", icon: MonitorSmartphone },
   { to: "/integrations", label: "Integrations", icon: Plug },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/settings", label: "Settings", icon: Settings },
 ];
+
+function BusinessAvatar({
+  name,
+  logoUrl,
+  size = 20,
+}: {
+  name: string;
+  logoUrl?: string | null;
+  size?: number;
+}) {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt=""
+        className="rounded object-cover bg-muted shrink-0"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return (
+    <div
+      className="rounded bg-primary/10 text-primary flex items-center justify-center font-semibold shrink-0"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.45) }}
+      aria-hidden
+    >
+      {initials}
+    </div>
+  );
+}
+
+function RoleBadge({ role }: { role: "owner" | "editor" | "viewer" }) {
+  const variant: "default" | "secondary" | "outline" =
+    role === "owner" ? "default" : role === "editor" ? "secondary" : "outline";
+  return (
+    <Badge variant={variant} className="capitalize text-[10px] h-4 px-1.5 font-medium">
+      {role}
+    </Badge>
+  );
+}
 
 function BusinessSwitcher({ inline = false }: { inline?: boolean }) {
   const { businesses, currentBusinessId, setCurrentBusinessId, refresh } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
 
   const current = businesses.find((b) => b.id === currentBusinessId);
+  const ownedCount = businesses.filter((b) => b.role === "owner").length;
+  const isFreePlan = (current?.plan_tier ?? "free") === "free";
 
   const switchTo = (id: string) => {
     if (id === currentBusinessId) return;
     setCurrentBusinessId(id);
     queryClient.clear();
-    // Force a clean reload so all scoped queries refetch.
     window.location.reload();
+  };
+
+  const handleAddNew = () => {
+    if (isFreePlan && ownedCount >= 1) {
+      setUpgradeOpen(true);
+    } else {
+      setCreateOpen(true);
+    }
   };
 
   const createBusiness = async () => {
@@ -81,7 +142,7 @@ function BusinessSwitcher({ inline = false }: { inline?: boolean }) {
     await refresh();
     if (typeof data === "string") setCurrentBusinessId(data);
     queryClient.clear();
-    window.location.reload();
+    navigate("/onboarding/connect");
   };
 
   if (businesses.length === 0) return null;
@@ -93,30 +154,31 @@ function BusinessSwitcher({ inline = false }: { inline?: boolean }) {
           <Button
             variant="ghost"
             size="sm"
-            className={inline ? "w-full justify-start gap-2" : "gap-2 max-w-[180px]"}
+            className={inline ? "w-full justify-start gap-2" : "gap-2 max-w-[220px]"}
           >
-            <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+            {current && <BusinessAvatar name={current.name} logoUrl={current.logo_url} size={20} />}
             <span className="truncate text-sm font-medium">
               {current?.name ?? "Select business"}
             </span>
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-64">
+        <DropdownMenuContent align="start" className="w-72">
           <DropdownMenuLabel className="text-xs uppercase text-muted-foreground tracking-wider">
             Your businesses
           </DropdownMenuLabel>
           {businesses.map((b) => (
-            <DropdownMenuItem key={b.id} onClick={() => switchTo(b.id)} className="gap-2">
-              <Check className={`h-4 w-4 ${b.id === currentBusinessId ? "opacity-100" : "opacity-0"}`} />
-              <span className="truncate">{b.name}</span>
-              <span className="ml-auto text-[10px] uppercase text-muted-foreground">{b.role}</span>
+            <DropdownMenuItem key={b.id} onClick={() => switchTo(b.id)} className="gap-2 py-2">
+              <BusinessAvatar name={b.name} logoUrl={b.logo_url} size={24} />
+              <span className="truncate flex-1">{b.name}</span>
+              <RoleBadge role={b.role} />
+              <Check className={`h-4 w-4 shrink-0 ${b.id === currentBusinessId ? "opacity-100" : "opacity-0"}`} />
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => setCreateOpen(true)} className="gap-2">
+          <DropdownMenuItem onClick={handleAddNew} className="gap-2">
             <Plus className="h-4 w-4" />
-            Create another business
+            Add new business
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -125,7 +187,7 @@ function BusinessSwitcher({ inline = false }: { inline?: boolean }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create a new business</DialogTitle>
-            <DialogDescription>You'll become the owner. You can switch between businesses anytime.</DialogDescription>
+            <DialogDescription>You'll become the owner. We'll take you to onboarding next.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label>Business name</Label>
@@ -135,6 +197,28 @@ function BusinessSwitcher({ inline = false }: { inline?: boolean }) {
             <Button variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button>
             <Button onClick={createBusiness} disabled={creating || !name.trim()}>
               {creating ? "Creating…" : "Create business"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={upgradeOpen} onOpenChange={setUpgradeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upgrade to add another business</DialogTitle>
+            <DialogDescription>
+              Adding multiple businesses requires a Starter plan or above.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setUpgradeOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                setUpgradeOpen(false);
+                navigate("/settings/billing");
+              }}
+            >
+              Upgrade
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -208,6 +292,43 @@ export function AppLayout() {
                         Admin
                       </NavLink>
                     )}
+                    <div className="my-2 border-t" />
+                    <NavLink
+                      to="/settings/profile"
+                      onClick={() => setDrawerOpen(false)}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                          isActive ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                        }`
+                      }
+                    >
+                      <Settings className="h-4 w-4" />
+                      Settings
+                    </NavLink>
+                    <NavLink
+                      to="/settings/billing"
+                      onClick={() => setDrawerOpen(false)}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                          isActive ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                        }`
+                      }
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      Billing
+                    </NavLink>
+                    <NavLink
+                      to="/settings/team"
+                      onClick={() => setDrawerOpen(false)}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                          isActive ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                        }`
+                      }
+                    >
+                      <Users className="h-4 w-4" />
+                      Team
+                    </NavLink>
                   </nav>
                   <div className="p-3 border-t mt-auto">
                     <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={handleSignOut}>
@@ -221,6 +342,13 @@ export function AppLayout() {
               <Link to="/dashboard" className="text-xl font-bold tracking-tight text-primary shrink-0">
                 Noti<span className="text-accent">Proof</span>
               </Link>
+
+              {/* Business switcher (desktop) — left of nav */}
+              <div className="hidden md:block">
+                <BusinessSwitcher />
+              </div>
+
+              <Separator orientation="vertical" className="hidden md:block h-6" />
 
               {/* Desktop nav */}
               <nav className="hidden md:flex items-center gap-1">
@@ -241,38 +369,10 @@ export function AppLayout() {
               </nav>
             </div>
 
-            <div className="flex items-center gap-2">
-              {/* Desktop business switcher */}
-              <div className="hidden md:block">
-                <BusinessSwitcher />
-              </div>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold">
-                      {(profile?.full_name || profile?.email || "U").charAt(0).toUpperCase()}
-                    </div>
-                    <span className="hidden lg:inline text-sm">{profile?.full_name || profile?.email}</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>{profile?.email}</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate("/settings/account")}>
-                    <Settings className="h-4 w-4 mr-2" /> My account
-                  </DropdownMenuItem>
-                  {profile?.is_admin && (
-                    <DropdownMenuItem onClick={() => navigate("/admin")}>
-                      <Shield className="h-4 w-4 mr-2" /> Admin
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    <LogOut className="h-4 w-4 mr-2" /> Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+            {/* Right cluster: bell + avatar */}
+            <div className="flex items-center gap-1">
+              <NotificationBell />
+              <UserAvatarMenu onSignOut={handleSignOut} />
             </div>
           </div>
         </header>

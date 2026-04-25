@@ -31,6 +31,7 @@ import { ProofDetailSheet } from "@/components/proof/ProofDetailSheet";
 import { RequestTestimonialModal } from "@/components/proof/RequestTestimonialModal";
 import { AssignToWidgetDialog } from "@/components/proof/AssignToWidgetDialog";
 import type { Database } from "@/integrations/supabase/types";
+import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
 
 type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"];
 type ProofStatus = Database["public"]["Enums"]["proof_status"];
@@ -69,7 +70,8 @@ const DATE_OPTIONS = [
 ];
 
 export default function ProofLibrary() {
-  const { currentBusinessId } = useAuth();
+  const { currentBusinessId, currentBusinessRole } = useAuth();
+  const canEdit = currentBusinessRole === "owner" || currentBusinessRole === "editor";
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -234,15 +236,18 @@ export default function ProofLibrary() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <ReadOnlyBanner />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-wider text-muted-foreground font-mono">PROOF-01</div>
           <h1 className="text-3xl font-bold mt-1">Proof library</h1>
           <p className="text-muted-foreground mt-1">All testimonials, reviews and signals collected for your business.</p>
         </div>
-        <Button onClick={() => setRequestModalOpen(true)}>
-          <Send className="h-4 w-4 mr-2" /> Request testimonial
-        </Button>
+        {canEdit && (
+          <Button onClick={() => setRequestModalOpen(true)}>
+            <Send className="h-4 w-4 mr-2" /> Request testimonial
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
@@ -365,9 +370,11 @@ export default function ProofLibrary() {
                   title="No requests yet"
                   description="Send your first collection request to start gathering testimonials."
                   action={
-                    <Button onClick={() => setRequestModalOpen(true)}>
-                      <Send className="h-4 w-4 mr-2" /> Request testimonial
-                    </Button>
+                    canEdit ? (
+                      <Button onClick={() => setRequestModalOpen(true)}>
+                        <Send className="h-4 w-4 mr-2" /> Request testimonial
+                      </Button>
+                    ) : null
                   }
                 />
               ) : (
@@ -390,7 +397,7 @@ export default function ProofLibrary() {
                         <span className="text-xs text-muted-foreground hidden sm:inline-flex items-center gap-1">
                           <Clock className="h-3 w-3" /> {new Date(r.created_at).toLocaleDateString()}
                         </span>
-                        {canResend && (
+                        {canResend && canEdit && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -416,9 +423,11 @@ export default function ProofLibrary() {
                 }
                 action={
                   items.length === 0 ? (
-                    <Button onClick={() => setRequestModalOpen(true)}>
-                      <Send className="h-4 w-4 mr-2" /> Request testimonial
-                    </Button>
+                    canEdit ? (
+                      <Button onClick={() => setRequestModalOpen(true)}>
+                        <Send className="h-4 w-4 mr-2" /> Request testimonial
+                      </Button>
+                    ) : null
                   ) : (
                     <Button variant="outline" onClick={clearFilters}>
                       Clear filters
@@ -442,7 +451,7 @@ export default function ProofLibrary() {
                         : `${filteredAll.length} item${filteredAll.length === 1 ? "" : "s"}`}
                     </span>
                   </div>
-                  {selected.size > 0 && (
+                  {selected.size > 0 && canEdit && (
                     <div className="flex items-center gap-2 flex-wrap">
                       <Button
                         size="sm"
@@ -585,7 +594,6 @@ export default function ProofLibrary() {
       <RequestTestimonialModal
         open={requestModalOpen}
         onOpenChange={setRequestModalOpen}
-        onCreated={load}
       />
 
       <AssignToWidgetDialog

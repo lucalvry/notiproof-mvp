@@ -51,13 +51,15 @@ export default function ProofDetail() {
   const saveEdits = async () => {
     if (!proof) return;
     setSaving(true);
+    const highlight = ((proof as ProofRow & { highlight_phrase?: string | null }).highlight_phrase ?? "").trim();
     const { error } = await supabase.from("proof_objects").update({
       author_name: proof.author_name,
       content: proof.content,
       rating: proof.rating,
       media_url: proof.media_url,
       verified: proof.verified,
-    }).eq("id", proof.id);
+      highlight_phrase: highlight ? highlight : null,
+    } as Partial<ProofRow> & { highlight_phrase: string | null }).eq("id", proof.id);
     setSaving(false);
     if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
     toast({ title: "Changes saved" });
@@ -130,6 +132,31 @@ export default function ProofDetail() {
             </div>
           </div>
           <div className="space-y-2"><Label>Content</Label><Textarea rows={5} value={proof.content ?? ""} onChange={(e) => setProof({ ...proof, content: e.target.value })} /></div>
+          {(() => {
+            const highlight = (proof as ProofRow & { highlight_phrase?: string | null }).highlight_phrase ?? "";
+            const content = proof.content ?? "";
+            const trimmedHighlight = highlight.trim();
+            const notFound = trimmedHighlight.length > 0 && !content.toLowerCase().includes(trimmedHighlight.toLowerCase());
+            return (
+              <div className="space-y-2">
+                <Label>Highlight key phrase <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+                <Input
+                  maxLength={120}
+                  placeholder="e.g. doubled our conversions in two weeks"
+                  value={highlight}
+                  onChange={(e) => setProof({ ...proof, highlight_phrase: e.target.value } as ProofRow)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  This phrase will be visually emphasized inside the widget. Must appear in the testimonial content.
+                </p>
+                {notFound && (
+                  <p className="text-xs text-amber-600">
+                    Heads up — this phrase wasn't found in the content above. It won't be highlighted until it matches.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
           <div className="space-y-2"><Label>Media URL</Label><Input type="url" value={proof.media_url ?? ""} onChange={(e) => setProof({ ...proof, media_url: e.target.value })} /></div>
           {proof.media_url && (
             <div className="rounded-md border bg-muted/30 p-2">

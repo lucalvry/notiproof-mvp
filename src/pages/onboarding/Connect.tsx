@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { ShoppingBag, Store, Star, ArrowRight, SkipForward, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { WooCommerceConnectDialog } from "@/components/integrations/WooCommerceConnectDialog";
 
 // Stripe is intentionally excluded from data integrations — it powers NotiProof's
 // own subscription billing in /settings/billing, not customer purchase ingestion.
@@ -35,6 +36,8 @@ export default function OnbConnect() {
   const [shopifyOpen, setShopifyOpen] = useState(false);
   const [shopDomain, setShopDomain] = useState("");
   const [shopifyLoading, setShopifyLoading] = useState(false);
+  const [wooOpen, setWooOpen] = useState(false);
+  const [wooIntegrationId, setWooIntegrationId] = useState<string | null>(null);
   const { currentBusinessId } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -43,7 +46,11 @@ export default function OnbConnect() {
     if (!currentBusinessId) return null;
     const { data, error } = await supabase
       .from("integrations")
-      .insert({ business_id: currentBusinessId, provider, platform: provider, status: "pending" })
+      .insert({
+        business_id: currentBusinessId,
+        platform: provider,
+        status: "pending",
+      } as any)
       .select("id")
       .single();
     if (error) {
@@ -61,6 +68,16 @@ export default function OnbConnect() {
 
     if (selected === "shopify") {
       setShopifyOpen(true);
+      return;
+    }
+
+    if (selected === "woocommerce") {
+      setLoading(true);
+      const id = await createIntegration("woocommerce");
+      setLoading(false);
+      if (!id) return;
+      setWooIntegrationId(id);
+      setWooOpen(true);
       return;
     }
 
@@ -177,6 +194,13 @@ export default function OnbConnect() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <WooCommerceConnectDialog
+        open={wooOpen}
+        integrationId={wooIntegrationId}
+        onOpenChange={setWooOpen}
+        onConnected={() => navigate("/onboarding/install")}
+      />
     </div>
   );
 }

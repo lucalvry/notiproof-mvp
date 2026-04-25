@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Plus, Settings as SettingsIcon, Trash2 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
+import { WooCommerceConnectDialog } from "@/components/integrations/WooCommerceConnectDialog";
 
 type Integration = Database["public"]["Tables"]["integrations"]["Row"];
 type Provider = Database["public"]["Enums"]["integration_provider"];
@@ -100,13 +102,16 @@ interface IntegrationStat {
 }
 
 export default function IntegrationsList() {
-  const { currentBusinessId } = useAuth();
+  const { currentBusinessId, currentBusinessRole } = useAuth();
+  const canEdit = currentBusinessRole === "owner" || currentBusinessRole === "editor";
   const { toast } = useToast();
   const [items, setItems] = useState<Integration[]>([]);
   const [stats, setStats] = useState<Map<string, IntegrationStat>>(new Map());
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState<Provider | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [wooOpen, setWooOpen] = useState(false);
+  const [wooIntegrationId, setWooIntegrationId] = useState<string | null>(null);
 
   const load = async () => {
     if (!currentBusinessId) return;
@@ -137,7 +142,7 @@ export default function IntegrationsList() {
     setAdding(provider);
     const { error } = await supabase
       .from("integrations")
-      .insert({ business_id: currentBusinessId, provider, platform: provider, status: "pending" });
+      .insert({ business_id: currentBusinessId, platform: provider, status: "pending" } as any);
     setAdding(null);
     if (error) return toast({ title: "Failed", description: error.message, variant: "destructive" });
     toast({
@@ -145,6 +150,40 @@ export default function IntegrationsList() {
       description: "Configure credentials in the integration settings.",
     });
     load();
+  };
+
+  const startWooCommerceConnect = async () => {
+    if (!currentBusinessId) return;
+    setAdding("woocommerce");
+    // Re-use an existing pending WC integration if one exists, otherwise create one.
+    const { data: existing } = await supabase
+      .from("integrations")
+      .select("id, status")
+      .eq("business_id", currentBusinessId)
+      .eq("platform", "woocommerce")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let id = existing?.id as string | undefined;
+    if (!id) {
+      const { data, error } = await supabase
+        .from("integrations")
+        .insert({
+          business_id: currentBusinessId,
+          platform: "woocommerce",
+          status: "pending",
+        } as any)
+        .select("id")
+        .single();
+      if (error) {
+        setAdding(null);
+        return toast({ title: "Failed", description: error.message, variant: "destructive" });
+      }
+      id = data.id as string;
+    }
+    setAdding(null);
+    setWooIntegrationId(id);
+    setWooOpen(true);
   };
 
   const disconnectIntegration = async (id: string) => {
@@ -158,6 +197,7 @@ export default function IntegrationsList() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <ReadOnlyBanner />
       <div>
         <div className="text-xs uppercase tracking-wider text-muted-foreground font-mono">INT-01</div>
         <h1 className="text-3xl font-bold mt-1">Integrations</h1>
@@ -231,7 +271,7 @@ export default function IntegrationsList() {
                               size="sm"
                               variant="ghost"
                               className="text-destructive hover:text-destructive"
-                              disabled={disconnecting === i.id}
+                              disabled={disconnecting === i.id || !canEdit}
                             >
                               <Trash2 className="h-3.5 w-3.5 mr-1" /> Disconnect
                             </Button>
@@ -289,10 +329,15 @@ export default function IntegrationsList() {
                     size="sm"
                     variant="outline"
                     className="w-full mt-3"
-                    onClick={() =>
-                      !entry.comingSoon && addIntegration(entry.id as Provider)
-                    }
-                    disabled={adding === entry.id || entry.comingSoon}
+                    onClick={() => {
+                      if (entry.comingSoon) return;
+                      if (entry.id === "woocommerce") {
+                        startWooCommerceConnect();
+                        return;
+                      }
+                      addIntegration(entry.id as Provider);
+                    }}
+                    disabled={adding === entry.id || entry.comingSoon || !canEdit}
                   >
                     <Plus className="h-3.5 w-3.5 mr-1" />
                     {entry.comingSoon ? "Coming soon" : adding === entry.id ? "Adding…" : "Add"}
@@ -303,6 +348,13 @@ export default function IntegrationsList() {
           </div>
         </CardContent>
       </Card>
+
+      <WooCommerceConnectDialog
+        open={wooOpen}
+        integrationId={wooIntegrationId}
+        onOpenChange={setWooOpen}
+        onConnected={load}
+      />
     </div>
   );
 }

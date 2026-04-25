@@ -286,6 +286,7 @@ export type Database = {
           customer_email_hash: string | null
           customer_handle: string | null
           external_ref_id: string | null
+          highlight_phrase: string | null
           id: string
           media_type: string | null
           media_url: string | null
@@ -331,6 +332,7 @@ export type Database = {
           customer_email_hash?: string | null
           customer_handle?: string | null
           external_ref_id?: string | null
+          highlight_phrase?: string | null
           id?: string
           media_type?: string | null
           media_url?: string | null
@@ -376,6 +378,7 @@ export type Database = {
           customer_email_hash?: string | null
           customer_handle?: string | null
           external_ref_id?: string | null
+          highlight_phrase?: string | null
           id?: string
           media_type?: string | null
           media_url?: string | null
