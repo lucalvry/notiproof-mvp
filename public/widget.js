@@ -1,6 +1,7 @@
 /* NotiProof widget runtime (spec v2)
  * Loads widget config + approved proofs, renders per widget.type,
  * and posts impression/interaction events to widget-track.
+ * build: 2026-04-25-mobile-fix-2
  */
 (function () {
   "use strict";
@@ -107,15 +108,15 @@
       '.np-banner .np-card{border-radius:0;justify-content:center;text-align:center;max-width:none;width:auto}' +
       '.np-inline-host{display:block;margin:8px 0}' +
       '.np-badge{position:fixed;left:16px;bottom:16px;background:#0f172a;color:#fff;font-size:12px;padding:6px 10px;border-radius:999px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:2147483600}' +
-      // Mobile (≤480px): edge-to-edge popup with 8px gutters
+      // Mobile (≤480px): edge-to-edge popup with 8px gutters. !important defeats host-page CSS resets.
       '@media (max-width:480px){' +
-        '.np-pop.np-pos-bottom-left,.np-pop.np-pos-bottom-right{left:8px;right:8px;bottom:8px;top:auto}' +
-        '.np-pop.np-pos-top-left,.np-pop.np-pos-top-right{left:8px;right:8px;top:8px;bottom:auto}' +
-        '.np-pop .np-card{width:auto;max-width:none;padding:10px;gap:10px;border-radius:12px}' +
-        '.np-pop .np-media{min-height:72px;max-height:96px}' +
-        '.np-pop .np-text{font-size:12px;-webkit-line-clamp:2}' +
-        '.np-pop .np-author{font-size:13px}' +
-        '.np-pop .np-footer a{font-size:9px}' +
+        '.np-card{width:auto !important;max-width:calc(100vw - 16px) !important;padding:10px !important;gap:10px !important;border-radius:12px !important;box-sizing:border-box !important}' +
+        '.np-pop.np-pos-bottom-left,.np-pop.np-pos-bottom-right{left:8px !important;right:8px !important;bottom:8px !important;top:auto !important;max-width:none !important}' +
+        '.np-pop.np-pos-top-left,.np-pop.np-pos-top-right{left:8px !important;right:8px !important;top:8px !important;bottom:auto !important;max-width:none !important}' +
+        '.np-media{min-height:72px !important;max-height:96px !important}' +
+        '.np-text{font-size:12px !important;-webkit-line-clamp:2}' +
+        '.np-author{font-size:13px !important}' +
+        '.np-footer a{font-size:9px !important}' +
       '}' +
       // Lightbox
       '.np-lightbox{position:fixed;inset:0;background:rgba(8,11,20,.88);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;transition:opacity .18s ease-out;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}' +
