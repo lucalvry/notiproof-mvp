@@ -1,6 +1,6 @@
 // Public endpoint: writes widget_events rows. Also flips
 // businesses.install_verified on the first impression.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

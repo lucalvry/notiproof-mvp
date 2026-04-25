@@ -31,7 +31,7 @@
     } catch (_) { return null; }
   })();
 
-  var state = { widget: null, proofs: [], idx: 0, root: null, impressions: 0 };
+  var state = { widget: null, business: null, proofs: [], idx: 0, root: null, impressions: 0 };
 
   function cfg() { return (state.widget && state.widget.config) || {}; }
 
@@ -86,7 +86,7 @@
       '.np-pos-top-left{left:20px;top:20px}' +
       '.np-pos-top-right{right:20px;top:20px}' +
       '.np-banner{left:0;right:0;top:0;max-width:none}' +
-      '.np-card{background:#fff;color:#0f172a;border:1px solid rgba(15,23,42,.06);border-radius:14px;box-shadow:0 12px 32px rgba(15,23,42,.18);padding:14px;display:flex;gap:12px;align-items:stretch;cursor:pointer;position:relative;transition:transform .25s ease, opacity .25s ease;opacity:0;transform:translateY(8px);width:420px;max-width:420px;box-sizing:border-box}' +
+      '.np-card{background:#fff;color:#0f172a;border:1px solid rgba(15,23,42,.06);border-radius:14px;box-shadow:0 12px 32px rgba(15,23,42,.18);padding:14px;display:flex;gap:12px;align-items:stretch;cursor:pointer;position:relative;transition:transform .25s ease, opacity .25s ease;opacity:0;transform:translateY(8px);width:420px;max-width:calc(100vw - 24px);box-sizing:border-box}' +
       '.np-card.np-in{opacity:1;transform:translateY(0)}' +
       '.np-media{align-self:stretch;aspect-ratio:1/1;min-height:96px;max-height:140px;border-radius:10px;flex-shrink:0;background:#eef2f7;overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center}' +
       '.np-media img,.np-media video{width:100%;height:100%;object-fit:cover;display:block}' +
@@ -107,6 +107,16 @@
       '.np-banner .np-card{border-radius:0;justify-content:center;text-align:center;max-width:none;width:auto}' +
       '.np-inline-host{display:block;margin:8px 0}' +
       '.np-badge{position:fixed;left:16px;bottom:16px;background:#0f172a;color:#fff;font-size:12px;padding:6px 10px;border-radius:999px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:2147483600}' +
+      // Mobile (≤480px): edge-to-edge popup with 8px gutters
+      '@media (max-width:480px){' +
+        '.np-pop.np-pos-bottom-left,.np-pop.np-pos-bottom-right{left:8px;right:8px;bottom:8px;top:auto}' +
+        '.np-pop.np-pos-top-left,.np-pop.np-pos-top-right{left:8px;right:8px;top:8px;bottom:auto}' +
+        '.np-pop .np-card{width:auto;max-width:none;padding:10px;gap:10px;border-radius:12px}' +
+        '.np-pop .np-media{min-height:72px;max-height:96px}' +
+        '.np-pop .np-text{font-size:12px;-webkit-line-clamp:2}' +
+        '.np-pop .np-author{font-size:13px}' +
+        '.np-pop .np-footer a{font-size:9px}' +
+      '}' +
       // Lightbox
       '.np-lightbox{position:fixed;inset:0;background:rgba(8,11,20,.88);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;transition:opacity .18s ease-out;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}' +
       '.np-lightbox.np-lb-in{opacity:1}' +
@@ -281,8 +291,10 @@
       ? '<img class="np-lb-company-logo" src="' + escapeHtml(proof.author_company_logo_url) + '" alt="">'
       : '';
 
-    var ctaUrl = safeUrl(proof.cta_url);
-    var ctaLabel = proof.cta_label && proof.cta_label.trim() ? proof.cta_label.trim() : 'Learn more';
+    var ctaUrl = safeUrl(proof.cta_url) || safeUrl(c.default_cta_url) || safeUrl(state.business && state.business.website_url);
+    var ctaLabel = (proof.cta_label && proof.cta_label.trim())
+      || (c.default_cta_label && String(c.default_cta_label).trim())
+      || 'Visit website';
     var ctaHtml = ctaUrl
       ? '<a class="np-lb-cta" href="' + escapeHtml(ctaUrl) + '" target="_blank" rel="noopener" data-np-cta="1" style="background:' + escapeHtml(brand) + '">' +
           escapeHtml(ctaLabel) +
@@ -438,6 +450,7 @@
 
   function start(data) {
     state.widget = data && data.widget;
+    state.business = (data && data.business) || null;
     state.proofs = (data && data.proofs) || [];
     if (!state.widget || !state.proofs.length) return;
     injectStyles();

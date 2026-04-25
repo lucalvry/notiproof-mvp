@@ -1,6 +1,6 @@
 // Lists recent Stripe invoices for the caller's business. Returns a slim
 // projection — id, number, status, total, currency, created, hosted URL, PDF.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -5,7 +5,7 @@
 //   secret), so the UI can show "Connected · ••••1234" without exposing the
 //   token to the browser.
 // - On set/delete we update credentials with the service role.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

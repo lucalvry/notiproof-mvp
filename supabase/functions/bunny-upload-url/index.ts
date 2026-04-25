@@ -3,7 +3,7 @@
 // Two zones supported via `kind`:
 //   "media"  -> BUNNY_MEDIA_ZONE / BUNNY_MEDIA_PASSWORD (testimonial videos, avatars, logos)
 //   "assets" -> BUNNY_ASSETS_ZONE / BUNNY_ASSETS_PASSWORD (widget.js, public assets)
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

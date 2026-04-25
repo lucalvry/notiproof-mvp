@@ -1,7 +1,7 @@
 // Creates a Stripe Checkout session for the requested plan and returns the
 // URL. Caller must be an owner/editor of the business. Plan key maps to a
 // Stripe price ID stored in a secret (STRIPE_PRICE_<KEY>).
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -4,7 +4,7 @@
 // Auth: caller must either send a valid Supabase JWT for a member of the
 // target business, OR forward a public collection token (x-collection-token)
 // that resolves to the same business via testimonial_requests.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

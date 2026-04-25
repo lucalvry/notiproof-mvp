@@ -2,7 +2,7 @@
 // testimonial_requests row, using the business's saved Email Settings template.
 // Email delivery: Brevo Transactional Email API (https://api.brevo.com/v3/smtp/email).
 // Requires BREVO_API_KEY secret. Sender address must be verified in Brevo.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

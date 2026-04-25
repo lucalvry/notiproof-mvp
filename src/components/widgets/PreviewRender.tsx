@@ -14,6 +14,15 @@ export interface WidgetConfig {
   show_rating?: boolean;
   brand_color?: string;
   powered_by?: boolean;
+  default_cta_label?: string;
+  default_cta_url?: string;
+  business_website_url?: string;
+}
+
+function safeUrl(u?: string | null) {
+  if (!u || typeof u !== "string") return null;
+  if (!/^https?:\/\//i.test(u)) return null;
+  return u;
 }
 
 function isVideoProof(p?: Proof | null) {

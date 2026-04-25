@@ -35,6 +35,9 @@ interface WidgetConfig extends SharedWidgetConfig {
   source_filter?: "all" | "selected";
   selected_proof_ids?: string[];
   rotation?: "newest" | "random" | "rating";
+  // Default CTA fallbacks
+  default_cta_label?: string;
+  default_cta_url?: string;
   // A/B
   ab_enabled?: boolean;
   ab_variant_label?: string;
@@ -251,6 +254,29 @@ export default function WidgetEditor() {
                 <div className="flex items-center justify-between"><Label>Show avatar</Label><Switch checked={cfg.show_avatar !== false} onCheckedChange={(c) => updateConfig({ show_avatar: c })} /></div>
                 <div className="flex items-center justify-between"><Label>Show rating</Label><Switch checked={cfg.show_rating !== false} onCheckedChange={(c) => updateConfig({ show_rating: c })} /></div>
                 <div className="space-y-2"><Label>Brand color</Label><Input type="color" value={cfg.brand_color ?? "#0EA5E9"} onChange={(e) => updateConfig({ brand_color: e.target.value })} className="h-10 w-20 p-1" /></div>
+                <div className="border-t pt-4 space-y-3">
+                  <div>
+                    <Label>Default CTA</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Used when a proof doesn't have its own call-to-action. If left blank, the business website is used.</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Default CTA label</Label>
+                    <Input
+                      value={cfg.default_cta_label ?? ""}
+                      onChange={(e) => updateConfig({ default_cta_label: e.target.value })}
+                      placeholder="Learn more"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Default CTA URL</Label>
+                    <Input
+                      type="url"
+                      value={cfg.default_cta_url ?? ""}
+                      onChange={(e) => updateConfig({ default_cta_url: e.target.value })}
+                      placeholder="https://yoursite.com"
+                    />
+                  </div>
+                </div>
               </TabsContent>
 
               <TabsContent value="rules" className="space-y-4 mt-4">

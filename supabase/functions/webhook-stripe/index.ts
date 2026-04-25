@@ -6,7 +6,7 @@
 //   3. For INTEGRATION events (purchases, refunds, etc.) routed with an
 //      ?integration_id=... param, stores integration_events and creates
 //      proof_objects for qualifying events (legacy behavior, preserved).
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

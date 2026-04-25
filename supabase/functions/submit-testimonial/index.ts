@@ -1,6 +1,6 @@
 // Public endpoint: validates the collection token, creates a pending
 // proof_object, and marks the testimonial_request as completed.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

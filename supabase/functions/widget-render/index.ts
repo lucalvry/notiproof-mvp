@@ -1,6 +1,6 @@
 // Public endpoint: returns widget config + recent approved proofs for a business.
 // No auth required. Reads-only. Used by /widget.js at runtime.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,6 +33,15 @@ Deno.serve(async (req) => {
     if (wErr) throw wErr;
     const widget = widgets?.[0] ?? null;
 
+    const { data: bizRow } = await supabase
+      .from("businesses")
+      .select("name, website_url")
+      .eq("id", businessId)
+      .maybeSingle();
+    const business = bizRow
+      ? { name: bizRow.name, website_url: bizRow.website_url }
+      : null;
+
     const { data: proofs, error: pErr } = await supabase
       .from("proof_objects")
       .select(
@@ -45,7 +54,7 @@ Deno.serve(async (req) => {
       .limit(20);
     if (pErr) throw pErr;
 
-    return json({ widget, proofs: proofs ?? [] });
+    return json({ widget, business, proofs: proofs ?? [] });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }

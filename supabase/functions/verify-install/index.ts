@@ -1,6 +1,6 @@
 // Fetches a user-supplied URL and looks for the NotiProof widget script tag.
 // On success, marks businesses.install_verified = true.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
