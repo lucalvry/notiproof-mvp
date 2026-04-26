@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MessageSquareQuote, MonitorSmartphone, Plug, TrendingUp, Star, ShieldCheck } from "lucide-react";
-import { ProofDetailSheet } from "@/components/proof/ProofDetailSheet";
+
 import type { Database } from "@/integrations/supabase/types";
 
 type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"];
@@ -34,7 +34,7 @@ export default function Dashboard() {
   const currentBusiness = businesses.find((b) => b.id === currentBusinessId);
   const [stats, setStats] = useState<Stats | null>(null);
   const [feed, setFeed] = useState<ProofRow[] | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const loadFeed = (bizId: string) =>
     supabase
@@ -128,7 +128,7 @@ export default function Dashboard() {
                 <li key={p.id}>
                   <button
                     type="button"
-                    onClick={() => setOpenId(p.id)}
+                    onClick={() => navigate(`/proof/${p.id}`)}
                     className="w-full flex items-center gap-3 py-3 text-left hover:bg-muted/40 -mx-2 px-2 rounded-md transition-colors"
                   >
                     <div className="h-8 w-8 rounded-full bg-accent/10 text-accent flex items-center justify-center text-xs font-semibold flex-shrink-0">
@@ -166,13 +166,6 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      <ProofDetailSheet
-        proofId={openId}
-        businessId={currentBusinessId}
-        open={openId !== null}
-        onOpenChange={(o) => !o && setOpenId(null)}
-        onChanged={() => currentBusinessId && loadFeed(currentBusinessId)}
-      />
     </div>
   );
 }

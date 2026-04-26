@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,6 @@ import {
   Filter,
   XCircle,
 } from "lucide-react";
-import { ProofDetailSheet } from "@/components/proof/ProofDetailSheet";
 import { RequestTestimonialModal } from "@/components/proof/RequestTestimonialModal";
 import { AssignToWidgetDialog } from "@/components/proof/AssignToWidgetDialog";
 import type { Database } from "@/integrations/supabase/types";
@@ -73,6 +72,7 @@ export default function ProofLibrary() {
   const { currentBusinessId, currentBusinessRole } = useAuth();
   const canEdit = currentBusinessRole === "owner" || currentBusinessRole === "editor";
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [items, setItems] = useState<ProofRow[]>([]);
@@ -81,7 +81,7 @@ export default function ProofLibrary() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [openId, setOpenId] = useState<string | null>(null);
+  
   const [bulkBusy, setBulkBusy] = useState(false);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
@@ -483,7 +483,7 @@ export default function ProofLibrary() {
                       <Card
                         key={p.id}
                         className={`relative cursor-pointer transition-all hover:shadow-md ${isSel ? "ring-2 ring-accent" : ""}`}
-                        onClick={() => setOpenId(p.id)}
+                        onClick={() => navigate(`/proof/${p.id}`)}
                       >
                         <CardContent className="pt-5 pb-4 space-y-3">
                           <div className="flex items-start justify-between gap-2">
@@ -582,14 +582,6 @@ export default function ProofLibrary() {
           </CardContent>
         </Card>
       </div>
-
-      <ProofDetailSheet
-        proofId={openId}
-        businessId={currentBusinessId}
-        open={openId !== null}
-        onOpenChange={(o) => !o && setOpenId(null)}
-        onChanged={load}
-      />
 
       <RequestTestimonialModal
         open={requestModalOpen}

@@ -1,7 +1,7 @@
 /* NotiProof widget runtime (spec v2)
  * Loads widget config + approved proofs, renders per widget.type,
  * and posts impression/interaction events to widget-track.
- * build: 2026-04-25-mobile-fix-2
+ * build: 2026-04-26-design-parity
  */
 (function () {
   "use strict";
@@ -94,15 +94,14 @@
       '.np-initial{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:28px}' +
       '.np-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.28);pointer-events:none}' +
       '.np-play-btn{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.95);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}' +
-      '.np-body{flex:1;min-width:0;font-size:13px;line-height:1.45;display:flex;flex-direction:column}' +
-      '.np-author-row{display:flex;align-items:center;gap:6px;min-width:0}' +
-      '.np-author{font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}' +
-      '.np-stars{display:inline-flex;gap:1px;flex-shrink:0}' +
-      '.np-source{font-size:11px;color:#64748b;margin-top:1px}' +
-      '.np-text{color:#334155;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}' +
+      '.np-body{flex:1;min-width:0;line-height:1.4;display:flex;flex-direction:column}' +
+      '.np-stars{display:inline-flex;gap:1px;flex-shrink:0;margin-bottom:4px}' +
+      '.np-text{font-size:13.5px;color:#334155;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}' +
+      '.np-mark{background:transparent;font-weight:600;color:#0f172a}' +
+      '.np-attribution{font-size:11px;color:#64748b;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
       '.np-footer{margin-top:auto;padding-top:4px;text-align:right}' +
-      '.np-footer a{font-size:10px;color:#94a3b8;text-decoration:none}' +
-      '.np-footer a:hover{color:#475569}' +
+      '.np-footer a{font-size:9px;color:#cbd5e1;text-decoration:none;font-weight:400}' +
+      '.np-footer a:hover{color:#94a3b8}' +
       '.np-close{position:absolute;top:4px;right:4px;width:24px;height:24px;background:none;border:0;font-size:18px;color:#94a3b8;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;border-radius:6px}' +
       '.np-close:hover{background:rgba(15,23,42,.06);color:#475569}' +
       '.np-banner .np-card{border-radius:0;justify-content:center;text-align:center;max-width:none;width:auto}' +
@@ -114,9 +113,9 @@
         '.np-pop.np-pos-bottom-left,.np-pop.np-pos-bottom-right{left:8px !important;right:8px !important;bottom:8px !important;top:auto !important;max-width:none !important}' +
         '.np-pop.np-pos-top-left,.np-pop.np-pos-top-right{left:8px !important;right:8px !important;top:8px !important;bottom:auto !important;max-width:none !important}' +
         '.np-media{min-height:72px !important;max-height:96px !important}' +
-        '.np-text{font-size:12px !important;-webkit-line-clamp:2}' +
-        '.np-author{font-size:13px !important}' +
-        '.np-footer a{font-size:9px !important}' +
+        '.np-text{font-size:12.5px !important;-webkit-line-clamp:3}' +
+        '.np-attribution{font-size:10.5px !important}' +
+        '.np-footer a{font-size:8px !important}' +
       '}' +
       // Lightbox
       '.np-lightbox{position:fixed;inset:0;background:rgba(8,11,20,.88);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;transition:opacity .18s ease-out;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}' +
@@ -156,11 +155,37 @@
     return '<svg width="12" height="12" viewBox="0 0 20 20" fill="' + color + '" xmlns="http://www.w3.org/2000/svg"><path d="M10 1.5l2.7 5.47 6.04.88-4.37 4.26 1.03 6.01L10 15.27l-5.4 2.85 1.03-6.01L1.26 7.85l6.04-.88L10 1.5z"/></svg>';
   }
 
-  function renderStars(rating) {
+  function renderStars(rating, size) {
+    var sz = size || 14;
     var r = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
     var html = '';
-    for (var i = 1; i <= 5; i++) html += starSvg(i <= r);
+    for (var i = 1; i <= 5; i++) {
+      var color = i <= r ? "#F5B400" : "#E5E7EB";
+      html += '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 20 20" fill="' + color + '" xmlns="http://www.w3.org/2000/svg"><path d="M10 1.5l2.7 5.47 6.04.88-4.37 4.26 1.03 6.01L10 15.27l-5.4 2.85 1.03-6.01L1.26 7.85l6.04-.88L10 1.5z"/></svg>';
+    }
     return '<div class="np-stars" aria-label="' + r + ' out of 5 stars">' + html + '</div>';
+  }
+
+  function buildAttribution(p) {
+    var name = (p.author_name || '').trim();
+    var role = (p.author_role || '').trim();
+    var company = (p.author_company || '').trim();
+    if (!name) return '';
+    if (role && company) return name + ' \u00b7 ' + role + ', ' + company;
+    if (role) return name + ' \u00b7 ' + role;
+    if (company) return name + ' \u00b7 ' + company;
+    return name;
+  }
+
+  function renderQuote(text, highlight) {
+    var trimmed = text.length > 140 ? text.slice(0, 140) + '\u2026' : text;
+    if (!highlight || !String(highlight).trim()) return escapeHtml(trimmed);
+    var h = String(highlight);
+    var idx = trimmed.toLowerCase().indexOf(h.toLowerCase());
+    if (idx < 0) return escapeHtml(trimmed);
+    return escapeHtml(trimmed.slice(0, idx)) +
+      '<mark class="np-mark">' + escapeHtml(trimmed.slice(idx, idx + h.length)) + '</mark>' +
+      escapeHtml(trimmed.slice(idx + h.length));
   }
 
   function renderMedia(proof) {
@@ -193,6 +218,24 @@
     var video = media.querySelector('video');
     if (!video) return;
     var captured = false;
+    var seekTimes = [1.5, 3, 5];
+    var attempt = 0;
+
+    function isMostlyDark(ctx, w, h) {
+      try {
+        var dark = 0;
+        var samples = 100;
+        for (var i = 0; i < samples; i++) {
+          var x = Math.floor(Math.random() * w);
+          var y = Math.floor(Math.random() * h);
+          var px = ctx.getImageData(x, y, 1, 1).data;
+          var lum = 0.2126 * px[0] + 0.7152 * px[1] + 0.0722 * px[2];
+          if (lum < 30) dark++;
+        }
+        return dark / samples > 0.95;
+      } catch (_) { return false; }
+    }
+
     function capture() {
       if (captured) return;
       try {
@@ -202,6 +245,11 @@
         canvas.width = w; canvas.height = h;
         var ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, w, h);
+        if (isMostlyDark(ctx, w, h) && attempt < seekTimes.length - 1) {
+          attempt++;
+          try { video.currentTime = seekTimes[attempt]; } catch (_) {}
+          return;
+        }
         var url = canvas.toDataURL('image/jpeg', 0.82);
         var img = document.createElement('img');
         img.alt = '';
@@ -211,7 +259,7 @@
       } catch (_) { /* tainted canvas — keep video frame as-is */ }
     }
     video.addEventListener('loadeddata', function () {
-      try { video.currentTime = 0.1; } catch (_) {}
+      try { video.currentTime = seekTimes[0]; } catch (_) {}
       setTimeout(capture, 60);
     });
     video.addEventListener('seeked', capture);
@@ -220,25 +268,20 @@
   function renderCard(proof) {
     var c = cfg();
     var media = renderMedia(proof);
-    var stars = (c.show_rating !== false && proof.rating) ? renderStars(proof.rating) : '';
-    var nameRow = (proof.author_name || stars)
-      ? '<div class="np-author-row">' +
-          (proof.author_name ? '<span class="np-author">' + escapeHtml(proof.author_name) + '</span>' : '') +
-          stars +
-        '</div>'
-      : '';
-    var source = proof.source === 'testimonial_request' ? '<div class="np-source">Verified testimonial</div>' : '';
+    var stars = (c.show_rating !== false && proof.rating) ? renderStars(proof.rating, 14) : '';
     var rawText = proof.content ? String(proof.content) : '';
     var text = rawText
-      ? '<div class="np-text">' + escapeHtml(rawText.slice(0, 110)) + (rawText.length > 110 ? '…' : '') + '</div>'
+      ? '<div class="np-text">' + renderQuote(rawText, proof.highlight_phrase) + '</div>'
       : '';
+    var attrText = buildAttribution(proof);
+    var attribution = attrText ? '<div class="np-attribution">' + escapeHtml(attrText) + '</div>' : '';
     var footer = (c.powered_by !== false && state.impressions >= 1)
-      ? '<div class="np-footer"><a href="https://notiproof.com" target="_blank" rel="noopener">Powered by NotiProof</a></div>'
+      ? '<div class="np-footer"><a href="https://notiproof.com" target="_blank" rel="noopener">powered by NotiProof</a></div>'
       : '';
     return '<div class="np-card" data-proof="' + escapeHtml(proof.id) + '">' +
       '<button class="np-close" aria-label="Close">×</button>' +
       media +
-      '<div class="np-body">' + nameRow + source + text + footer + '</div>' +
+      '<div class="np-body">' + stars + text + attribution + footer + '</div>' +
       '</div>';
   }
 
