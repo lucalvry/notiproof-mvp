@@ -36,6 +36,7 @@ Deno.serve(async (req) => {
   const topic = req.headers.get("x-shopify-topic") ?? "unknown";
   const shopDomain = req.headers.get("x-shopify-shop-domain");
   const hmac = req.headers.get("x-shopify-hmac-sha256");
+  const shopifyEventId = req.headers.get("x-shopify-webhook-id");
 
   if (SHOPIFY_CLIENT_SECRET) {
     const ok = await verifyHmac(raw, hmac, SHOPIFY_CLIENT_SECRET);
@@ -63,14 +64,38 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "Integration not found" }), { status: 404, headers: corsHeaders });
   }
 
-  const { data: evRow } = await supabase.from("integration_events").insert({
-    business_id: integ.business_id,
-    integration_id: integ.id,
-    event_type: topic,
-    payload,
-  }).select("id").single();
+  const externalEventId = shopifyEventId ?? (payload?.id ? `order:${payload.id}:${topic}` : null);
+
+  const { data: evRow, error: insertError } = await supabase
+    .from("integration_events")
+    .insert({
+      business_id: integ.business_id,
+      integration_id: integ.id,
+      event_type: topic,
+      payload,
+      external_event_id: externalEventId,
+      status: "received",
+    })
+    .select("id")
+    .single();
+
+  if (insertError && (insertError.code === "23505" || /duplicate key/i.test(insertError.message))) {
+    await supabase.from("integration_events").insert({
+      business_id: integ.business_id,
+      integration_id: integ.id,
+      event_type: topic,
+      payload: { duplicate_of: externalEventId },
+      status: "duplicate",
+    });
+    return new Response(JSON.stringify({ received: true, duplicate: true }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   let proofId: string | null = null;
+  let handlerError: string | null = null;
+  try {
   if (topic === "orders/create" || topic === "orders/paid") {
     const total = payload.total_price ? `${payload.total_price} ${payload.currency ?? "USD"}` : "an order";
     const customer = payload.customer ?? {};
@@ -89,11 +114,17 @@ Deno.serve(async (req) => {
     }).select("id").single();
     proofId = po?.id ?? null;
   }
+  } catch (e) {
+    handlerError = (e as Error).message;
+    console.error("shopify handler error", e);
+  }
 
   if (evRow?.id) {
     await supabase.from("integration_events").update({
-      processed_at: new Date().toISOString(),
+      processed_at: handlerError ? null : new Date().toISOString(),
       proof_object_id: proofId,
+      status: handlerError ? "failed" : "processed",
+      error_message: handlerError,
     }).eq("id", evRow.id);
   }
 

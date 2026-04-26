@@ -60,11 +60,11 @@ export default function OnbInstall() {
     setChecking(true);
     setCheckError(null);
     try {
-      const { data, error } = await supabase.functions.invoke("verify-install", {
+      const { data, error } = await supabase.functions.invoke("verify-domain", {
         body: { url: siteUrl.trim(), business_id: currentBusinessId },
       });
       if (error) throw error;
-      const result = data as { verified: boolean; error?: string };
+      const result = data as { verified: boolean; domain?: string; error?: string };
       if (result.verified) {
         setVerified(true);
         toast({ title: "Install verified!", description: "Your script is live." });

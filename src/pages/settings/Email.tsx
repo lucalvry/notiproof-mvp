@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -49,6 +49,44 @@ export default function EmailSettings() {
   const [saving, setSaving] = useState(false);
 
   const canEdit = currentBusinessRole === "owner" || currentBusinessRole === "editor";
+
+  const subjectRef = useRef<HTMLInputElement | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const [focusedField, setFocusedField] = useState<"subject" | "body">("body");
+
+  const VARIABLES = ["customer_name", "business_name", "product_name", "link"];
+
+  const insertVariable = (name: string) => {
+    if (!canEdit) return;
+    const token = `{{${name}}}`;
+    if (focusedField === "subject") {
+      const el = subjectRef.current;
+      const value = current.subject;
+      const start = el?.selectionStart ?? value.length;
+      const end = el?.selectionEnd ?? value.length;
+      const next = value.slice(0, start) + token + value.slice(end);
+      setCurrent({ ...current, subject: next });
+      requestAnimationFrame(() => {
+        if (!el) return;
+        const pos = start + token.length;
+        el.focus();
+        el.setSelectionRange(pos, pos);
+      });
+    } else {
+      const el = bodyRef.current;
+      const value = current.body;
+      const start = el?.selectionStart ?? value.length;
+      const end = el?.selectionEnd ?? value.length;
+      const next = value.slice(0, start) + token + value.slice(end);
+      setCurrent({ ...current, body: next });
+      requestAnimationFrame(() => {
+        if (!el) return;
+        const pos = start + token.length;
+        el.focus();
+        el.setSelectionRange(pos, pos);
+      });
+    }
+  };
 
   useEffect(() => {
     if (!currentBusinessId) return;
@@ -145,8 +183,10 @@ export default function EmailSettings() {
           <div className="space-y-2">
             <Label>Subject</Label>
             <Input
+              ref={subjectRef}
               value={current.subject}
               onChange={(e) => setCurrent({ ...current, subject: e.target.value })}
+              onFocus={() => setFocusedField("subject")}
               disabled={loading || !canEdit}
             />
           </div>
@@ -154,19 +194,28 @@ export default function EmailSettings() {
           <div className="space-y-2">
             <Label>Body</Label>
             <Textarea
+              ref={bodyRef}
               rows={12}
               value={current.body}
               onChange={(e) => setCurrent({ ...current, body: e.target.value })}
+              onFocus={() => setFocusedField("body")}
               disabled={loading || !canEdit}
               className="font-mono text-sm"
             />
-            <p className="text-xs text-muted-foreground">
-              Variables:{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5">{"{{customer_name}}"}</code>{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5">{"{{business_name}}"}</code>{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5">{"{{product_name}}"}</code>{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5">{"{{link}}"}</code>
-            </p>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="text-xs text-muted-foreground">Insert variable:</span>
+              {VARIABLES.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => insertVariable(v)}
+                  disabled={loading || !canEdit}
+                  className="text-xs font-mono rounded-full border px-2 py-0.5 bg-muted hover:bg-accent hover:text-accent-foreground transition disabled:opacity-50"
+                >
+                  {`{{${v}}}`}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex justify-end">

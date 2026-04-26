@@ -41,6 +41,44 @@ export type Database = {
         }
         Relationships: []
       }
+      business_domains: {
+        Row: {
+          business_id: string
+          created_at: string
+          domain: string
+          id: string
+          is_primary: boolean
+          is_verified: boolean
+          verified_at: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          domain: string
+          id?: string
+          is_primary?: boolean
+          is_verified?: boolean
+          verified_at?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          domain?: string
+          id?: string
+          is_primary?: boolean
+          is_verified?: boolean
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_domains_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_users: {
         Row: {
           business_id: string
@@ -84,6 +122,7 @@ export type Database = {
         Row: {
           brand_color: string | null
           created_at: string
+          extra_seats_purchased: number
           id: string
           industry: string | null
           install_verified: boolean
@@ -109,6 +148,7 @@ export type Database = {
         Insert: {
           brand_color?: string | null
           created_at?: string
+          extra_seats_purchased?: number
           id?: string
           industry?: string | null
           install_verified?: boolean
@@ -134,6 +174,7 @@ export type Database = {
         Update: {
           brand_color?: string | null
           created_at?: string
+          extra_seats_purchased?: number
           id?: string
           industry?: string | null
           install_verified?: boolean
@@ -161,33 +202,42 @@ export type Database = {
       integration_events: {
         Row: {
           business_id: string
+          error_message: string | null
           event_type: string
+          external_event_id: string | null
           id: string
           integration_id: string
           payload: Json
           processed_at: string | null
           proof_object_id: string | null
           received_at: string
+          status: string
         }
         Insert: {
           business_id: string
+          error_message?: string | null
           event_type: string
+          external_event_id?: string | null
           id?: string
           integration_id: string
           payload?: Json
           processed_at?: string | null
           proof_object_id?: string | null
           received_at?: string
+          status?: string
         }
         Update: {
           business_id?: string
+          error_message?: string | null
           event_type?: string
+          external_event_id?: string | null
           id?: string
           integration_id?: string
           payload?: Json
           processed_at?: string | null
           proof_object_id?: string | null
           received_at?: string
+          status?: string
         }
         Relationships: [
           {
@@ -288,6 +338,8 @@ export type Database = {
           external_ref_id: string | null
           highlight_phrase: string | null
           id: string
+          media_duration_seconds: number | null
+          media_size_bytes: number | null
           media_type: string | null
           media_url: string | null
           outcome_claim: string | null
@@ -334,6 +386,8 @@ export type Database = {
           external_ref_id?: string | null
           highlight_phrase?: string | null
           id?: string
+          media_duration_seconds?: number | null
+          media_size_bytes?: number | null
           media_type?: string | null
           media_url?: string | null
           outcome_claim?: string | null
@@ -380,6 +434,8 @@ export type Database = {
           external_ref_id?: string | null
           highlight_phrase?: string | null
           id?: string
+          media_duration_seconds?: number | null
+          media_size_bytes?: number | null
           media_type?: string | null
           media_url?: string | null
           outcome_claim?: string | null
@@ -571,32 +627,47 @@ export type Database = {
       widget_events: {
         Row: {
           business_id: string
+          device_type: string | null
           event_type: string
           fired_at: string
           id: string
+          meta: Json
           page_url: string | null
           proof_object_id: string | null
+          session_id: string | null
+          variant: string | null
           visitor_id: string | null
+          visitor_type: string | null
           widget_id: string
         }
         Insert: {
           business_id: string
+          device_type?: string | null
           event_type: string
           fired_at?: string
           id?: string
+          meta?: Json
           page_url?: string | null
           proof_object_id?: string | null
+          session_id?: string | null
+          variant?: string | null
           visitor_id?: string | null
+          visitor_type?: string | null
           widget_id: string
         }
         Update: {
           business_id?: string
+          device_type?: string | null
           event_type?: string
           fired_at?: string
           id?: string
+          meta?: Json
           page_url?: string | null
           proof_object_id?: string | null
+          session_id?: string | null
+          variant?: string | null
           visitor_id?: string | null
+          visitor_type?: string | null
           widget_id?: string
         }
         Relationships: [
@@ -632,6 +703,7 @@ export type Database = {
           frequency_cap_per_user: number | null
           id: string
           impressions_total: number
+          interactions_total: number
           load_delay_ms: number
           name: string
           status: Database["public"]["Enums"]["widget_status"]
@@ -648,6 +720,7 @@ export type Database = {
           frequency_cap_per_user?: number | null
           id?: string
           impressions_total?: number
+          interactions_total?: number
           load_delay_ms?: number
           name: string
           status?: Database["public"]["Enums"]["widget_status"]
@@ -664,6 +737,7 @@ export type Database = {
           frequency_cap_per_user?: number | null
           id?: string
           impressions_total?: number
+          interactions_total?: number
           load_delay_ms?: number
           name?: string
           status?: Database["public"]["Enums"]["widget_status"]
@@ -716,6 +790,10 @@ export type Database = {
         Args: { _event_id: string }
         Returns: boolean
       }
+      business_id_for_collection_token: {
+        Args: { _token: string }
+        Returns: string
+      }
       business_integration_stats: {
         Args: { _business_id: string }
         Returns: {
@@ -724,6 +802,18 @@ export type Database = {
           last_event_at: string
           proof_count: number
         }[]
+      }
+      business_plan_usage: { Args: { _business_id: string }; Returns: Json }
+      can_activate_widget: {
+        Args: { _business_id: string; _exclude_widget?: string }
+        Returns: boolean
+      }
+      can_add_domain: { Args: { _business_id: string }; Returns: boolean }
+      can_create_proof: { Args: { _business_id: string }; Returns: boolean }
+      can_invite_seat: { Args: { _business_id: string }; Returns: boolean }
+      can_upload_media: {
+        Args: { _additional_bytes: number; _business_id: string }
+        Returns: boolean
       }
       create_business: { Args: { _name: string }; Returns: string }
       get_collection_context: {
@@ -746,6 +836,33 @@ export type Database = {
           token: string
         }[]
       }
+      get_top_proof_performance: {
+        Args: {
+          _business_id: string
+          _end: string
+          _limit?: number
+          _start: string
+        }
+        Returns: {
+          assists: number
+          author_name: string
+          conversions: number
+          impressions: number
+          interactions: number
+          proof_id: string
+          proof_type: string
+        }[]
+      }
+      get_widget_analytics: {
+        Args: { _business_id: string; _end: string; _start: string }
+        Returns: {
+          assists: number
+          bucket: string
+          conversions: number
+          impressions: number
+          interactions: number
+        }[]
+      }
       has_business_role: {
         Args: {
           _business_id: string
@@ -766,6 +883,21 @@ export type Database = {
       mark_testimonial_request_opened: {
         Args: { _token: string }
         Returns: boolean
+      }
+      normalize_domain: { Args: { _raw: string }; Returns: string }
+      plan_limits: {
+        Args: { _plan: string }
+        Returns: {
+          active_widget_limit: number
+          data_retention_days: number
+          domain_limit: number
+          event_limit: number
+          max_video_seconds: number
+          proof_limit: number
+          remove_branding: boolean
+          storage_mb: number
+          team_seats_included: number
+        }[]
       }
       submit_testimonial_request:
         | {
@@ -794,6 +926,10 @@ export type Database = {
             }
             Returns: string
           }
+      update_proof_media_metadata: {
+        Args: { _bytes: number; _duration_seconds: number; _proof_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "owner" | "editor" | "viewer"
@@ -808,6 +944,7 @@ export type Database = {
         | "trustpilot"
         | "plaid"
         | "wordpress"
+        | "g2"
       integration_status: "connected" | "disconnected" | "error" | "pending"
       proof_status:
         | "pending"
@@ -831,7 +968,17 @@ export type Database = {
         | "opened"
         | "responded"
       widget_status: "draft" | "active" | "paused"
-      widget_type: "popup" | "banner" | "inline" | "wall"
+      widget_type:
+        | "popup"
+        | "banner"
+        | "inline"
+        | "wall"
+        | "carousel"
+        | "marquee"
+        | "masonry"
+        | "avatar_row"
+        | "video_hero"
+        | "logo_strip"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -971,6 +1118,7 @@ export const Constants = {
         "trustpilot",
         "plaid",
         "wordpress",
+        "g2",
       ],
       integration_status: ["connected", "disconnected", "error", "pending"],
       proof_status: [
@@ -998,7 +1146,18 @@ export const Constants = {
         "responded",
       ],
       widget_status: ["draft", "active", "paused"],
-      widget_type: ["popup", "banner", "inline", "wall"],
+      widget_type: [
+        "popup",
+        "banner",
+        "inline",
+        "wall",
+        "carousel",
+        "marquee",
+        "masonry",
+        "avatar_row",
+        "video_hero",
+        "logo_strip",
+      ],
     },
   },
 } as const

@@ -55,8 +55,10 @@ interface HealthInfo {
   storage: boolean;
   recent_events: number;
   backlog: number;
+  failed_24h: number;
   integrationHealth: IntegrationHealthRow[];
   failures: FailureRow[];
+  failedEvents: FailureRow[];
 }
 
 export default function Health() {
@@ -107,7 +109,8 @@ export default function Health() {
 
   const load = async () => {
     setInfo(null);
-    const [dbRes, authRes, eventsRes, backlogRes, failuresRes, bucketsRes, healthRes] =
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const [dbRes, authRes, eventsRes, backlogRes, failuresRes, bucketsRes, healthRes, failedCountRes, failedListRes] =
       await Promise.all([
         supabase.from("businesses").select("id", { head: true, count: "exact" }),
         supabase.auth.getSession(),
@@ -127,6 +130,18 @@ export default function Health() {
           .limit(20),
         supabase.storage.listBuckets(),
         db.rpc("admin_integration_health"),
+        db
+          .from("integration_events")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "failed")
+          .gte("received_at", since24h),
+        db
+          .from("integration_events")
+          .select("id, event_type, received_at, integration_id, integrations(provider)")
+          .eq("status", "failed")
+          .gte("received_at", since24h)
+          .order("received_at", { ascending: false })
+          .limit(20),
       ]);
 
     setInfo({
@@ -135,7 +150,9 @@ export default function Health() {
       storage: !bucketsRes.error,
       recent_events: eventsRes.count ?? 0,
       backlog: backlogRes.count ?? 0,
+      failed_24h: failedCountRes.count ?? 0,
       failures: (failuresRes.data ?? []) as FailureRow[],
+      failedEvents: (failedListRes.data ?? []) as FailureRow[],
       integrationHealth: (healthRes.data ?? []) as IntegrationHealthRow[],
     });
   };
@@ -205,6 +222,62 @@ export default function Health() {
           attention={(info?.backlog ?? 0) > 0}
         />
       </div>
+
+      <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        <MetricCard
+          title="Failed events (24h)"
+          icon={AlertTriangle}
+          value={info?.failed_24h}
+          attention={(info?.failed_24h ?? 0) > 0}
+        />
+      </div>
+
+      {/* Failed events with replay */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Failed integration events (last 24h)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!info ? (
+            <Skeleton className="h-32 w-full" />
+          ) : info.failedEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No failures in the last 24 hours.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Provider</TableHead>
+                  <TableHead>Event</TableHead>
+                  <TableHead>Received</TableHead>
+                  <TableHead className="text-right">Replay</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {info.failedEvents.map((event) => (
+                  <TableRow key={event.id}>
+                    <TableCell className="capitalize">{event.integrations?.provider ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{event.event_type}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {new Date(event.received_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => retryEvent(event.id)}
+                        disabled={retrying === event.id}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                        {retrying === event.id ? "…" : "Replay"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Per-integration 24h success rate */}
       <Card>

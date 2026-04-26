@@ -46,6 +46,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useIdleLogout } from "@/hooks/useIdleLogout";
 import { NotificationBell } from "./NotificationBell";
 import { UserAvatarMenu } from "./UserAvatarMenu";
+import { ImpersonationBanner } from "./ImpersonationBanner";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -241,6 +242,7 @@ export function AppLayout() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen flex flex-col bg-background">
+        <ImpersonationBanner />
         <header className="border-b bg-card sticky top-0 z-40">
           <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-2">
             <div className="flex items-center gap-3 md:gap-8 min-w-0">

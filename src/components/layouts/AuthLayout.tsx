@@ -22,9 +22,9 @@ export function AuthLayout({ children, title, subtitle, footerSlot }: AuthLayout
         </div>
 
         <div className="relative">
-          <Link to="/" className="inline-flex items-center text-2xl font-bold tracking-tight">
+          <a href="https://notiproof.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-2xl font-bold tracking-tight hover:opacity-80 transition-opacity">
             Noti<span className="text-accent-foreground/90">Proof</span>
-          </Link>
+          </a>
         </div>
 
         <div className="relative space-y-8">
@@ -84,9 +84,9 @@ export function AuthLayout({ children, title, subtitle, footerSlot }: AuthLayout
       <main className="flex flex-col min-h-screen lg:min-h-0">
         {/* Mobile header */}
         <header className="lg:hidden p-6">
-          <Link to="/" className="text-xl font-bold tracking-tight text-primary">
+          <a href="https://notiproof.com" target="_blank" rel="noopener noreferrer" className="text-xl font-bold tracking-tight text-primary hover:opacity-80 transition-opacity">
             Noti<span className="text-accent">Proof</span>
-          </Link>
+          </a>
         </header>
 
         <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-8 lg:py-12">

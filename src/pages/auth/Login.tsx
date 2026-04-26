@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useToast } from "@/hooks/use-toast";
+import { appRedirect } from "@/lib/app-url";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -93,7 +94,7 @@ export default function Login() {
     localStorage.setItem("notiproof.remember", remember ? "true" : "false");
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/dashboard` },
+      options: { redirectTo: appRedirect("/dashboard") },
     });
   };
 

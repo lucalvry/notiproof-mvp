@@ -13,6 +13,7 @@ import { Save, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
+import { DomainsCard } from "@/components/settings/DomainsCard";
 
 type Business = Database["public"]["Tables"]["businesses"]["Row"] & {
   brand_color?: string | null;
@@ -131,6 +132,7 @@ export default function ProfileSettings() {
           <div className="flex justify-end pt-2"><Button onClick={save} disabled={saving || !canEdit}>{saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Save</Button></div>
         </CardContent>
       </Card>
+      <DomainsCard />
     </div>
   );
 }

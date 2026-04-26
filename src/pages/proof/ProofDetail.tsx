@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { isViewer } from "@/lib/roles";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +21,8 @@ type ProofStatus = Database["public"]["Enums"]["proof_status"];
 
 export default function ProofDetail() {
   const { id } = useParams<{ id: string }>();
-  const { currentBusinessId } = useAuth();
+  const { currentBusinessId, currentBusinessRole } = useAuth();
+  const canEdit = !isViewer(currentBusinessRole);
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,7 @@ export default function ProofDetail() {
     if (!proof) return;
     setSaving(true);
     const highlight = ((proof as ProofRow & { highlight_phrase?: string | null }).highlight_phrase ?? "").trim();
+    const outcome = (proof.outcome_claim ?? "").trim();
     const { error } = await supabase.from("proof_objects").update({
       author_name: proof.author_name,
       content: proof.content,
@@ -59,6 +62,7 @@ export default function ProofDetail() {
       media_url: proof.media_url,
       verified: proof.verified,
       highlight_phrase: highlight ? highlight : null,
+      outcome_claim: outcome ? outcome : null,
     } as Partial<ProofRow> & { highlight_phrase: string | null }).eq("id", proof.id);
     setSaving(false);
     if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
@@ -131,7 +135,18 @@ export default function ProofDetail() {
               {proof.rating && <button type="button" onClick={() => setProof({ ...proof, rating: null })} className="ml-2 text-xs text-muted-foreground hover:text-foreground">clear</button>}
             </div>
           </div>
-          <div className="space-y-2"><Label>Content</Label><Textarea rows={5} value={proof.content ?? ""} onChange={(e) => setProof({ ...proof, content: e.target.value })} /></div>
+          <div className="space-y-2"><Label>Content</Label><Textarea rows={5} value={proof.content ?? ""} onChange={(e) => setProof({ ...proof, content: e.target.value })} disabled={!canEdit} /></div>
+          <div className="space-y-2">
+            <Label>Outcome claim <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+            <Input
+              maxLength={160}
+              placeholder="e.g. Increased signups by 38%"
+              value={proof.outcome_claim ?? ""}
+              onChange={(e) => setProof({ ...proof, outcome_claim: e.target.value })}
+              disabled={!canEdit}
+            />
+            <p className="text-xs text-muted-foreground">A short, measurable result attributed to your product. Surfaces in widgets that support outcome chips.</p>
+          </div>
           {(() => {
             const highlight = (proof as ProofRow & { highlight_phrase?: string | null }).highlight_phrase ?? "";
             const content = proof.content ?? "";
@@ -176,7 +191,7 @@ export default function ProofDetail() {
             <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={remove} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        <Button onClick={saveEdits} disabled={saving}>
+        <Button onClick={saveEdits} disabled={saving || !canEdit}>
           {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           Save changes
         </Button>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { usePlanUsage } from "@/lib/plan-helpers";
 import {
   PLANS,
   planByKey,
@@ -38,6 +39,7 @@ interface BusinessBilling {
 interface UsageNow {
   proofThisMonth: number;
   eventsThisMonth: number;
+  storageMbUsed: number;
 }
 
 interface Invoice {
@@ -97,10 +99,18 @@ export default function BillingSettings() {
         .gte("fired_at", monthStart),
     ]);
 
+    // Storage usage via plan-usage RPC (best-effort)
+    let storageMbUsed = 0;
+    const { data: usageRow } = await (supabase.rpc as any)("business_plan_usage", { _business_id: currentBusinessId });
+    if (usageRow && typeof usageRow.storage_bytes === "number") {
+      storageMbUsed = Math.round(usageRow.storage_bytes / (1024 * 1024));
+    }
+
     if (bizRes.data) setBilling(bizRes.data as BusinessBilling);
     setUsage({
       proofThisMonth: proofRes.count ?? 0,
       eventsThisMonth: eventRes.count ?? 0,
+      storageMbUsed,
     });
 
     // Invoices via edge function (non-blocking)
@@ -205,7 +215,7 @@ export default function BillingSettings() {
         <CardHeader>
           <CardTitle className="text-base">Usage this month</CardTitle>
         </CardHeader>
-        <CardContent className="grid sm:grid-cols-2 gap-6">
+        <CardContent className="grid sm:grid-cols-3 gap-6">
           <UsageMeter
             label="Proof items"
             used={usage?.proofThisMonth ?? null}
@@ -216,8 +226,15 @@ export default function BillingSettings() {
             used={usage?.eventsThisMonth ?? null}
             limit={billing?.monthly_event_limit ?? currentPlan.eventLimit}
           />
+          <UsageMeter
+            label={`Media storage (MB of ${currentPlan.storageMb})`}
+            used={usage?.storageMbUsed ?? null}
+            limit={currentPlan.storageMb}
+          />
         </CardContent>
       </Card>
+
+      <SeatsCard plan={currentPlan} canManage={canManage} />
 
       {/* Plan comparison */}
       <Card>
@@ -453,6 +470,58 @@ export default function BillingSettings() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function SeatsCard({ plan, canManage }: { plan: ReturnType<typeof planByKey>; canManage: boolean }) {
+  const { usage, seatLimit, atSeatLimit } = usePlanUsage();
+  const { toast } = useToast();
+  const seatsUsed = usage.seats + usage.pending_invites;
+  const extraOffered = plan.extraSeatPriceUsd > 0;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle className="text-base">Team seats</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            {plan.teamSeatsIncluded} included on {plan.name}
+            {usage.extra_seats > 0 ? ` · +${usage.extra_seats} extra purchased` : ""}
+          </p>
+        </div>
+        {extraOffered && canManage && (
+          <Button
+            size="sm"
+            variant={atSeatLimit ? "default" : "outline"}
+            onClick={() =>
+              toast({
+                title: "Extra seats coming soon",
+                description: `Additional seats are $${plan.extraSeatPriceUsd}/month each. Contact support to add seats while self-serve checkout is being finalized.`,
+              })
+            }
+          >
+            Add extra seat (${plan.extraSeatPriceUsd}/mo)
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="text-sm font-medium">Seats in use</div>
+          <div className="text-xs text-muted-foreground">
+            {seatsUsed} / {seatLimit}
+          </div>
+        </div>
+        <Progress
+          value={seatLimit ? Math.min(100, Math.round((seatsUsed / seatLimit) * 100)) : 0}
+          className="mt-2 h-2"
+        />
+        {atSeatLimit && (
+          <p className="text-xs text-destructive mt-2 inline-flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" /> Seat limit reached — upgrade or add an extra seat to invite more teammates.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

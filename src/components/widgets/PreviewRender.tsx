@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Award, MessageSquareQuote, X } from "lucide-react";
+import { Award, ChevronLeft, ChevronRight, MessageSquareQuote, Star, X } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"];
@@ -10,7 +10,18 @@ type Proof = ProofRow & {
 };
 
 export interface WidgetConfig {
-  variant?: "floating" | "inline" | "badge" | "banner" | "wall";
+  variant?:
+    | "floating"
+    | "inline"
+    | "badge"
+    | "banner"
+    | "wall"
+    | "carousel"
+    | "marquee"
+    | "masonry"
+    | "avatar_row"
+    | "video_hero"
+    | "logo_strip";
   position?: string;
   interval_seconds?: number;
   show_avatar?: boolean;
@@ -22,6 +33,18 @@ export interface WidgetConfig {
   business_website_url?: string;
   /** Real review count for the badge variant. Badge is hidden when missing or 0. */
   review_count?: number;
+  // Carousel
+  card_count?: number;        // 1-3 cards visible at once
+  autoplay?: boolean;
+  // Marquee
+  direction?: "left" | "right";
+  speed?: "slow" | "normal" | "fast";
+  // Masonry / wall
+  columns?: number;           // 2 / 3 / 4
+  // Style preset (carousel + masonry)
+  style_preset?: "soft" | "bold" | "minimal";
+  // Logo strip
+  logo_grayscale?: boolean;
 }
 
 function isVideoProof(p?: Proof | null) {
@@ -390,18 +413,423 @@ function WallVariant({
   );
 }
 
+/* ---------------- New variants (Phase 1) ---------------- */
+
+/** Compact testimonial card sized for grids/marquees/carousels (auto-width). */
+function MiniCard({
+  proof,
+  cfg,
+  showPoweredBy = false,
+}: {
+  proof: Proof;
+  cfg: WidgetConfig;
+  showPoweredBy?: boolean;
+}) {
+  const text = proof.content ?? "";
+  const trimmed = text.length > 180 ? text.slice(0, 180) + "…" : text;
+  const showStars = cfg.show_rating !== false && !!proof.rating;
+  const attribution = buildAttribution(proof);
+  const photo = proof.author_photo_url || proof.author_avatar_url;
+  const brand = cfg.brand_color ?? "#6366f1";
+  const initial = (proof.author_name ?? "?").trim().charAt(0).toUpperCase();
+
+  return (
+    <div className="bg-white text-slate-900 border border-slate-900/[.06] rounded-[14px] shadow-[0_8px_24px_rgba(15,23,42,0.10)] p-3.5 flex flex-col gap-2 break-inside-avoid">
+      {showStars && <Stars rating={proof.rating as unknown as number} size={13} />}
+      <div className="text-[13px] leading-snug text-slate-700">
+        {renderQuote(trimmed, proof.highlight_phrase)}
+      </div>
+      {(attribution || photo) && (
+        <div className="flex items-center gap-2 mt-1">
+          {photo ? (
+            <img src={photo} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+          ) : (
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0"
+              style={{ background: brand }}
+            >
+              {initial}
+            </div>
+          )}
+          {attribution && (
+            <div className="text-[11px] text-slate-500 truncate min-w-0">{attribution}</div>
+          )}
+        </div>
+      )}
+      {showPoweredBy && (
+        <div className="text-right">
+          <span className="text-[9px] text-slate-300">powered by NotiProof</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CarouselVariant({
+  proofs,
+  cfg,
+  showPoweredBy,
+}: {
+  proofs: Proof[];
+  cfg: WidgetConfig;
+  showPoweredBy: boolean;
+}) {
+  const visible = Math.max(1, Math.min(3, cfg.card_count ?? 1));
+  const [idx, setIdx] = useState(0);
+
+  if (!proofs.length) {
+    return (
+      <div className="w-full max-w-[720px]">
+        <EmptyStateCard showPoweredBy={showPoweredBy} />
+      </div>
+    );
+  }
+
+  const slice = proofs
+    .slice(idx, idx + visible)
+    .concat(idx + visible > proofs.length ? proofs.slice(0, (idx + visible) % proofs.length) : []);
+  const display = slice.slice(0, visible);
+  const max = Math.max(1, proofs.length);
+
+  return (
+    <div className="w-full max-w-[720px] flex flex-col gap-3">
+      <div className="flex gap-3 items-stretch">
+        {display.map((p, i) => (
+          <div key={`${p.id}-${i}`} className="flex-1 min-w-0">
+            <MiniCard proof={p} cfg={cfg} />
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          aria-label="Previous"
+          onClick={() => setIdx((i) => (i - 1 + max) % max)}
+          className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <div className="flex items-center gap-1.5">
+          {proofs.map((_, i) => (
+            <span
+              key={i}
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: i === idx ? cfg.brand_color ?? "#6366f1" : "#cbd5e1" }}
+            />
+          ))}
+        </div>
+        <button
+          type="button"
+          aria-label="Next"
+          onClick={() => setIdx((i) => (i + 1) % max)}
+          className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+      {showPoweredBy && (
+        <div className="text-right">
+          <span className="text-[9px] text-slate-300">powered by NotiProof</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MarqueeVariant({
+  proofs,
+  cfg,
+  showPoweredBy,
+}: {
+  proofs: Proof[];
+  cfg: WidgetConfig;
+  showPoweredBy: boolean;
+}) {
+  if (!proofs.length) return <EmptyStateCard showPoweredBy={showPoweredBy} />;
+
+  // Preview: just a static row (no animation) so the editor stays calm; runtime animates.
+  return (
+    <div className="w-full max-w-[720px] overflow-hidden">
+      <div className="flex gap-3 items-stretch">
+        {proofs.slice(0, 4).map((p) => (
+          <div key={p.id} className="w-[260px] shrink-0">
+            <MiniCard proof={p} cfg={cfg} />
+          </div>
+        ))}
+      </div>
+      <div className="text-[10px] text-slate-400 text-center mt-2">
+        Live: scrolls {cfg.direction === "right" ? "→" : "←"} ({cfg.speed ?? "normal"} speed)
+      </div>
+      {showPoweredBy && (
+        <div className="text-right">
+          <span className="text-[9px] text-slate-300">powered by NotiProof</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MasonryVariant({
+  proofs,
+  cfg,
+  showPoweredBy,
+}: {
+  proofs: Proof[];
+  cfg: WidgetConfig;
+  showPoweredBy: boolean;
+}) {
+  if (!proofs.length) return <EmptyStateCard showPoweredBy={showPoweredBy} />;
+  const cols = Math.max(2, Math.min(4, cfg.columns ?? 3));
+  const colClass = cols === 2 ? "columns-2" : cols === 4 ? "columns-2 md:columns-4" : "columns-2 md:columns-3";
+  return (
+    <div className="w-full max-w-[720px]">
+      <div className={`${colClass} gap-3 [column-fill:_balance]`}>
+        {proofs.slice(0, 9).map((p) => (
+          <div key={p.id} className="mb-3">
+            <MiniCard proof={p} cfg={cfg} />
+          </div>
+        ))}
+      </div>
+      {showPoweredBy && (
+        <div className="text-right mt-2">
+          <span className="text-[9px] text-slate-300">powered by NotiProof</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AvatarRowVariant({
+  proofs,
+  cfg,
+  showPoweredBy,
+}: {
+  proofs: Proof[];
+  cfg: WidgetConfig;
+  showPoweredBy: boolean;
+}) {
+  const brand = cfg.brand_color ?? "#6366f1";
+  if (!proofs.length) {
+    return (
+      <div className="inline-flex items-center gap-3 bg-white border border-dashed border-slate-300 rounded-full px-4 py-2 text-[12px] text-slate-500">
+        Avatar row appears once you have approved proof.
+      </div>
+    );
+  }
+  const avatars = proofs.slice(0, 5);
+  const total = cfg.review_count ?? proofs.length;
+  const ratings = proofs.filter((p) => !!p.rating).map((p) => Number(p.rating));
+  const avg =
+    ratings.length > 0
+      ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10
+      : 0;
+
+  return (
+    <div className="inline-flex items-center gap-3 bg-white border border-slate-200 rounded-full px-4 py-2 shadow-sm">
+      <div className="flex -space-x-2">
+        {avatars.map((p, i) => {
+          const photo = p.author_photo_url || p.author_avatar_url;
+          const initial = (p.author_name ?? "?").trim().charAt(0).toUpperCase();
+          return photo ? (
+            <img
+              key={p.id}
+              src={photo}
+              alt=""
+              className="w-7 h-7 rounded-full ring-2 ring-white object-cover"
+              style={{ zIndex: 10 - i }}
+            />
+          ) : (
+            <div
+              key={p.id}
+              className="w-7 h-7 rounded-full ring-2 ring-white flex items-center justify-center text-white text-[11px] font-bold"
+              style={{ background: brand, zIndex: 10 - i }}
+            >
+              {initial}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex flex-col">
+        {avg > 0 && (
+          <div className="flex items-center gap-1">
+            <Star className="h-3.5 w-3.5 fill-[#F5B400] text-[#F5B400]" />
+            <span className="text-[12px] font-semibold text-slate-900">{avg.toFixed(1)}</span>
+            <span className="text-[11px] text-slate-500">/ 5</span>
+          </div>
+        )}
+        <div className="text-[11px] text-slate-600">
+          Loved by <span className="font-semibold text-slate-900">{total.toLocaleString()}</span>{" "}
+          customer{total === 1 ? "" : "s"}
+        </div>
+      </div>
+      {showPoweredBy && (
+        <span className="text-[9px] text-slate-300 ml-1">powered by NotiProof</span>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Phase 2 variants ---------------- */
+
+/** One large featured video testimonial with name, role, and quote. */
+function VideoHeroVariant({
+  proofs,
+  cfg,
+  showPoweredBy,
+}: {
+  proofs: Proof[];
+  cfg: WidgetConfig;
+  showPoweredBy: boolean;
+}) {
+  const brand = cfg.brand_color ?? "#6366f1";
+  // Prefer the first video proof; fall back to first proof.
+  const featured = proofs.find((p) => isVideoProof(p)) ?? proofs[0] ?? null;
+
+  if (!featured) {
+    return (
+      <div className="w-full max-w-[640px] aspect-video rounded-[14px] border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center text-[12.5px] text-slate-500">
+        Video hero appears once you have an approved video testimonial.
+      </div>
+    );
+  }
+
+  const text = featured.content ?? "";
+  const trimmed = text.length > 220 ? text.slice(0, 220) + "…" : text;
+  const attribution = buildAttribution(featured);
+  const showStars = cfg.show_rating !== false && !!featured.rating;
+
+  return (
+    <div className="w-full max-w-[640px] flex flex-col gap-3">
+      <div className="relative w-full aspect-video rounded-[14px] overflow-hidden bg-slate-900 shadow-[0_12px_32px_rgba(15,23,42,0.18)]">
+        {isVideoProof(featured) && featured.poster_url ? (
+          <>
+            <img src={featured.poster_url} alt="" className="w-full h-full object-cover" />
+            <PlayOverlay brand={brand} />
+          </>
+        ) : isVideoProof(featured) && featured.media_url ? (
+          <VideoThumb src={featured.media_url} brand={brand} />
+        ) : featured.author_photo_url || featured.author_avatar_url ? (
+          <>
+            <img
+              src={(featured.author_photo_url || featured.author_avatar_url) as string}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+            <PlayOverlay brand={brand} />
+          </>
+        ) : (
+          <NeutralMediaTile brand={brand} />
+        )}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {showStars && <Stars rating={featured.rating as unknown as number} size={15} />}
+        <div className="text-[15px] leading-snug text-slate-800">
+          {renderQuote(trimmed, featured.highlight_phrase)}
+        </div>
+        {attribution && (
+          <div className="text-[12px] text-slate-500 mt-0.5">{attribution}</div>
+        )}
+        {showPoweredBy && (
+          <div className="text-right">
+            <span className="text-[9px] text-slate-300">powered by NotiProof</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Horizontal strip of company names/logos derived from author_company. */
+function LogoStripVariant({
+  proofs,
+  cfg,
+  showPoweredBy,
+}: {
+  proofs: Proof[];
+  cfg: WidgetConfig;
+  showPoweredBy: boolean;
+}) {
+  // Dedupe by company name; prefer entries that have a logo url.
+  const map = new Map<string, { name: string; logo: string | null }>();
+  for (const p of proofs) {
+    const name = (p.author_company ?? "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    const existing = map.get(key);
+    const logo = p.author_company_logo_url ?? null;
+    if (!existing) map.set(key, { name, logo });
+    else if (!existing.logo && logo) map.set(key, { name, logo });
+  }
+  const entries = Array.from(map.values()).slice(0, 8);
+  const grayscale = cfg.logo_grayscale !== false;
+
+  if (!entries.length) {
+    return (
+      <div className="w-full max-w-[720px] py-6 px-4 rounded-[14px] border border-dashed border-slate-300 bg-slate-50 text-center text-[12.5px] text-slate-500">
+        Logo strip appears once your approved testimonials include a company name.
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-[720px] flex flex-col gap-2">
+      <div className="text-[11px] uppercase tracking-wider text-slate-500 text-center">
+        Trusted by teams at
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 py-2">
+        {entries.map((e) =>
+          e.logo ? (
+            <img
+              key={e.name}
+              src={e.logo}
+              alt={e.name}
+              className={`h-8 w-auto object-contain ${grayscale ? "grayscale opacity-70 hover:opacity-100 hover:grayscale-0 transition" : ""}`}
+            />
+          ) : (
+            <span
+              key={e.name}
+              className={`text-[15px] font-semibold tracking-tight ${grayscale ? "text-slate-500" : "text-slate-700"}`}
+            >
+              {e.name}
+            </span>
+          ),
+        )}
+      </div>
+      {showPoweredBy && (
+        <div className="text-right">
+          <span className="text-[9px] text-slate-300">powered by NotiProof</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PreviewRender({
   variant,
   cfg,
   sample,
+  samples,
   showPoweredBy = true,
 }: {
-  variant: "floating" | "inline" | "badge" | "banner" | "wall";
+  variant:
+    | "floating"
+    | "inline"
+    | "badge"
+    | "banner"
+    | "wall"
+    | "carousel"
+    | "marquee"
+    | "masonry"
+    | "avatar_row"
+    | "video_hero"
+    | "logo_strip";
   cfg: WidgetConfig;
   sample?: Proof | null;
+  samples?: Proof[];
   showPoweredBy?: boolean;
 }) {
   const proof = sample ?? null;
+  const list = samples && samples.length ? samples : proof ? [proof] : [];
 
   if (variant === "badge") {
     const count = cfg.review_count ?? 0;
@@ -421,6 +849,30 @@ export function PreviewRender({
         </span>
       </div>
     );
+  }
+
+  if (variant === "carousel") {
+    return <CarouselVariant proofs={list} cfg={cfg} showPoweredBy={showPoweredBy} />;
+  }
+
+  if (variant === "marquee") {
+    return <MarqueeVariant proofs={list} cfg={cfg} showPoweredBy={showPoweredBy} />;
+  }
+
+  if (variant === "masonry") {
+    return <MasonryVariant proofs={list} cfg={cfg} showPoweredBy={showPoweredBy} />;
+  }
+
+  if (variant === "avatar_row") {
+    return <AvatarRowVariant proofs={list} cfg={cfg} showPoweredBy={showPoweredBy} />;
+  }
+
+  if (variant === "video_hero") {
+    return <VideoHeroVariant proofs={list} cfg={cfg} showPoweredBy={showPoweredBy} />;
+  }
+
+  if (variant === "logo_strip") {
+    return <LogoStripVariant proofs={list} cfg={cfg} showPoweredBy={showPoweredBy} />;
   }
 
   if (variant === "banner") {

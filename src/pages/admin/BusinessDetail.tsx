@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft,
   CalendarClock,
@@ -84,6 +85,7 @@ export default function BusinessDetail() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { startImpersonation } = useAuth();
   const [b, setB] = useState<Business | null>(null);
   const [counts, setCounts] = useState<Counts | null>(null);
   const [proof, setProof] = useState<any[]>([]);
@@ -281,13 +283,14 @@ export default function BusinessDetail() {
   };
 
   const impersonate = async () => {
-    await logAction("impersonation_requested");
+    if (!b || !id) return;
+    await logAction("impersonation_started", { business_name: b.name });
+    startImpersonation(id, b.name);
     toast({
-      title: "Impersonation logged",
-      description:
-        "A secure read-only impersonation session is not yet wired. The audit entry has been recorded.",
+      title: "Now viewing as " + b.name,
+      description: "Read-only mode active. Use the banner to stop at any time.",
     });
-    load();
+    navigate("/dashboard");
   };
 
   if (!b) return <Skeleton className="h-64 w-full" />;

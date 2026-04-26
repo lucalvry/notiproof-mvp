@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MessageSquareQuote, MonitorSmartphone, Plug, TrendingUp, Star, ShieldCheck } from "lucide-react";
+import { UsageBanner } from "@/components/billing/UsageBanner";
 
 import type { Database } from "@/integrations/supabase/types";
 
@@ -93,6 +94,8 @@ export default function Dashboard() {
         </div>
         <Button asChild><Link to="/widgets/new">Create widget</Link></Button>
       </div>
+
+      <UsageBanner />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map(({ label, value, icon: Icon, color, to }) => (

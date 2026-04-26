@@ -16,7 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ShoppingBag, Store, Star, ArrowRight, SkipForward, Loader2 } from "lucide-react";
+import { ShoppingBag, Store, Star, MessageCircle, Zap, Award, ArrowRight, SkipForward, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WooCommerceConnectDialog } from "@/components/integrations/WooCommerceConnectDialog";
 
@@ -26,6 +26,9 @@ const providers = [
   { id: "shopify" as const, name: "Shopify", desc: "Sync orders and reviews", icon: ShoppingBag, color: "text-success" },
   { id: "woocommerce" as const, name: "WooCommerce", desc: "WordPress store events", icon: Store, color: "text-accent" },
   { id: "google_reviews" as const, name: "Google Reviews", desc: "Import public review proof", icon: Star, color: "text-gold" },
+  { id: "trustpilot" as const, name: "Trustpilot", desc: "Customer review platform", icon: MessageCircle, color: "text-teal" },
+  { id: "g2" as const, name: "G2", desc: "B2B software reviews", icon: Award, color: "text-destructive" },
+  { id: "zapier" as const, name: "Zapier", desc: "5,000+ app triggers", icon: Zap, color: "text-gold" },
 ];
 
 type ProviderId = typeof providers[number]["id"];

@@ -13,6 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Copy, Loader2, Plus, Send } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import { UsageBanner } from "@/components/billing/UsageBanner";
+import { usePlanUsage } from "@/lib/plan-helpers";
 
 type RequestRow = Database["public"]["Tables"]["testimonial_requests"]["Row"];
 type ReqStatus = Database["public"]["Enums"]["testimonial_request_status"];
@@ -30,6 +32,7 @@ const statusVariant: Record<ReqStatus, "default" | "secondary" | "destructive" |
 export default function ProofRequests() {
   const { currentBusinessId } = useAuth();
   const { toast } = useToast();
+  const { atProofLimit, plan } = usePlanUsage();
   const [items, setItems] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -109,8 +112,12 @@ export default function ProofRequests() {
           <h1 className="text-3xl font-bold mt-1">Testimonial requests</h1>
           <p className="text-muted-foreground mt-1">Send a personal link asking customers to share their experience.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" /> New request</Button></DialogTrigger>
+        <Dialog open={open} onOpenChange={(o) => { if (o && atProofLimit) { toast({ title: "Plan limit reached", description: `You've hit your ${plan.name} plan limit of ${plan.proofLimit.toLocaleString()} proof items this month. Upgrade to send more.`, variant: "destructive" }); return; } setOpen(o); }}>
+          <DialogTrigger asChild>
+            <Button disabled={atProofLimit} title={atProofLimit ? "Monthly proof limit reached" : undefined}>
+              <Plus className="h-4 w-4 mr-2" /> New request
+            </Button>
+          </DialogTrigger>
           <DialogContent>
             <form onSubmit={create}>
               <DialogHeader><DialogTitle>New testimonial request</DialogTitle><DialogDescription>We'll generate a unique collection link.</DialogDescription></DialogHeader>
@@ -126,6 +133,8 @@ export default function ProofRequests() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <UsageBanner />
 
       <Card>
         <CardHeader><CardTitle className="text-base">All requests</CardTitle></CardHeader>

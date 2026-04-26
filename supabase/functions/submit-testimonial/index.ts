@@ -22,6 +22,7 @@ Deno.serve(async (req) => {
     const {
       token, author_name, author_email, content, rating, media_url,
       author_role, author_company, author_photo_url, author_website_url,
+      media_size_bytes, media_duration_seconds,
     } = body ?? {};
 
     // Basic input validation
@@ -52,6 +53,37 @@ Deno.serve(async (req) => {
       return v;
     };
 
+    // Resolve the business this token belongs to and enforce the monthly proof
+    // limit BEFORE we let the RPC create a new proof_object. Returning 429 lets
+    // the client show a friendly "creator is over their plan" message instead
+    // of a generic 500.
+    let resolvedBusinessId: string | null = null;
+    {
+      const { data: req } = await supabase
+        .from("testimonial_requests")
+        .select("business_id, expires_at, status")
+        .eq("token", token)
+        .maybeSingle();
+      if (req?.business_id) {
+        resolvedBusinessId = req.business_id;
+        const { data: allowed } = await supabase.rpc("can_create_proof", { _business_id: req.business_id });
+        if (allowed === false) {
+          return json({ error: "This business has reached its monthly testimonial limit. Please try again next month or contact them directly." }, 429);
+        }
+        // Enforce per-plan max video duration server-side.
+        if (media_url && typeof media_duration_seconds === "number" && media_duration_seconds > 0) {
+          const { data: biz } = await supabase.from("businesses").select("plan").eq("id", req.business_id).maybeSingle();
+          if (biz?.plan) {
+            const { data: limits } = await supabase.rpc("plan_limits", { _plan: biz.plan });
+            const maxSec = (limits as any)?.[0]?.max_video_seconds ?? 30;
+            if (media_duration_seconds > maxSec + 1) {
+              return json({ error: `Video too long. Maximum ${maxSec} seconds on this plan.` }, 400);
+            }
+          }
+        }
+      }
+    }
+
     const { data, error } = await supabase.rpc("submit_testimonial_request", {
       _token: token,
       _author_name: author_name,
@@ -67,14 +99,24 @@ Deno.serve(async (req) => {
     if (error) throw error;
 
     // Return the proof's business_id so the client can request a poster image.
-    let business_id: string | null = null;
+    let business_id: string | null = resolvedBusinessId;
     if (data) {
-      const { data: proof } = await supabase
-        .from("proof_objects")
-        .select("business_id")
-        .eq("id", data)
-        .maybeSingle();
-      business_id = proof?.business_id ?? null;
+      if (!business_id) {
+        const { data: proof } = await supabase
+          .from("proof_objects")
+          .select("business_id")
+          .eq("id", data)
+          .maybeSingle();
+        business_id = proof?.business_id ?? null;
+      }
+      // Persist media metadata for storage accounting + retention. Best-effort.
+      if (media_url && (typeof media_size_bytes === "number" || typeof media_duration_seconds === "number")) {
+        await supabase.rpc("update_proof_media_metadata", {
+          _proof_id: data,
+          _bytes: typeof media_size_bytes === "number" ? Math.floor(media_size_bytes) : null,
+          _duration_seconds: typeof media_duration_seconds === "number" ? media_duration_seconds : null,
+        });
+      }
     }
 
     return json({ ok: true, proof_object_id: data, business_id });

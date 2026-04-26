@@ -28,6 +28,7 @@ type B = Database["public"]["Tables"]["businesses"]["Row"];
 
 interface BusinessRow extends B {
   owner_email?: string | null;
+  primary_domain?: string | null;
 }
 
 const PLAN_OPTIONS = ["any", "free", "starter", "growth", "scale"] as const;
@@ -74,12 +75,52 @@ export default function AdminBusinesses() {
         list.forEach((b) => {
           b.owner_email = map.get(b.id) ?? null;
         });
+
+        // Resolve the primary domain per business.
+        const { data: doms } = await (supabase as any)
+          .from("business_domains")
+          .select("business_id, domain, is_primary")
+          .in("business_id", ids)
+          .eq("is_primary", true);
+        const dmap = new Map<string, string>();
+        ((doms ?? []) as any[]).forEach((d) => { dmap.set(d.business_id, d.domain); });
+        list.forEach((b) => { b.primary_domain = dmap.get(b.id) ?? null; });
       }
 
       setItems(list);
       setLoading(false);
     })();
   }, []);
+
+  // When the search needle looks like a domain, augment the in-memory list with
+  // any extra businesses whose business_domains.domain matches.
+  useEffect(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle || !/[a-z0-9.-]/.test(needle)) return;
+    let cancelled = false;
+    (async () => {
+      const { data: hits } = await (supabase as any)
+        .from("business_domains")
+        .select("business_id, domain, is_primary")
+        .ilike("domain", `%${needle}%`)
+        .limit(100);
+      if (cancelled || !hits || hits.length === 0) return;
+      const knownIds = new Set(items.map((b) => b.id));
+      const missingIds = Array.from(new Set((hits as any[]).map((h) => h.business_id as string))).filter((id) => !knownIds.has(id));
+      if (missingIds.length === 0) return;
+      const { data: extraBizs } = await supabase
+        .from("businesses")
+        .select("*")
+        .in("id", missingIds);
+      if (cancelled || !extraBizs) return;
+      const dmap = new Map<string, string>();
+      (hits as any[]).filter((h) => h.is_primary).forEach((h) => dmap.set(h.business_id, h.domain));
+      const extras = (extraBizs as BusinessRow[]).map((b) => ({ ...b, primary_domain: dmap.get(b.id) ?? null }));
+      setItems((prev) => [...prev, ...extras]);
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -91,19 +132,20 @@ export default function AdminBusinesses() {
         const haystack = [
           b.name,
           b.id,
-          b.website_url ?? "",
+          (b as any).website_url ?? "",
           b.owner_email ?? "",
-          b.slug ?? "",
+          (b as any).slug ?? "",
+          b.primary_domain ?? "",
         ]
           .join(" ")
           .toLowerCase();
         if (!haystack.includes(needle)) return false;
       }
-      if (planFilter !== "any" && (b.plan_tier ?? b.plan) !== planFilter) return false;
+      if (planFilter !== "any" && ((b as any).plan_tier ?? b.plan) !== planFilter) return false;
       if (statusFilter !== "any") {
-        if (statusFilter === "suspended" && !b.suspended_at) return false;
-        if (statusFilter === "active" && b.suspended_at) return false;
-        if (statusFilter === "onboarding" && b.onboarding_completed) return false;
+        if (statusFilter === "suspended" && !(b as any).suspended_at) return false;
+        if (statusFilter === "active" && (b as any).suspended_at) return false;
+        if (statusFilter === "onboarding" && (b as any).onboarding_completed) return false;
         if (statusFilter === "installed" && !b.install_verified) return false;
       }
       if (cutoff && new Date(b.created_at) < cutoff) return false;
@@ -208,6 +250,7 @@ export default function AdminBusinesses() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Owner</TableHead>
+                    <TableHead>Primary Domain</TableHead>
                     <TableHead>Plan</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Installed</TableHead>
@@ -224,21 +267,24 @@ export default function AdminBusinesses() {
                       <TableCell className="font-medium">
                         <div>{b.name}</div>
                         <div className="text-xs text-muted-foreground truncate max-w-[260px]">
-                          {b.website_url ?? b.slug ?? b.id.slice(0, 8)}
+                          {(b as any).website_url ?? (b as any).slug ?? b.id.slice(0, 8)}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">
                         {b.owner_email ?? "—"}
                       </TableCell>
+                      <TableCell className="text-sm text-muted-foreground truncate max-w-[200px]">
+                        {b.primary_domain ?? "—"}
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="capitalize">
-                          {b.plan_tier ?? b.plan}
+                          {(b as any).plan_tier ?? b.plan}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {b.suspended_at ? (
+                        {(b as any).suspended_at ? (
                           <Badge variant="destructive">Suspended</Badge>
-                        ) : !b.onboarding_completed ? (
+                        ) : !(b as any).onboarding_completed ? (
                           <Badge variant="secondary">Onboarding</Badge>
                         ) : (
                           <Badge>Active</Badge>

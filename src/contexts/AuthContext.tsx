@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useMemo } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -24,6 +24,11 @@ interface UserProfile {
   is_admin: boolean;
 }
 
+interface ImpersonationState {
+  businessId: string;
+  businessName: string;
+}
+
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
@@ -35,9 +40,15 @@ interface AuthContextValue {
   setCurrentBusinessId: (id: string) => void;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** When set by a platform admin, the app behaves as if currentBusinessId
+   *  is this business and the role is forced to viewer (read-only). */
+  impersonation: ImpersonationState | null;
+  startImpersonation: (businessId: string, businessName: string) => void;
+  stopImpersonation: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const IMPERSONATION_KEY = "notiproof.impersonation";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -48,10 +59,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => localStorage.getItem("notiproof.current_business_id")
   );
   const [loading, setLoading] = useState(true);
+  const [impersonation, setImpersonation] = useState<ImpersonationState | null>(() => {
+    try {
+      const raw = localStorage.getItem(IMPERSONATION_KEY);
+      return raw ? (JSON.parse(raw) as ImpersonationState) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const setCurrentBusinessId = (id: string) => {
     localStorage.setItem("notiproof.current_business_id", id);
     setCurrentBusinessIdState(id);
+  };
+
+  const startImpersonation = (businessId: string, businessName: string) => {
+    const next = { businessId, businessName };
+    localStorage.setItem(IMPERSONATION_KEY, JSON.stringify(next));
+    setImpersonation(next);
+  };
+
+  const stopImpersonation = () => {
+    localStorage.removeItem(IMPERSONATION_KEY);
+    setImpersonation(null);
   };
 
   const loadUserData = async (userId: string) => {
@@ -101,6 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setBusinesses([]);
         setCurrentBusinessIdState(null);
+        // Sign-out also clears impersonation.
+        localStorage.removeItem(IMPERSONATION_KEY);
+        setImpersonation(null);
       }
     });
 
@@ -123,11 +156,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     localStorage.removeItem("notiproof.current_business_id");
+    localStorage.removeItem(IMPERSONATION_KEY);
+    setImpersonation(null);
     await supabase.auth.signOut();
   };
 
-  const currentBusinessRole =
-    businesses.find((b) => b.id === currentBusinessId)?.role ?? null;
+  // When an admin impersonates, override the current business and force the
+  // role to viewer regardless of any real membership the admin has.
+  const isAdmin = profile?.is_admin === true;
+  const effectiveBusinessId = useMemo(() => {
+    if (isAdmin && impersonation) return impersonation.businessId;
+    return currentBusinessId;
+  }, [isAdmin, impersonation, currentBusinessId]);
+
+  const effectiveRole: AppRole | null = useMemo(() => {
+    if (isAdmin && impersonation) return "viewer";
+    return businesses.find((b) => b.id === currentBusinessId)?.role ?? null;
+  }, [isAdmin, impersonation, businesses, currentBusinessId]);
 
   return (
     <AuthContext.Provider
@@ -136,12 +181,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         profile,
         businesses,
-        currentBusinessId,
-        currentBusinessRole,
+        currentBusinessId: effectiveBusinessId,
+        currentBusinessRole: effectiveRole,
         loading,
         setCurrentBusinessId,
         signOut,
         refresh,
+        impersonation: isAdmin ? impersonation : null,
+        startImpersonation,
+        stopImpersonation,
       }}
     >
       {children}

@@ -37,6 +37,7 @@ const providerLabels: Record<Provider, string> = {
   zapier: "Zapier",
   google_reviews: "Google Reviews",
   trustpilot: "Trustpilot",
+  g2: "G2",
   plaid: "Plaid",
   wordpress: "WordPress",
 };
@@ -76,7 +77,7 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive" | "o
 };
 
 interface AvailableEntry {
-  id: Provider | "g2";
+  id: Provider;
   label: string;
   description: string;
   comingSoon?: boolean;
@@ -89,7 +90,7 @@ const available: AvailableEntry[] = [
   { id: "woocommerce", label: "WooCommerce", description: "WordPress store events" },
   { id: "google_reviews", label: "Google Reviews", description: "Public reviews" },
   { id: "trustpilot", label: "Trustpilot", description: "Customer reviews" },
-  { id: "g2", label: "G2", description: "B2B software reviews", comingSoon: true },
+  { id: "g2", label: "G2", description: "B2B software reviews" },
   { id: "zapier", label: "Zapier", description: "5,000+ app triggers" },
   { id: "webhook", label: "Webhook", description: "Custom event source" },
 ];

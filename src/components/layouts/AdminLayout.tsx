@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIdleLogout } from "@/hooks/useIdleLogout";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ImpersonationBanner } from "./ImpersonationBanner";
 import {
   LayoutDashboard,
   Building2,
@@ -83,6 +84,7 @@ export function AdminLayout() {
 
   return (
     <AdminRoute>
+      <ImpersonationBanner />
       <div className="min-h-screen flex bg-background">
         {/* Desktop sidebar */}
         <aside className="hidden md:flex w-64 bg-sidebar text-sidebar-foreground flex-col">

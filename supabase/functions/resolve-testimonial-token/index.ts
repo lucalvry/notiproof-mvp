@@ -31,6 +31,18 @@ Deno.serve(async (req) => {
     const row = Array.isArray(data) ? data[0] : data;
     if (!row) return json({ error: "not_found" }, 404);
 
+    // Resolve plan + max video seconds for this token's business so the public
+    // collect page can enforce per-plan recording duration on the client.
+    let max_video_seconds = 30;
+    const { data: bizId } = await supabase.rpc("business_id_for_collection_token", { _token: token });
+    if (bizId) {
+      const { data: biz } = await supabase.from("businesses").select("plan").eq("id", bizId).maybeSingle();
+      if (biz?.plan) {
+        const { data: limits } = await supabase.rpc("plan_limits", { _plan: biz.plan });
+        max_video_seconds = (limits as any)?.[0]?.max_video_seconds ?? 30;
+      }
+    }
+
     const expired = new Date(row.expires_at).getTime() < Date.now();
     return json({
       ok: true,
@@ -41,6 +53,7 @@ Deno.serve(async (req) => {
       status: row.status,
       expired,
       already_completed: row.status === "completed",
+      max_video_seconds,
     });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);

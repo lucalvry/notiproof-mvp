@@ -18,7 +18,9 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { BarChart3, ArrowUpDown, TrendingUp } from "lucide-react";
+import { BarChart3, ArrowUpDown, TrendingUp, Lock } from "lucide-react";
+import { usePlan } from "@/lib/plan-helpers";
+import { Link } from "react-router-dom";
 
 interface Bucket {
   bucket: string;
@@ -26,6 +28,7 @@ interface Bucket {
   impressions: number;
   interactions: number;
   conversions: number;
+  assists: number;
   ctr: number;
 }
 
@@ -41,16 +44,27 @@ interface TopProofRow {
   impressions: number;
   interactions: number;
   conversions: number;
+  assists: number;
 }
 
-type SortKey = "impressions" | "interactions" | "conversions";
+type SortKey = "impressions" | "interactions" | "conversions" | "assists";
 
 const TYPE_COLORS = ["hsl(var(--accent))", "hsl(var(--teal))", "hsl(var(--gold))", "hsl(var(--primary))", "hsl(var(--muted-foreground))"];
 const MIN_IMPRESSIONS_THRESHOLD = 50;
 
 export default function Analytics() {
   const { currentBusinessId } = useAuth();
-  const [range, setRange] = useState("30");
+  const { plan } = usePlan();
+  const retentionDays = isFinite(plan.dataRetentionDays) ? plan.dataRetentionDays : Infinity;
+  const rangeOptions = [
+    { value: "7", label: "Last 7 days" },
+    { value: "30", label: "Last 30 days" },
+    { value: "90", label: "Last 90 days" },
+  ].filter((o) => Number(o.value) <= retentionDays);
+  const [range, setRange] = useState(() => {
+    const max = Math.min(30, retentionDays);
+    return String(max);
+  });
   const [data, setData] = useState<Bucket[] | null>(null);
   const [proofByType, setProofByType] = useState<ProofTypeSlice[] | null>(null);
   const [topProof, setTopProof] = useState<TopProofRow[] | null>(null);
@@ -76,15 +90,20 @@ export default function Analytics() {
     const startIso = start.toISOString();
     const endIso = end.toISOString();
 
+    // Server-side aggregation via Postgres RPC — scales to millions of events
+    // and avoids the 1000-row default cap. Spec: ANA-01 "Aggregate via Supabase RPC".
     Promise.all([
-      supabase
-        .from("widget_events")
-        .select("event_type, fired_at, proof_object_id")
-        .eq("business_id", currentBusinessId)
-        .gte("fired_at", startIso)
-        .lte("fired_at", endIso)
-        .order("fired_at", { ascending: true })
-        .limit(10000),
+      supabase.rpc("get_widget_analytics", {
+        _business_id: currentBusinessId,
+        _start: startIso,
+        _end: endIso,
+      }),
+      supabase.rpc("get_top_proof_performance", {
+        _business_id: currentBusinessId,
+        _start: startIso,
+        _end: endIso,
+        _limit: 10,
+      }),
       supabase
         .from("proof_objects")
         .select("type, created_at")
@@ -99,34 +118,20 @@ export default function Analytics() {
         .gte("created_at", startIso)
         .lte("created_at", endIso)
         .limit(5000),
-    ]).then(async ([eventsRes, proofRes, requestsRes]) => {
-      const events = eventsRes.data ?? [];
-
-      // Daily buckets
-      const buckets = new Map<string, Bucket>();
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const key = d.toISOString().slice(0, 10);
-        buckets.set(key, {
+    ]).then(([analyticsRes, topRes, proofRes, requestsRes]) => {
+      // Daily buckets — all aggregation done server-side
+      const arr: Bucket[] = (analyticsRes.data ?? []).map((row: any) => {
+        const key = String(row.bucket);
+        return {
           bucket: key,
           date: new Date(key).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-          impressions: 0,
-          interactions: 0,
-          conversions: 0,
-          ctr: 0,
-        });
-      }
-      events.forEach((e) => {
-        const key = (e.fired_at as string).slice(0, 10);
-        const b = buckets.get(key);
-        if (!b) return;
-        if (e.event_type === "impression") b.impressions++;
-        else if (e.event_type === "interaction" || e.event_type === "click") b.interactions++;
-        else if (e.event_type === "conversion") b.conversions++;
+          impressions: row.impressions ?? 0,
+          interactions: row.interactions ?? 0,
+          conversions: row.conversions ?? 0,
+          assists: row.assists ?? 0,
+          ctr: row.impressions > 0 ? Number(((row.interactions / row.impressions) * 100).toFixed(2)) : 0,
+        };
       });
-      const arr = Array.from(buckets.values()).map((b) => ({
-        ...b,
-        ctr: b.impressions > 0 ? Number(((b.interactions / b.impressions) * 100).toFixed(2)) : 0,
-      }));
       setData(arr);
 
       // Proof by type
@@ -152,37 +157,17 @@ export default function Analytics() {
       ).length;
       setResponseRate({ sent, responded });
 
-      // Top proof — aggregate event counts per proof_object_id, then resolve
-      const perProof = new Map<string, { impressions: number; interactions: number; conversions: number }>();
-      events.forEach((e) => {
-        const id = e.proof_object_id as string | null;
-        if (!id) return;
-        const cur = perProof.get(id) ?? { impressions: 0, interactions: 0, conversions: 0 };
-        if (e.event_type === "impression") cur.impressions++;
-        else if (e.event_type === "interaction" || e.event_type === "click") cur.interactions++;
-        else if (e.event_type === "conversion") cur.conversions++;
-        perProof.set(id, cur);
-      });
-      const proofIds = Array.from(perProof.keys()).slice(0, 50);
-      let resolved: TopProofRow[] = [];
-      if (proofIds.length > 0) {
-        const { data: rows } = await supabase
-          .from("proof_objects")
-          .select("id, author_name, type")
-          .in("id", proofIds);
-        resolved = (rows ?? []).map((r) => {
-          const m = perProof.get(r.id as string)!;
-          return {
-            proof_id: r.id as string,
-            author_name: (r.author_name as string | null) ?? null,
-            type: r.type as string,
-            impressions: m.impressions,
-            interactions: m.interactions,
-            conversions: m.conversions,
-          };
-        });
-      }
-      setTopProof(resolved);
+      // Top proof — already aggregated server-side
+      const top: TopProofRow[] = (topRes.data ?? []).map((row: any) => ({
+        proof_id: row.proof_id,
+        author_name: row.author_name ?? null,
+        type: row.proof_type,
+        impressions: row.impressions ?? 0,
+        interactions: row.interactions ?? 0,
+        conversions: row.conversions ?? 0,
+        assists: row.assists ?? 0,
+      }));
+      setTopProof(top);
     });
   }, [currentBusinessId, range]);
 
@@ -193,8 +178,9 @@ export default function Analytics() {
           impressions: acc.impressions + d.impressions,
           interactions: acc.interactions + d.interactions,
           conversions: acc.conversions + d.conversions,
+          assists: acc.assists + d.assists,
         }),
-        { impressions: 0, interactions: 0, conversions: 0 },
+        { impressions: 0, interactions: 0, conversions: 0, assists: 0 },
       ),
     [data],
   );
@@ -227,18 +213,34 @@ export default function Analytics() {
         <Select value={range} onValueChange={setRange}>
           <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="7">Last 7 days</SelectItem>
-            <SelectItem value="30">Last 30 days</SelectItem>
-            <SelectItem value="90">Last 90 days</SelectItem>
+            {rangeOptions.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
+
+      {isFinite(retentionDays) && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+          <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+          <p className="flex-1">
+            Your {plan.name} plan keeps analytics for {retentionDays} days. Older data is purged automatically.
+            {retentionDays < 365 && (
+              <> <Link to="/settings/billing" className="underline font-medium">Upgrade</Link> for longer retention.</>
+            )}
+          </p>
+        </div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Widget impressions" value={isLoading ? null : totals.impressions.toLocaleString()} />
         <StatCard label="Widget interactions" value={isLoading ? null : totals.interactions.toLocaleString()} />
-        <StatCard label="Assisted conversions" value={isLoading ? null : totals.conversions.toLocaleString()} />
+        <StatCard
+          label="Assisted conversions"
+          value={isLoading ? null : totals.assists.toLocaleString()}
+          sub={isLoading ? undefined : `${totals.conversions.toLocaleString()} direct conversions`}
+        />
         <StatCard
           label="Request response rate"
           value={responseRate === null ? null : responseRatePct === null ? "—" : `${responseRatePct}%`}
@@ -401,6 +403,7 @@ export default function Analytics() {
                 <SelectItem value="impressions">Sort by impressions</SelectItem>
                 <SelectItem value="interactions">Sort by interactions</SelectItem>
                 <SelectItem value="conversions">Sort by conversions</SelectItem>
+                <SelectItem value="assists">Sort by assists</SelectItem>
               </SelectContent>
             </Select>
           </CardHeader>
@@ -437,6 +440,13 @@ export default function Analytics() {
                           onClick={() => setSortKey("conversions")}
                         />
                       </th>
+                      <th className="px-2 py-2 font-medium text-right">
+                        <SortHeader
+                          label="Assists"
+                          active={sortKey === "assists"}
+                          onClick={() => setSortKey("assists")}
+                        />
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -458,6 +468,9 @@ export default function Analytics() {
                         </td>
                         <td className="px-2 py-2 text-right tabular-nums">
                           {row.conversions.toLocaleString()}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums">
+                          {row.assists.toLocaleString()}
                         </td>
                       </tr>
                     ))}

@@ -8,9 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, MonitorSmartphone, Settings as SettingsIcon } from "lucide-react";
+import { Plus, MonitorSmartphone, Settings as SettingsIcon, Copy, Info, Lock } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
+import { usePlanUsage } from "@/lib/plan-helpers";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Widget = Database["public"]["Tables"]["widgets"]["Row"];
 
@@ -22,9 +24,11 @@ export default function WidgetsList() {
   const { currentBusinessId, currentBusinessRole } = useAuth();
   const canEdit = currentBusinessRole === "owner" || currentBusinessRole === "editor";
   const { toast } = useToast();
+  const { plan, usage, atActiveWidgetLimit } = usePlanUsage();
   const [items, setItems] = useState<Widget[]>([]);
   const [impressions, setImpressions] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [duplicating, setDuplicating] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentBusinessId) return;
@@ -49,6 +53,29 @@ export default function WidgetsList() {
     })();
   }, [currentBusinessId, toast]);
 
+  const duplicate = async (w: Widget) => {
+    if (!currentBusinessId) return;
+    setDuplicating(w.id);
+    const { data, error } = await supabase
+      .from("widgets")
+      .insert({
+        business_id: currentBusinessId,
+        name: `${w.name} (copy)`,
+        type: w.type,
+        status: "draft",
+        config: w.config,
+      })
+      .select("*")
+      .single();
+    setDuplicating(null);
+    if (error || !data) {
+      toast({ title: "Duplicate failed", description: error?.message, variant: "destructive" });
+      return;
+    }
+    setItems((prev) => [data, ...prev]);
+    toast({ title: "Widget duplicated", description: "A draft copy was created." });
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <ReadOnlyBanner />
@@ -58,8 +85,36 @@ export default function WidgetsList() {
           <h1 className="text-3xl font-bold mt-1">Widgets</h1>
           <p className="text-muted-foreground mt-1">Build and manage widgets that display your social proof.</p>
         </div>
-        {canEdit && <Button asChild><Link to="/widgets/new"><Plus className="h-4 w-4 mr-2" /> New widget</Link></Button>}
+        {canEdit && (
+          atActiveWidgetLimit ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0}>
+                    <Button disabled><Lock className="h-4 w-4 mr-2" /> New widget</Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  You're at {usage.active_widgets} of {plan.activeWidgetLimit} active widgets on the {plan.name} plan.
+                  <br />
+                  <Link to="/settings/billing" className="underline">Upgrade for unlimited.</Link>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <Button asChild><Link to="/widgets/new"><Plus className="h-4 w-4 mr-2" /> New widget</Link></Button>
+          )
+        )}
       </div>
+
+      {items.length > 0 && (
+        <div className="flex gap-3 items-start rounded-md border bg-muted/30 p-3 text-sm">
+          <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <p className="text-muted-foreground">
+            Need different styles in different places? Create one widget per placement — each gets its own embed snippet so a floating popup, a carousel on your homepage, and a wall on your testimonials page can all run side-by-side.
+          </p>
+        </div>
+      )}
 
       <Card>
         <CardContent className="pt-6">
@@ -87,7 +142,20 @@ export default function WidgetsList() {
                       <TableCell className="text-sm text-muted-foreground">{(impressions[w.id] ?? 0).toLocaleString()}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(w.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
-                        <Button asChild size="sm" variant="outline"><Link to={`/widgets/${w.id}/edit`}><SettingsIcon className="h-3.5 w-3.5 mr-1" /> {canEdit ? "Edit" : "View"}</Link></Button>
+                        <div className="inline-flex gap-2">
+                          {canEdit && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => duplicate(w)}
+                              disabled={duplicating === w.id}
+                              title="Duplicate widget"
+                            >
+                              <Copy className="h-3.5 w-3.5 mr-1" /> Duplicate
+                            </Button>
+                          )}
+                          <Button asChild size="sm" variant="outline"><Link to={`/widgets/${w.id}/edit`}><SettingsIcon className="h-3.5 w-3.5 mr-1" /> {canEdit ? "Edit" : "View"}</Link></Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

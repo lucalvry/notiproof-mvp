@@ -14,7 +14,13 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-const ALLOWED = new Set(["impression", "interaction", "conversion"]);
+const ALLOWED = new Set([
+  "impression",
+  "interaction",
+  "dismiss",
+  "conversion",
+  "conversion_assist",
+]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -29,11 +35,19 @@ Deno.serve(async (req) => {
       event_type,
       visitor_id = null,
       page_url = null,
+      variant = null,
+      meta = {},
+      session_id = null,
+      device_type = null,
+      visitor_type = null,
     } = body ?? {};
 
     if (!business_id || !widget_id || !event_type || !ALLOWED.has(event_type)) {
       return json({ error: "invalid payload" }, 400);
     }
+
+    const safeVariant = variant === "A" || variant === "B" ? variant : null;
+    const safeMeta = meta && typeof meta === "object" && !Array.isArray(meta) ? meta : {};
 
     const { error } = await supabase.from("widget_events").insert({
       business_id,
@@ -42,8 +56,46 @@ Deno.serve(async (req) => {
       event_type,
       visitor_id,
       page_url,
+      variant: safeVariant,
+      meta: safeMeta,
+      session_id,
+      device_type,
+      visitor_type,
     });
     if (error) throw error;
+
+    // Conversion assist: when a conversion fires, look back 7 days for the
+    // most recent interaction by the same visitor and write a sibling
+    // `conversion_assist` row crediting that proof + widget.
+    if (event_type === "conversion" && visitor_id) {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: lastInteraction } = await supabase
+        .from("widget_events")
+        .select("widget_id, proof_object_id, variant")
+        .eq("business_id", business_id)
+        .eq("visitor_id", visitor_id)
+        .eq("event_type", "interaction")
+        .gte("fired_at", sevenDaysAgo)
+        .order("fired_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastInteraction) {
+        await supabase.from("widget_events").insert({
+          business_id,
+          widget_id: lastInteraction.widget_id,
+          proof_object_id: lastInteraction.proof_object_id,
+          event_type: "conversion_assist",
+          visitor_id,
+          page_url,
+          variant: lastInteraction.variant,
+          meta: safeMeta,
+          session_id,
+          device_type,
+          visitor_type,
+        });
+      }
+    }
 
     if (event_type === "impression") {
       const { data: biz } = await supabase

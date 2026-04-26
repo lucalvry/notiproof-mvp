@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { appRedirect } from "@/lib/app-url";
 import { Check, X, Loader2 } from "lucide-react";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 
@@ -94,7 +95,7 @@ export default function Register() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: appRedirect("/dashboard"),
         data: {
           full_name: fullName,
           business_name: businessName,
@@ -138,7 +139,7 @@ export default function Register() {
     } catch {}
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/onboarding/connect` },
+      options: { redirectTo: appRedirect("/onboarding/connect") },
     });
   };
 

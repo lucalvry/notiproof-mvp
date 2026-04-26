@@ -21,8 +21,30 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const businessId = url.searchParams.get("business");
     const widgetId = url.searchParams.get("widget");
+    const limitParam = Number(url.searchParams.get("limit") ?? "20");
+    const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(50, Math.floor(limitParam))) : 20;
+    const requestDomainRaw = url.searchParams.get("domain");
     if (!businessId) {
       return json({ error: "business param required" }, 400);
+    }
+
+    // ---- Domain allowlist gate -------------------------------------------
+    // If the business has at least one verified domain, the requesting
+    // hostname MUST match one. If it has none yet, we allow rendering so
+    // first-install / onboarding live preview keeps working.
+    if (requestDomainRaw) {
+      const requestHost = normalizeHost(requestDomainRaw);
+      const { data: domains } = await supabase
+        .from("business_domains")
+        .select("domain, is_verified")
+        .eq("business_id", businessId);
+      const verified = (domains ?? []).filter((d: any) => d.is_verified);
+      if (verified.length > 0) {
+        const allowed = verified.some((d: any) => d.domain === requestHost);
+        if (!allowed) {
+          return json({ widget: null, business: null, proofs: [] });
+        }
+      }
     }
 
     // Pick widget: explicit id, else first active widget for business.
@@ -35,12 +57,33 @@ Deno.serve(async (req) => {
 
     const { data: bizRow } = await supabase
       .from("businesses")
-      .select("name, website_url")
+      .select("name, website_url, plan")
       .eq("id", businessId)
       .maybeSingle();
     const business = bizRow
       ? { name: bizRow.name, website_url: bizRow.website_url }
       : null;
+
+    // ---- Plan-based gates: monthly event cap + branding override --------
+    // Even if the saved widget config has `powered_by: false`, plans that
+    // don't include `removeBranding` (Free) get the badge forced back on
+    // here, so the lock cannot be bypassed by editing config in the DB.
+    if (bizRow?.plan) {
+      const [{ data: usage }, { data: limits }] = await Promise.all([
+        supabase.rpc("business_plan_usage", { _business_id: businessId }),
+        supabase.rpc("plan_limits", { _plan: bizRow.plan }),
+      ]);
+      const eventLimit = (limits as any)?.[0]?.event_limit ?? null;
+      const removeBranding = (limits as any)?.[0]?.remove_branding === true;
+      const eventsMtd = (usage as any)?.events_mtd ?? 0;
+      if (eventLimit && eventsMtd >= eventLimit) {
+        return json({ widget: null, business, proofs: [], disabled: true, reason: "event_limit_reached" });
+      }
+      if (widget && !removeBranding) {
+        const cfg = (widget as any).config ?? {};
+        (widget as any).config = { ...cfg, powered_by: true };
+      }
+    }
 
     const { data: proofs, error: pErr } = await supabase
       .from("proof_objects")
@@ -51,7 +94,7 @@ Deno.serve(async (req) => {
       .eq("status", "approved")
       .order("published_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(limit);
     if (pErr) throw pErr;
 
     return json({ widget, business, proofs: proofs ?? [] });
@@ -65,4 +108,13 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function normalizeHost(raw: string): string {
+  let v = String(raw || "").trim().toLowerCase();
+  v = v.replace(/^[a-z]+:\/\//, "");
+  v = v.replace(/\/.*$/, "");
+  v = v.replace(/:\d+$/, "");
+  v = v.replace(/^www\./, "");
+  return v;
 }

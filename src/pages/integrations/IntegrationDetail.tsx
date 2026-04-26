@@ -57,6 +57,7 @@ import {
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { WooCommerceConnectDialog } from "@/components/integrations/WooCommerceConnectDialog";
+import { ProviderConnectCard } from "@/components/integrations/ProviderConnectCard";
 
 type Integration = Database["public"]["Tables"]["integrations"]["Row"];
 type Event = Database["public"]["Tables"]["integration_events"]["Row"];
@@ -133,9 +134,9 @@ export default function IntegrationDetail() {
     if (data?.ok) setWooSummary(data);
   };
 
-  useEffect(() => {
+  const refetch = async () => {
     if (!id || !currentBusinessId) return;
-    Promise.all([
+    const [i, e] = await Promise.all([
       supabase
         .from("integrations")
         .select("*")
@@ -148,20 +149,26 @@ export default function IntegrationDetail() {
         .eq("integration_id", id)
         .order("received_at", { ascending: false })
         .limit(20),
-    ]).then(([i, e]) => {
-      if (i.data) {
-        setIntegration(i.data);
-        const cfg = (i.data.config ?? {}) as IntegrationConfig;
-        setDisplayName(cfg.display_name ?? "");
-        setAutoRequest(!!cfg.auto_request_enabled);
-        setDelayMinutes(String(cfg.auto_request_delay_minutes ?? 0));
-        setShopDomain(cfg.shop ?? "");
+    ]);
+    if (i.data) {
+      setIntegration(i.data);
+      const cfg = (i.data.config ?? {}) as IntegrationConfig;
+      setDisplayName(cfg.display_name ?? "");
+      setAutoRequest(!!cfg.auto_request_enabled);
+      setDelayMinutes(String(cfg.auto_request_delay_minutes ?? 0));
+      setShopDomain(cfg.shop ?? "");
+      if (i.data.platform === "woocommerce" || i.data.provider === "woocommerce") {
+        loadWooSummary();
       }
-      setEvents(e.data ?? []);
-      setLoading(false);
-    });
+    }
+    setEvents(e.data ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (!id || !currentBusinessId) return;
+    refetch();
     loadCredSummary();
-    if (currentBusinessId) loadWooSummary();
 
     const channel = supabase
       .channel(`int-events-${id}`)
@@ -527,6 +534,8 @@ export default function IntegrationDetail() {
         </Card>
       )}
 
+      <ProviderConnectCard integration={integration} onChanged={refetch} />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Configuration</CardTitle>
@@ -568,6 +577,10 @@ export default function IntegrationDetail() {
       {integration.provider !== "shopify" &&
         integration.provider !== "stripe" &&
         integration.provider !== "woocommerce" &&
+        integration.provider !== "google_reviews" &&
+        integration.provider !== "trustpilot" &&
+        integration.provider !== "g2" &&
+        integration.provider !== "zapier" &&
         !isWoo && (
         <Card>
           <CardHeader>

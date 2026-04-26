@@ -18,6 +18,7 @@ interface CollectionContext {
   recipient_name: string | null;
   expired: boolean;
   already_completed: boolean;
+  max_video_seconds: number;
 }
 
 export default function Collect() {
@@ -46,6 +47,11 @@ export default function Collect() {
   const chunksRef = useRef<BlobPart[]>([]);
   const [recording, setRecording] = useState(false);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [videoDuration, setVideoDuration] = useState<number>(0);
+  const [recordSecondsLeft, setRecordSecondsLeft] = useState<number>(0);
+  const recordStartRef = useRef<number>(0);
+  const countdownRef = useRef<number | null>(null);
+  const stopTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -66,30 +72,81 @@ export default function Collect() {
         recipient_name: data.recipient_name,
         expired: data.expired,
         already_completed: data.already_completed,
+        max_video_seconds: typeof data.max_video_seconds === "number" ? data.max_video_seconds : 30,
       });
       if (data.recipient_name) setName(data.recipient_name);
     })();
   }, [token]);
 
+  // Pick the best supported MIME type. iOS Safari needs mp4; Android/Desktop Chrome
+  // and Firefox prefer webm. Falling back to '' lets the browser choose its default.
+  const pickRecorderMime = (): { mime: string; ext: string; contentType: string } => {
+    if (typeof MediaRecorder === "undefined") return { mime: "", ext: "webm", contentType: "video/webm" };
+    const candidates: Array<{ mime: string; ext: string; contentType: string }> = [
+      { mime: "video/webm;codecs=vp9,opus", ext: "webm", contentType: "video/webm" },
+      { mime: "video/webm;codecs=vp8,opus", ext: "webm", contentType: "video/webm" },
+      { mime: "video/webm", ext: "webm", contentType: "video/webm" },
+      { mime: "video/mp4;codecs=h264,aac", ext: "mp4", contentType: "video/mp4" },
+      { mime: "video/mp4", ext: "mp4", contentType: "video/mp4" },
+    ];
+    for (const c of candidates) {
+      if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c.mime)) return c;
+    }
+    return { mime: "", ext: "webm", contentType: "video/webm" };
+  };
+
+  const recorderMimeRef = useRef<{ mime: string; ext: string; contentType: string }>({
+    mime: "",
+    ext: "webm",
+    contentType: "video/webm",
+  });
+
   const startRecording = async () => {
+    const maxSec = ctx?.max_video_seconds ?? 30;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      const recorder = new MediaRecorder(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        // iOS Safari requires playsInline + muted to preview a live MediaStream
+        videoRef.current.muted = true;
+        (videoRef.current as any).playsInline = true;
+        videoRef.current.play().catch(() => undefined);
+      }
+      const picked = pickRecorderMime();
+      recorderMimeRef.current = picked;
+      const recorder = picked.mime ? new MediaRecorder(stream, { mimeType: picked.mime }) : new MediaRecorder(stream);
       chunksRef.current = [];
-      recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
+      recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "video/webm" });
+        const blob = new Blob(chunksRef.current, { type: recorderMimeRef.current.contentType });
         setVideoBlob(blob);
+        const elapsed = (Date.now() - recordStartRef.current) / 1000;
+        setVideoDuration(Math.min(elapsed, maxSec));
         stream.getTracks().forEach((t) => t.stop());
         if (videoRef.current) {
           videoRef.current.srcObject = null;
           videoRef.current.src = URL.createObjectURL(blob);
+          videoRef.current.muted = false;
         }
+        if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+        if (stopTimerRef.current) { clearTimeout(stopTimerRef.current); stopTimerRef.current = null; }
       };
-      recorder.start();
+      // Request small timeslices so we get periodic chunks (better for long recordings
+      // and helps iOS Safari which sometimes drops a single huge chunk on stop).
+      recorder.start(1000);
       recorderRef.current = recorder;
+      recordStartRef.current = Date.now();
       setRecording(true);
+      setRecordSecondsLeft(maxSec);
+      // Hard cap: auto-stop at the plan's max video duration.
+      stopTimerRef.current = window.setTimeout(() => {
+        if (recorderRef.current && recorderRef.current.state === "recording") recorderRef.current.stop();
+        setRecording(false);
+      }, maxSec * 1000);
+      countdownRef.current = window.setInterval(() => {
+        const left = Math.max(0, maxSec - Math.floor((Date.now() - recordStartRef.current) / 1000));
+        setRecordSecondsLeft(left);
+      }, 250);
     } catch (e) {
       toast({ title: "Camera unavailable", description: (e as Error).message, variant: "destructive" });
     }
@@ -114,12 +171,14 @@ export default function Collect() {
     try {
       let mediaUrl: string | null = null;
       if (mode === "video" && videoBlob) {
+        const { ext, contentType } = recorderMimeRef.current;
         mediaUrl = await uploadToBunny({
           kind: "media",
           folder: `testimonials/${token}`,
-          filename: `${Date.now()}.webm`,
-          contentType: "video/webm",
+          filename: `${Date.now()}.${ext}`,
+          contentType,
           blob: videoBlob,
+          collectionToken: token,
         });
       }
 
@@ -131,6 +190,7 @@ export default function Collect() {
           filename: `photo-${Date.now()}-${photoFile.name.replace(/[^a-z0-9.\-_]/gi, "_")}`,
           contentType: photoFile.type || "image/jpeg",
           blob: photoFile,
+          collectionToken: token,
         });
       }
 
@@ -154,6 +214,8 @@ export default function Collect() {
           author_company: company.trim() || null,
           author_photo_url: photoUrl,
           author_website_url: normalizedWebsite,
+          media_size_bytes: mode === "video" && videoBlob ? videoBlob.size : null,
+          media_duration_seconds: mode === "video" && videoDuration > 0 ? Math.round(videoDuration * 10) / 10 : null,
         },
       });
       if (error) throw new Error(error.message);
@@ -247,9 +309,19 @@ export default function Collect() {
                     <video ref={videoRef} autoPlay muted={recording} controls={!!videoBlob && !recording} className="w-full rounded" />
                   </div>
                   <div className="flex gap-2">
-                    {!recording && !videoBlob && <Button type="button" variant="outline" onClick={startRecording}>Start recording</Button>}
-                    {recording && <Button type="button" variant="destructive" onClick={stopRecording}>Stop</Button>}
-                    {videoBlob && !recording && <Button type="button" variant="ghost" onClick={() => { setVideoBlob(null); }}>Re-record</Button>}
+                    {!recording && !videoBlob && (
+                      <Button type="button" variant="outline" onClick={startRecording}>
+                        Start recording <span className="ml-2 text-xs opacity-70">(max {ctx.max_video_seconds}s)</span>
+                      </Button>
+                    )}
+                    {recording && (
+                      <Button type="button" variant="destructive" onClick={stopRecording}>
+                        Stop <span className="ml-2 tabular-nums text-xs">{recordSecondsLeft}s left</span>
+                      </Button>
+                    )}
+                    {videoBlob && !recording && (
+                      <Button type="button" variant="ghost" onClick={() => { setVideoBlob(null); setVideoDuration(0); }}>Re-record</Button>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">

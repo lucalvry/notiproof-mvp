@@ -192,15 +192,42 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (integ && integ.provider === "stripe") {
-      const { data: evRow } = await supabase.from("integration_events").insert({
-        business_id: integ.business_id,
-        integration_id: integ.id,
-        event_type: event.type ?? "unknown",
-        payload: event,
-      }).select("id").single();
+      const externalEventId = event.id ?? null;
+
+      // Dedup: try to insert; conflict on (integration_id, external_event_id)
+      // means we've already processed (or are processing) this delivery.
+      const { data: evRow, error: insertError } = await supabase
+        .from("integration_events")
+        .insert({
+          business_id: integ.business_id,
+          integration_id: integ.id,
+          event_type: event.type ?? "unknown",
+          payload: event,
+          external_event_id: externalEventId,
+          status: "received",
+        })
+        .select("id")
+        .single();
+
+      if (insertError && (insertError.code === "23505" || /duplicate key/i.test(insertError.message))) {
+        // Mark a duplicate-tracking row for visibility, but skip processing.
+        await supabase.from("integration_events").insert({
+          business_id: integ.business_id,
+          integration_id: integ.id,
+          event_type: event.type ?? "unknown",
+          payload: { duplicate_of: externalEventId },
+          status: "duplicate",
+        });
+        return new Response(JSON.stringify({ received: true, duplicate: true }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       let proofId: string | null = null;
       const obj = (event?.data?.object ?? {}) as Record<string, unknown>;
+      let handlerError: string | null = null;
+      try {
       if (event.type === "checkout.session.completed" || event.type === "payment_intent.succeeded") {
         const amount = (obj.amount_total as number) ?? (obj.amount as number) ?? 0;
         const currency = ((obj.currency as string) ?? "usd").toUpperCase();
@@ -223,11 +250,17 @@ Deno.serve(async (req) => {
         }).select("id").single();
         proofId = po?.id ?? null;
       }
+      } catch (e) {
+        handlerError = (e as Error).message;
+        console.error("stripe integration handler error", e);
+      }
 
       if (evRow?.id) {
         await supabase.from("integration_events").update({
-          processed_at: new Date().toISOString(),
+          processed_at: handlerError ? null : new Date().toISOString(),
           proof_object_id: proofId,
+          status: handlerError ? "failed" : "processed",
+          error_message: handlerError,
         }).eq("id", evRow.id);
       }
 

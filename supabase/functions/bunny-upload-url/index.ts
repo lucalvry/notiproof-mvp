@@ -48,6 +48,25 @@ Deno.serve(async (req) => {
     const folder = typeof body.folder === "string" ? safeName(body.folder) : (userId ?? "public");
     const filename = typeof body.filename === "string" ? safeName(body.filename) : `${Date.now()}.bin`;
     const contentType = typeof body.content_type === "string" ? body.content_type : "application/octet-stream";
+    const contentLength = typeof body.content_length === "number" && body.content_length > 0 ? Math.floor(body.content_length) : 0;
+
+    // ---- Storage limit gate (media only) ---------------------------------
+    // Resolve business: either via explicit body.business_id (authenticated
+    // dashboard uploads) or via a collection token (public testimonial uploads).
+    if (kind === "media" && contentLength > 0) {
+      const sb = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? SUPABASE_ANON);
+      let businessId: string | null = typeof body.business_id === "string" ? body.business_id : null;
+      if (!businessId && typeof body.collection_token === "string") {
+        const { data } = await sb.rpc("business_id_for_collection_token", { _token: body.collection_token });
+        businessId = (data as string) ?? null;
+      }
+      if (businessId) {
+        const { data: allowed } = await sb.rpc("can_upload_media", { _business_id: businessId, _additional_bytes: contentLength });
+        if (allowed === false) {
+          return json({ error: "storage_limit_reached", message: "This business has reached its media storage limit." }, 413);
+        }
+      }
+    }
 
     const zone = kind === "media" ? BUNNY_MEDIA_ZONE : BUNNY_ASSETS_ZONE;
     const password = kind === "media" ? BUNNY_MEDIA_PASSWORD : BUNNY_ASSETS_PASSWORD;

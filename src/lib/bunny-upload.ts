@@ -6,6 +6,10 @@ export interface BunnyUploadOptions {
   filename: string;
   contentType: string;
   blob: Blob;
+  /** Owning business — enables server-side storage limit check on dashboard uploads. */
+  businessId?: string;
+  /** Public testimonial token — enables storage check for unauthenticated uploads. */
+  collectionToken?: string;
 }
 
 /**
@@ -14,13 +18,21 @@ export interface BunnyUploadOptions {
  *
  * Falls back to Supabase Storage upload (in `proof-media`) if Bunny is not configured.
  */
-export async function uploadToBunny({ kind = "media", folder, filename, contentType, blob }: BunnyUploadOptions): Promise<string> {
+export async function uploadToBunny({ kind = "media", folder, filename, contentType, blob, businessId, collectionToken }: BunnyUploadOptions): Promise<string> {
   // Ask edge function for an upload URL
   const { data, error } = await supabase.functions.invoke("bunny-upload-url", {
-    body: { kind, folder, filename, content_type: contentType },
+    body: {
+      kind, folder, filename, content_type: contentType,
+      content_length: blob.size,
+      business_id: businessId,
+      collection_token: collectionToken,
+    },
   });
 
   if (error || !data?.ok) {
+    if ((data?.error || "").includes("storage_limit")) {
+      throw new Error("This business has reached its media storage limit. Please upgrade or free space.");
+    }
     // Fallback to Supabase Storage if Bunny is not configured
     if (data?.error?.includes("not configured") || error?.message?.includes("not configured")) {
       const path = `${folder ?? "public"}/${Date.now()}_${filename}`;
