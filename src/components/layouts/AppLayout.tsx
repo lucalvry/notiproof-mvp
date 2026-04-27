@@ -371,8 +371,21 @@ export function AppLayout() {
               </nav>
             </div>
 
-            {/* Right cluster: bell + avatar */}
+            {/* Right cluster: admin shortcut + bell + avatar */}
             <div className="flex items-center gap-1">
+              {profile?.is_admin && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/admin")}
+                  className="hidden sm:flex gap-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                  aria-label="Open Admin Console"
+                  title="Open Admin Console"
+                >
+                  <Shield className="h-4 w-4" />
+                  <span className="hidden lg:inline text-sm font-medium">Admin</span>
+                </Button>
+              )}
               <NotificationBell />
               <UserAvatarMenu onSignOut={handleSignOut} />
             </div>

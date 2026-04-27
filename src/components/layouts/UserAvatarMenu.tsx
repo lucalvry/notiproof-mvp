@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Settings, CreditCard, Users, LogOut, Shield } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { PlanBadge } from "./PlanBadge";
 
 export function UserAvatarMenu({ onSignOut }: { onSignOut: () => void }) {
@@ -39,13 +40,29 @@ export function UserAvatarMenu({ onSignOut }: { onSignOut: () => void }) {
           <div className="text-xs text-muted-foreground truncate">
             {profile?.email}
           </div>
-          {current && (
-            <div className="pt-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+            {current && (
               <PlanBadge plan={(current as { plan?: string | null; plan_tier?: string | null }).plan ?? current.plan_tier} />
-            </div>
-          )}
+            )}
+            {profile?.is_admin && (
+              <Badge variant="default" className="h-5 gap-1 bg-amber-500 hover:bg-amber-500 text-white">
+                <Shield className="h-3 w-3" /> Super Admin
+              </Badge>
+            )}
+          </div>
         </div>
         <DropdownMenuSeparator />
+        {profile?.is_admin && (
+          <>
+            <DropdownMenuItem
+              onClick={() => navigate("/admin")}
+              className="font-medium text-amber-600 focus:text-amber-700"
+            >
+              <Shield className="h-4 w-4 mr-2" /> Open Admin Console
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem onClick={() => navigate("/settings/profile")}>
           <Settings className="h-4 w-4 mr-2" /> Settings
         </DropdownMenuItem>
@@ -55,14 +72,6 @@ export function UserAvatarMenu({ onSignOut }: { onSignOut: () => void }) {
         <DropdownMenuItem onClick={() => navigate("/settings/team")}>
           <Users className="h-4 w-4 mr-2" /> Team
         </DropdownMenuItem>
-        {profile?.is_admin && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/admin")}>
-              <Shield className="h-4 w-4 mr-2" /> Admin
-            </DropdownMenuItem>
-          </>
-        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onSignOut}>
           <LogOut className="h-4 w-4 mr-2" /> Sign out
