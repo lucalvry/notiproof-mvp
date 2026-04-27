@@ -516,7 +516,7 @@ export default function BusinessDetail() {
                     <SelectItem value="free">Free</SelectItem>
                     <SelectItem value="starter">Starter</SelectItem>
                     <SelectItem value="growth">Growth</SelectItem>
-                    <SelectItem value="scale">Scale</SelectItem>
+                    <SelectItem value="agency">Agency</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

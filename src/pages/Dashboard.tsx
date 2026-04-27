@@ -11,7 +11,14 @@ import { UsageBanner } from "@/components/billing/UsageBanner";
 
 import type { Database } from "@/integrations/supabase/types";
 
-type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"];
+// Widened to accept legacy/extra columns (source, type, verified, status, ...)
+// not present in the generated DB types.
+type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"] & {
+  source?: string | null;
+  type?: string | null;
+  verified?: boolean | null;
+  status?: string | null;
+};
 
 interface Stats {
   proof: number;
@@ -38,23 +45,24 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   const loadFeed = (bizId: string) =>
-    supabase
+    (supabase as any)
       .from("proof_objects")
       .select("*")
       .eq("business_id", bizId)
       .order("created_at", { ascending: false })
       .limit(10)
-      .then(({ data }) => setFeed(data ?? []));
+      .then(({ data }: { data: any[] | null }) => setFeed(data ?? []));
 
   useEffect(() => {
     if (!currentBusinessId) return;
+    // Spec DASH-01: "Assisted conversions this week" → conversion_assist events in last 7 days.
     const since = new Date();
-    since.setDate(since.getDate() - 30);
+    since.setDate(since.getDate() - 7);
     Promise.all([
       supabase.from("proof_objects").select("id", { count: "exact", head: true }).eq("business_id", currentBusinessId),
       supabase.from("widgets").select("id", { count: "exact", head: true }).eq("business_id", currentBusinessId).eq("status", "active"),
       supabase.from("integrations").select("id", { count: "exact", head: true }).eq("business_id", currentBusinessId).eq("status", "connected"),
-      supabase.from("widget_events").select("id", { count: "exact", head: true }).eq("business_id", currentBusinessId).eq("event_type", "conversion").gte("fired_at", since.toISOString()),
+      (supabase as any).from("widget_events").select("id", { count: "exact", head: true }).eq("business_id", currentBusinessId).eq("event_type", "conversion_assist").gte("fired_at", since.toISOString()),
     ]).then(([p, w, i, c]) => {
       setStats({ proof: p.count ?? 0, widgets: w.count ?? 0, integrations: i.count ?? 0, conversions: c.count ?? 0 });
     });
@@ -79,7 +87,7 @@ export default function Dashboard() {
     { label: "Total proof", value: stats?.proof, icon: MessageSquareQuote, color: "text-accent", to: "/proof" },
     { label: "Active widgets", value: stats?.widgets, icon: MonitorSmartphone, color: "text-teal", to: "/widgets" },
     { label: "Integrations", value: stats?.integrations, icon: Plug, color: "text-purple", to: "/integrations" },
-    { label: "Conversions (30d)", value: stats?.conversions, icon: TrendingUp, color: "text-gold", to: "/analytics" },
+    { label: "Assisted conversions (7d)", value: stats?.conversions, icon: TrendingUp, color: "text-gold", to: "/analytics" },
   ];
 
   return (

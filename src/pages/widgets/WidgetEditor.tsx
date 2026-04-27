@@ -20,10 +20,16 @@ import type { Database } from "@/integrations/supabase/types";
 import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
 import { widgetEditorSchema, fieldErrors } from "@/lib/validation";
 
-type Widget = Database["public"]["Tables"]["widgets"]["Row"];
-type WidgetType = Database["public"]["Enums"]["widget_type"];
+type Widget = Database["public"]["Tables"]["widgets"]["Row"] & {
+  type?: string;
+  target_url?: string | null;
+  frequency_cap_per_user?: number | null;
+  load_delay_ms?: number | null;
+};
+type WidgetType = string;
 type Proof = Database["public"]["Tables"]["proof_objects"]["Row"];
 type Json = Database["public"]["Tables"]["widgets"]["Row"]["config"];
+const db = supabase as any;
 
 type Variant =
   | "floating"
@@ -57,6 +63,13 @@ interface WidgetConfig extends SharedWidgetConfig {
   ab_enabled?: boolean;
   ab_variant_label?: string;
   ab_split?: number; // 0–100, share routed to variant B
+  /** Spec WID-02: "Auto-select winner after N impressions." */
+  ab_winner_threshold?: number;
+  /** Set by the cleanup-widget-events cron when a winner is auto-promoted. */
+  ab_winner?: "A" | "B";
+  ab_winner_decided_at?: string;
+  ab_winner_ctr_a?: number;
+  ab_winner_ctr_b?: number;
   variant_b?: Partial<WidgetConfig>;
 }
 
@@ -130,7 +143,7 @@ export default function WidgetEditor() {
 
   useEffect(() => {
     if (!id || !currentBusinessId) return;
-    supabase.from("widgets").select("*").eq("id", id).eq("business_id", currentBusinessId).maybeSingle()
+    db.from("widgets").select("*").eq("id", id).eq("business_id", currentBusinessId).maybeSingle()
       .then(({ data, error }) => {
         if (error) toast({ title: "Load failed", description: error.message, variant: "destructive" });
         if (data) setW(data);
@@ -140,7 +153,7 @@ export default function WidgetEditor() {
 
   useEffect(() => {
     if (!currentBusinessId) return;
-    supabase.from("proof_objects").select("*").eq("business_id", currentBusinessId).eq("status", "approved").order("created_at", { ascending: false })
+    db.from("proof_objects").select("*").eq("business_id", currentBusinessId).eq("status", "approved").order("created_at", { ascending: false })
       .then(({ data }) => {
         setApprovedProofs(data ?? []);
         setSample(data?.[0] ?? null);
@@ -154,7 +167,7 @@ export default function WidgetEditor() {
       return;
     }
     const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-    supabase
+    db
       .from("widget_events")
       .select("event_type, variant")
       .eq("business_id", currentBusinessId)
@@ -208,7 +221,7 @@ export default function WidgetEditor() {
     const finalConfig = isFreePlan ? { ...cfg, powered_by: true } : cfg;
     setSaving(true);
     if (isNew) {
-      const { data, error } = await supabase.from("widgets").insert({
+      const { data, error } = await db.from("widgets").insert({
         business_id: currentBusinessId,
         name: validated.data.name,
         type: w.type ?? "popup",
@@ -220,7 +233,7 @@ export default function WidgetEditor() {
       toast({ title: "Widget created" });
       navigate(`/widgets/${data.id}/edit`, { replace: true });
     } else {
-      const { error } = await supabase.from("widgets").update({
+      const { error } = await db.from("widgets").update({
         name: validated.data.name, type: w.type, status: w.status, config: finalConfig as unknown as Json,
       }).eq("id", id!);
       setSaving(false);
@@ -300,6 +313,21 @@ export default function WidgetEditor() {
                     </div>
                     <Switch checked={!!cfg.ab_enabled} onCheckedChange={(c) => updateConfig({ ab_enabled: c })} />
                   </div>
+                  {cfg.ab_winner && (
+                    <div className="rounded-md border border-teal/40 bg-teal/5 p-3 text-xs">
+                      <div className="font-semibold text-teal mb-0.5">
+                        Variant {cfg.ab_winner} promoted to winner
+                      </div>
+                      <div className="text-muted-foreground">
+                        {cfg.ab_winner_decided_at
+                          ? `Auto-selected on ${new Date(cfg.ab_winner_decided_at).toLocaleDateString()}.`
+                          : "Auto-selected by the cleanup job."}
+                        {typeof cfg.ab_winner_ctr_a === "number" && typeof cfg.ab_winner_ctr_b === "number" && (
+                          <> CTR A {(cfg.ab_winner_ctr_a * 100).toFixed(1)}% vs B {(cfg.ab_winner_ctr_b * 100).toFixed(1)}%.</>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {cfg.ab_enabled && (
                     <div className="space-y-3 rounded-md border bg-muted/30 p-3">
                       <div className="space-y-1.5">
@@ -355,6 +383,26 @@ export default function WidgetEditor() {
                         </p>
                       </div>
 
+                      {/* Auto-pick winner threshold (spec WID-02) */}
+                      <div className="space-y-1.5 border-t pt-3">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">Auto-suggest winner after</Label>
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {cfg.ab_winner_threshold ?? 1000} impressions / variant
+                          </span>
+                        </div>
+                        <Slider
+                          min={100}
+                          max={5000}
+                          step={100}
+                          value={[cfg.ab_winner_threshold ?? 1000]}
+                          onValueChange={([v]) => updateConfig({ ab_winner_threshold: v })}
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Once both variants pass this threshold the higher-CTR variant is highlighted below for one-click promotion.
+                        </p>
+                      </div>
+
                       {/* Results strip — last 14 days */}
                       {abStats && (() => {
                         const rate = (s: { impressions: number; interactions: number }) =>
@@ -362,6 +410,16 @@ export default function WidgetEditor() {
                         const rA = rate(abStats.A);
                         const rB = rate(abStats.B);
                         const totalImpr = abStats.A.impressions + abStats.B.impressions;
+                        const threshold = cfg.ab_winner_threshold ?? 1000;
+                        const bothPastThreshold =
+                          abStats.A.impressions >= threshold && abStats.B.impressions >= threshold;
+                        const winner: "A" | "B" | null = bothPastThreshold
+                          ? rB > rA
+                            ? "B"
+                            : rA > rB
+                              ? "A"
+                              : null
+                          : null;
                         return (
                           <div className="space-y-2 border-t pt-3">
                             <Label className="text-xs">Results — last 14 days</Label>
@@ -375,10 +433,24 @@ export default function WidgetEditor() {
                                   {(["A", "B"] as const).map((v) => {
                                     const s = abStats[v];
                                     const r = v === "A" ? rA : rB;
+                                    const isWinner = winner === v;
                                     return (
-                                      <div key={v} className="rounded-md border bg-background p-2">
+                                      <div
+                                        key={v}
+                                        className={
+                                          "rounded-md border bg-background p-2 " +
+                                          (isWinner ? "border-accent ring-1 ring-accent/40" : "")
+                                        }
+                                      >
                                         <div className="flex items-center justify-between">
-                                          <span className="font-semibold">Variant {v}</span>
+                                          <span className="font-semibold">
+                                            Variant {v}
+                                            {isWinner && (
+                                              <span className="ml-1 text-[10px] uppercase tracking-wider text-accent">
+                                                winner
+                                              </span>
+                                            )}
+                                          </span>
                                           <span className="text-muted-foreground tabular-nums">
                                             {r.toFixed(1)}%
                                           </span>
@@ -390,6 +462,12 @@ export default function WidgetEditor() {
                                     );
                                   })}
                                 </div>
+                                {bothPastThreshold && winner && (
+                                  <p className="text-[11px] text-accent">
+                                    Both variants passed {threshold.toLocaleString()} impressions. Variant {winner} is winning by{" "}
+                                    {Math.abs(rA - rB).toFixed(1)} pts.
+                                  </p>
+                                )}
                                 <Button
                                   type="button"
                                   size="sm"

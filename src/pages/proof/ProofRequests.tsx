@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+const db = supabase as any;
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,10 +19,14 @@ import { usePlanUsage } from "@/lib/plan-helpers";
 import { proofRequestSchema, parseOrError } from "@/lib/validation";
 import { showRateLimitToastIf } from "@/lib/use-rate-limit-toast";
 
-type RequestRow = Database["public"]["Tables"]["testimonial_requests"]["Row"];
-type ReqStatus = Database["public"]["Enums"]["testimonial_request_status"];
+type RequestRow = Database["public"]["Tables"]["testimonial_requests"]["Row"] & {
+  recipient_email?: string | null;
+  recipient_name?: string | null;
+  token?: string | null;
+};
+type ReqStatus = string;
 
-const statusVariant: Record<ReqStatus, "default" | "secondary" | "destructive" | "outline"> = {
+const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   responded: "default",
   completed: "default",
   opened: "secondary",
@@ -44,7 +49,7 @@ export default function ProofRequests() {
   const load = async () => {
     if (!currentBusinessId) return;
     setLoading(true);
-    const { data, error } = await supabase.from("testimonial_requests").select("*").eq("business_id", currentBusinessId).order("created_at", { ascending: false });
+    const { data, error } = await db.from("testimonial_requests").select("*").eq("business_id", currentBusinessId).order("created_at", { ascending: false });
     if (error) toast({ title: "Failed to load", description: error.message, variant: "destructive" });
     else setItems(data ?? []);
     setLoading(false);
@@ -67,7 +72,7 @@ export default function ProofRequests() {
     // Every testimonial_requests row must point to a proof_object. For manual
     // requests there's no purchase to attach to, so we create a placeholder
     // proof first and link it.
-    const { data: placeholderId, error: phErr } = await supabase.rpc(
+    const { data: placeholderId, error: phErr } = await db.rpc(
       "create_placeholder_proof_for_request",
       { _business_id: currentBusinessId },
     );
@@ -80,7 +85,7 @@ export default function ProofRequests() {
       });
     }
 
-    const { data: inserted, error } = await supabase
+    const { data: inserted, error } = await db
       .from("testimonial_requests")
       .insert({
         business_id: currentBusinessId,
@@ -195,16 +200,16 @@ export default function ProofRequests() {
                   {items.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell><div className="font-medium">{r.recipient_name ?? "—"}</div><div className="text-xs text-muted-foreground">{r.recipient_email}</div></TableCell>
-                      <TableCell><Badge variant={statusVariant[r.status]} className="capitalize">{r.status}</Badge></TableCell>
+                       <TableCell><Badge variant={statusVariant[r.status as string] ?? "outline"} className="capitalize">{r.status}</Badge></TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(r.expires_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right space-x-2">
-                        {r.status !== "responded" && r.status !== "completed" && (
-                          <Button size="sm" variant="ghost" onClick={() => resend(r.id, r.recipient_email)}>
+                         {(r.status as string) !== "responded" && r.status !== "completed" && (
+                           <Button size="sm" variant="ghost" onClick={() => resend(r.id, (r as any).recipient_email)}>
                             <Send className="h-3.5 w-3.5 mr-1" /> Resend
                           </Button>
                         )}
-                        <Button size="sm" variant="outline" onClick={() => copyLink(r.token)}><Copy className="h-3.5 w-3.5 mr-1" /> Copy</Button>
+                        <Button size="sm" variant="outline" onClick={() => copyLink((r as any).token)}><Copy className="h-3.5 w-3.5 mr-1" /> Copy</Button>
                       </TableCell>
                     </TableRow>
                   ))}

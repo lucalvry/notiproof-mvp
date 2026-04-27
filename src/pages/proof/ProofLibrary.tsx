@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+const db = supabase as any;
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,10 +33,20 @@ import { AssignToWidgetDialog } from "@/components/proof/AssignToWidgetDialog";
 import type { Database } from "@/integrations/supabase/types";
 import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
 
-type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"];
-type ProofStatus = Database["public"]["Enums"]["proof_status"];
-type ProofType = Database["public"]["Enums"]["proof_type"];
-type RequestRow = Database["public"]["Tables"]["testimonial_requests"]["Row"];
+type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"] & {
+  status?: string | null;
+  type?: string | null;
+  source?: string | null;
+  verified?: boolean | null;
+  raw_content?: string | null;
+  outcome_claim?: string | null;
+};
+type ProofStatus = string;
+type ProofType = "testimonial" | "review" | "purchase" | "signup" | "visitor_count" | "custom";
+type RequestRow = Database["public"]["Tables"]["testimonial_requests"]["Row"] & {
+  recipient_email?: string | null;
+  recipient_name?: string | null;
+};
 
 const PAGE_SIZE = 24;
 type TabKey = "all" | "approved" | "pending_review" | "rejected" | "requests";
@@ -117,14 +128,14 @@ export default function ProofLibrary() {
     if (!currentBusinessId) return;
     setLoading(true);
     Promise.all([
-      supabase.from("proof_objects").select("*").eq("business_id", currentBusinessId).order("created_at", { ascending: false }),
-      supabase.from("testimonial_requests").select("*").eq("business_id", currentBusinessId).order("created_at", { ascending: false }),
+      db.from("proof_objects").select("*").eq("business_id", currentBusinessId).order("created_at", { ascending: false }),
+      db.from("testimonial_requests").select("*").eq("business_id", currentBusinessId).order("created_at", { ascending: false }),
     ]).then(([p, r]) => {
       if (p.error) toast({ title: "Failed to load", description: p.error.message, variant: "destructive" });
       else {
-        const rows = p.data ?? [];
+        const rows = (p.data ?? []) as ProofRow[];
         setItems(rows);
-        const uniqSources = Array.from(new Set(rows.map((x) => x.source).filter(Boolean) as string[])).sort();
+        const uniqSources = Array.from(new Set(rows.map((x: any) => x.source).filter(Boolean) as string[])).sort();
         setSources(uniqSources);
       }
       if (!r.error) setRequests(r.data ?? []);
@@ -199,7 +210,7 @@ export default function ProofLibrary() {
     if (selected.size === 0) return;
     setBulkBusy(true);
     const ids = Array.from(selected);
-    const { error } = await supabase.from("proof_objects").update({ status }).in("id", ids);
+    const { error } = await db.from("proof_objects").update({ status }).in("id", ids);
     setBulkBusy(false);
     if (error) return toast({ title: "Bulk update failed", description: error.message, variant: "destructive" });
     toast({ title: `${ids.length} item${ids.length === 1 ? "" : "s"} ${status}` });
@@ -220,12 +231,12 @@ export default function ProofLibrary() {
         variant: "destructive",
       });
     } else {
-      toast({ title: "Email resent", description: `Sent to ${req.recipient_email}.` });
+      toast({ title: "Email resent", description: `Sent to ${(req as any).recipient_email}.` });
       load();
     }
   };
 
-  const requestStatusVariant = (s: RequestRow["status"]) =>
+  const requestStatusVariant = (s: any) =>
     s === "responded" || s === "completed"
       ? "default"
       : s === "sent" || s === "opened"
@@ -381,7 +392,7 @@ export default function ProofLibrary() {
                 <ul className="divide-y rounded-md border">
                   {requests.map((r) => {
                     const isExpired = new Date(r.expires_at).getTime() < Date.now() || r.status === "expired";
-                    const canResend = r.status !== "responded" && r.status !== "completed";
+                    const canResend = (r.status as string) !== "responded" && r.status !== "completed";
                     return (
                       <li key={r.id} className="flex items-center gap-3 p-3">
                         <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -392,7 +403,7 @@ export default function ProofLibrary() {
                           <div className="text-xs text-muted-foreground truncate">{r.recipient_email}</div>
                         </div>
                         <Badge variant={requestStatusVariant(r.status)} className="capitalize text-xs">
-                          {isExpired && r.status !== "responded" && r.status !== "completed" ? "expired" : r.status}
+                          {isExpired && (r.status as string) !== "responded" && r.status !== "completed" ? "expired" : r.status}
                         </Badge>
                         <span className="text-xs text-muted-foreground hidden sm:inline-flex items-center gap-1">
                           <Clock className="h-3 w-3" /> {new Date(r.created_at).toLocaleDateString()}

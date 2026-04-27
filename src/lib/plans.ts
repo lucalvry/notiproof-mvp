@@ -15,7 +15,7 @@
 //   8. dataRetentionDays — how long widget_events are kept
 //   9. teamSeatsIncluded — included seats; extras billed at extraSeatPriceUsd
 
-export type PlanKey = "free" | "starter" | "growth" | "scale";
+export type PlanKey = "free" | "starter" | "growth" | "agency";
 export type BillingInterval = "monthly" | "yearly";
 
 export interface PlanDefinition {
@@ -154,8 +154,8 @@ export const PLANS: PlanDefinition[] = [
     ],
   },
   {
-    key: "scale",
-    name: "Scale",
+    key: "agency",
+    name: "Agency",
     tagline: "For high-volume teams",
     monthlyPriceUsd: 199,
     yearlyMonthlyPriceUsd: 166,
@@ -171,8 +171,8 @@ export const PLANS: PlanDefinition[] = [
     teamSeatsIncluded: 1,
     extraSeatPriceUsd: 3,
     stripePriceSecrets: {
-      monthly: "STRIPE_PRICE_SCALE_MONTHLY",
-      yearly: "STRIPE_PRICE_SCALE_YEARLY",
+      monthly: "STRIPE_PRICE_AGENCY_MONTHLY",
+      yearly: "STRIPE_PRICE_AGENCY_YEARLY",
     },
     features: [
       "Unlimited websites",

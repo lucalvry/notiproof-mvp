@@ -59,7 +59,12 @@ import type { Database } from "@/integrations/supabase/types";
 import { WooCommerceConnectDialog } from "@/components/integrations/WooCommerceConnectDialog";
 import { ProviderConnectCard } from "@/components/integrations/ProviderConnectCard";
 
-type Integration = Database["public"]["Tables"]["integrations"]["Row"];
+type Integration = Database["public"]["Tables"]["integrations"]["Row"] & {
+  provider?: string;
+  last_sync_at?: string | null;
+  auto_request_delay_days?: number | null;
+  auto_request_delay_minutes?: number | null;
+};
 type Event = Database["public"]["Tables"]["integration_events"]["Row"];
 
 interface IntegrationConfig {
@@ -137,9 +142,9 @@ export default function IntegrationDetail() {
   const refetch = async () => {
     if (!id || !currentBusinessId) return;
     const [i, e] = await Promise.all([
-      supabase
+      (supabase as any)
         .from("integrations")
-        .select("id, business_id, platform, provider, status, config, auto_request_enabled, auto_request_delay_days, auto_request_delay_minutes, last_sync_at, created_at, updated_at")
+        .select("*")
         .eq("id", id)
         .eq("business_id", currentBusinessId)
         .maybeSingle(),
@@ -150,14 +155,15 @@ export default function IntegrationDetail() {
         .order("received_at", { ascending: false })
         .limit(20),
     ]);
-    if (i.data) {
+    if ((i as any).data) {
+      const idata: any = (i as any).data;
       setIntegration(i.data as any);
-      const cfg = (i.data.config ?? {}) as IntegrationConfig;
+      const cfg = (idata.config ?? {}) as IntegrationConfig;
       setDisplayName(cfg.display_name ?? "");
-      setAutoRequest(!!(i.data as any).auto_request_enabled || !!cfg.auto_request_enabled);
-      setDelayDays(String((i.data as any).auto_request_delay_days ?? 14));
+      setAutoRequest(!!idata.auto_request_enabled || !!cfg.auto_request_enabled);
+      setDelayDays(String(idata.auto_request_delay_days ?? 14));
       setShopDomain(cfg.shop ?? "");
-      if (i.data.platform === "woocommerce" || i.data.provider === "woocommerce") {
+      if (idata.platform === "woocommerce" || idata.provider === "woocommerce") {
         loadWooSummary();
       }
     }
@@ -189,7 +195,7 @@ export default function IntegrationDetail() {
     setSaving(true);
     const cfg = (integration.config ?? {}) as IntegrationConfig;
     const days = Math.max(0, Math.min(60, Number(delayDays) || 0));
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("integrations")
       .update({
         auto_request_enabled: autoRequest,

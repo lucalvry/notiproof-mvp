@@ -18,9 +18,27 @@ import { ArrowLeft, Check, Copy, Loader2, Mail, Send, Star, Trash2, X } from "lu
 import type { Database } from "@/integrations/supabase/types";
 import { proofEditSchema, proofRequestSchema, fieldErrors } from "@/lib/validation";
 
-type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"];
-type ProofStatus = Database["public"]["Enums"]["proof_status"];
-type RequestRow = Database["public"]["Tables"]["testimonial_requests"]["Row"];
+type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"] & {
+  status?: string | null;
+  type?: string | null;
+  proof_type?: string | null;
+  source?: string | null;
+  verified?: boolean | null;
+  author_email?: string | null;
+  outcome_claim?: string | null;
+  transcript?: string | null;
+  highlight_phrase?: string | null;
+  cta_label?: string | null;
+  cta_url?: string | null;
+};
+type ProofStatus = string;
+type RequestRow = Database["public"]["Tables"]["testimonial_requests"]["Row"] & {
+  recipient_email?: string | null;
+  recipient_name?: string | null;
+  responded_at?: string | null;
+  token?: string | null;
+};
+const db = supabase as any;
 
 export default function ProofDetail() {
   const { id } = useParams<{ id: string }>();
@@ -49,10 +67,10 @@ export default function ProofDetail() {
   useEffect(() => {
     if (!id || !currentBusinessId) return;
     setLoading(true);
-    supabase.from("proof_objects").select("*").eq("id", id).eq("business_id", currentBusinessId).maybeSingle()
+    db.from("proof_objects").select("*").eq("id", id).eq("business_id", currentBusinessId).maybeSingle()
       .then(({ data, error }) => {
         if (error) toast({ title: "Failed to load", description: error.message, variant: "destructive" });
-        setProof(data);
+        setProof(data as any);
         setLoading(false);
         if (data?.id) {
           loadRequests(data.id);
@@ -67,10 +85,10 @@ export default function ProofDetail() {
   const setStatus = async (status: ProofStatus) => {
     if (!proof) return;
     setSaving(true);
-    const { error } = await supabase.from("proof_objects").update({ status }).eq("id", proof.id);
+    const { error } = await db.from("proof_objects").update({ status }).eq("id", proof.id);
     setSaving(false);
     if (error) return toast({ title: "Failed", description: error.message, variant: "destructive" });
-    setProof({ ...proof, status });
+    setProof({ ...proof, status } as any);
     toast({ title: status === "approved" ? "Approved" : status });
   };
 
@@ -91,7 +109,7 @@ export default function ProofDetail() {
       return toast({ title: "Check your edits", description: first, variant: "destructive" });
     }
     setSaving(true);
-    const { error } = await supabase.from("proof_objects").update({
+    const { error } = await db.from("proof_objects").update({
       author_name: proof.author_name,
       content: proof.content,
       rating: proof.rating,
@@ -99,7 +117,7 @@ export default function ProofDetail() {
       verified: proof.verified,
       highlight_phrase: highlight ? highlight : null,
       outcome_claim: outcome ? outcome : null,
-    } as Partial<ProofRow> & { highlight_phrase: string | null }).eq("id", proof.id);
+    }).eq("id", proof.id);
     setSaving(false);
     if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
     toast({ title: "Changes saved" });
@@ -134,7 +152,7 @@ export default function ProofDetail() {
     const email = parsed.data.recipient_email;
     setRequestSending(true);
 
-    const { data: inserted, error } = await supabase
+    const { data: inserted, error } = await db
       .from("testimonial_requests")
       .insert({
         business_id: currentBusinessId,
@@ -157,7 +175,7 @@ export default function ProofDetail() {
 
     // Persist email back to the proof so future re-sends prefill correctly.
     if (!proof.author_email && email) {
-      await supabase.from("proof_objects").update({ author_email: email }).eq("id", proof.id);
+      await db.from("proof_objects").update({ author_email: email }).eq("id", proof.id);
     }
 
     const { data: sendResp, error: sendErr } = await supabase.functions.invoke(

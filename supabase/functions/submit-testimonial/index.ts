@@ -4,6 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { parseBody, submitTestimonialBody } from "../_shared/validation.ts";
 import { rateLimit, tooMany, callerIp } from "../_shared/rate-limit.ts";
+import { encryptString, piiEncryptionEnabled } from "../_shared/pii-crypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -98,7 +99,7 @@ Deno.serve(async (req) => {
       proof_type: proofType,
       type: proofType,
       author_name,
-      author_email, // hashed by DB trigger; raw value nullified after update
+      author_email, // hashed by DB trigger; raw value nullified after update for testimonials
       content: content.trim(),
       raw_content: content.trim(),
       rating: ratingNum,
@@ -107,6 +108,16 @@ Deno.serve(async (req) => {
       status: "pending_review",
       updated_at: new Date().toISOString(),
     };
+    // Also store the AES-GCM-encrypted email so we can recover it if needed
+    // (e.g. to send a follow-up). The DB trigger nulls the plaintext column
+    // for testimonial proofs.
+    if (piiEncryptionEnabled && author_email && author_email.trim().length > 0) {
+      try {
+        updateRow.author_email_encrypted = await encryptString(author_email.trim());
+      } catch (e) {
+        console.error("[submit-testimonial] Failed to encrypt email:", e);
+      }
+    }
     if (media_url) {
       if (isVideo) {
         updateRow.video_url = media_url;

@@ -14,7 +14,7 @@ import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
 import { usePlanUsage } from "@/lib/plan-helpers";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-type Widget = Database["public"]["Tables"]["widgets"]["Row"];
+type Widget = Database["public"]["Tables"]["widgets"]["Row"] & { type?: string };
 
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   active: "default", draft: "outline", paused: "secondary",
@@ -56,7 +56,7 @@ export default function WidgetsList() {
   const duplicate = async (w: Widget) => {
     if (!currentBusinessId) return;
     setDuplicating(w.id);
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("widgets")
       .insert({
         business_id: currentBusinessId,

@@ -2,6 +2,7 @@
 // Stores credentials (consumer_key, consumer_secret, store_url, webhook_secret)
 // inside `integrations.credentials` jsonb. No raw secrets ever return to the client.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { encryptJson, decryptJson, piiEncryptionEnabled } from "../_shared/pii-crypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -141,7 +142,7 @@ Deno.serve(async (req) => {
 
     const { data: integ } = await admin
       .from("integrations")
-      .select("id, business_id, platform, provider, credentials, config, status, auto_request_enabled, auto_request_delay_days")
+      .select("id, business_id, platform, provider, credentials, credentials_encrypted, config, status, auto_request_enabled, auto_request_delay_days")
       .eq("id", integrationId)
       .maybeSingle();
     if (!integ) return json({ error: "Integration not found" }, 404);
@@ -163,11 +164,43 @@ Deno.serve(async (req) => {
     if (!allowed) return json({ error: "Not allowed" }, 403);
 
     const cfg = (integ.config ?? {}) as Record<string, unknown>;
-    const creds = (integ.credentials ?? {}) as Record<string, string | undefined>;
+    let creds: Record<string, string | undefined> = {};
+    if (piiEncryptionEnabled && integ.credentials_encrypted) {
+      const decoded = await decryptJson<Record<string, string | undefined>>(integ.credentials_encrypted as unknown as string);
+      creds = decoded ?? {};
+    } else {
+      creds = (integ.credentials ?? {}) as Record<string, string | undefined>;
+    }
     const storeUrl = creds.store_url ?? (cfg.store_url as string) ?? "";
     const ck = creds.consumer_key;
     const cs = creds.consumer_secret;
     const webhookSecret = creds.webhook_secret ?? null;
+
+    const integRowId = integ.id;
+    const integBusinessId = integ.business_id;
+    async function writeCreds(next: Record<string, string | undefined>, status: string, extra: Record<string, unknown> = {}) {
+      const update: Record<string, unknown> = {
+        ...extra,
+        status,
+        updated_at: new Date().toISOString(),
+      };
+      if (piiEncryptionEnabled) {
+        update.credentials_encrypted = await encryptJson(next);
+        update.credentials = {};
+      } else {
+        update.credentials = next;
+      }
+      const { error: upErr } = await admin.from("integrations").update(update).eq("id", integRowId);
+      if (upErr) throw new Error(upErr.message);
+      await admin.from("pii_encryption_audit").insert({
+        actor_user_id: userId,
+        business_id: integBusinessId,
+        resource_table: "integrations",
+        resource_id: integRowId,
+        action: status === "disconnected" ? "clear" : "encrypt",
+        context: { field: "credentials", provider: "woocommerce" },
+      });
+    }
 
     // ---- summary -----------------------------------------------------------
     if (action === "summary") {
@@ -223,16 +256,11 @@ Deno.serve(async (req) => {
       };
       const nextConfig = { ...cfg, store_url: normalized };
 
-      const { error: upErr } = await admin
-        .from("integrations")
-        .update({
-          credentials: nextCreds,
-          config: nextConfig,
-          status: "connected",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", integ.id);
-      if (upErr) return json({ error: upErr.message }, 500);
+      try {
+        await writeCreds(nextCreds, "connected", { config: nextConfig });
+      } catch (e) {
+        return json({ error: e instanceof Error ? e.message : "Update failed" }, 500);
+      }
 
       return json({
         ok: true,
@@ -397,15 +425,11 @@ Deno.serve(async (req) => {
       delete next.consumer_key;
       delete next.consumer_secret;
       delete next.webhook_secret;
-      const { error: upErr } = await admin
-        .from("integrations")
-        .update({
-          credentials: next,
-          status: "disconnected",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", integ.id);
-      if (upErr) return json({ error: upErr.message }, 500);
+      try {
+        await writeCreds(next, "disconnected");
+      } catch (e) {
+        return json({ error: e instanceof Error ? e.message : "Update failed" }, 500);
+      }
       return json({ ok: true });
     }
 

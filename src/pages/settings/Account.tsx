@@ -45,7 +45,7 @@ export default function AccountSettings() {
       return toast({ title: "Check your details", description: parsed.error, variant: "destructive" });
     }
     setSavingProfile(true);
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("users")
       .update({ full_name: parsed.data.full_name, avatar_url: parsed.data.avatar_url ?? null })
       .eq("id", user.id);

@@ -84,16 +84,18 @@ export default function Collect() {
     })();
   }, [token]);
 
-  // Pick the best supported MIME type. iOS Safari needs mp4; Android/Desktop Chrome
-  // and Firefox prefer webm. Falling back to '' lets the browser choose its default.
+  // Pick the best supported MIME type. iOS Safari only supports mp4/h264 — try it
+  // first so iPhone visitors don't fall through to an unsupported webm path.
+  // Android Chrome and desktop browsers will skip past mp4 candidates and land on webm.
   const pickRecorderMime = (): { mime: string; ext: string; contentType: string } => {
     if (typeof MediaRecorder === "undefined") return { mime: "", ext: "webm", contentType: "video/webm" };
     const candidates: Array<{ mime: string; ext: string; contentType: string }> = [
+      { mime: "video/mp4;codecs=avc1.42E01E,mp4a.40.2", ext: "mp4", contentType: "video/mp4" },
+      { mime: "video/mp4;codecs=h264,aac", ext: "mp4", contentType: "video/mp4" },
+      { mime: "video/mp4", ext: "mp4", contentType: "video/mp4" },
       { mime: "video/webm;codecs=vp9,opus", ext: "webm", contentType: "video/webm" },
       { mime: "video/webm;codecs=vp8,opus", ext: "webm", contentType: "video/webm" },
       { mime: "video/webm", ext: "webm", contentType: "video/webm" },
-      { mime: "video/mp4;codecs=h264,aac", ext: "mp4", contentType: "video/mp4" },
-      { mime: "video/mp4", ext: "mp4", contentType: "video/mp4" },
     ];
     for (const c of candidates) {
       if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c.mime)) return c;

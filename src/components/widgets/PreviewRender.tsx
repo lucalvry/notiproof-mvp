@@ -3,10 +3,17 @@ import { Award, ChevronLeft, ChevronRight, MessageSquareQuote, Star, X } from "l
 import type { Database } from "@/integrations/supabase/types";
 
 type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"];
-// `poster_url` and `highlight_phrase` may not yet appear in the generated types.
+// Some columns referenced here (poster_url, highlight_phrase, type, author_role,
+// author_company, author_company_logo_url, author_photo_url) may not yet appear
+// in the generated DB types. Treat them as optional.
 type Proof = ProofRow & {
   poster_url?: string | null;
   highlight_phrase?: string | null;
+  type?: string | null;
+  author_role?: string | null;
+  author_company?: string | null;
+  author_company_logo_url?: string | null;
+  author_photo_url?: string | null;
 };
 
 export interface WidgetConfig {

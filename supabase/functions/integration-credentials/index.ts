@@ -8,6 +8,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { rateLimit, tooMany } from "../_shared/rate-limit.ts";
 import { uuidSchema } from "../_shared/validation.ts";
+import { encryptJson, decryptJson, piiEncryptionEnabled } from "../_shared/pii-crypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,7 +62,7 @@ Deno.serve(async (req) => {
 
     const { data: integ } = await admin
       .from("integrations")
-      .select("id, business_id, provider, credentials, status")
+      .select("id, business_id, provider, credentials, credentials_encrypted, status")
       .eq("id", integrationId)
       .maybeSingle();
     if (!integ) return json({ error: "Integration not found" }, 404);
@@ -80,7 +81,41 @@ Deno.serve(async (req) => {
     const allowed = profile?.is_admin || role === "owner" || role === "editor";
     if (!allowed) return json({ error: "Not allowed" }, 403);
 
-    const creds = (integ.credentials ?? {}) as Record<string, string | undefined>;
+    // Resolve current credentials: prefer encrypted, fall back to plaintext jsonb.
+    let creds: Record<string, string | undefined> = {};
+    if (piiEncryptionEnabled && integ.credentials_encrypted) {
+      const decoded = await decryptJson<Record<string, string | undefined>>(
+        integ.credentials_encrypted as unknown as string,
+      );
+      creds = decoded ?? {};
+    } else {
+      creds = (integ.credentials ?? {}) as Record<string, string | undefined>;
+    }
+
+    const integBusinessId = integ.business_id;
+    const integRowId = integ.id;
+    async function persistCreds(next: Record<string, string | undefined>, status: string) {
+      const update: Record<string, unknown> = {
+        status,
+        updated_at: new Date().toISOString(),
+      };
+      if (piiEncryptionEnabled) {
+        update.credentials_encrypted = await encryptJson(next);
+        update.credentials = {}; // clear plaintext
+      } else {
+        update.credentials = next;
+      }
+      const { error: upErr } = await admin.from("integrations").update(update).eq("id", integrationId);
+      if (upErr) throw new Error(upErr.message);
+      await admin.from("pii_encryption_audit").insert({
+        actor_user_id: userId,
+        business_id: integBusinessId,
+        resource_table: "integrations",
+        resource_id: integRowId,
+        action: status === "disconnected" ? "clear" : "encrypt",
+        context: { field: "credentials" },
+      });
+    }
 
     if (action === "summary") {
       return json({
@@ -89,6 +124,7 @@ Deno.serve(async (req) => {
         masked_token: maskSecret(creds.access_token ?? null),
         provider: integ.provider,
         status: integ.status,
+        encrypted: piiEncryptionEnabled && !!integ.credentials_encrypted,
       });
     }
 
@@ -98,22 +134,22 @@ Deno.serve(async (req) => {
         return json({ error: "Provide a valid access token" }, 400);
       }
       const next = { ...creds, access_token: accessToken.trim() };
-      const { error: upErr } = await admin
-        .from("integrations")
-        .update({ credentials: next, status: "connected", updated_at: new Date().toISOString() })
-        .eq("id", integrationId);
-      if (upErr) return json({ error: upErr.message }, 500);
+      try {
+        await persistCreds(next, "connected");
+      } catch (e) {
+        return json({ error: e instanceof Error ? e.message : "Update failed" }, 500);
+      }
       return json({ ok: true, masked_token: maskSecret(accessToken) });
     }
 
     if (action === "clear") {
       const next = { ...creds };
       delete next.access_token;
-      const { error: upErr } = await admin
-        .from("integrations")
-        .update({ credentials: next, status: "disconnected", updated_at: new Date().toISOString() })
-        .eq("id", integrationId);
-      if (upErr) return json({ error: upErr.message }, 500);
+      try {
+        await persistCreds(next, "disconnected");
+      } catch (e) {
+        return json({ error: e instanceof Error ? e.message : "Update failed" }, 500);
+      }
       return json({ ok: true });
     }
 

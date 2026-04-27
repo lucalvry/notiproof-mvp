@@ -98,20 +98,20 @@ export default function Analytics() {
         _start: startIso,
         _end: endIso,
       }),
-      supabase.rpc("get_top_proof_performance", {
+      (supabase as any).rpc("get_top_proof_performance", {
         _business_id: currentBusinessId,
         _start: startIso,
         _end: endIso,
         _limit: 10,
       }),
-      supabase
+      (supabase as any)
         .from("proof_objects")
         .select("type, created_at")
         .eq("business_id", currentBusinessId)
         .gte("created_at", startIso)
         .lte("created_at", endIso)
         .limit(5000),
-      supabase
+      (supabase as any)
         .from("testimonial_requests")
         .select("status, sent_at, responded_at, completed_at")
         .eq("business_id", currentBusinessId)
@@ -136,7 +136,7 @@ export default function Analytics() {
 
       // Proof by type
       const typeCounts = new Map<string, number>();
-      (proofRes.data ?? []).forEach((p) => {
+      ((proofRes.data ?? []) as any[]).forEach((p) => {
         typeCounts.set(p.type as string, (typeCounts.get(p.type as string) ?? 0) + 1);
       });
       setProofByType(
@@ -146,7 +146,7 @@ export default function Analytics() {
       );
 
       // Testimonial response rate
-      const reqs = requestsRes.data ?? [];
+      const reqs = (requestsRes.data ?? []) as any[];
       const sent = reqs.filter((r) => r.sent_at).length;
       const responded = reqs.filter(
         (r) =>

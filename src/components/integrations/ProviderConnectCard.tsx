@@ -48,7 +48,9 @@ interface Props {
 
 export function ProviderConnectCard({ integration, onChanged }: Props) {
   const { toast } = useToast();
-  const provider = integration.provider;
+  // `provider` may not appear on the typed integration row depending on the
+  // generated types; fall back to the platform field which always exists.
+  const provider = ((integration as any).provider ?? (integration as any).platform) as string;
   if (
     provider !== "google_reviews" &&
     provider !== "trustpilot" &&

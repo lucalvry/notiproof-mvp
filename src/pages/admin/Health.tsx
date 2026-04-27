@@ -23,6 +23,8 @@ import {
   RefreshCw,
   RotateCcw,
   ShieldCheck,
+  Trash2,
+  PlayCircle,
 } from "lucide-react";
 import { generateVideoPoster } from "@/lib/bunny-upload";
 
@@ -66,6 +68,8 @@ export default function Health() {
   const [info, setInfo] = useState<HealthInfo | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [backfilling, setBackfilling] = useState(false);
+  const [draining, setDraining] = useState(false);
+  const [resyncing, setResyncing] = useState<string | null>(null);
 
   const backfillPosters = async () => {
     setBackfilling(true);
@@ -172,6 +176,60 @@ export default function Health() {
     load();
   };
 
+  /**
+   * Bulk re-queue every failed integration event from the last 24h.
+   * Spec ADM-04: "Drain dead-letter queue."
+   */
+  const drainFailed = async () => {
+    if (!info || info.failedEvents.length === 0) return;
+    if (!confirm(`Re-queue ${info.failed_24h} failed event(s) from the last 24 hours?`)) return;
+    setDraining(true);
+    let ok = 0;
+    let bad = 0;
+    for (const ev of info.failedEvents) {
+      const { error } = await db.rpc("admin_replay_integration_event", { _event_id: ev.id });
+      if (error) bad++;
+      else ok++;
+    }
+    setDraining(false);
+    toast({
+      title: "Drain complete",
+      description: `${ok} re-queued${bad > 0 ? `, ${bad} failed` : ""}.`,
+      variant: bad > 0 ? "destructive" : "default",
+    });
+    load();
+  };
+
+  /**
+   * Manually trigger a re-sync for a single integration. Spec ADM-04:
+   * "Trigger manual re-sync for any integration." Routes to the matching
+   * import edge function based on provider.
+   */
+  const resyncIntegration = async (row: IntegrationHealthRow) => {
+    setResyncing(row.integration_id);
+    let fn = "";
+    if (row.provider === "google_reviews") fn = "integration-google-reviews";
+    else if (row.provider === "woocommerce") fn = "integration-woocommerce";
+    else fn = "integration-reviews-import";
+    const { error } = await supabase.functions.invoke(fn, {
+      body: { integration_id: row.integration_id, business_id: row.business_id, manual: true },
+    });
+    setResyncing(null);
+    if (error) {
+      return toast({ title: "Re-sync failed", description: error.message, variant: "destructive" });
+    }
+    await db.rpc("log_admin_action", {
+      _business_id: row.business_id,
+      _action: "integration_resync",
+      _details: { provider: row.provider, integration_id: row.integration_id },
+    });
+    toast({
+      title: "Re-sync triggered",
+      description: `${row.provider} for ${row.business_name} is syncing.`,
+    });
+    load();
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -235,7 +293,20 @@ export default function Health() {
       {/* Failed events with replay */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Failed integration events (last 24h)</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base">Failed integration events (last 24h)</CardTitle>
+            {info && info.failedEvents.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={drainFailed}
+                disabled={draining}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                {draining ? "Draining…" : `Drain all (${info.failed_24h})`}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {!info ? (
@@ -300,6 +371,7 @@ export default function Health() {
                   <TableHead className="text-right">Processed</TableHead>
                   <TableHead className="text-right">Success</TableHead>
                   <TableHead>Last sync</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -340,6 +412,17 @@ export default function Health() {
                         {row.last_sync_at
                           ? new Date(row.last_sync_at).toLocaleString()
                           : "Never"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => resyncIntegration(row)}
+                          disabled={resyncing === row.integration_id}
+                        >
+                          <PlayCircle className="h-3.5 w-3.5 mr-1" />
+                          {resyncing === row.integration_id ? "…" : "Re-sync"}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );

@@ -71,9 +71,9 @@ export default function ProfileSettings() {
 
   useEffect(() => {
     if (!currentBusinessId) return;
-    supabase.from("businesses").select("*").eq("id", currentBusinessId).maybeSingle()
+    (supabase as any).from("businesses").select("*").eq("id", currentBusinessId).maybeSingle()
       .then(({ data }) => {
-        setB(data);
+        setB(data as any);
         const rawSettings = ((data?.settings ?? {}) as BusinessSettings);
         setSettings({
           ...rawSettings,
@@ -90,7 +90,7 @@ export default function ProfileSettings() {
     if (!b) return;
     const parsed = parseOrError(businessSettingsSchema, {
       name: b.name,
-      website_url: b.website_url || undefined,
+      website_url: (b as any).website_url || undefined,
       industry: settings.industry || undefined,
       brand_color: settings.brand_color || undefined,
       time_zone: settings.time_zone || "UTC",
@@ -99,7 +99,7 @@ export default function ProfileSettings() {
       return toast({ title: "Check your details", description: parsed.error, variant: "destructive" });
     }
     setSaving(true);
-    const mergedSettings = { ...((b.settings as BusinessSettings | null) ?? {}), ...settings };
+    const mergedSettings = { ...(((b as any).settings as BusinessSettings | null) ?? {}), ...settings };
     const { error } = await supabase.from("businesses").update({
       name: parsed.data.name,
       logo_url: b.logo_url,

@@ -23,8 +23,24 @@ import type { Database } from "@/integrations/supabase/types";
 import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
 import { WooCommerceConnectDialog } from "@/components/integrations/WooCommerceConnectDialog";
 
-type Integration = Database["public"]["Tables"]["integrations"]["Row"];
-type Provider = Database["public"]["Enums"]["integration_provider"];
+type Integration = Database["public"]["Tables"]["integrations"]["Row"] & {
+  provider?: string;
+  last_sync_at?: string | null;
+  auto_request_delay_days?: number | null;
+  auto_request_delay_minutes?: number | null;
+};
+type Provider =
+  | "stripe"
+  | "shopify"
+  | "woocommerce"
+  | "gumroad"
+  | "webhook"
+  | "zapier"
+  | "google_reviews"
+  | "trustpilot"
+  | "g2"
+  | "plaid"
+  | "wordpress";
 
 const db = supabase as any;
 
@@ -118,15 +134,15 @@ export default function IntegrationsList() {
     if (!currentBusinessId) return;
     setLoading(true);
     const [{ data, error }, statsRes] = await Promise.all([
-      supabase
+      (supabase as any)
         .from("integrations")
-        .select("id, business_id, platform, provider, status, config, auto_request_enabled, auto_request_delay_days, auto_request_delay_minutes, last_sync_at, created_at, updated_at")
+        .select("*")
         .eq("business_id", currentBusinessId)
         .order("created_at", { ascending: false }),
       db.rpc("business_integration_stats", { _business_id: currentBusinessId }),
     ]);
     if (error) toast({ title: "Failed to load", description: error.message, variant: "destructive" });
-    else setItems(((data ?? []) as any[]).filter((i: Integration) => i.provider !== "stripe"));
+    else setItems(((data ?? []) as any[]).filter((i: any) => (i.provider ?? i.platform) !== "stripe"));
     const map = new Map<string, IntegrationStat>();
     ((statsRes.data ?? []) as IntegrationStat[]).forEach((s) => map.set(s.integration_id, s));
     setStats(map);
@@ -222,20 +238,21 @@ export default function IntegrationsList() {
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-3">
-              {items.map((i) => {
+              {items.map((i: any) => {
                 const cfg = (i.config ?? {}) as { display_name?: string };
                 const stat = stats.get(i.id);
+                const provider = (i.provider ?? i.platform) as Provider;
                 return (
                   <Card key={i.id} className="border">
                     <CardContent className="pt-4 space-y-3">
                       <div className="flex items-start gap-3">
-                        <ProviderMark id={i.provider} label={providerLabels[i.provider]} />
+                        <ProviderMark id={provider} label={providerLabels[provider] ?? provider} />
                         <div className="flex-1 min-w-0">
                           <div className="font-medium truncate">
-                            {cfg.display_name ?? providerLabels[i.provider]}
+                            {cfg.display_name ?? providerLabels[provider] ?? provider}
                           </div>
                           <div className="text-xs text-muted-foreground capitalize truncate">
-                            {i.provider.replace("_", " ")}
+                            {String(provider).replace("_", " ")}
                           </div>
                         </div>
                         <Badge variant={statusVariant[i.status]} className="capitalize flex-shrink-0">
@@ -251,7 +268,7 @@ export default function IntegrationsList() {
                         </div>
                         <div>
                           <div className="font-medium text-foreground">
-                            {i.last_sync_at
+                            {(i as any).last_sync_at
                               ? new Date(i.last_sync_at).toLocaleDateString()
                               : stat?.last_event_at
                                 ? new Date(stat.last_event_at).toLocaleDateString()
@@ -280,7 +297,7 @@ export default function IntegrationsList() {
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>
-                                Disconnect {cfg.display_name ?? providerLabels[i.provider]}?
+                                Disconnect {cfg.display_name ?? providerLabels[provider] ?? provider}?
                               </AlertDialogTitle>
                               <AlertDialogDescription>
                                 Events will stop flowing into NotiProof. Existing proof items remain.

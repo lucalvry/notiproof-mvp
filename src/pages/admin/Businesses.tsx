@@ -31,7 +31,7 @@ interface BusinessRow extends B {
   primary_domain?: string | null;
 }
 
-const PLAN_OPTIONS = ["any", "free", "starter", "growth", "scale"] as const;
+const PLAN_OPTIONS = ["any", "free", "starter", "growth", "agency"] as const;
 const STATUS_OPTIONS = ["any", "active", "suspended", "onboarding", "installed"] as const;
 const DATE_OPTIONS = [
   { value: "any", label: "All time" },

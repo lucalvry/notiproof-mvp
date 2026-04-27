@@ -14,8 +14,23 @@ import { Check, X, ShieldCheck, Sparkles, Flag, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
 
-type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"];
-type ProofStatus = Database["public"]["Enums"]["proof_status"];
+// Widened with optional legacy fields not present in generated DB types.
+type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"] & {
+  source?: string | null;
+  type?: string | null;
+  status?: string | null;
+  media_type?: string | null;
+  video_url?: string | null;
+  outcome_claim?: string | null;
+  ai_confidence?: number | null;
+  source_metadata?: Record<string, unknown> | null;
+  transcript?: string | null;
+  raw_content?: string | null;
+  author_email?: string | null;
+};
+type ProofStatus = string;
+
+const db = supabase as any;
 
 export default function Moderation() {
   const { toast } = useToast();
@@ -29,13 +44,13 @@ export default function Moderation() {
 
   const load = () => {
     setLoading(true);
-    supabase
+    db
       .from("proof_objects")
       .select("*")
       .in("status", ["pending_review", "pending"])
       .order("created_at", { ascending: false })
       .limit(200)
-      .then(({ data }) => {
+      .then(({ data }: { data: ProofRow[] | null }) => {
         setItems(data ?? []);
         setLoading(false);
         setSelected(new Set());
@@ -44,7 +59,7 @@ export default function Moderation() {
   useEffect(load, []);
 
   const decide = async (id: string, status: ProofStatus, extra: Partial<ProofRow> = {}): Promise<void> => {
-    const { error } = await supabase.from("proof_objects").update({ status, ...extra }).eq("id", id);
+    const { error } = await db.from("proof_objects").update({ status, ...extra }).eq("id", id);
     if (error) {
       toast({ title: "Failed", description: error.message, variant: "destructive" });
       return;
@@ -57,7 +72,7 @@ export default function Moderation() {
     if (selected.size === 0) return;
     setBulkBusy(true);
     const ids = Array.from(selected);
-    const { error } = await supabase.from("proof_objects").update({ status }).in("id", ids);
+    const { error } = await db.from("proof_objects").update({ status }).in("id", ids);
     setBulkBusy(false);
     if (error) return toast({ title: "Failed", description: error.message, variant: "destructive" });
     setItems((s) => s.filter((x) => !selected.has(x.id)));
@@ -66,7 +81,7 @@ export default function Moderation() {
   };
 
   const markSpam = async (id: string) => {
-    const { data: row } = await supabase
+    const { data: row } = await db
       .from("proof_objects")
       .select("tags, source_metadata")
       .eq("id", id)

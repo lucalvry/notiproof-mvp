@@ -107,7 +107,7 @@ export default function BillingSettings() {
       storageMbUsed = Math.round(usageRow.storage_bytes / (1024 * 1024));
     }
 
-    if (bizRes.data) setBilling(bizRes.data as BusinessBilling);
+    if ((bizRes as any).data) setBilling((bizRes as any).data as BusinessBilling);
     setUsage({
       proofThisMonth: proofRes.count ?? 0,
       eventsThisMonth: eventRes.count ?? 0,

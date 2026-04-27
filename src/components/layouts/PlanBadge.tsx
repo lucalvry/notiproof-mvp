@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-type PlanKey = "free" | "starter" | "growth" | "scale" | string | null | undefined;
+type PlanKey = "free" | "starter" | "growth" | "agency" | string | null | undefined;
 
 const PLAN_STYLES: Record<string, { label: string; className: string }> = {
   free: {
@@ -18,8 +18,8 @@ const PLAN_STYLES: Record<string, { label: string; className: string }> = {
     className:
       "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-transparent",
   },
-  scale: {
-    label: "Scale",
+  agency: {
+    label: "Agency",
     className:
       "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-transparent",
   },

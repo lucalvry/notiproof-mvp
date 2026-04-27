@@ -30,7 +30,7 @@ export default function OnbWidget() {
     if (!currentBusinessId) return;
     setLoading(true);
     const typeMap = { floating: "popup", inline: "inline", badge: "banner" } as const;
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("widgets")
       .insert({
         business_id: currentBusinessId,

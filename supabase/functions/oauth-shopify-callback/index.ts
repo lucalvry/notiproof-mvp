@@ -1,5 +1,6 @@
 // Shopify OAuth callback: exchanges code for access token and saves credentials.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { encryptJson, piiEncryptionEnabled } from "../_shared/pii-crypto.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -44,12 +45,19 @@ Deno.serve(async (req) => {
   const tokenData = await tokenRes.json();
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
-  const { error } = await supabase.from("integrations").update({
+  const credsObj = { access_token: tokenData.access_token, scope: tokenData.scope };
+  const update: Record<string, unknown> = {
     status: "connected",
-    credentials: { access_token: tokenData.access_token, scope: tokenData.scope },
     config: { shop, display_name: shop.replace(".myshopify.com", "") },
     last_sync_at: new Date().toISOString(),
-  }).eq("id", state.integration_id);
+  };
+  if (piiEncryptionEnabled) {
+    update.credentials_encrypted = await encryptJson(credsObj);
+    update.credentials = {};
+  } else {
+    update.credentials = credsObj;
+  }
+  const { error } = await supabase.from("integrations").update(update).eq("id", state.integration_id);
 
   if (error) {
     console.error("Failed to save integration", error);

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Save, Loader2, Eye } from "lucide-react";
+import { Save, Loader2, Eye, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,6 +48,7 @@ export default function EmailSettings() {
   const [active, setActive] = useState<"initial" | "reminder">("initial");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
 
   const canEdit = currentBusinessRole === "owner" || currentBusinessRole === "editor";
 
@@ -92,7 +93,7 @@ export default function EmailSettings() {
   useEffect(() => {
     if (!currentBusinessId) return;
     setLoading(true);
-    supabase
+    (supabase as any)
       .from("businesses")
       .select("settings, name, logo_url, brand_color")
       .eq("id", currentBusinessId)
@@ -117,7 +118,7 @@ export default function EmailSettings() {
   const save = async () => {
     if (!currentBusinessId) return;
     setSaving(true);
-    const { data: row } = await supabase
+    const { data: row } = await (supabase as any)
       .from("businesses")
       .select("settings")
       .eq("id", currentBusinessId)
@@ -129,7 +130,7 @@ export default function EmailSettings() {
       // Keep legacy key in sync for older code paths
       email_template: initial,
     };
-    const { error } = await supabase.from("businesses").update({ settings: next }).eq("id", currentBusinessId);
+    const { error } = await (supabase as any).from("businesses").update({ settings: next }).eq("id", currentBusinessId);
     setSaving(false);
     if (error) {
       toast({ title: "Save failed", description: error.message, variant: "destructive" });
@@ -221,7 +222,34 @@ export default function EmailSettings() {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!currentBusinessId) return;
+                setSendingTest(true);
+                const { data, error } = await supabase.functions.invoke("send-test-email", {
+                  body: { business_id: currentBusinessId, template: active },
+                });
+                setSendingTest(false);
+                if (error || (data as { error?: string })?.error) {
+                  toast({
+                    title: "Test email failed",
+                    description: error?.message || (data as { error?: string })?.error || "Unknown error",
+                    variant: "destructive",
+                  });
+                } else {
+                  toast({
+                    title: "Test email sent",
+                    description: `Check your inbox at ${(data as { sent_to?: string })?.sent_to ?? "your account email"}.`,
+                  });
+                }
+              }}
+              disabled={sendingTest || loading || !canEdit}
+            >
+              {sendingTest ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+              Send test to me
+            </Button>
             <Button onClick={save} disabled={saving || loading || !canEdit}>
               {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Save templates

@@ -23,8 +23,13 @@ const PLAN_LIMITS: Record<string, { proof: number; events: number }> = {
   free:    { proof: 100,     events: 10_000 },
   starter: { proof: 1_000,   events: 100_000 },
   growth:  { proof: 10_000,  events: 1_000_000 },
-  scale:   { proof: 100_000, events: 10_000_000 },
+  agency:  { proof: 100_000, events: 10_000_000 },
 };
+
+// Optional secret pointing at the Stripe price ID used for extra-seat add-ons.
+// When present, the webhook reconciles `extra_seats_purchased` from the
+// quantity of any subscription line item matching this price.
+const EXTRA_SEAT_PRICE_ID = Deno.env.get("STRIPE_PRICE_EXTRA_SEAT") ?? null;
 
 // Map Stripe price IDs (read from secrets) to plan keys. Supports both
 // monthly and yearly price IDs per plan.
@@ -36,12 +41,16 @@ function priceIdToPlan(priceId: string | null | undefined): string | null {
     [Deno.env.get("STRIPE_PRICE_STARTER_YEARLY"), "starter"],
     [Deno.env.get("STRIPE_PRICE_GROWTH_MONTHLY"), "growth"],
     [Deno.env.get("STRIPE_PRICE_GROWTH_YEARLY"), "growth"],
-    [Deno.env.get("STRIPE_PRICE_SCALE_MONTHLY"), "scale"],
-    [Deno.env.get("STRIPE_PRICE_SCALE_YEARLY"), "scale"],
+    [Deno.env.get("STRIPE_PRICE_AGENCY_MONTHLY"), "agency"],
+    [Deno.env.get("STRIPE_PRICE_AGENCY_YEARLY"), "agency"],
     // Backwards-compat with single-interval secrets if still set.
     [Deno.env.get("STRIPE_PRICE_STARTER"), "starter"],
     [Deno.env.get("STRIPE_PRICE_GROWTH"), "growth"],
-    [Deno.env.get("STRIPE_PRICE_SCALE"), "scale"],
+    [Deno.env.get("STRIPE_PRICE_AGENCY"), "agency"],
+    // Legacy SCALE secrets (pre-rename) — keep mapping to 'agency' until rotated out.
+    [Deno.env.get("STRIPE_PRICE_SCALE_MONTHLY"), "agency"],
+    [Deno.env.get("STRIPE_PRICE_SCALE_YEARLY"), "agency"],
+    [Deno.env.get("STRIPE_PRICE_SCALE"), "agency"],
   ];
   for (const [id, plan] of entries) {
     if (id) map[id] = plan;
@@ -99,12 +108,21 @@ async function handleBillingEvent(
   const updates: Record<string, unknown> = {};
 
   if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
-    const items = (obj.items as { data?: Array<{ price?: { id?: string } }> } | undefined)?.data ?? [];
-    const priceId = items[0]?.price?.id ?? null;
+    const items = (obj.items as { data?: Array<{ price?: { id?: string }; quantity?: number }> } | undefined)?.data ?? [];
+    // Find the plan-tier line item (first non-seat line). If EXTRA_SEAT_PRICE_ID
+    // is configured, treat that line as a seat add-on instead of the plan.
+    const planItem = items.find((it) => !EXTRA_SEAT_PRICE_ID || it.price?.id !== EXTRA_SEAT_PRICE_ID) ?? items[0];
+    const priceId = planItem?.price?.id ?? null;
     const planKey = priceIdToPlan(priceId) ?? ((obj.metadata as Record<string, string> | undefined)?.plan_key ?? null);
     const status = obj.status as string;
 
     updates.stripe_subscription_id = obj.id as string;
+
+    // Reconcile extra seat quantity from the seat add-on line, if configured.
+    if (EXTRA_SEAT_PRICE_ID) {
+      const seatLine = items.find((it) => it.price?.id === EXTRA_SEAT_PRICE_ID);
+      updates.extra_seats_purchased = Math.max(0, seatLine?.quantity ?? 0);
+    }
 
     if (status === "active" || status === "trialing") {
       const key = planKey ?? "free";
@@ -124,12 +142,14 @@ async function handleBillingEvent(
       updates.monthly_proof_limit = limits.proof;
       updates.monthly_event_limit = limits.events;
       updates.plan_expires_at = null;
+      updates.extra_seats_purchased = 0;
     }
   } else if (event.type === "customer.subscription.deleted") {
     updates.plan = "free";
     updates.plan_tier = "free";
     updates.stripe_subscription_id = null;
     updates.plan_expires_at = null;
+    updates.extra_seats_purchased = 0;
     const limits = PLAN_LIMITS.free;
     updates.monthly_proof_limit = limits.proof;
     updates.monthly_event_limit = limits.events;

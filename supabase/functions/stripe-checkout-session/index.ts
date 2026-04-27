@@ -25,9 +25,9 @@ const PLAN_PRICE_SECRETS: Record<string, Record<Interval, string>> = {
     monthly: "STRIPE_PRICE_GROWTH_MONTHLY",
     yearly: "STRIPE_PRICE_GROWTH_YEARLY",
   },
-  scale: {
-    monthly: "STRIPE_PRICE_SCALE_MONTHLY",
-    yearly: "STRIPE_PRICE_SCALE_YEARLY",
+  agency: {
+    monthly: "STRIPE_PRICE_AGENCY_MONTHLY",
+    yearly: "STRIPE_PRICE_AGENCY_YEARLY",
   },
 };
 

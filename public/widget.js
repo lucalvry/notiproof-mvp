@@ -563,6 +563,10 @@
   function canShow() {
     var c = cfg();
     var wid = (state.widget && state.widget.id) || 'w';
+    // Visitor-type targeting (spec WID-02 Display Rules: all / new / returning).
+    var vt = c.visitor_type;
+    if (vt === 'new' && VISITOR_TYPE !== 'new') return false;
+    if (vt === 'returning' && VISITOR_TYPE !== 'returning') return false;
     // Cooldown between consecutive shows for this visitor.
     var cooldownSec = Number(c.cooldown_seconds);
     if (cooldownSec > 0) {
