@@ -10,6 +10,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Star, Video, Type, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { uploadToBunny, generateVideoPoster } from "@/lib/bunny-upload";
+import { collectTestimonialSchema, parseOrError } from "@/lib/validation";
+import { showRateLimitToastIf } from "@/lib/use-rate-limit-toast";
+
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024; // 2 MB
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB
+const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 interface CollectionContext {
   business_name: string;
@@ -160,11 +166,37 @@ export default function Collect() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
-    if (mode === "text" && content.trim().length < 10) {
-      return toast({ title: "Testimonial too short", description: "Please share at least a sentence (10+ characters).", variant: "destructive" });
+
+    // Validate the form payload up-front so the UI shows a single clear error
+    // before we touch the network or the camera output.
+    const validation = parseOrError(collectTestimonialSchema, {
+      token,
+      author_name: name,
+      author_email: email,
+      content: mode === "video" && !content.trim() ? `Video testimonial from ${name}` : content,
+      rating,
+      author_role: role || undefined,
+      author_company: company || undefined,
+      author_website_url: website
+        ? (/^https?:\/\//i.test(website.trim()) ? website.trim() : `https://${website.trim()}`)
+        : undefined,
+    });
+    if (validation.error && mode === "text") {
+      return toast({ title: "Check your details", description: validation.error, variant: "destructive" });
     }
     if (mode === "video" && !videoBlob) {
       return toast({ title: "No video recorded", description: "Record a short video before submitting.", variant: "destructive" });
+    }
+    if (videoBlob && videoBlob.size > MAX_VIDEO_BYTES) {
+      return toast({ title: "Video too large", description: "Please keep videos under 50 MB.", variant: "destructive" });
+    }
+    if (photoFile) {
+      if (!ALLOWED_PHOTO_TYPES.has(photoFile.type)) {
+        return toast({ title: "Unsupported photo", description: "Use JPEG, PNG, WebP or GIF.", variant: "destructive" });
+      }
+      if (photoFile.size > MAX_PHOTO_BYTES) {
+        return toast({ title: "Photo too large", description: "Please keep photos under 2 MB.", variant: "destructive" });
+      }
     }
 
     setSubmitting(true);
@@ -218,7 +250,11 @@ export default function Collect() {
           media_duration_seconds: mode === "video" && videoDuration > 0 ? Math.round(videoDuration * 10) / 10 : null,
         },
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        if (showRateLimitToastIf(error)) return;
+        throw new Error(error.message);
+      }
+      if (data && (data as { error?: string }).error && showRateLimitToastIf(data)) return;
       if (!data?.ok) throw new Error(data?.error ?? "Submission failed");
 
       // Best-effort: generate a poster image so the widget thumbnail isn't black.
@@ -285,8 +321,8 @@ export default function Collect() {
 
           <form onSubmit={submit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-2"><Label>Your name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={200} /></div>
-              <div className="space-y-2"><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+              <div className="space-y-2"><Label>Your name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} autoComplete="name" /></div>
+              <div className="space-y-2"><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required maxLength={254} inputMode="email" autoComplete="email" /></div>
             </div>
             <div className="space-y-2">
               <Label>Rating</Label>

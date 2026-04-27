@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, MailPlus, Trash2, Users, AlertTriangle } from "lucide-react";
 import { usePlanUsage } from "@/lib/plan-helpers";
+import { teamInviteSchema, parseOrError } from "@/lib/validation";
 
 type Role = "owner" | "editor" | "viewer";
 interface Member { id: string; user_id: string; role: Role; users: { full_name: string | null; email: string } | null; }
@@ -52,12 +53,16 @@ export default function TeamSettings() {
   useEffect(() => { load(); }, [currentBusinessId]);
 
   const invite = async () => {
-    if (!currentBusinessId || !email.trim()) return;
+    if (!currentBusinessId) return;
+    const parsed = parseOrError(teamInviteSchema, { email, role });
+    if (parsed.error) {
+      return toast({ title: "Check the invite", description: parsed.error, variant: "destructive" });
+    }
     setSaving(true);
     const { error } = await db.from("team_invitations").insert({
       business_id: currentBusinessId,
-      email: email.trim().toLowerCase(),
-      role,
+      email: parsed.data.email,
+      role: parsed.data.role,
       invited_by: user?.id,
     });
     setSaving(false);
@@ -121,7 +126,7 @@ export default function TeamSettings() {
           </span>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-[1fr_160px_auto] sm:items-end">
-          <div className="space-y-2"><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teammate@example.com" disabled={!canManage || atSeatLimit} /></div>
+          <div className="space-y-2"><Label>Email</Label><Input type="email" value={email} maxLength={254} inputMode="email" autoComplete="email" onChange={(e) => setEmail(e.target.value)} placeholder="teammate@example.com" disabled={!canManage || atSeatLimit} /></div>
           <div className="space-y-2"><Label>Role</Label><Select value={role} onValueChange={(v) => setRole(v as Role)} disabled={!canManage || atSeatLimit}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="viewer">Viewer</SelectItem><SelectItem value="editor">Editor</SelectItem><SelectItem value="owner">Owner</SelectItem></SelectContent></Select></div>
           {atSeatLimit ? (
             <Tooltip>

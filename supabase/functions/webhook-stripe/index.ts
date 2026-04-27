@@ -7,6 +7,7 @@
 //      ?integration_id=... param, stores integration_events and creates
 //      proof_objects for qualifying events (legacy behavior, preserved).
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { rateLimit, tooMany, callerIp } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -154,6 +155,10 @@ async function handleBillingEvent(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const ip = callerIp(req);
+  const rl = await rateLimit({ key: `webhook-stripe:${ip}`, max: 600, windowSec: 60 });
+  if (!rl.ok) return tooMany(corsHeaders, rl.retryAfter);
+
   const url = new URL(req.url);
   const integrationId = url.searchParams.get("integration_id");
 
@@ -187,7 +192,7 @@ Deno.serve(async (req) => {
   if (integrationId) {
     const { data: integ } = await supabase
       .from("integrations")
-      .select("id, business_id, provider")
+      .select("id, business_id, provider, auto_request_enabled, auto_request_delay_days")
       .eq("id", integrationId)
       .maybeSingle();
 
@@ -227,28 +232,90 @@ Deno.serve(async (req) => {
       let proofId: string | null = null;
       const obj = (event?.data?.object ?? {}) as Record<string, unknown>;
       let handlerError: string | null = null;
+      let customerEmail: string | null = null;
+      let customerName: string | null = null;
       try {
       if (event.type === "checkout.session.completed" || event.type === "payment_intent.succeeded") {
         const amount = (obj.amount_total as number) ?? (obj.amount as number) ?? 0;
         const currency = ((obj.currency as string) ?? "usd").toUpperCase();
         const customerDetails = (obj.customer_details as Record<string, unknown> | undefined) ?? {};
         const billingDetails = (obj.billing_details as Record<string, unknown> | undefined) ?? {};
-        const customerName = (customerDetails.name as string) ?? (billingDetails.name as string) ?? null;
-        const customerEmail = (customerDetails.email as string) ?? (billingDetails.email as string) ?? (obj.receipt_email as string) ?? null;
+        customerName = (customerDetails.name as string) ?? (billingDetails.name as string) ?? null;
+        customerEmail = (customerDetails.email as string) ?? (billingDetails.email as string) ?? (obj.receipt_email as string) ?? null;
         const display = amount ? `${(amount / 100).toFixed(2)} ${currency}` : "a purchase";
-        const { data: po } = await supabase.from("proof_objects").insert({
-          business_id: integ.business_id,
-          type: "purchase",
-          status: "approved",
-          verified: true,
-          author_name: customerName,
-          author_email: customerEmail,
-          content: `Purchased ${display}`,
-          source: "stripe",
-          source_metadata: { event_id: event.id, event_type: event.type },
-          published_at: new Date().toISOString(),
-        }).select("id").single();
-        proofId = po?.id ?? null;
+        const orderId = (obj.id as string) ?? null;
+
+        // Idempotency: skip if a proof_object already exists for this order.
+        let existing: { id: string } | null = null;
+        if (orderId) {
+          const { data } = await supabase
+            .from("proof_objects")
+            .select("id")
+            .eq("business_id", integ.business_id)
+            .eq("source", "stripe")
+            .eq("external_ref_id", orderId)
+            .maybeSingle();
+          existing = data ?? null;
+        }
+
+        if (!existing) {
+          const { data: po, error: poErr } = await supabase.from("proof_objects").insert({
+            business_id: integ.business_id,
+            type: "purchase",
+            proof_type: "purchase",
+            status: "approved",
+            verified: true,
+            verification_tier_int: 1,
+            verification_tier: "verified",
+            verification_method: "purchase_matched",
+            author_name: customerName,
+            author_email: customerEmail,
+            content: `Purchased ${display}`,
+            source: "stripe",
+            source_metadata: { event_id: event.id, event_type: event.type },
+            external_ref_id: orderId,
+            published_at: new Date().toISOString(),
+            proof_event_at: new Date().toISOString(),
+          }).select("id").single();
+          if (poErr) throw poErr;
+          proofId = po?.id ?? null;
+        } else {
+          proofId = existing.id;
+        }
+
+        if (proofId && customerEmail && (integ as any).auto_request_enabled) {
+          const delayDays = Math.max(0, Math.min(60, (integ as any).auto_request_delay_days ?? 14));
+          const now = Date.now();
+          const sendAt = new Date(now + delayDays * 86400_000).toISOString();
+          const expires = new Date(now + (delayDays + 14) * 86400_000).toISOString();
+          const firstName = customerName ? customerName.split(" ")[0] : null;
+
+          const { data: req, error: reqErr } = await supabase
+            .from("testimonial_requests")
+            .insert({
+              business_id: integ.business_id,
+              proof_object_id: proofId,
+              recipient_email: customerEmail,
+              recipient_name: firstName,
+              requested_type: "testimonial",
+              prompt_questions: [],
+              status: "scheduled",
+              expires_at: expires,
+            })
+            .select("id")
+            .single();
+          if (!reqErr && req) {
+            await supabase.from("scheduled_jobs").insert({
+              business_id: integ.business_id,
+              job_type: "send_testimonial_email",
+              payload: { testimonial_request_id: req.id },
+              run_at: sendAt,
+              status: "pending",
+            });
+          } else if (reqErr) {
+            console.error("stripe testimonial_requests insert failed", reqErr);
+          }
+        }
       }
       } catch (e) {
         handlerError = (e as Error).message;

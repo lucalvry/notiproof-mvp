@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useToast } from "@/hooks/use-toast";
 import { appRedirect } from "@/lib/app-url";
+import { loginSchema, parseOrError } from "@/lib/validation";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -77,11 +78,19 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const parsed = parseOrError(loginSchema, { email, password });
+    if (parsed.error) {
+      toast({ title: "Check your details", description: parsed.error, variant: "destructive" });
+      return;
+    }
     // Persist the "Remember me" preference BEFORE sign-in so the storage adapter
     // picks the right place to save the session.
     localStorage.setItem("notiproof.remember", remember ? "true" : "false");
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: parsed.data.email,
+      password: parsed.data.password,
+    });
     setLoading(false);
     if (error) {
       toast({ title: "Sign in failed", description: error.message, variant: "destructive" });
@@ -139,14 +148,14 @@ export default function Login() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+          <Input id="email" type="email" required maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" inputMode="email" />
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">Password</Label>
             <Link to="/forgot-password" className="text-xs text-accent hover:underline">Forgot password?</Link>
           </div>
-          <PasswordInput id="password" required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+          <PasswordInput id="password" required maxLength={200} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
         </div>
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none">

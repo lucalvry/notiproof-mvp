@@ -3,6 +3,8 @@
 // access. Field-mapping config (integrations.config.field_map) describes which
 // JSON paths in the body become author_name / content / rating / media_url.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { rateLimit, tooMany, callerIp } from "../_shared/rate-limit.ts";
+import { uuidSchema } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -68,13 +70,19 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
+  const ip = callerIp(req);
+  const rl = await rateLimit({ key: `wh-zapier:${ip}`, max: 600, windowSec: 60 });
+  if (!rl.ok) return tooMany(corsHeaders, rl.retryAfter);
+
   const url = new URL(req.url);
   const integrationId = url.searchParams.get("integration_id");
   const secretQs = url.searchParams.get("secret");
   const secretHdr = req.headers.get("x-notiproof-secret");
   const supplied = secretQs ?? secretHdr ?? "";
 
-  if (!integrationId) return json({ error: "integration_id query param is required" }, 400);
+  if (!integrationId || !uuidSchema.safeParse(integrationId).success) {
+    return json({ error: "integration_id query param is required" }, 400);
+  }
 
   let payload: unknown;
   try {

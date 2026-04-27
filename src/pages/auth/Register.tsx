@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { appRedirect } from "@/lib/app-url";
+import { registerSchema, parseOrError } from "@/lib/validation";
 import { Check, X, Loader2 } from "lucide-react";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 
@@ -77,28 +78,27 @@ export default function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const parsed = parseOrError(registerSchema, {
+      fullName, businessName, email, password, confirmPassword, agreedToTerms,
+    });
+    if (parsed.error) {
+      toast({ title: "Check your details", description: parsed.error, variant: "destructive" });
+      return;
+    }
     if (!strongEnough) {
       toast({ title: "Choose a stronger password", description: "Use at least 8 characters with letters and numbers.", variant: "destructive" });
-      return;
-    }
-    if (!passwordsMatch) {
-      toast({ title: "Passwords don't match", description: "Confirm password must match.", variant: "destructive" });
-      return;
-    }
-    if (!agreedToTerms) {
-      toast({ title: "Please accept the Terms & Privacy Policy", description: "You must agree before creating an account.", variant: "destructive" });
       return;
     }
     setLoading(true);
     const consentTimestamp = new Date().toISOString();
     const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
+      email: parsed.data.email,
+      password: parsed.data.password,
       options: {
         emailRedirectTo: appRedirect("/dashboard"),
         data: {
-          full_name: fullName,
-          business_name: businessName,
+          full_name: parsed.data.fullName,
+          business_name: parsed.data.businessName,
           terms_accepted_at: consentTimestamp,
           privacy_accepted_at: consentTimestamp,
         },
@@ -183,11 +183,11 @@ export default function Register() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="fullName">Your name</Label>
-          <Input id="fullName" required value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" />
+          <Input id="fullName" required maxLength={120} value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="businessName">Business name</Label>
-          <Input id="businessName" required value={businessName} onChange={(e) => setBusinessName(e.target.value)} autoComplete="organization" />
+          <Input id="businessName" required maxLength={120} value={businessName} onChange={(e) => setBusinessName(e.target.value)} autoComplete="organization" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="email">Work email</Label>
@@ -196,6 +196,8 @@ export default function Register() {
               id="email"
               type="email"
               required
+              maxLength={254}
+              inputMode="email"
               value={email}
               onChange={(e) => { setEmail(e.target.value); setEmailTaken(null); }}
               onBlur={checkEmail}
@@ -212,7 +214,7 @@ export default function Register() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
-          <PasswordInput id="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+          <PasswordInput id="password" required minLength={8} maxLength={200} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
           {password && (
             <div className="space-y-1">
               <div className="flex gap-1">
@@ -230,6 +232,7 @@ export default function Register() {
           <PasswordInput
             id="confirmPassword"
             required
+            maxLength={200}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             aria-invalid={confirmPassword.length > 0 && !passwordsMatch}

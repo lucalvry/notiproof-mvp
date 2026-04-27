@@ -1,9 +1,12 @@
-// Shopify webhook receiver: verifies HMAC, stores events, creates proof_objects.
+// Shopify webhook receiver: verifies HMAC, stores events, creates a purchase
+// proof_object, and queues a testimonial request when auto-request is enabled.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { rateLimit, tooMany, callerIp } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shopify-hmac-sha256, x-shopify-topic, x-shopify-shop-domain",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-shopify-hmac-sha256, x-shopify-topic, x-shopify-shop-domain",
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -27,8 +30,61 @@ async function verifyHmac(raw: string, header: string | null, secret: string): P
   return diff === 0;
 }
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function maybeCreateTestimonialRequest(
+  supabase: any,
+  integ: { auto_request_enabled?: boolean | null; auto_request_delay_days?: number | null },
+  businessId: string,
+  proofId: string,
+  customerEmail: string | null,
+  customerName: string | null,
+) {
+  if (!integ.auto_request_enabled || !customerEmail) return;
+  const delayDays = Math.max(0, Math.min(60, integ.auto_request_delay_days ?? 14));
+  const now = Date.now();
+  const sendAt = new Date(now + delayDays * 86400_000).toISOString();
+  const expires = new Date(now + (delayDays + 14) * 86400_000).toISOString();
+
+  const { data: req, error: reqErr } = await supabase
+    .from("testimonial_requests")
+    .insert({
+      business_id: businessId,
+      proof_object_id: proofId,
+      recipient_email: customerEmail,
+      recipient_name: customerName,
+      requested_type: "testimonial",
+      prompt_questions: [],
+      status: "scheduled",
+      expires_at: expires,
+    })
+    .select("id")
+    .single();
+  if (reqErr || !req) {
+    console.error("testimonial_requests insert failed", reqErr);
+    return;
+  }
+
+  await supabase.from("scheduled_jobs").insert({
+    business_id: businessId,
+    job_type: "send_testimonial_email",
+    payload: { testimonial_request_id: req.id },
+    run_at: sendAt,
+    status: "pending",
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const ip = callerIp(req);
+  const rl = await rateLimit({ key: `webhook-shopify:${ip}`, max: 600, windowSec: 60 });
+  if (!rl.ok) return tooMany(corsHeaders, rl.retryAfter);
 
   const url = new URL(req.url);
   const integrationId = url.searchParams.get("integration_id");
@@ -40,29 +96,36 @@ Deno.serve(async (req) => {
 
   if (SHOPIFY_CLIENT_SECRET) {
     const ok = await verifyHmac(raw, hmac, SHOPIFY_CLIENT_SECRET);
-    if (!ok) return new Response(JSON.stringify({ error: "Invalid HMAC" }), { status: 401, headers: corsHeaders });
+    if (!ok) return json({ error: "Invalid HMAC" }, 401);
   }
 
   let payload: any;
   try { payload = JSON.parse(raw); } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: corsHeaders });
+    return json({ error: "Invalid JSON" }, 400);
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   // Resolve integration: by id (preferred) or by shop domain stored in config.
-  let integ: { id: string; business_id: string } | null = null;
+  let integ:
+    | { id: string; business_id: string; auto_request_enabled: boolean | null; auto_request_delay_days: number | null }
+    | null = null;
   if (integrationId) {
-    const { data } = await supabase.from("integrations").select("id, business_id, provider").eq("id", integrationId).maybeSingle();
-    if (data?.provider === "shopify") integ = { id: data.id, business_id: data.business_id };
+    const { data } = await supabase
+      .from("integrations")
+      .select("id, business_id, platform, auto_request_enabled, auto_request_delay_days")
+      .eq("id", integrationId)
+      .maybeSingle();
+    if (data?.platform === "shopify") integ = data as any;
   }
   if (!integ && shopDomain) {
-    const { data } = await supabase.from("integrations").select("id, business_id, config, provider").eq("provider", "shopify");
-    integ = data?.find((d: any) => (d.config?.shop ?? "") === shopDomain) ?? null;
+    const { data } = await supabase
+      .from("integrations")
+      .select("id, business_id, config, platform, auto_request_enabled, auto_request_delay_days")
+      .eq("platform", "shopify");
+    integ = (data?.find((d: any) => (d.config?.shop ?? "") === shopDomain) ?? null) as any;
   }
-  if (!integ) {
-    return new Response(JSON.stringify({ error: "Integration not found" }), { status: 404, headers: corsHeaders });
-  }
+  if (!integ) return json({ error: "Integration not found" }, 404);
 
   const externalEventId = shopifyEventId ?? (payload?.id ? `order:${payload.id}:${topic}` : null);
 
@@ -87,33 +150,83 @@ Deno.serve(async (req) => {
       payload: { duplicate_of: externalEventId },
       status: "duplicate",
     });
-    return new Response(JSON.stringify({ received: true, duplicate: true }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ received: true, duplicate: true });
   }
 
   let proofId: string | null = null;
   let handlerError: string | null = null;
+  let customerEmail: string | null = null;
+  let customerName: string | null = null;
+
   try {
-  if (topic === "orders/create" || topic === "orders/paid") {
-    const total = payload.total_price ? `${payload.total_price} ${payload.currency ?? "USD"}` : "an order";
-    const customer = payload.customer ?? {};
-    const fullName = [customer.first_name, customer.last_name].filter(Boolean).join(" ") || null;
-    const { data: po } = await supabase.from("proof_objects").insert({
-      business_id: integ.business_id,
-      type: "purchase",
-      status: "approved",
-      verified: true,
-      author_name: fullName,
-      author_email: customer.email ?? payload.email ?? null,
-      content: `Ordered ${total}`,
-      source: "shopify",
-      source_metadata: { topic, order_id: payload.id },
-      published_at: new Date().toISOString(),
-    }).select("id").single();
-    proofId = po?.id ?? null;
-  }
+    // Trigger only on paid orders.
+    const isPaidEvent =
+      topic === "orders/paid" ||
+      (topic === "orders/create" && (payload?.financial_status === "paid"));
+
+    if (isPaidEvent) {
+      const orderId = String(payload.id ?? "");
+      customerEmail = payload.email ?? payload.customer?.email ?? null;
+      customerName =
+        payload.customer
+          ? [payload.customer.first_name, payload.customer.last_name].filter(Boolean).join(" ") || null
+          : null;
+      const productReference: string | null =
+        Array.isArray(payload.line_items) && payload.line_items.length > 0
+          ? payload.line_items.map((li: any) => li?.title).filter(Boolean).join(", ") || null
+          : null;
+
+      // Idempotency.
+      let existing: { id: string } | null = null;
+      if (orderId) {
+        const { data } = await supabase
+          .from("proof_objects")
+          .select("id")
+          .eq("business_id", integ.business_id)
+          .eq("source", "shopify")
+          .eq("external_ref_id", orderId)
+          .maybeSingle();
+        existing = data ?? null;
+      }
+
+      if (!existing) {
+        const total = payload.total_price ? `${payload.total_price} ${payload.currency ?? "USD"}` : "an order";
+        const { data: po, error: poErr } = await supabase.from("proof_objects").insert({
+          business_id: integ.business_id,
+          type: "purchase",
+          proof_type: "purchase",
+          status: "approved",
+          verified: true,
+          verification_tier_int: 1,
+          verification_tier: "verified",
+          verification_method: "purchase_matched",
+          source: "shopify",
+          source_metadata: { topic, order_id: payload.id },
+          external_ref_id: orderId || null,
+          product_reference: productReference,
+          author_name: customerName,
+          author_email: customerEmail,
+          content: `Ordered ${total}`,
+          published_at: new Date().toISOString(),
+          proof_event_at: new Date().toISOString(),
+        }).select("id").single();
+        if (poErr) throw poErr;
+        proofId = po?.id ?? null;
+      } else {
+        proofId = existing.id;
+      }
+
+      if (proofId) {
+        await maybeCreateTestimonialRequest(
+          supabase,
+          integ,
+          integ.business_id,
+          proofId,
+          customerEmail,
+          customerName,
+        );
+      }
+    }
   } catch (e) {
     handlerError = (e as Error).message;
     console.error("shopify handler error", e);
@@ -133,8 +246,5 @@ Deno.serve(async (req) => {
     last_sync_at: new Date().toISOString(),
   }).eq("id", integ.id);
 
-  return new Response(JSON.stringify({ received: true, proof_object_id: proofId }), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  return json({ received: true, proof_object_id: proofId });
 });

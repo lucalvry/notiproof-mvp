@@ -1,6 +1,8 @@
 // Public endpoint: writes widget_events rows. Also flips
 // businesses.install_verified on the first impression.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { parseBody, widgetTrackBody } from "../_shared/validation.ts";
+import { rateLimit, tooMany, callerIp } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,20 +16,14 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-const ALLOWED = new Set([
-  "impression",
-  "interaction",
-  "dismiss",
-  "conversion",
-  "conversion_assist",
-]);
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const body = await req.json().catch(() => ({}));
+    const raw = await req.json().catch(() => ({}));
+    const parsed = parseBody(widgetTrackBody, raw, corsHeaders);
+    if (!parsed.ok) return parsed.res;
     const {
       business_id,
       widget_id,
@@ -40,11 +36,11 @@ Deno.serve(async (req) => {
       session_id = null,
       device_type = null,
       visitor_type = null,
-    } = body ?? {};
+    } = parsed.data;
 
-    if (!business_id || !widget_id || !event_type || !ALLOWED.has(event_type)) {
-      return json({ error: "invalid payload" }, 400);
-    }
+    const ip = callerIp(req);
+    const rl = await rateLimit({ key: `track:${business_id}:${ip}`, max: 600, windowSec: 60 });
+    if (!rl.ok) return tooMany(corsHeaders, rl.retryAfter);
 
     const safeVariant = variant === "A" || variant === "B" ? variant : null;
     const safeMeta = meta && typeof meta === "object" && !Array.isArray(meta) ? meta : {};

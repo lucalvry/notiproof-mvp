@@ -6,6 +6,8 @@
 //   token to the browser.
 // - On set/delete we update credentials with the service role.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { rateLimit, tooMany } from "../_shared/rate-limit.ts";
+import { uuidSchema } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,10 +50,14 @@ Deno.serve(async (req) => {
     if (userErr || !userData.user) return json({ error: "Authentication required" }, 401);
     const userId = userData.user.id;
 
+    const rl = await rateLimit({ key: `intcred:${userId}`, max: 20, windowSec: 60 });
+    if (!rl.ok) return tooMany(corsHeaders, rl.retryAfter);
+
     const body = await req.json().catch(() => ({}));
     const action = body?.action as string | undefined;
     const integrationId = body?.integration_id as string | undefined;
-    if (!action || !integrationId) return json({ error: "Missing action or integration_id" }, 400);
+    if (!action || typeof action !== "string" || action.length > 64) return json({ error: "Missing or invalid action" }, 400);
+    if (!integrationId || !uuidSchema.safeParse(integrationId).success) return json({ error: "Missing or invalid integration_id" }, 400);
 
     const { data: integ } = await admin
       .from("integrations")

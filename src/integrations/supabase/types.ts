@@ -41,6 +41,27 @@ export type Database = {
         }
         Relationships: []
       }
+      app_secrets: {
+        Row: {
+          created_at: string
+          name: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          name: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          name?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       business_domains: {
         Row: {
           business_id: string
@@ -266,7 +287,9 @@ export type Database = {
       integrations: {
         Row: {
           api_token: string | null
+          auto_request_delay_days: number
           auto_request_delay_minutes: number | null
+          auto_request_enabled: boolean
           business_id: string
           config: Json
           created_at: string
@@ -280,7 +303,9 @@ export type Database = {
         }
         Insert: {
           api_token?: string | null
+          auto_request_delay_days?: number
           auto_request_delay_minutes?: number | null
+          auto_request_enabled?: boolean
           business_id: string
           config?: Json
           created_at?: string
@@ -294,7 +319,9 @@ export type Database = {
         }
         Update: {
           api_token?: string | null
+          auto_request_delay_days?: number
           auto_request_delay_minutes?: number | null
+          auto_request_enabled?: boolean
           business_id?: string
           config?: Json
           created_at?: string
@@ -471,6 +498,69 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          bucket_key: string
+          count: number
+          created_at: string
+          id: string
+          window_start: string
+        }
+        Insert: {
+          bucket_key: string
+          count?: number
+          created_at?: string
+          id?: string
+          window_start: string
+        }
+        Update: {
+          bucket_key?: string
+          count?: number
+          created_at?: string
+          id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      scheduled_jobs: {
+        Row: {
+          attempts: number
+          business_id: string | null
+          created_at: string
+          id: string
+          job_type: string
+          last_error: string | null
+          payload: Json
+          run_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          business_id?: string | null
+          created_at?: string
+          id?: string
+          job_type?: string
+          last_error?: string | null
+          payload?: Json
+          run_at: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          business_id?: string | null
+          created_at?: string
+          id?: string
+          job_type?: string
+          last_error?: string | null
+          payload?: Json
+          run_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       team_invitations: {
         Row: {
           accepted_at: string | null
@@ -523,7 +613,7 @@ export type Database = {
           id: string
           opened_at: string | null
           prompt_questions: Json
-          proof_object_id: string | null
+          proof_object_id: string
           recipient_email: string
           recipient_name: string | null
           reminder_sent_at: string | null
@@ -543,7 +633,7 @@ export type Database = {
           id?: string
           opened_at?: string | null
           prompt_questions?: Json
-          proof_object_id?: string | null
+          proof_object_id: string
           recipient_email: string
           recipient_name?: string | null
           reminder_sent_at?: string | null
@@ -563,7 +653,7 @@ export type Database = {
           id?: string
           opened_at?: string | null
           prompt_questions?: Json
-          proof_object_id?: string | null
+          proof_object_id?: string
           recipient_email?: string
           recipient_name?: string | null
           reminder_sent_at?: string | null
@@ -815,7 +905,16 @@ export type Database = {
         Args: { _additional_bytes: number; _business_id: string }
         Returns: boolean
       }
+      check_rate_limit: {
+        Args: { _key: string; _max: number; _window_seconds: number }
+        Returns: boolean
+      }
+      cleanup_rate_limits: { Args: never; Returns: number }
       create_business: { Args: { _name: string }; Returns: string }
+      create_placeholder_proof_for_request: {
+        Args: { _business_id: string }
+        Returns: string
+      }
       get_collection_context: {
         Args: { _token: string }
         Returns: {

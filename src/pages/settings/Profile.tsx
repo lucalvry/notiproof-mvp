@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
 import { DomainsCard } from "@/components/settings/DomainsCard";
+import { businessSettingsSchema, parseOrError } from "@/lib/validation";
 
 type Business = Database["public"]["Tables"]["businesses"]["Row"] & {
   brand_color?: string | null;
@@ -87,14 +88,24 @@ export default function ProfileSettings() {
 
   const save = async () => {
     if (!b) return;
+    const parsed = parseOrError(businessSettingsSchema, {
+      name: b.name,
+      website_url: b.website_url || undefined,
+      industry: settings.industry || undefined,
+      brand_color: settings.brand_color || undefined,
+      time_zone: settings.time_zone || "UTC",
+    });
+    if (parsed.error) {
+      return toast({ title: "Check your details", description: parsed.error, variant: "destructive" });
+    }
     setSaving(true);
     const mergedSettings = { ...((b.settings as BusinessSettings | null) ?? {}), ...settings };
     const { error } = await supabase.from("businesses").update({
-      name: b.name,
+      name: parsed.data.name,
       logo_url: b.logo_url,
-      industry: settings.industry,
-      brand_color: settings.brand_color,
-      time_zone: settings.time_zone ?? "UTC",
+      industry: parsed.data.industry ?? null,
+      brand_color: parsed.data.brand_color ?? null,
+      time_zone: parsed.data.time_zone ?? "UTC",
       settings: mergedSettings,
     } as any).eq("id", b.id);
     setSaving(false);
@@ -110,10 +121,10 @@ export default function ProfileSettings() {
       <Card>
         <CardHeader><CardTitle className="text-base">Business profile</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2"><Label>Business name</Label><Input value={b.name} onChange={(e) => setB({ ...b, name: e.target.value })} disabled={!canEdit} /></div>
-          <div className="space-y-2"><Label>Logo URL</Label><Input value={b.logo_url ?? ""} onChange={(e) => setB({ ...b, logo_url: e.target.value })} placeholder="https://…" disabled={!canEdit} /></div>
+          <div className="space-y-2"><Label>Business name</Label><Input value={b.name} maxLength={120} onChange={(e) => setB({ ...b, name: e.target.value })} disabled={!canEdit} /></div>
+          <div className="space-y-2"><Label>Logo URL</Label><Input value={b.logo_url ?? ""} maxLength={2048} onChange={(e) => setB({ ...b, logo_url: e.target.value })} placeholder="https://…" disabled={!canEdit} /></div>
           <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>Industry</Label><Input value={settings.industry ?? ""} onChange={(e) => setSettings({ ...settings, industry: e.target.value })} placeholder="SaaS, ecommerce…" disabled={!canEdit} /></div>
+            <div className="space-y-2"><Label>Industry</Label><Input value={settings.industry ?? ""} maxLength={80} onChange={(e) => setSettings({ ...settings, industry: e.target.value })} placeholder="SaaS, ecommerce…" disabled={!canEdit} /></div>
             <div className="space-y-2"><Label>Brand color</Label><Input type="color" value={settings.brand_color ?? "#0EA5E9"} onChange={(e) => setSettings({ ...settings, brand_color: e.target.value })} className="h-10 w-20 p-1" disabled={!canEdit} /></div>
           </div>
           <div className="space-y-2"><Label>Time zone</Label>

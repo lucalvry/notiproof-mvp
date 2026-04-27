@@ -3,6 +3,8 @@
 // Email delivery: Brevo Transactional Email API (https://api.brevo.com/v3/smtp/email).
 // Requires BREVO_API_KEY secret. Sender address must be verified in Brevo.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { rateLimit, tooMany } from "../_shared/rate-limit.ts";
+import { uuidSchema } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -80,7 +82,7 @@ Deno.serve(async (req) => {
     if (!userData?.user) return json({ error: "unauthorized" }, 401);
 
     const { request_id, app_origin } = await req.json().catch(() => ({}));
-    if (!request_id || typeof request_id !== "string") {
+    if (!request_id || !uuidSchema.safeParse(request_id).success) {
       return json({ error: "request_id required" }, 400);
     }
 
@@ -91,6 +93,9 @@ Deno.serve(async (req) => {
       .eq("id", request_id)
       .maybeSingle();
     if (trErr || !tr) return json({ error: "request not found" }, 404);
+
+    const rl = await rateLimit({ key: `send:${tr.business_id}`, max: 100, windowSec: 3600 });
+    if (!rl.ok) return tooMany(corsHeaders, rl.retryAfter);
 
     const { data: membership } = await admin
       .from("business_users")

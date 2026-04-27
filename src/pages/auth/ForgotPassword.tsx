@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { appRedirect } from "@/lib/app-url";
+import { forgotPasswordSchema, parseOrError } from "@/lib/validation";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -16,8 +17,13 @@ export default function ForgotPassword() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const parsed = parseOrError(forgotPasswordSchema, { email });
+    if (parsed.error) {
+      toast({ title: "Check your email", description: parsed.error, variant: "destructive" });
+      return;
+    }
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
       redirectTo: appRedirect("/reset-password"),
     });
     setLoading(false);
@@ -39,7 +45,7 @@ export default function ForgotPassword() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input id="email" type="email" required maxLength={254} inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Sending..." : "Send reset link"}

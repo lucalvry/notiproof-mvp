@@ -12,12 +12,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Check, Loader2, Star, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Copy, Loader2, Mail, Send, Star, Trash2, X } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import { proofEditSchema, proofRequestSchema, fieldErrors } from "@/lib/validation";
 
 type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"];
 type ProofStatus = Database["public"]["Enums"]["proof_status"];
+type RequestRow = Database["public"]["Tables"]["testimonial_requests"]["Row"];
 
 export default function ProofDetail() {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +31,20 @@ export default function ProofDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [proof, setProof] = useState<ProofRow | null>(null);
+  const [linkedRequests, setLinkedRequests] = useState<RequestRow[]>([]);
+
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requestSending, setRequestSending] = useState(false);
+  const [requestForm, setRequestForm] = useState({ recipient_name: "", recipient_email: "" });
+
+  const loadRequests = async (proofId: string) => {
+    const { data } = await supabase
+      .from("testimonial_requests")
+      .select("*")
+      .eq("proof_object_id", proofId)
+      .order("created_at", { ascending: false });
+    setLinkedRequests(data ?? []);
+  };
 
   useEffect(() => {
     if (!id || !currentBusinessId) return;
@@ -37,6 +54,13 @@ export default function ProofDetail() {
         if (error) toast({ title: "Failed to load", description: error.message, variant: "destructive" });
         setProof(data);
         setLoading(false);
+        if (data?.id) {
+          loadRequests(data.id);
+          setRequestForm({
+            recipient_name: data.author_name ?? "",
+            recipient_email: data.author_email ?? "",
+          });
+        }
       });
   }, [id, currentBusinessId, toast]);
 
@@ -52,9 +76,21 @@ export default function ProofDetail() {
 
   const saveEdits = async () => {
     if (!proof) return;
-    setSaving(true);
     const highlight = ((proof as ProofRow & { highlight_phrase?: string | null }).highlight_phrase ?? "").trim();
     const outcome = (proof.outcome_claim ?? "").trim();
+    const parsed = fieldErrors(proofEditSchema, {
+      author_name: proof.author_name ?? "",
+      content: proof.content ?? "",
+      highlight_phrase: highlight,
+      cta_label: (proof as ProofRow & { cta_label?: string | null }).cta_label ?? "",
+      cta_url: (proof as ProofRow & { cta_url?: string | null }).cta_url ?? "",
+      transcript: proof.transcript ?? "",
+    });
+    if (!parsed.ok) {
+      const first = Object.values(parsed.errors)[0] ?? "Check the highlighted fields";
+      return toast({ title: "Check your edits", description: first, variant: "destructive" });
+    }
+    setSaving(true);
     const { error } = await supabase.from("proof_objects").update({
       author_name: proof.author_name,
       content: proof.content,
@@ -77,6 +113,87 @@ export default function ProofDetail() {
     navigate("/proof");
   };
 
+  const collectUrl = (token: string) => `${window.location.origin}/collect/${token}`;
+  const copyLink = (token: string) => {
+    navigator.clipboard.writeText(collectUrl(token));
+    toast({ title: "Link copied" });
+  };
+
+  const submitRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!proof || !currentBusinessId) return;
+    const parsed = fieldErrors(proofRequestSchema, {
+      recipient_name: requestForm.recipient_name,
+      recipient_email: requestForm.recipient_email,
+      requested_type: "testimonial",
+    });
+    if (!parsed.ok) {
+      const first = Object.values(parsed.errors)[0] ?? "Email required";
+      return toast({ title: "Check the form", description: first, variant: "destructive" });
+    }
+    const email = parsed.data.recipient_email;
+    setRequestSending(true);
+
+    const { data: inserted, error } = await supabase
+      .from("testimonial_requests")
+      .insert({
+        business_id: currentBusinessId,
+        proof_object_id: proof.id,
+        recipient_email: email,
+        recipient_name: parsed.data.recipient_name ?? null,
+        status: "scheduled",
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (error || !inserted) {
+      setRequestSending(false);
+      return toast({
+        title: "Couldn't create request",
+        description: error?.message ?? "Unknown error",
+        variant: "destructive",
+      });
+    }
+
+    // Persist email back to the proof so future re-sends prefill correctly.
+    if (!proof.author_email && email) {
+      await supabase.from("proof_objects").update({ author_email: email }).eq("id", proof.id);
+    }
+
+    const { data: sendResp, error: sendErr } = await supabase.functions.invoke(
+      "send-testimonial-request",
+      { body: { request_id: inserted.id, app_origin: window.location.origin } },
+    );
+    setRequestSending(false);
+
+    if (sendErr || !sendResp?.ok) {
+      toast({
+        title: "Request created (email not sent)",
+        description: sendErr?.message ?? sendResp?.error ?? "Copy the link below and share it manually.",
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "Request sent", description: `Email delivered to ${email}.` });
+    }
+    setRequestOpen(false);
+    loadRequests(proof.id);
+  };
+
+  const resend = async (requestId: string) => {
+    const { data, error } = await supabase.functions.invoke("send-testimonial-request", {
+      body: { request_id: requestId, app_origin: window.location.origin },
+    });
+    if (error || !data?.ok) {
+      return toast({
+        title: "Couldn't send",
+        description: error?.message ?? data?.error,
+        variant: "destructive",
+      });
+    }
+    toast({ title: "Email sent" });
+    if (proof?.id) loadRequests(proof.id);
+  };
+
   if (loading) return <div className="space-y-4 max-w-3xl"><Skeleton className="h-8 w-64" /><Skeleton className="h-64 w-full" /></div>;
   if (!proof) return (
     <div className="space-y-4">
@@ -86,6 +203,10 @@ export default function ProofDetail() {
   );
 
   const isApproved = proof.status === "approved";
+  const isPurchase = proof.type === "purchase" || proof.proof_type === "purchase";
+  const hasOpenRequest = linkedRequests.some((r) =>
+    ["scheduled", "pending", "sent", "opened"].includes(r.status as string),
+  );
 
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl">
@@ -100,7 +221,12 @@ export default function ProofDetail() {
               <span className="text-sm text-muted-foreground capitalize">{proof.source ?? proof.type}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {canEdit && isPurchase && !hasOpenRequest && (
+              <Button size="sm" variant="secondary" onClick={() => setRequestOpen(true)}>
+                <Mail className="h-4 w-4 mr-1" /> Request testimonial
+              </Button>
+            )}
             {!isApproved ? (
               <Button size="sm" onClick={() => setStatus("approved")} disabled={saving}><Check className="h-4 w-4 mr-1" /> Approve</Button>
             ) : (
@@ -109,6 +235,41 @@ export default function ProofDetail() {
           </div>
         </div>
       </div>
+
+      {linkedRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Testimonial requests</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {linkedRequests.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="capitalize">{r.status}</Badge>
+                    <span className="text-sm truncate">{r.recipient_email}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {r.sent_at ? `Sent ${new Date(r.sent_at).toLocaleString()}` : `Scheduled ${new Date(r.created_at).toLocaleString()}`}
+                    {r.opened_at ? ` · Opened ${new Date(r.opened_at).toLocaleString()}` : ""}
+                    {r.responded_at ? ` · Responded ${new Date(r.responded_at).toLocaleString()}` : ""}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button size="sm" variant="ghost" onClick={() => copyLink(r.token)}>
+                    <Copy className="h-3.5 w-3.5 mr-1" /> Copy link
+                  </Button>
+                  {canEdit && !["responded", "completed", "expired"].includes(r.status as string) && (
+                    <Button size="sm" variant="ghost" onClick={() => resend(r.id)}>
+                      <Send className="h-3.5 w-3.5 mr-1" /> Send again
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle>Edit content</CardTitle></CardHeader>
@@ -196,6 +357,54 @@ export default function ProofDetail() {
           Save changes
         </Button>
       </div>
+
+      <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
+        <DialogContent>
+          <form onSubmit={submitRequest} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Request a testimonial</DialogTitle>
+              <DialogDescription>
+                We'll email this customer a private link to share their experience. The submitted
+                testimonial will be linked to this purchase.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="rt-name">Customer name</Label>
+              <Input
+                id="rt-name"
+                value={requestForm.recipient_name}
+                onChange={(e) => setRequestForm((f) => ({ ...f, recipient_name: e.target.value }))}
+                placeholder="Jane Doe"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rt-email">Customer email</Label>
+              <Input
+                id="rt-email"
+                type="email"
+                required
+                value={requestForm.recipient_email}
+                onChange={(e) => setRequestForm((f) => ({ ...f, recipient_email: e.target.value }))}
+                placeholder="jane@example.com"
+              />
+              {!proof.author_email && (
+                <p className="text-xs text-muted-foreground">
+                  No email is on file for this proof — enter one to send the request.
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setRequestOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={requestSending}>
+                {requestSending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Send request
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 // Verifies that the NotiProof script is installed on a given URL,
 // and records the result in business_domains.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { rateLimit, tooMany } from "../_shared/rate-limit.ts";
+import { uuidSchema } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,13 +37,16 @@ Deno.serve(async (req) => {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData?.user) return json({ error: "Unauthorized" }, 401);
 
+  const rl = await rateLimit({ key: `domain:${userData.user.id}`, max: 20, windowSec: 3600 });
+  if (!rl.ok) return json({ error: "rate_limited", retry_after: rl.retryAfter }, 429);
+
   let body: { url?: string; business_id?: string };
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
 
   const businessId = body.business_id;
   let rawUrl = (body.url ?? "").trim();
-  if (!businessId) return json({ error: "Missing business_id" }, 400);
-  if (!rawUrl) return json({ error: "Missing url" }, 400);
+  if (!businessId || !uuidSchema.safeParse(businessId).success) return json({ error: "Missing or invalid business_id" }, 400);
+  if (!rawUrl || rawUrl.length > 2048) return json({ error: "Missing or invalid url" }, 400);
   if (!/^https?:\/\//i.test(rawUrl)) rawUrl = `https://${rawUrl}`;
 
   let parsed: URL;

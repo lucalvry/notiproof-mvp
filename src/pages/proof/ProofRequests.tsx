@@ -15,6 +15,8 @@ import { ArrowLeft, Copy, Loader2, Plus, Send } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { UsageBanner } from "@/components/billing/UsageBanner";
 import { usePlanUsage } from "@/lib/plan-helpers";
+import { proofRequestSchema, parseOrError } from "@/lib/validation";
+import { showRateLimitToastIf } from "@/lib/use-rate-limit-toast";
 
 type RequestRow = Database["public"]["Tables"]["testimonial_requests"]["Row"];
 type ReqStatus = Database["public"]["Enums"]["testimonial_request_status"];
@@ -53,13 +55,38 @@ export default function ProofRequests() {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentBusinessId) return;
+    const parsed = parseOrError(proofRequestSchema, {
+      recipient_name: form.recipient_name || undefined,
+      recipient_email: form.recipient_email,
+    });
+    if (parsed.error) {
+      return toast({ title: "Check the request", description: parsed.error, variant: "destructive" });
+    }
     setCreating(true);
+
+    // Every testimonial_requests row must point to a proof_object. For manual
+    // requests there's no purchase to attach to, so we create a placeholder
+    // proof first and link it.
+    const { data: placeholderId, error: phErr } = await supabase.rpc(
+      "create_placeholder_proof_for_request",
+      { _business_id: currentBusinessId },
+    );
+    if (phErr || !placeholderId) {
+      setCreating(false);
+      return toast({
+        title: "Failed to create",
+        description: phErr?.message ?? "Could not create placeholder proof",
+        variant: "destructive",
+      });
+    }
+
     const { data: inserted, error } = await supabase
       .from("testimonial_requests")
       .insert({
         business_id: currentBusinessId,
-        recipient_email: form.recipient_email,
-        recipient_name: form.recipient_name || null,
+        proof_object_id: placeholderId as string,
+        recipient_email: parsed.data.recipient_email,
+        recipient_name: parsed.data.recipient_name ?? null,
         status: "scheduled",
       })
       .select("id")
@@ -75,6 +102,12 @@ export default function ProofRequests() {
     setCreating(false);
 
     if (sendErr || !sendResp?.ok) {
+      if (showRateLimitToastIf(sendErr ?? sendResp)) {
+        setForm({ recipient_name: "", recipient_email: "" });
+        setOpen(false);
+        load();
+        return;
+      }
       toast({
         title: "Request created (email not sent)",
         description: sendErr?.message ?? sendResp?.error ?? "You can copy the link and share it manually.",
@@ -96,6 +129,7 @@ export default function ProofRequests() {
       body: { request_id, app_origin: window.location.origin },
     });
     if (error || !data?.ok) {
+      if (showRateLimitToastIf(error ?? data)) return;
       toast({ title: "Resend failed", description: error?.message ?? data?.error ?? "Unknown error", variant: "destructive" });
     } else {
       toast({ title: "Email resent", description: `Sent to ${recipient_email}.` });
@@ -122,8 +156,8 @@ export default function ProofRequests() {
             <form onSubmit={create}>
               <DialogHeader><DialogTitle>New testimonial request</DialogTitle><DialogDescription>We'll generate a unique collection link.</DialogDescription></DialogHeader>
               <div className="space-y-4 py-4">
-                <div className="space-y-2"><Label htmlFor="r_name">Customer name (optional)</Label><Input id="r_name" value={form.recipient_name} onChange={(e) => setForm({ ...form, recipient_name: e.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="r_email">Customer email</Label><Input id="r_email" type="email" required value={form.recipient_email} onChange={(e) => setForm({ ...form, recipient_email: e.target.value })} /></div>
+                <div className="space-y-2"><Label htmlFor="r_name">Customer name (optional)</Label><Input id="r_name" maxLength={120} value={form.recipient_name} onChange={(e) => setForm({ ...form, recipient_name: e.target.value })} /></div>
+                <div className="space-y-2"><Label htmlFor="r_email">Customer email</Label><Input id="r_email" type="email" required maxLength={254} inputMode="email" autoComplete="email" value={form.recipient_email} onChange={(e) => setForm({ ...form, recipient_email: e.target.value })} /></div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>

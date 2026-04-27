@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { showRateLimitToastIf } from "@/lib/use-rate-limit-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
 import { planByKey } from "@/lib/plans";
+import { domainSchema } from "@/lib/validation";
 
 interface DomainRow {
   id: string;
@@ -81,7 +83,10 @@ export function DomainsCard() {
       const { data, error } = await supabase.functions.invoke("verify-domain", {
         body: { url: `https://${domain}`, business_id: currentBusinessId },
       });
-      if (error) throw error;
+      if (error) {
+        if (showRateLimitToastIf(error)) return;
+        throw error;
+      }
       const r = data as { verified: boolean; error?: string };
       if (r.verified) {
         toast({ title: "Verified", description: domain });
@@ -100,8 +105,9 @@ export function DomainsCard() {
     setAddError(null);
     if (!currentBusinessId || !canEdit) return;
     const host = normalizeHost(newDomain);
-    if (!host || !/\./.test(host)) {
-      setAddError("Enter a valid domain like mysite.com");
+    const parsed = domainSchema.safeParse(host);
+    if (!parsed.success) {
+      setAddError(parsed.error.issues[0]?.message ?? "Enter a valid domain like mysite.com");
       return;
     }
     if (limitReached) return;
@@ -238,6 +244,8 @@ export function DomainsCard() {
               <Input
                 placeholder="e.g. mysite.com"
                 value={newDomain}
+                maxLength={253}
+                autoComplete="url"
                 onChange={(e) => { setNewDomain(e.target.value); setAddError(null); }}
                 disabled={!canEdit || adding}
                 onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}

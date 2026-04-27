@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Upload, User as UserIcon } from "lucide-react";
+import { profileSchema, emailSchema, passwordSchema, parseOrError } from "@/lib/validation";
 
 export default function AccountSettings() {
   const { user, profile, refresh } = useAuth();
@@ -36,10 +37,17 @@ export default function AccountSettings() {
 
   const saveProfile = async () => {
     if (!user) return;
+    const parsed = parseOrError(profileSchema, {
+      full_name: fullName,
+      avatar_url: avatarUrl || undefined,
+    });
+    if (parsed.error) {
+      return toast({ title: "Check your details", description: parsed.error, variant: "destructive" });
+    }
     setSavingProfile(true);
     const { error } = await supabase
       .from("users")
-      .update({ full_name: fullName.trim() || null, avatar_url: avatarUrl || null })
+      .update({ full_name: parsed.data.full_name, avatar_url: parsed.data.avatar_url ?? null })
       .eq("id", user.id);
     setSavingProfile(false);
     if (error) return toast({ title: "Couldn't save profile", description: error.message, variant: "destructive" });
@@ -51,11 +59,14 @@ export default function AccountSettings() {
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    if (file.size > 5 * 1024 * 1024) {
-      return toast({ title: "Image too large", description: "Max 5 MB", variant: "destructive" });
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) {
+      return toast({ title: "Unsupported image", description: "Use JPEG, PNG, WebP or GIF.", variant: "destructive" });
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      return toast({ title: "Image too large", description: "Max 2 MB", variant: "destructive" });
     }
     setUploading(true);
-    const ext = file.name.split(".").pop() ?? "png";
+    const ext = (file.name.split(".").pop() ?? "png").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8) || "png";
     const path = `${user.id}/${Date.now()}.${ext}`;
     const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
     if (upErr) {
@@ -70,8 +81,12 @@ export default function AccountSettings() {
 
   const saveEmail = async () => {
     if (!newEmail || newEmail === user?.email) return;
+    const parsed = emailSchema.safeParse(newEmail);
+    if (!parsed.success) {
+      return toast({ title: "Invalid email", description: parsed.error.issues[0]?.message ?? "Enter a valid email", variant: "destructive" });
+    }
     setSavingEmail(true);
-    const { error } = await supabase.auth.updateUser({ email: newEmail });
+    const { error } = await supabase.auth.updateUser({ email: parsed.data });
     setSavingEmail(false);
     if (error) return toast({ title: "Couldn't update email", description: error.message, variant: "destructive" });
     toast({
@@ -82,7 +97,10 @@ export default function AccountSettings() {
 
   const savePassword = async () => {
     if (!user?.email) return;
-    if (newPw.length < 8) return toast({ title: "Password too short", description: "Use at least 8 characters", variant: "destructive" });
+    const parsed = passwordSchema.safeParse(newPw);
+    if (!parsed.success) {
+      return toast({ title: "Choose a stronger password", description: parsed.error.issues[0]?.message ?? "Use 8+ chars with letters and numbers", variant: "destructive" });
+    }
     if (newPw !== confirmPw) return toast({ title: "Passwords don't match", variant: "destructive" });
     setSavingPw(true);
     // Re-authenticate first
@@ -127,7 +145,7 @@ export default function AccountSettings() {
           </div>
           <div className="space-y-2">
             <Label>Full name</Label>
-            <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jane Doe" />
+            <Input value={fullName} maxLength={120} autoComplete="name" onChange={(e) => setFullName(e.target.value)} placeholder="Jane Doe" />
           </div>
           <div className="flex justify-end">
             <Button onClick={saveProfile} disabled={savingProfile}>
@@ -146,7 +164,7 @@ export default function AccountSettings() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Email</Label>
-            <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+            <Input type="email" value={newEmail} maxLength={254} inputMode="email" autoComplete="email" onChange={(e) => setNewEmail(e.target.value)} />
           </div>
           <div className="flex justify-end">
             <Button onClick={saveEmail} disabled={savingEmail || newEmail === user?.email}>

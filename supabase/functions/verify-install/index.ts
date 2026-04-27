@@ -1,6 +1,8 @@
 // Fetches a user-supplied URL and looks for the NotiProof widget script tag.
 // On success, marks businesses.install_verified = true.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { rateLimit, tooMany } from "../_shared/rate-limit.ts";
+import { uuidSchema } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +29,9 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
   }
 
+  const rl = await rateLimit({ key: `verify:${userData.user.id}`, max: 10, windowSec: 60 });
+  if (!rl.ok) return tooMany(corsHeaders, rl.retryAfter);
+
   let body: { url?: string; business_id?: string };
   try { body = await req.json(); } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: corsHeaders });
@@ -34,11 +39,11 @@ Deno.serve(async (req) => {
 
   const businessId = body.business_id;
   let rawUrl = (body.url ?? "").trim();
-  if (!businessId) {
-    return new Response(JSON.stringify({ error: "Missing business_id" }), { status: 400, headers: corsHeaders });
+  if (!businessId || !uuidSchema.safeParse(businessId).success) {
+    return new Response(JSON.stringify({ error: "Missing or invalid business_id" }), { status: 400, headers: corsHeaders });
   }
-  if (!rawUrl) {
-    return new Response(JSON.stringify({ error: "Missing url" }), { status: 400, headers: corsHeaders });
+  if (!rawUrl || rawUrl.length > 2048) {
+    return new Response(JSON.stringify({ error: "Missing or invalid url" }), { status: 400, headers: corsHeaders });
   }
   if (!/^https?:\/\//i.test(rawUrl)) rawUrl = `https://${rawUrl}`;
 

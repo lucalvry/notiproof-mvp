@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useToast } from "@/hooks/use-toast";
+import { resetPasswordSchema, parseOrError } from "@/lib/validation";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -28,12 +29,13 @@ export default function ResetPassword() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password !== confirm) {
-      toast({ title: "Passwords don't match", variant: "destructive" });
+    const parsed = parseOrError(resetPasswordSchema, { password, confirmPassword: confirm });
+    if (parsed.error) {
+      toast({ title: "Check your password", description: parsed.error, variant: "destructive" });
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
+    const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
     setLoading(false);
     if (error) {
       toast({ title: "Failed", description: error.message, variant: "destructive" });
@@ -48,11 +50,11 @@ export default function ResetPassword() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="password">New password</Label>
-          <PasswordInput id="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} disabled={!ready} autoComplete="new-password" />
+          <PasswordInput id="password" required minLength={8} maxLength={200} value={password} onChange={(e) => setPassword(e.target.value)} disabled={!ready} autoComplete="new-password" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="confirm">Confirm password</Label>
-          <PasswordInput id="confirm" required minLength={8} value={confirm} onChange={(e) => setConfirm(e.target.value)} disabled={!ready} autoComplete="new-password" />
+          <PasswordInput id="confirm" required minLength={8} maxLength={200} value={confirm} onChange={(e) => setConfirm(e.target.value)} disabled={!ready} autoComplete="new-password" />
         </div>
         <Button type="submit" className="w-full" disabled={loading || !ready}>
           {loading ? "Updating..." : "Update password"}

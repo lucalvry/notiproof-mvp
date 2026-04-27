@@ -92,11 +92,11 @@ export default function IntegrationDetail() {
     webhook_secret: string | null;
   } | null>(null);
   const [wooDialogOpen, setWooDialogOpen] = useState(false);
-  const [wooBusy, setWooBusy] = useState<"test" | "backfill" | "clear" | null>(null);
+  const [wooBusy, setWooBusy] = useState<"test" | "backfill" | "clear" | "backfill_requests" | null>(null);
 
   const [displayName, setDisplayName] = useState("");
   const [autoRequest, setAutoRequest] = useState(false);
-  const [delayMinutes, setDelayMinutes] = useState("0");
+  const [delayDays, setDelayDays] = useState("14");
 
   // Secure credential summary (masked) — never load the raw token to the browser.
   const [maskedToken, setMaskedToken] = useState<string | null>(null);
@@ -139,7 +139,7 @@ export default function IntegrationDetail() {
     const [i, e] = await Promise.all([
       supabase
         .from("integrations")
-        .select("*")
+        .select("id, business_id, platform, provider, status, config, auto_request_enabled, auto_request_delay_days, auto_request_delay_minutes, last_sync_at, created_at, updated_at")
         .eq("id", id)
         .eq("business_id", currentBusinessId)
         .maybeSingle(),
@@ -151,11 +151,11 @@ export default function IntegrationDetail() {
         .limit(20),
     ]);
     if (i.data) {
-      setIntegration(i.data);
+      setIntegration(i.data as any);
       const cfg = (i.data.config ?? {}) as IntegrationConfig;
       setDisplayName(cfg.display_name ?? "");
-      setAutoRequest(!!cfg.auto_request_enabled);
-      setDelayMinutes(String(cfg.auto_request_delay_minutes ?? 0));
+      setAutoRequest(!!(i.data as any).auto_request_enabled || !!cfg.auto_request_enabled);
+      setDelayDays(String((i.data as any).auto_request_delay_days ?? 14));
       setShopDomain(cfg.shop ?? "");
       if (i.data.platform === "woocommerce" || i.data.provider === "woocommerce") {
         loadWooSummary();
@@ -188,15 +188,18 @@ export default function IntegrationDetail() {
     if (!integration) return;
     setSaving(true);
     const cfg = (integration.config ?? {}) as IntegrationConfig;
-    const delay = Math.max(0, Math.min(10080, Number(delayMinutes) || 0));
+    const days = Math.max(0, Math.min(60, Number(delayDays) || 0));
     const { error } = await supabase
       .from("integrations")
       .update({
+        auto_request_enabled: autoRequest,
+        auto_request_delay_days: days,
         config: {
           ...cfg,
           display_name: displayName,
+          // Mirror to config for legacy reads only.
           auto_request_enabled: autoRequest,
-          auto_request_delay_minutes: delay,
+          auto_request_delay_minutes: days * 1440,
         },
       })
       .eq("id", integration.id);
@@ -488,8 +491,11 @@ export default function IntegrationDetail() {
                           variant: "destructive",
                         });
                       } else {
+                        const reqMsg = typeof data.requests_scheduled === "number"
+                          ? ` · ${data.requests_scheduled} testimonial request${data.requests_scheduled === 1 ? "" : "s"} scheduled`
+                          : "";
                         toast({
-                          title: `Imported ${data.imported} order${data.imported === 1 ? "" : "s"}`,
+                          title: `Imported ${data.imported} order${data.imported === 1 ? "" : "s"}${reqMsg}`,
                         });
                         loadEvents();
                       }
@@ -499,6 +505,38 @@ export default function IntegrationDetail() {
                       <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
                     )}
                     Backfill last 30 days
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={wooBusy !== null}
+                    onClick={async () => {
+                      setWooBusy("backfill_requests");
+                      const { data, error } = await supabase.functions.invoke("integration-woocommerce", {
+                        body: { action: "backfill_requests", integration_id: integration.id },
+                      });
+                      setWooBusy(null);
+                      if (error || !data?.ok) {
+                        toast({
+                          title: "Couldn't queue requests",
+                          description: error?.message ?? data?.error ?? "Make sure auto-request is enabled.",
+                          variant: "destructive",
+                        });
+                      } else {
+                        const missing = data.missing_email ?? 0;
+                        toast({
+                          title: `${data.scheduled} testimonial request${data.scheduled === 1 ? "" : "s"} queued`,
+                          description: missing > 0
+                            ? `${missing} older proof${missing === 1 ? "" : "s"} have no email on file — open them and use "Request testimonial" to enter one.`
+                            : undefined,
+                        });
+                      }
+                    }}
+                  >
+                    {wooBusy === "backfill_requests" && (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    )}
+                    Backfill missing requests
                   </Button>
                   <Button
                     size="sm"
@@ -558,16 +596,17 @@ export default function IntegrationDetail() {
 
           {autoRequest && (
             <div className="space-y-2">
-              <Label>Delay before sending (minutes)</Label>
+              <Label>Delay before sending (days)</Label>
               <Input
                 type="number"
                 min={0}
-                max={10080}
-                value={delayMinutes}
-                onChange={(e) => setDelayMinutes(e.target.value)}
+                max={60}
+                value={delayDays}
+                onChange={(e) => setDelayDays(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                0 = immediate. Up to 7 days (10,080 minutes).
+                Default 14 days. Range: 0–60. The customer's email is captured
+                from the order and a testimonial request is queued for sending.
               </p>
             </div>
           )}

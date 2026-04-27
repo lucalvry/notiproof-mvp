@@ -9,6 +9,7 @@ import { Save, Loader2, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 type Template = { subject: string; body: string };
 
@@ -147,12 +148,14 @@ export default function EmailSettings() {
   const previewSubject = useMemo(() => renderTemplate(current.subject, previewVars), [current.subject, previewVars]);
   const previewBodyHtml = useMemo(() => {
     const rendered = renderTemplate(current.body, previewVars);
-    return rendered
+    const html = rendered
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/(https?:\/\/[^\s<]+)/g, `<a href="$1" style="color:${brandColor}">$1</a>`)
       .replace(/\n/g, "<br>");
+    // Defence-in-depth: scrub the rendered HTML through DOMPurify.
+    return sanitizeHtml(html);
   }, [current.body, previewVars, brandColor]);
 
   return (

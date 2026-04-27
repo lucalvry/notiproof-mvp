@@ -17,6 +17,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { showRateLimitToastIf } from "@/lib/use-rate-limit-toast";
 import {
   ExternalLink,
   Loader2,
@@ -138,6 +139,7 @@ export default function BillingSettings() {
     });
     setBusyAction(null);
     if (error || !data?.url) {
+      if (showRateLimitToastIf(error ?? data)) return;
       toast({
         title: "Unable to open billing portal",
         description: error?.message ?? data?.error,
@@ -162,6 +164,7 @@ export default function BillingSettings() {
     });
     setBusyAction(null);
     if (error || !data?.url) {
+      if (showRateLimitToastIf(error ?? data)) return;
       toast({
         title: "Unable to start checkout",
         description: error?.message ?? data?.error,

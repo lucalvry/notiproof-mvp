@@ -12,46 +12,62 @@ export interface BunnyUploadOptions {
   collectionToken?: string;
 }
 
+const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
+const SUPABASE_PUBLISHABLE_KEY = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+
 /**
- * Uploads a file to Bunny CDN via the bunny-upload-url edge function.
- * Returns the public CDN URL on success. Throws on failure.
+ * Uploads a file via the bunny-upload-url edge function. The function proxies
+ * the upload to Bunny CDN server-side so the storage-zone write key never
+ * reaches the browser. Returns the public CDN URL on success.
  *
- * Falls back to Supabase Storage upload (in `proof-media`) if Bunny is not configured.
+ * Falls back to Supabase Storage (`proof-media`) only if Bunny isn't configured.
  */
 export async function uploadToBunny({ kind = "media", folder, filename, contentType, blob, businessId, collectionToken }: BunnyUploadOptions): Promise<string> {
-  // Ask edge function for an upload URL
-  const { data, error } = await supabase.functions.invoke("bunny-upload-url", {
-    body: {
-      kind, folder, filename, content_type: contentType,
-      content_length: blob.size,
-      business_id: businessId,
-      collection_token: collectionToken,
-    },
-  });
+  if (!SUPABASE_URL) throw new Error("Supabase URL is not configured");
 
-  if (error || !data?.ok) {
-    if ((data?.error || "").includes("storage_limit")) {
-      throw new Error("This business has reached its media storage limit. Please upgrade or free space.");
-    }
-    // Fallback to Supabase Storage if Bunny is not configured
-    if (data?.error?.includes("not configured") || error?.message?.includes("not configured")) {
-      const path = `${folder ?? "public"}/${Date.now()}_${filename}`;
-      const { error: upErr } = await supabase.storage.from("proof-media").upload(path, blob, { contentType, upsert: false });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("proof-media").getPublicUrl(path);
-      return pub.publicUrl;
-    }
-    throw new Error(error?.message ?? data?.error ?? "Failed to get upload URL");
+  const form = new FormData();
+  form.append("file", blob, filename);
+  form.append("kind", kind);
+  if (folder) form.append("folder", folder);
+  form.append("filename", filename);
+  form.append("content_type", contentType);
+  if (businessId) form.append("business_id", businessId);
+  if (collectionToken) form.append("collection_token", collectionToken);
+
+  const headers: Record<string, string> = {};
+  // Auth header: pass the user session if available, otherwise the anon/publishable key.
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  } else if (SUPABASE_PUBLISHABLE_KEY) {
+    headers["Authorization"] = `Bearer ${SUPABASE_PUBLISHABLE_KEY}`;
+    headers["apikey"] = SUPABASE_PUBLISHABLE_KEY;
   }
 
-  const res = await fetch(data.upload_url, {
-    method: data.method ?? "PUT",
-    headers: data.headers ?? { "Content-Type": contentType },
-    body: blob,
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/bunny-upload-url`, {
+    method: "POST",
+    headers,
+    body: form,
   });
 
-  if (!res.ok) {
-    throw new Error(`Bunny upload failed: ${res.status} ${res.statusText}`);
+  let data: any = null;
+  try { data = await res.json(); } catch { /* ignore */ }
+
+  if (res.status === 503 && (data?.error ?? "").includes("not configured")) {
+    // Fallback to Supabase Storage if Bunny isn't configured for this project.
+    const path = `${folder ?? "public"}/${Date.now()}_${filename}`;
+    const { error: upErr } = await supabase.storage.from("proof-media").upload(path, blob, { contentType, upsert: false });
+    if (upErr) throw upErr;
+    const { data: pub } = supabase.storage.from("proof-media").getPublicUrl(path);
+    return pub.publicUrl;
+  }
+
+  if (!res.ok || !data?.ok) {
+    if ((data?.error ?? "") === "storage_limit_reached") {
+      throw new Error("This business has reached its media storage limit. Please upgrade or free space.");
+    }
+    throw new Error(data?.error ?? `Upload failed (${res.status})`);
   }
 
   return data.public_url as string;

@@ -18,6 +18,7 @@ import { ArrowLeft, Save, Loader2, Code, Lock } from "lucide-react";
 import { PreviewRender, type WidgetConfig as SharedWidgetConfig } from "@/components/widgets/PreviewRender";
 import type { Database } from "@/integrations/supabase/types";
 import { ReadOnlyBanner } from "@/components/layouts/ReadOnlyBanner";
+import { widgetEditorSchema, fieldErrors } from "@/lib/validation";
 
 type Widget = Database["public"]["Tables"]["widgets"]["Row"];
 type WidgetType = Database["public"]["Enums"]["widget_type"];
@@ -193,13 +194,23 @@ export default function WidgetEditor() {
 
   const save = async () => {
     if (!currentBusinessId || !w.name) return;
+    const validated = fieldErrors(widgetEditorSchema, {
+      name: w.name,
+      target_url: w.target_url ?? "",
+      frequency_cap_per_user: w.frequency_cap_per_user ?? 0,
+      load_delay_ms: w.load_delay_ms ?? 0,
+    });
+    if (!validated.ok) {
+      const first = Object.values(validated.errors)[0] ?? "Check the highlighted fields";
+      return toast({ title: "Check widget settings", description: first, variant: "destructive" });
+    }
     // Free plan forces powered_by on
     const finalConfig = isFreePlan ? { ...cfg, powered_by: true } : cfg;
     setSaving(true);
     if (isNew) {
       const { data, error } = await supabase.from("widgets").insert({
         business_id: currentBusinessId,
-        name: w.name,
+        name: validated.data.name,
         type: w.type ?? "popup",
         status: w.status ?? "draft",
         config: finalConfig as unknown as Json,
@@ -210,7 +221,7 @@ export default function WidgetEditor() {
       navigate(`/widgets/${data.id}/edit`, { replace: true });
     } else {
       const { error } = await supabase.from("widgets").update({
-        name: w.name, type: w.type, status: w.status, config: finalConfig as unknown as Json,
+        name: validated.data.name, type: w.type, status: w.status, config: finalConfig as unknown as Json,
       }).eq("id", id!);
       setSaving(false);
       if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });

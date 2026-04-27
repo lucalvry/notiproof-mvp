@@ -120,13 +120,13 @@ export default function IntegrationsList() {
     const [{ data, error }, statsRes] = await Promise.all([
       supabase
         .from("integrations")
-        .select("*")
+        .select("id, business_id, platform, provider, status, config, auto_request_enabled, auto_request_delay_days, auto_request_delay_minutes, last_sync_at, created_at, updated_at")
         .eq("business_id", currentBusinessId)
         .order("created_at", { ascending: false }),
       db.rpc("business_integration_stats", { _business_id: currentBusinessId }),
     ]);
     if (error) toast({ title: "Failed to load", description: error.message, variant: "destructive" });
-    else setItems((data ?? []).filter((i: Integration) => i.provider !== "stripe"));
+    else setItems(((data ?? []) as any[]).filter((i: Integration) => i.provider !== "stripe"));
     const map = new Map<string, IntegrationStat>();
     ((statsRes.data ?? []) as IntegrationStat[]).forEach((s) => map.set(s.integration_id, s));
     setStats(map);

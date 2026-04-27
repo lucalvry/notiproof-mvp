@@ -60,6 +60,63 @@ function buildWebhookUrl(integrationId: string) {
   return `${SUPABASE_URL}/functions/v1/webhook-woocommerce?integration_id=${integrationId}`;
 }
 
+async function maybeCreateTestimonialRequest(
+  admin: any,
+  integ: { auto_request_enabled?: boolean | null; auto_request_delay_days?: number | null },
+  businessId: string,
+  proofId: string,
+  customerEmail: string | null,
+  customerName: string | null,
+  proofEventAt: string | null,
+): Promise<boolean> {
+  if (!integ.auto_request_enabled || !customerEmail) return false;
+
+  // Skip if a request already exists for this proof.
+  const { data: existingReq } = await admin
+    .from("testimonial_requests")
+    .select("id")
+    .eq("proof_object_id", proofId)
+    .maybeSingle();
+  if (existingReq) return false;
+
+  const delayDays = Math.max(0, Math.min(60, integ.auto_request_delay_days ?? 14));
+  const baseMs = proofEventAt ? Date.parse(proofEventAt) : Date.now();
+  let runAtMs = (Number.isFinite(baseMs) ? baseMs : Date.now()) + delayDays * 86400_000;
+  // Backfilled orders are usually in the past; nudge into the near future
+  // so the cron dispatcher actually picks them up.
+  if (runAtMs <= Date.now()) runAtMs = Date.now() + 5 * 60_000;
+  const sendAt = new Date(runAtMs).toISOString();
+  const expires = new Date(runAtMs + 14 * 86400_000).toISOString();
+
+  const { data: req, error: reqErr } = await admin
+    .from("testimonial_requests")
+    .insert({
+      business_id: businessId,
+      proof_object_id: proofId,
+      recipient_email: customerEmail,
+      recipient_name: customerName,
+      requested_type: "testimonial",
+      prompt_questions: [],
+      status: "scheduled",
+      expires_at: expires,
+    })
+    .select("id")
+    .single();
+  if (reqErr || !req) {
+    console.error("backfill testimonial_requests insert failed", reqErr);
+    return false;
+  }
+
+  await admin.from("scheduled_jobs").insert({
+    business_id: businessId,
+    job_type: "send_testimonial_email",
+    payload: { testimonial_request_id: req.id },
+    run_at: sendAt,
+    status: "pending",
+  });
+  return true;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -84,7 +141,7 @@ Deno.serve(async (req) => {
 
     const { data: integ } = await admin
       .from("integrations")
-      .select("id, business_id, platform, provider, credentials, config, status")
+      .select("id, business_id, platform, provider, credentials, config, status, auto_request_enabled, auto_request_delay_days")
       .eq("id", integrationId)
       .maybeSingle();
     if (!integ) return json({ error: "Integration not found" }, 404);
@@ -214,6 +271,7 @@ Deno.serve(async (req) => {
       if (!ck || !cs || !storeUrl) return json({ error: "Not connected yet" }, 400);
       const after = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       let imported = 0;
+      let requestsScheduled = 0;
       for (let page = 1; page <= 4; page++) {
         const path = `orders?status=completed,processing&after=${encodeURIComponent(after)}&per_page=50&page=${page}&orderby=date&order=desc`;
         const res = await wcFetch(storeUrl, path, ck, cs).catch(() => null);
@@ -228,7 +286,12 @@ Deno.serve(async (req) => {
           const sourceRef = `wc:${o.id}`;
           const customerName =
             [o.billing?.first_name, o.billing?.last_name].filter(Boolean).join(" ") || null;
+          const customerEmail =
+            (typeof o.billing?.email === "string" && o.billing.email.trim().length > 0
+              ? o.billing.email.trim()
+              : null);
           const total = o.total ? `${o.total} ${o.currency ?? "USD"}` : "an order";
+          const proofEventAt = o.date_created ?? new Date().toISOString();
 
           const { data: existing } = await admin
             .from("proof_objects")
@@ -247,12 +310,13 @@ Deno.serve(async (req) => {
               external_ref_id: sourceRef,
               content: `Ordered ${total}`,
               author_name: customerName,
+              author_email: customerEmail,
               source: "woocommerce",
               source_metadata: { city: o.billing?.city, country: o.billing?.country },
               verification_tier: "verified",
               verified: true,
               status: "approved",
-              proof_event_at: o.date_created ?? new Date().toISOString(),
+              proof_event_at: proofEventAt,
             })
             .select("id")
             .single();
@@ -265,7 +329,19 @@ Deno.serve(async (req) => {
             processed_at: new Date().toISOString(),
             proof_object_id: po?.id ?? null,
           });
-          if (po?.id) imported++;
+          if (po?.id) {
+            imported++;
+            const ok = await maybeCreateTestimonialRequest(
+              admin,
+              integ as any,
+              integ.business_id,
+              po.id,
+              customerEmail,
+              customerName,
+              proofEventAt,
+            );
+            if (ok) requestsScheduled++;
+          }
         }
         if (orders.length < 50) break;
       }
@@ -273,8 +349,47 @@ Deno.serve(async (req) => {
         .from("integrations")
         .update({ last_sync_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq("id", integ.id);
-      return json({ ok: true, imported });
+      return json({ ok: true, imported, requests_scheduled: requestsScheduled });
     }
+
+    // ---- backfill_requests -------------------------------------------------
+    if (action === "backfill_requests") {
+      if (!integ.auto_request_enabled) {
+        return json({ error: "Enable auto-request on this integration first." }, 400);
+      }
+      const { data: candidates, error: candErr } = await admin
+        .from("proof_objects")
+        .select("id, author_name, author_email, proof_event_at")
+        .eq("business_id", integ.business_id)
+        .eq("source", "woocommerce")
+        .not("author_email", "is", null)
+        .limit(500);
+      if (candErr) return json({ error: candErr.message }, 500);
+
+      let scheduled = 0;
+      for (const p of candidates ?? []) {
+        const ok = await maybeCreateTestimonialRequest(
+          admin,
+          integ as any,
+          integ.business_id,
+          p.id,
+          (p as any).author_email,
+          (p as any).author_name,
+          (p as any).proof_event_at,
+        );
+        if (ok) scheduled++;
+      }
+
+      const { count } = await admin
+        .from("proof_objects")
+        .select("id", { count: "exact", head: true })
+        .eq("business_id", integ.business_id)
+        .eq("source", "woocommerce")
+        .is("author_email", null);
+
+      return json({ ok: true, scheduled, missing_email: count ?? 0 });
+    }
+
 
     // ---- clear -------------------------------------------------------------
     if (action === "clear") {
