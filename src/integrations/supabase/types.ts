@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          business_id: string | null
+          created_at: string
+          details: Json
+          id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+        }
+        Relationships: []
+      }
       business_domains: {
         Row: {
           business_id: string
@@ -95,36 +122,57 @@ export type Database = {
         Row: {
           brand_color: string | null
           created_at: string
+          extra_seats_purchased: number
           id: string
           industry: string | null
           install_verified: boolean
           logo_url: string | null
+          monthly_event_limit: number | null
+          monthly_proof_limit: number | null
           name: string
           plan: Database["public"]["Enums"]["business_plan"]
+          plan_expires_at: string | null
+          plan_tier: Database["public"]["Enums"]["business_plan"] | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
           time_zone: string | null
           updated_at: string
         }
         Insert: {
           brand_color?: string | null
           created_at?: string
+          extra_seats_purchased?: number
           id?: string
           industry?: string | null
           install_verified?: boolean
           logo_url?: string | null
+          monthly_event_limit?: number | null
+          monthly_proof_limit?: number | null
           name: string
           plan?: Database["public"]["Enums"]["business_plan"]
+          plan_expires_at?: string | null
+          plan_tier?: Database["public"]["Enums"]["business_plan"] | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           time_zone?: string | null
           updated_at?: string
         }
         Update: {
           brand_color?: string | null
           created_at?: string
+          extra_seats_purchased?: number
           id?: string
           industry?: string | null
           install_verified?: boolean
           logo_url?: string | null
+          monthly_event_limit?: number | null
+          monthly_proof_limit?: number | null
           name?: string
           plan?: Database["public"]["Enums"]["business_plan"]
+          plan_expires_at?: string | null
+          plan_tier?: Database["public"]["Enums"]["business_plan"] | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           time_zone?: string | null
           updated_at?: string
         }
@@ -192,6 +240,7 @@ export type Database = {
       integrations: {
         Row: {
           access_token: string | null
+          auto_request_delay_days: number | null
           auto_request_enabled: boolean
           business_id: string
           config: Json
@@ -200,7 +249,9 @@ export type Database = {
           display_name: string | null
           id: string
           last_event_at: string | null
+          last_sync_at: string | null
           platform: Database["public"]["Enums"]["integration_platform"]
+          provider: string | null
           refresh_token: string | null
           status: Database["public"]["Enums"]["integration_status"]
           updated_at: string
@@ -209,6 +260,7 @@ export type Database = {
         }
         Insert: {
           access_token?: string | null
+          auto_request_delay_days?: number | null
           auto_request_enabled?: boolean
           business_id: string
           config?: Json
@@ -217,7 +269,9 @@ export type Database = {
           display_name?: string | null
           id?: string
           last_event_at?: string | null
+          last_sync_at?: string | null
           platform: Database["public"]["Enums"]["integration_platform"]
+          provider?: string | null
           refresh_token?: string | null
           status?: Database["public"]["Enums"]["integration_status"]
           updated_at?: string
@@ -226,6 +280,7 @@ export type Database = {
         }
         Update: {
           access_token?: string | null
+          auto_request_delay_days?: number | null
           auto_request_enabled?: boolean
           business_id?: string
           config?: Json
@@ -234,7 +289,9 @@ export type Database = {
           display_name?: string | null
           id?: string
           last_event_at?: string | null
+          last_sync_at?: string | null
           platform?: Database["public"]["Enums"]["integration_platform"]
+          provider?: string | null
           refresh_token?: string | null
           status?: Database["public"]["Enums"]["integration_status"]
           updated_at?: string
@@ -291,59 +348,95 @@ export type Database = {
         Row: {
           ai_claims: Json | null
           author_avatar_url: string | null
+          author_email: string | null
           author_location: string | null
           author_name: string | null
           business_id: string
           content: string
           created_at: string
+          external_ref_id: string | null
           id: string
           is_approved: boolean
           media_url: string | null
+          proof_event_at: string | null
+          proof_type: string | null
+          published_at: string | null
           rating: number | null
           sentiment_score: number | null
+          source: string | null
+          source_metadata: Json | null
           source_ref: string | null
           source_type: Database["public"]["Enums"]["proof_source_type"]
+          status: string | null
           tags: string[] | null
+          type: string | null
           updated_at: string
+          verification_method: string | null
           verification_tier: Database["public"]["Enums"]["verification_tier"]
+          verification_tier_int: number | null
+          verified: boolean | null
         }
         Insert: {
           ai_claims?: Json | null
           author_avatar_url?: string | null
+          author_email?: string | null
           author_location?: string | null
           author_name?: string | null
           business_id: string
           content: string
           created_at?: string
+          external_ref_id?: string | null
           id?: string
           is_approved?: boolean
           media_url?: string | null
+          proof_event_at?: string | null
+          proof_type?: string | null
+          published_at?: string | null
           rating?: number | null
           sentiment_score?: number | null
+          source?: string | null
+          source_metadata?: Json | null
           source_ref?: string | null
           source_type: Database["public"]["Enums"]["proof_source_type"]
+          status?: string | null
           tags?: string[] | null
+          type?: string | null
           updated_at?: string
+          verification_method?: string | null
           verification_tier?: Database["public"]["Enums"]["verification_tier"]
+          verification_tier_int?: number | null
+          verified?: boolean | null
         }
         Update: {
           ai_claims?: Json | null
           author_avatar_url?: string | null
+          author_email?: string | null
           author_location?: string | null
           author_name?: string | null
           business_id?: string
           content?: string
           created_at?: string
+          external_ref_id?: string | null
           id?: string
           is_approved?: boolean
           media_url?: string | null
+          proof_event_at?: string | null
+          proof_type?: string | null
+          published_at?: string | null
           rating?: number | null
           sentiment_score?: number | null
+          source?: string | null
+          source_metadata?: Json | null
           source_ref?: string | null
           source_type?: Database["public"]["Enums"]["proof_source_type"]
+          status?: string | null
           tags?: string[] | null
+          type?: string | null
           updated_at?: string
+          verification_method?: string | null
           verification_tier?: Database["public"]["Enums"]["verification_tier"]
+          verification_tier_int?: number | null
+          verified?: boolean | null
         }
         Relationships: [
           {
@@ -355,18 +448,61 @@ export type Database = {
           },
         ]
       }
+      scheduled_jobs: {
+        Row: {
+          attempts: number
+          business_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          job_type: string
+          payload: Json
+          run_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          business_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          job_type: string
+          payload?: Json
+          run_at: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          business_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          job_type?: string
+          payload?: Json
+          run_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       testimonial_requests: {
         Row: {
           business_id: string
           collection_token: string
           completed_at: string | null
           created_at: string
-          customer_email: string
+          customer_email: string | null
           customer_name: string | null
           expires_at: string
           id: string
           opened_at: string | null
+          prompt_questions: Json | null
           proof_object_id: string | null
+          recipient_email: string | null
+          recipient_name: string | null
+          requested_type: string | null
           sent_at: string | null
           status: Database["public"]["Enums"]["testimonial_request_status"]
         }
@@ -375,12 +511,16 @@ export type Database = {
           collection_token: string
           completed_at?: string | null
           created_at?: string
-          customer_email: string
+          customer_email?: string | null
           customer_name?: string | null
           expires_at?: string
           id?: string
           opened_at?: string | null
+          prompt_questions?: Json | null
           proof_object_id?: string | null
+          recipient_email?: string | null
+          recipient_name?: string | null
+          requested_type?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["testimonial_request_status"]
         }
@@ -389,12 +529,16 @@ export type Database = {
           collection_token?: string
           completed_at?: string | null
           created_at?: string
-          customer_email?: string
+          customer_email?: string | null
           customer_name?: string | null
           expires_at?: string
           id?: string
           opened_at?: string | null
+          prompt_questions?: Json | null
           proof_object_id?: string | null
+          recipient_email?: string | null
+          recipient_name?: string | null
+          requested_type?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["testimonial_request_status"]
         }
@@ -642,6 +786,10 @@ export type Database = {
         | { Args: { _role: string; _user_id: string }; Returns: boolean }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
+      log_admin_action: {
+        Args: { _action: string; _business_id: string; _details?: Json }
+        Returns: string
+      }
       migrate_integration_connectors_to_integrations: {
         Args: never
         Returns: undefined
@@ -681,7 +829,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user" | "support" | "superadmin" | "moderator"
-      business_plan: "free" | "starter" | "growth" | "scale" | "agency"
+      business_plan: "free" | "starter" | "growth" | "agency"
       integration_platform:
         | "stripe"
         | "shopify"
@@ -846,7 +994,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user", "support", "superadmin", "moderator"],
-      business_plan: ["free", "starter", "growth", "scale", "agency"],
+      business_plan: ["free", "starter", "growth", "agency"],
       integration_platform: [
         "stripe",
         "shopify",

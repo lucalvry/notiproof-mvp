@@ -597,6 +597,7 @@ export default function ProofLibrary() {
       <RequestTestimonialModal
         open={requestModalOpen}
         onOpenChange={setRequestModalOpen}
+        onSent={load}
       />
 
       <AssignToWidgetDialog
