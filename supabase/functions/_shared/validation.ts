@@ -20,7 +20,12 @@ export const urlSchema = z
   .trim()
   .max(2048)
   .refine((v) => /^https?:\/\//i.test(v), "must be http(s) URL");
-export const optionalUrl = urlSchema.optional().or(z.literal("").transform(() => undefined));
+// Accept a valid URL, an empty string, undefined, or null. Older clients send
+// `null` for omitted optional URL fields — we must not 400 on that.
+export const optionalUrl = urlSchema
+  .optional()
+  .nullable()
+  .or(z.literal("").transform(() => undefined));
 export const tokenSchema = z.string().trim().min(8).max(128).regex(/^[A-Za-z0-9_-]+$/);
 export const uuidSchema = z.string().uuid();
 export const ratingSchema = z.coerce.number().int().min(1).max(5);

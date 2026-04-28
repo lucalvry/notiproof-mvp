@@ -245,21 +245,28 @@ export default function Collect() {
         ? (/^https?:\/\//i.test(website.trim()) ? website.trim() : `https://${website.trim()}`)
         : null;
 
+      // Build payload with only the fields that have values. The edge function
+      // validates optional URL fields strictly — sending `null` was triggering
+      // `invalid_payload` errors, so we omit empties entirely.
+      const submitBody: Record<string, unknown> = {
+        token,
+        author_name: name,
+        author_email: email,
+        content: finalContent,
+        rating,
+      };
+      if (mediaUrl) submitBody.media_url = mediaUrl;
+      if (role.trim()) submitBody.author_role = role.trim();
+      if (company.trim()) submitBody.author_company = company.trim();
+      if (photoUrl) submitBody.author_photo_url = photoUrl;
+      if (normalizedWebsite) submitBody.author_website_url = normalizedWebsite;
+      if (mode === "video" && videoBlob) submitBody.media_size_bytes = videoBlob.size;
+      if (mode === "video" && videoDuration > 0) {
+        submitBody.media_duration_seconds = Math.round(videoDuration * 10) / 10;
+      }
+
       const { data, error } = await supabase.functions.invoke("submit-testimonial", {
-        body: {
-          token,
-          author_name: name,
-          author_email: email,
-          content: finalContent,
-          rating,
-          media_url: mediaUrl,
-          author_role: role.trim() || null,
-          author_company: company.trim() || null,
-          author_photo_url: photoUrl,
-          author_website_url: normalizedWebsite,
-          media_size_bytes: mode === "video" && videoBlob ? videoBlob.size : null,
-          media_duration_seconds: mode === "video" && videoDuration > 0 ? Math.round(videoDuration * 10) / 10 : null,
-        },
+        body: submitBody,
       });
       if (error) {
         if (showRateLimitToastIf(error)) return;
