@@ -45,11 +45,28 @@ export async function uploadToBunny({ kind = "media", folder, filename, contentT
     headers["apikey"] = SUPABASE_PUBLISHABLE_KEY;
   }
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/bunny-upload-url`, {
-    method: "POST",
-    headers,
-    body: form,
-  });
+  const url = `${SUPABASE_URL}/functions/v1/bunny-upload-url`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60_000);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: form,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    const name = (err as Error)?.name ?? "";
+    console.error("[uploadToBunny] network/fetch error", { url, err });
+    if (name === "AbortError") {
+      throw new Error("Upload timed out. Please try again on a stronger connection.");
+    }
+    throw new Error("Could not reach the upload service. Check your connection and try again.");
+  }
+  clearTimeout(timeoutId);
 
   let data: any = null;
   try { data = await res.json(); } catch { /* ignore */ }

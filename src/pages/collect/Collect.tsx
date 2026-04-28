@@ -218,14 +218,23 @@ export default function Collect() {
 
       let photoUrl: string | null = null;
       if (photoFile) {
-        photoUrl = await uploadToBunny({
-          kind: "media",
-          folder: `testimonials/${token}`,
-          filename: `photo-${Date.now()}-${photoFile.name.replace(/[^a-z0-9.\-_]/gi, "_")}`,
-          contentType: photoFile.type || "image/jpeg",
-          blob: photoFile,
-          collectionToken: token,
-        });
+        try {
+          photoUrl = await uploadToBunny({
+            kind: "media",
+            folder: `testimonials/${token}`,
+            filename: `photo-${Date.now()}-${photoFile.name.replace(/[^a-z0-9.\-_]/gi, "_")}`,
+            contentType: photoFile.type || "image/jpeg",
+            blob: photoFile,
+            collectionToken: token,
+          });
+        } catch (photoErr) {
+          console.error("[collect] photo upload failed, continuing without photo", photoErr);
+          photoUrl = null;
+          toast({
+            title: "Photo couldn't be uploaded",
+            description: "We'll save your testimonial without the photo. You can add one later.",
+          });
+        }
       }
 
       const finalContent = mode === "video"
