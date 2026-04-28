@@ -344,7 +344,20 @@ export default function Collect() {
                 <div className="space-y-2">
                   <Label>Video</Label>
                   <div className="rounded-md border bg-muted/30 p-2">
-                    <video ref={videoRef} autoPlay muted={recording} controls={!!videoBlob && !recording} className="w-full rounded" />
+                    {(recording || videoBlob) ? (
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        muted={recording}
+                        controls={!!videoBlob && !recording}
+                        className="w-full rounded"
+                      />
+                    ) : (
+                      <div className="aspect-video w-full rounded flex flex-col items-center justify-center bg-muted text-muted-foreground gap-2">
+                        <Video className="h-10 w-10 opacity-60" />
+                        <p className="text-sm">Click "Start recording" to begin</p>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     {!recording && !videoBlob && (

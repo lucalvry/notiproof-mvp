@@ -10,14 +10,14 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.4"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
       admin_audit_log: {
         Row: {
           action: string
-          actor_user_id: string | null
+          admin_user_id: string | null
           business_id: string | null
           created_at: string
           details: Json
@@ -25,7 +25,7 @@ export type Database = {
         }
         Insert: {
           action: string
-          actor_user_id?: string | null
+          admin_user_id?: string | null
           business_id?: string | null
           created_at?: string
           details?: Json
@@ -33,11 +33,32 @@ export type Database = {
         }
         Update: {
           action?: string
-          actor_user_id?: string | null
+          admin_user_id?: string | null
           business_id?: string | null
           created_at?: string
           details?: Json
           id?: string
+        }
+        Relationships: []
+      }
+      app_secrets: {
+        Row: {
+          created_at: string
+          name: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          name: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          name?: string
+          updated_at?: string
+          value?: string
         }
         Relationships: []
       }
@@ -84,21 +105,21 @@ export type Database = {
           business_id: string
           created_at: string
           id: string
-          role: Database["public"]["Enums"]["user_role"]
+          role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Insert: {
           business_id: string
           created_at?: string
           id?: string
-          role?: Database["public"]["Enums"]["user_role"]
+          role?: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {
           business_id?: string
           created_at?: string
           id?: string
-          role?: Database["public"]["Enums"]["user_role"]
+          role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
         Relationships: [
@@ -127,16 +148,23 @@ export type Database = {
           industry: string | null
           install_verified: boolean
           logo_url: string | null
-          monthly_event_limit: number | null
-          monthly_proof_limit: number | null
+          monthly_event_limit: number
+          monthly_proof_limit: number
           name: string
-          plan: Database["public"]["Enums"]["business_plan"]
+          onboarding_completed: boolean
+          plan: string
           plan_expires_at: string | null
-          plan_tier: Database["public"]["Enums"]["business_plan"] | null
+          plan_tier: string
+          script_id: string | null
+          settings: Json
+          slug: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
-          time_zone: string | null
+          suspended_at: string | null
+          time_zone: string
+          trial_ends_at: string | null
           updated_at: string
+          website_url: string | null
         }
         Insert: {
           brand_color?: string | null
@@ -146,16 +174,23 @@ export type Database = {
           industry?: string | null
           install_verified?: boolean
           logo_url?: string | null
-          monthly_event_limit?: number | null
-          monthly_proof_limit?: number | null
+          monthly_event_limit?: number
+          monthly_proof_limit?: number
           name: string
-          plan?: Database["public"]["Enums"]["business_plan"]
+          onboarding_completed?: boolean
+          plan?: string
           plan_expires_at?: string | null
-          plan_tier?: Database["public"]["Enums"]["business_plan"] | null
+          plan_tier?: string
+          script_id?: string | null
+          settings?: Json
+          slug?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
-          time_zone?: string | null
+          suspended_at?: string | null
+          time_zone?: string
+          trial_ends_at?: string | null
           updated_at?: string
+          website_url?: string | null
         }
         Update: {
           brand_color?: string | null
@@ -165,63 +200,61 @@ export type Database = {
           industry?: string | null
           install_verified?: boolean
           logo_url?: string | null
-          monthly_event_limit?: number | null
-          monthly_proof_limit?: number | null
+          monthly_event_limit?: number
+          monthly_proof_limit?: number
           name?: string
-          plan?: Database["public"]["Enums"]["business_plan"]
+          onboarding_completed?: boolean
+          plan?: string
           plan_expires_at?: string | null
-          plan_tier?: Database["public"]["Enums"]["business_plan"] | null
+          plan_tier?: string
+          script_id?: string | null
+          settings?: Json
+          slug?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
-          time_zone?: string | null
+          suspended_at?: string | null
+          time_zone?: string
+          trial_ends_at?: string | null
           updated_at?: string
+          website_url?: string | null
         }
         Relationships: []
       }
       integration_events: {
         Row: {
-          attempts: number
-          business_id: string | null
-          created_at: string
+          business_id: string
           error_message: string | null
           event_type: string
           external_event_id: string | null
           id: string
           integration_id: string
           payload: Json
-          processed: boolean
           processed_at: string | null
           proof_object_id: string | null
           received_at: string
           status: string
         }
         Insert: {
-          attempts?: number
-          business_id?: string | null
-          created_at?: string
+          business_id: string
           error_message?: string | null
           event_type: string
           external_event_id?: string | null
           id?: string
           integration_id: string
           payload?: Json
-          processed?: boolean
           processed_at?: string | null
           proof_object_id?: string | null
           received_at?: string
           status?: string
         }
         Update: {
-          attempts?: number
-          business_id?: string | null
-          created_at?: string
+          business_id?: string
           error_message?: string | null
           event_type?: string
           external_event_id?: string | null
           id?: string
           integration_id?: string
           payload?: Json
-          processed?: boolean
           processed_at?: string | null
           proof_object_id?: string | null
           received_at?: string
@@ -229,74 +262,79 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "integration_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "integration_events_integration_id_fkey"
             columns: ["integration_id"]
             isOneToOne: false
             referencedRelation: "integrations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "integration_events_proof_object_id_fkey"
+            columns: ["proof_object_id"]
+            isOneToOne: false
+            referencedRelation: "proof_objects"
+            referencedColumns: ["id"]
+          },
         ]
       }
       integrations: {
         Row: {
-          access_token: string | null
-          auto_request_delay_days: number | null
+          api_token: string | null
+          auto_request_delay_days: number
+          auto_request_delay_minutes: number | null
           auto_request_enabled: boolean
           business_id: string
           config: Json
-          connected_at: string | null
           created_at: string
-          display_name: string | null
+          credentials: Json
+          credentials_encrypted: string | null
           id: string
-          last_event_at: string | null
           last_sync_at: string | null
-          platform: Database["public"]["Enums"]["integration_platform"]
-          provider: string | null
-          refresh_token: string | null
+          platform: Database["public"]["Enums"]["integration_provider"]
+          provider: Database["public"]["Enums"]["integration_provider"]
           status: Database["public"]["Enums"]["integration_status"]
           updated_at: string
-          webhook_id: string | null
-          webhook_secret: string | null
         }
         Insert: {
-          access_token?: string | null
-          auto_request_delay_days?: number | null
+          api_token?: string | null
+          auto_request_delay_days?: number
+          auto_request_delay_minutes?: number | null
           auto_request_enabled?: boolean
           business_id: string
           config?: Json
-          connected_at?: string | null
           created_at?: string
-          display_name?: string | null
+          credentials?: Json
+          credentials_encrypted?: string | null
           id?: string
-          last_event_at?: string | null
           last_sync_at?: string | null
-          platform: Database["public"]["Enums"]["integration_platform"]
-          provider?: string | null
-          refresh_token?: string | null
+          platform: Database["public"]["Enums"]["integration_provider"]
+          provider: Database["public"]["Enums"]["integration_provider"]
           status?: Database["public"]["Enums"]["integration_status"]
           updated_at?: string
-          webhook_id?: string | null
-          webhook_secret?: string | null
         }
         Update: {
-          access_token?: string | null
-          auto_request_delay_days?: number | null
+          api_token?: string | null
+          auto_request_delay_days?: number
+          auto_request_delay_minutes?: number | null
           auto_request_enabled?: boolean
           business_id?: string
           config?: Json
-          connected_at?: string | null
           created_at?: string
-          display_name?: string | null
+          credentials?: Json
+          credentials_encrypted?: string | null
           id?: string
-          last_event_at?: string | null
           last_sync_at?: string | null
-          platform?: Database["public"]["Enums"]["integration_platform"]
-          provider?: string | null
-          refresh_token?: string | null
+          platform?: Database["public"]["Enums"]["integration_provider"]
+          provider?: Database["public"]["Enums"]["integration_provider"]
           status?: Database["public"]["Enums"]["integration_status"]
           updated_at?: string
-          webhook_id?: string | null
-          webhook_secret?: string | null
         }
         Relationships: [
           {
@@ -308,135 +346,186 @@ export type Database = {
           },
         ]
       }
-      notifications: {
+      pii_encryption_audit: {
         Row: {
-          body: string | null
-          business_id: string
+          action: string
+          actor_user_id: string | null
+          business_id: string | null
+          context: Json
           created_at: string
           id: string
-          link: string | null
-          read: boolean
-          title: string
-          type: Database["public"]["Enums"]["notification_type"]
-          user_id: string | null
+          resource_id: string
+          resource_table: string
         }
         Insert: {
-          body?: string | null
-          business_id: string
+          action: string
+          actor_user_id?: string | null
+          business_id?: string | null
+          context?: Json
           created_at?: string
           id?: string
-          link?: string | null
-          read?: boolean
-          title: string
-          type: Database["public"]["Enums"]["notification_type"]
-          user_id?: string | null
+          resource_id: string
+          resource_table: string
         }
         Update: {
-          body?: string | null
-          business_id?: string
+          action?: string
+          actor_user_id?: string | null
+          business_id?: string | null
+          context?: Json
           created_at?: string
           id?: string
-          link?: string | null
-          read?: boolean
-          title?: string
-          type?: Database["public"]["Enums"]["notification_type"]
-          user_id?: string | null
+          resource_id?: string
+          resource_table?: string
         }
         Relationships: []
       }
       proof_objects: {
         Row: {
-          ai_claims: Json | null
+          ai_confidence: number | null
+          ai_summary: string | null
           author_avatar_url: string | null
+          author_company: string | null
+          author_company_logo_url: string | null
           author_email: string | null
-          author_location: string | null
+          author_email_encrypted: string | null
           author_name: string | null
+          author_photo_url: string | null
+          author_role: string | null
+          author_website_url: string | null
           business_id: string
-          content: string
+          content: string | null
           created_at: string
+          cta_label: string | null
+          cta_url: string | null
+          customer_email_hash: string | null
+          customer_handle: string | null
           external_ref_id: string | null
+          highlight_phrase: string | null
           id: string
-          is_approved: boolean
+          media_duration_seconds: number | null
+          media_size_bytes: number | null
+          media_type: string | null
           media_url: string | null
+          outcome_claim: string | null
+          poster_url: string | null
+          product_reference: string | null
           proof_event_at: string | null
-          proof_type: string | null
+          proof_type: Database["public"]["Enums"]["proof_type"]
           published_at: string | null
           rating: number | null
+          raw_content: string | null
+          schema_version: number
           sentiment_score: number | null
           source: string | null
-          source_metadata: Json | null
-          source_ref: string | null
-          source_type: Database["public"]["Enums"]["proof_source_type"]
-          status: string | null
-          tags: string[] | null
-          type: string | null
+          source_metadata: Json
+          status: Database["public"]["Enums"]["proof_status"]
+          tags: string[]
+          transcript: string | null
+          type: Database["public"]["Enums"]["proof_type"]
           updated_at: string
           verification_method: string | null
-          verification_tier: Database["public"]["Enums"]["verification_tier"]
+          verification_tier: string | null
           verification_tier_int: number | null
-          verified: boolean | null
+          verified: boolean
+          video_url: string | null
         }
         Insert: {
-          ai_claims?: Json | null
+          ai_confidence?: number | null
+          ai_summary?: string | null
           author_avatar_url?: string | null
+          author_company?: string | null
+          author_company_logo_url?: string | null
           author_email?: string | null
-          author_location?: string | null
+          author_email_encrypted?: string | null
           author_name?: string | null
+          author_photo_url?: string | null
+          author_role?: string | null
+          author_website_url?: string | null
           business_id: string
-          content: string
+          content?: string | null
           created_at?: string
+          cta_label?: string | null
+          cta_url?: string | null
+          customer_email_hash?: string | null
+          customer_handle?: string | null
           external_ref_id?: string | null
+          highlight_phrase?: string | null
           id?: string
-          is_approved?: boolean
+          media_duration_seconds?: number | null
+          media_size_bytes?: number | null
+          media_type?: string | null
           media_url?: string | null
+          outcome_claim?: string | null
+          poster_url?: string | null
+          product_reference?: string | null
           proof_event_at?: string | null
-          proof_type?: string | null
+          proof_type: Database["public"]["Enums"]["proof_type"]
           published_at?: string | null
           rating?: number | null
+          raw_content?: string | null
+          schema_version?: number
           sentiment_score?: number | null
           source?: string | null
-          source_metadata?: Json | null
-          source_ref?: string | null
-          source_type: Database["public"]["Enums"]["proof_source_type"]
-          status?: string | null
-          tags?: string[] | null
-          type?: string | null
+          source_metadata?: Json
+          status?: Database["public"]["Enums"]["proof_status"]
+          tags?: string[]
+          transcript?: string | null
+          type: Database["public"]["Enums"]["proof_type"]
           updated_at?: string
           verification_method?: string | null
-          verification_tier?: Database["public"]["Enums"]["verification_tier"]
+          verification_tier?: string | null
           verification_tier_int?: number | null
-          verified?: boolean | null
+          verified?: boolean
+          video_url?: string | null
         }
         Update: {
-          ai_claims?: Json | null
+          ai_confidence?: number | null
+          ai_summary?: string | null
           author_avatar_url?: string | null
+          author_company?: string | null
+          author_company_logo_url?: string | null
           author_email?: string | null
-          author_location?: string | null
+          author_email_encrypted?: string | null
           author_name?: string | null
+          author_photo_url?: string | null
+          author_role?: string | null
+          author_website_url?: string | null
           business_id?: string
-          content?: string
+          content?: string | null
           created_at?: string
+          cta_label?: string | null
+          cta_url?: string | null
+          customer_email_hash?: string | null
+          customer_handle?: string | null
           external_ref_id?: string | null
+          highlight_phrase?: string | null
           id?: string
-          is_approved?: boolean
+          media_duration_seconds?: number | null
+          media_size_bytes?: number | null
+          media_type?: string | null
           media_url?: string | null
+          outcome_claim?: string | null
+          poster_url?: string | null
+          product_reference?: string | null
           proof_event_at?: string | null
-          proof_type?: string | null
+          proof_type?: Database["public"]["Enums"]["proof_type"]
           published_at?: string | null
           rating?: number | null
+          raw_content?: string | null
+          schema_version?: number
           sentiment_score?: number | null
           source?: string | null
-          source_metadata?: Json | null
-          source_ref?: string | null
-          source_type?: Database["public"]["Enums"]["proof_source_type"]
-          status?: string | null
-          tags?: string[] | null
-          type?: string | null
+          source_metadata?: Json
+          status?: Database["public"]["Enums"]["proof_status"]
+          tags?: string[]
+          transcript?: string | null
+          type?: Database["public"]["Enums"]["proof_type"]
           updated_at?: string
           verification_method?: string | null
-          verification_tier?: Database["public"]["Enums"]["verification_tier"]
+          verification_tier?: string | null
           verification_tier_int?: number | null
-          verified?: boolean | null
+          verified?: boolean
+          video_url?: string | null
         }
         Relationships: [
           {
@@ -448,14 +537,38 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          bucket_key: string
+          count: number
+          created_at: string
+          id: string
+          window_start: string
+        }
+        Insert: {
+          bucket_key: string
+          count?: number
+          created_at?: string
+          id?: string
+          window_start: string
+        }
+        Update: {
+          bucket_key?: string
+          count?: number
+          created_at?: string
+          id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       scheduled_jobs: {
         Row: {
           attempts: number
-          business_id: string
+          business_id: string | null
           created_at: string
-          error_message: string | null
           id: string
           job_type: string
+          last_error: string | null
           payload: Json
           run_at: string
           status: string
@@ -463,11 +576,11 @@ export type Database = {
         }
         Insert: {
           attempts?: number
-          business_id: string
+          business_id?: string | null
           created_at?: string
-          error_message?: string | null
           id?: string
-          job_type: string
+          job_type?: string
+          last_error?: string | null
           payload?: Json
           run_at: string
           status?: string
@@ -475,11 +588,11 @@ export type Database = {
         }
         Update: {
           attempts?: number
-          business_id?: string
+          business_id?: string | null
           created_at?: string
-          error_message?: string | null
           id?: string
           job_type?: string
+          last_error?: string | null
           payload?: Json
           run_at?: string
           status?: string
@@ -487,60 +600,108 @@ export type Database = {
         }
         Relationships: []
       }
+      team_invitations: {
+        Row: {
+          accepted_at: string | null
+          business_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          status: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          business_id: string
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          business_id?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       testimonial_requests: {
         Row: {
           business_id: string
-          collection_token: string
           completed_at: string | null
           created_at: string
-          customer_email: string | null
-          customer_name: string | null
+          custom_message: string | null
           expires_at: string
           id: string
           opened_at: string | null
-          prompt_questions: Json | null
-          proof_object_id: string | null
-          recipient_email: string | null
+          prompt_questions: Json
+          proof_object_id: string
+          recipient_email: string
           recipient_name: string | null
-          requested_type: string | null
+          reminder_sent_at: string | null
+          requested_type: string
+          responded_at: string | null
           sent_at: string | null
           status: Database["public"]["Enums"]["testimonial_request_status"]
+          token: string
+          updated_at: string
         }
         Insert: {
           business_id: string
-          collection_token: string
           completed_at?: string | null
           created_at?: string
-          customer_email?: string | null
-          customer_name?: string | null
+          custom_message?: string | null
           expires_at?: string
           id?: string
           opened_at?: string | null
-          prompt_questions?: Json | null
-          proof_object_id?: string | null
-          recipient_email?: string | null
+          prompt_questions?: Json
+          proof_object_id: string
+          recipient_email: string
           recipient_name?: string | null
-          requested_type?: string | null
+          reminder_sent_at?: string | null
+          requested_type?: string
+          responded_at?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["testimonial_request_status"]
+          token?: string
+          updated_at?: string
         }
         Update: {
           business_id?: string
-          collection_token?: string
           completed_at?: string | null
           created_at?: string
-          customer_email?: string | null
-          customer_name?: string | null
+          custom_message?: string | null
           expires_at?: string
           id?: string
           opened_at?: string | null
-          prompt_questions?: Json | null
-          proof_object_id?: string | null
-          recipient_email?: string | null
+          prompt_questions?: Json
+          proof_object_id?: string
+          recipient_email?: string
           recipient_name?: string | null
-          requested_type?: string | null
+          reminder_sent_at?: string | null
+          requested_type?: string
+          responded_at?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["testimonial_request_status"]
+          token?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -559,103 +720,83 @@ export type Database = {
           },
         ]
       }
-      user_roles: {
-        Row: {
-          created_at: string | null
-          granted_at: string | null
-          granted_by: string | null
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          granted_at?: string | null
-          granted_by?: string | null
-          id?: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Update: {
-          created_at?: string | null
-          granted_at?: string | null
-          granted_by?: string | null
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
-        }
-        Relationships: []
-      }
       users: {
         Row: {
-          business_id: string | null
+          avatar_url: string | null
           created_at: string
           email: string
           full_name: string | null
           id: string
           is_admin: boolean
-          role: Database["public"]["Enums"]["user_role"]
+          onboarding_completed: boolean
           updated_at: string
         }
         Insert: {
-          business_id?: string | null
+          avatar_url?: string | null
           created_at?: string
           email: string
           full_name?: string | null
           id: string
           is_admin?: boolean
-          role?: Database["public"]["Enums"]["user_role"]
+          onboarding_completed?: boolean
           updated_at?: string
         }
         Update: {
-          business_id?: string | null
+          avatar_url?: string | null
           created_at?: string
           email?: string
           full_name?: string | null
           id?: string
           is_admin?: boolean
-          role?: Database["public"]["Enums"]["user_role"]
+          onboarding_completed?: boolean
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "users_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       widget_events: {
         Row: {
           business_id: string
-          event_type: Database["public"]["Enums"]["widget_event_type"]
+          device_type: string | null
+          event_type: string
+          fired_at: string
           id: string
-          occurred_at: string
+          meta: Json
           page_url: string | null
           proof_object_id: string | null
+          session_id: string | null
+          variant: string | null
           visitor_id: string | null
+          visitor_type: string | null
           widget_id: string
         }
         Insert: {
           business_id: string
-          event_type: Database["public"]["Enums"]["widget_event_type"]
+          device_type?: string | null
+          event_type: string
+          fired_at?: string
           id?: string
-          occurred_at?: string
+          meta?: Json
           page_url?: string | null
           proof_object_id?: string | null
+          session_id?: string | null
+          variant?: string | null
           visitor_id?: string | null
+          visitor_type?: string | null
           widget_id: string
         }
         Update: {
           business_id?: string
-          event_type?: Database["public"]["Enums"]["widget_event_type"]
+          device_type?: string | null
+          event_type?: string
+          fired_at?: string
           id?: string
-          occurred_at?: string
+          meta?: Json
           page_url?: string | null
           proof_object_id?: string | null
+          session_id?: string | null
+          variant?: string | null
           visitor_id?: string | null
+          visitor_type?: string | null
           widget_id?: string
         }
         Relationships: [
@@ -682,60 +823,57 @@ export type Database = {
           },
         ]
       }
-      widget_template_tags: {
-        Row: {
-          tag_id: string
-          template_id: string
-        }
-        Insert: {
-          tag_id: string
-          template_id: string
-        }
-        Update: {
-          tag_id?: string
-          template_id?: string
-        }
-        Relationships: []
-      }
       widgets: {
         Row: {
           ab_test_group_id: string | null
           business_id: string
           config: Json
           created_at: string
+          frequency_cap_per_user: number | null
           id: string
           impressions_total: number
+          interactions_total: number
+          load_delay_ms: number
           name: string
           status: Database["public"]["Enums"]["widget_status"]
+          target_url: string | null
+          type: Database["public"]["Enums"]["widget_type"]
           updated_at: string
           variant: string | null
-          widget_type: Database["public"]["Enums"]["widget_type"]
         }
         Insert: {
           ab_test_group_id?: string | null
           business_id: string
           config?: Json
           created_at?: string
+          frequency_cap_per_user?: number | null
           id?: string
           impressions_total?: number
+          interactions_total?: number
+          load_delay_ms?: number
           name: string
           status?: Database["public"]["Enums"]["widget_status"]
+          target_url?: string | null
+          type?: Database["public"]["Enums"]["widget_type"]
           updated_at?: string
           variant?: string | null
-          widget_type?: Database["public"]["Enums"]["widget_type"]
         }
         Update: {
           ab_test_group_id?: string | null
           business_id?: string
           config?: Json
           created_at?: string
+          frequency_cap_per_user?: number | null
           id?: string
           impressions_total?: number
+          interactions_total?: number
+          load_delay_ms?: number
           name?: string
           status?: Database["public"]["Enums"]["widget_status"]
+          target_url?: string | null
+          type?: Database["public"]["Enums"]["widget_type"]
           updated_at?: string
           variant?: string | null
-          widget_type?: Database["public"]["Enums"]["widget_type"]
         }
         Relationships: [
           {
@@ -752,120 +890,233 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_team_invitation: { Args: { _token: string }; Returns: string }
+      admin_daily_series: {
+        Args: { _days?: number }
+        Returns: {
+          day: string
+          new_businesses: number
+          new_proofs: number
+        }[]
+      }
+      admin_integration_health: {
+        Args: never
+        Returns: {
+          business_id: string
+          business_name: string
+          events_24h: number
+          integration_id: string
+          last_sync_at: string
+          processed_24h: number
+          provider: string
+          status: string
+          success_rate: number
+          unprocessed_24h: number
+        }[]
+      }
+      admin_overview_stats: { Args: never; Returns: Json }
       admin_replay_integration_event: {
         Args: { _event_id: string }
         Returns: boolean
       }
-      get_website_by_domain: {
-        Args: { _domain: string }
+      business_id_for_collection_token: {
+        Args: { _token: string }
+        Returns: string
+      }
+      business_integration_stats: {
+        Args: { _business_id: string }
         Returns: {
-          domain: string
-          id: string
-          is_verified: boolean
-          name: string
-          user_id: string
+          events_total: number
+          integration_id: string
+          last_event_at: string
+          proof_count: number
+        }[]
+      }
+      business_plan_usage: { Args: { _business_id: string }; Returns: Json }
+      can_activate_widget: {
+        Args: { _business_id: string; _exclude_widget?: string }
+        Returns: boolean
+      }
+      can_add_domain: { Args: { _business_id: string }; Returns: boolean }
+      can_create_proof: { Args: { _business_id: string }; Returns: boolean }
+      can_invite_seat: { Args: { _business_id: string }; Returns: boolean }
+      can_upload_media: {
+        Args: { _additional_bytes: number; _business_id: string }
+        Returns: boolean
+      }
+      check_rate_limit: {
+        Args: { _key: string; _max: number; _window_seconds: number }
+        Returns: boolean
+      }
+      cleanup_rate_limits: { Args: never; Returns: number }
+      create_business: { Args: { _name: string }; Returns: string }
+      create_placeholder_proof_for_request: {
+        Args: { _business_id: string }
+        Returns: string
+      }
+      get_collection_context: {
+        Args: { _token: string }
+        Returns: {
+          brand_color: string
+          business_logo_url: string
+          business_name: string
+          expires_at: string
+          recipient_name: string
+          status: Database["public"]["Enums"]["testimonial_request_status"]
+        }[]
+      }
+      get_testimonial_request: {
+        Args: { _token: string }
+        Returns: {
+          expires_at: string
+          recipient_name: string
+          status: Database["public"]["Enums"]["testimonial_request_status"]
+          token: string
+        }[]
+      }
+      get_top_proof_performance: {
+        Args: {
+          _business_id: string
+          _end: string
+          _limit?: number
+          _start: string
+        }
+        Returns: {
+          assists: number
+          author_name: string
+          conversions: number
+          impressions: number
+          interactions: number
+          proof_id: string
+          proof_type: string
         }[]
       }
       get_widget_analytics: {
         Args: { _business_id: string; _end: string; _start: string }
         Returns: {
+          assists: number
           bucket: string
           conversions: number
           impressions: number
           interactions: number
         }[]
       }
-      has_role:
-        | {
-            Args: {
-              _role: Database["public"]["Enums"]["app_role"]
-              _user_id: string
-            }
-            Returns: boolean
-          }
-        | { Args: { _role: string; _user_id: string }; Returns: boolean }
-      is_admin: { Args: { _user_id: string }; Returns: boolean }
-      is_superadmin: { Args: { _user_id: string }; Returns: boolean }
+      has_business_role: {
+        Args: {
+          _business_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
+      is_business_member: { Args: { _business_id: string }; Returns: boolean }
+      is_platform_admin: { Args: never; Returns: boolean }
       log_admin_action: {
         Args: { _action: string; _business_id: string; _details?: Json }
         Returns: string
       }
-      migrate_integration_connectors_to_integrations: {
-        Args: never
-        Returns: undefined
+      mark_business_onboarding_complete: {
+        Args: { _business_id: string }
+        Returns: boolean
+      }
+      mark_testimonial_request_opened: {
+        Args: { _token: string }
+        Returns: boolean
       }
       normalize_domain: { Args: { _raw: string }; Returns: string }
-      poll_active_campaigns: { Args: never; Returns: undefined }
-      refresh_revenue_stats: {
-        Args: { _campaign_id: string; _period_type?: string }
-        Returns: undefined
+      plan_limits: {
+        Args: { _plan: string }
+        Returns: {
+          active_widget_limit: number
+          data_retention_days: number
+          domain_limit: number
+          event_limit: number
+          max_video_seconds: number
+          proof_limit: number
+          remove_branding: boolean
+          storage_mb: number
+          team_seats_included: number
+        }[]
       }
-      sweep_expired_testimonial_requests: { Args: never; Returns: number }
-      update_user_role: {
-        Args: {
-          _new_role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
-      user_business_role: {
-        Args: { _business_id: string; _user_id: string }
-        Returns: Database["public"]["Enums"]["user_role"]
-      }
-      user_in_business: {
-        Args: { _business_id: string; _user_id: string }
-        Returns: boolean
-      }
-      verify_website: {
-        Args: {
-          _ip_address?: string
-          _user_agent?: string
-          _verification_data?: Json
-          _verification_type: string
-          _website_id: string
-        }
+      submit_testimonial_request:
+        | {
+            Args: {
+              _author_email: string
+              _author_name: string
+              _content: string
+              _media_url?: string
+              _rating?: number
+              _token: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              _author_company?: string
+              _author_email: string
+              _author_name: string
+              _author_photo_url?: string
+              _author_role?: string
+              _author_website_url?: string
+              _content: string
+              _media_url?: string
+              _rating?: number
+              _token: string
+            }
+            Returns: string
+          }
+      update_proof_media_metadata: {
+        Args: { _bytes: number; _duration_seconds: number; _proof_id: string }
         Returns: boolean
       }
     }
     Enums: {
-      app_role: "admin" | "user" | "support" | "superadmin" | "moderator"
-      business_plan: "free" | "starter" | "growth" | "agency"
-      integration_platform:
+      app_role: "owner" | "editor" | "viewer"
+      integration_provider:
         | "stripe"
         | "shopify"
         | "woocommerce"
-        | "paypal"
+        | "gumroad"
+        | "webhook"
+        | "zapier"
         | "google_reviews"
         | "trustpilot"
+        | "plaid"
+        | "wordpress"
         | "g2"
-        | "capterra"
-        | "mailchimp"
-        | "klaviyo"
-        | "hubspot"
-        | "webhook"
       integration_status: "connected" | "disconnected" | "error" | "pending"
-      notification_type:
-        | "proof_pending_review"
-        | "testimonial_request_expired"
-        | "integration_disconnected"
-      proof_source_type:
+      proof_status:
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "archived"
+        | "pending_review"
+      proof_type:
+        | "testimonial"
+        | "review"
         | "purchase"
         | "signup"
-        | "review"
-        | "testimonial"
-        | "social_post"
-        | "manual"
+        | "visitor_count"
+        | "custom"
       testimonial_request_status:
         | "pending"
         | "sent"
-        | "opened"
         | "completed"
         | "expired"
-      user_role: "owner" | "editor" | "viewer"
-      verification_tier: "verified" | "pending" | "unverified"
-      widget_event_type: "impression" | "interaction" | "conversion"
+        | "scheduled"
+        | "opened"
+        | "responded"
       widget_status: "draft" | "active" | "paused"
-      widget_type: "floating" | "inline" | "badge"
+      widget_type:
+        | "popup"
+        | "banner"
+        | "inline"
+        | "wall"
+        | "carousel"
+        | "marquee"
+        | "masonry"
+        | "avatar_row"
+        | "video_hero"
+        | "logo_strip"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -993,48 +1244,58 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user", "support", "superadmin", "moderator"],
-      business_plan: ["free", "starter", "growth", "agency"],
-      integration_platform: [
+      app_role: ["owner", "editor", "viewer"],
+      integration_provider: [
         "stripe",
         "shopify",
         "woocommerce",
-        "paypal",
+        "gumroad",
+        "webhook",
+        "zapier",
         "google_reviews",
         "trustpilot",
+        "plaid",
+        "wordpress",
         "g2",
-        "capterra",
-        "mailchimp",
-        "klaviyo",
-        "hubspot",
-        "webhook",
       ],
       integration_status: ["connected", "disconnected", "error", "pending"],
-      notification_type: [
-        "proof_pending_review",
-        "testimonial_request_expired",
-        "integration_disconnected",
+      proof_status: [
+        "pending",
+        "approved",
+        "rejected",
+        "archived",
+        "pending_review",
       ],
-      proof_source_type: [
+      proof_type: [
+        "testimonial",
+        "review",
         "purchase",
         "signup",
-        "review",
-        "testimonial",
-        "social_post",
-        "manual",
+        "visitor_count",
+        "custom",
       ],
       testimonial_request_status: [
         "pending",
         "sent",
-        "opened",
         "completed",
         "expired",
+        "scheduled",
+        "opened",
+        "responded",
       ],
-      user_role: ["owner", "editor", "viewer"],
-      verification_tier: ["verified", "pending", "unverified"],
-      widget_event_type: ["impression", "interaction", "conversion"],
       widget_status: ["draft", "active", "paused"],
-      widget_type: ["floating", "inline", "badge"],
+      widget_type: [
+        "popup",
+        "banner",
+        "inline",
+        "wall",
+        "carousel",
+        "marquee",
+        "masonry",
+        "avatar_row",
+        "video_hero",
+        "logo_strip",
+      ],
     },
   },
 } as const

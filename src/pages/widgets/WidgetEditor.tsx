@@ -26,7 +26,7 @@ type Widget = Database["public"]["Tables"]["widgets"]["Row"] & {
   frequency_cap_per_user?: number | null;
   load_delay_ms?: number | null;
 };
-type WidgetType = string;
+type WidgetType = Database["public"]["Enums"]["widget_type"];
 type Proof = Database["public"]["Tables"]["proof_objects"]["Row"];
 type Json = Database["public"]["Tables"]["widgets"]["Row"]["config"];
 const db = supabase as any;

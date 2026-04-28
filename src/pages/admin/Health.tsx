@@ -74,18 +74,21 @@ export default function Health() {
   const backfillPosters = async () => {
     setBackfilling(true);
     try {
+      // Use `proof_type` (canonical column) and `.in()` to avoid PostgREST's
+      // legacy enum codepath that triggered "invalid input value for enum proof_type".
       const { data, error } = await db
         .from("proof_objects")
-        .select("id, business_id, media_url, author_name")
-        .is("poster_url", null)
+        .select("id, business_id, media_url, author_name, proof_type, type")
         .not("media_url", "is", null)
-        .or("type.eq.video,type.eq.testimonial")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(200);
       if (error) throw error;
-      const candidates = (data ?? []).filter((p: { media_url: string }) =>
-        /\.(mp4|webm|mov|m4v)(\?|$)/i.test(p.media_url ?? "")
-      );
+      const candidates = (data ?? []).filter((p: { media_url: string; proof_type?: string; type?: string }) => {
+        const kind = (p.proof_type ?? p.type ?? "").toLowerCase();
+        const isVideoKind = kind === "video" || kind === "testimonial";
+        const isVideoFile = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(p.media_url ?? "");
+        return isVideoKind && isVideoFile;
+      });
       if (candidates.length === 0) {
         toast({ title: "No videos need posters", description: "Everything is already up to date." });
         return;
@@ -206,22 +209,88 @@ export default function Health() {
    * import edge function based on provider.
    */
   const resyncIntegration = async (row: IntegrationHealthRow) => {
-    setResyncing(row.integration_id);
-    let fn = "";
-    if (row.provider === "google_reviews") fn = "integration-google-reviews";
-    else if (row.provider === "woocommerce") fn = "integration-woocommerce";
-    else fn = "integration-reviews-import";
-    const { error } = await supabase.functions.invoke(fn, {
-      body: { integration_id: row.integration_id, business_id: row.business_id, manual: true },
-    });
-    setResyncing(null);
-    if (error) {
-      return toast({ title: "Re-sync failed", description: error.message, variant: "destructive" });
+    const provider = (row.provider ?? "").toLowerCase();
+
+    // Route to the right per-provider worker with the payload that worker actually expects.
+    let invocation: Promise<{ data: any; error: any }> | null = null;
+    let unsupportedReason: string | null = null;
+
+    if (provider === "google_reviews" || provider === "google" || provider === "google_business") {
+      invocation = supabase.functions.invoke("integration-google-reviews", {
+        body: { action: "sync", integration_id: row.integration_id },
+      });
+    } else if (provider === "woocommerce") {
+      invocation = supabase.functions.invoke("integration-woocommerce", {
+        body: { action: "test", integration_id: row.integration_id },
+      });
+    } else if (provider === "stripe" || provider === "shopify") {
+      // Webhook-driven: queue a backfill job + bump last_sync_at directly.
+      setResyncing(row.integration_id);
+      const { error: jobErr } = await db.from("scheduled_jobs").insert({
+        business_id: row.business_id,
+        job_type: "provider_resync",
+        payload: { integration_id: row.integration_id, provider },
+        run_at: new Date().toISOString(),
+        status: "pending",
+      });
+      if (!jobErr) {
+        await db
+          .from("integrations")
+          .update({ last_sync_at: new Date().toISOString() })
+          .eq("id", row.integration_id);
+        await db.rpc("log_admin_action", {
+          _business_id: row.business_id,
+          _action: "integration_resync",
+          _details: { provider, integration_id: row.integration_id },
+        });
+      }
+      setResyncing(null);
+      if (jobErr) {
+        return toast({
+          title: "Re-sync failed",
+          description: jobErr.message,
+          variant: "destructive",
+        });
+      }
+      toast({
+        title: "Re-sync queued",
+        description: `${provider} is webhook-driven; a backfill job has been scheduled.`,
+      });
+      return load();
+    } else if (provider === "trustpilot" || provider === "g2") {
+      unsupportedReason =
+        "Trustpilot and G2 use bulk paste import. Open the integration page and paste a fresh export.";
+    } else {
+      unsupportedReason = `Re-sync is not supported for "${row.provider}".`;
     }
+
+    if (unsupportedReason) {
+      return toast({
+        title: "Re-sync unavailable",
+        description: unsupportedReason,
+        variant: "destructive",
+      });
+    }
+
+    setResyncing(row.integration_id);
+    const { data, error } = await invocation!;
+    setResyncing(null);
+
+    // Surface real error messages — supabase-js squashes 4xx/5xx to "non-2xx status code".
+    const bodyErr =
+      data && typeof data === "object" && (data as any).error ? (data as any).error : null;
+    if (error || bodyErr) {
+      return toast({
+        title: "Re-sync failed",
+        description: bodyErr || error?.message || "Provider returned an error",
+        variant: "destructive",
+      });
+    }
+
     await db.rpc("log_admin_action", {
       _business_id: row.business_id,
       _action: "integration_resync",
-      _details: { provider: row.provider, integration_id: row.integration_id },
+      _details: { provider, integration_id: row.integration_id },
     });
     toast({
       title: "Re-sync triggered",
