@@ -175,6 +175,18 @@ Deno.serve(async (req) => {
         Array.isArray(payload.line_items) && payload.line_items.length > 0
           ? payload.line_items.map((li: any) => li?.title).filter(Boolean).join(", ") || null
           : null;
+      // Best-effort product image + URL from the first line item.
+      let productImageUrl: string | null = null;
+      let productUrl: string | null = null;
+      if (Array.isArray(payload.line_items) && payload.line_items.length > 0) {
+        const li = payload.line_items[0] ?? {};
+        productImageUrl =
+          li?.image?.src ?? li?.image_url ?? li?.featured_image?.src ?? null;
+        const shop = (payload.shop_url as string | undefined)
+          ?? (payload.order_status_url ? new URL(payload.order_status_url).origin : undefined);
+        if (shop && li?.product_handle) productUrl = `${shop}/products/${li.product_handle}`;
+        else if (shop && li?.handle) productUrl = `${shop}/products/${li.handle}`;
+      }
 
       // Idempotency.
       let existing: { id: string } | null = null;
