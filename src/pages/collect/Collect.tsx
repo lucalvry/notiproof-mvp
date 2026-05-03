@@ -365,9 +365,10 @@ export default function Collect() {
             <p className="text-muted-foreground mt-1 text-sm">Your testimonial helps {ctx.business_name} reach more people.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-6">
+          <div className="grid grid-cols-3 gap-2 mb-6">
             <Button type="button" variant={mode === "text" ? "default" : "outline"} onClick={() => setMode("text")}><Type className="h-4 w-4 mr-2" /> Write</Button>
-            <Button type="button" variant={mode === "video" ? "default" : "outline"} onClick={() => setMode("video")}><Video className="h-4 w-4 mr-2" /> Record video</Button>
+            <Button type="button" variant={mode === "photo" ? "default" : "outline"} onClick={() => setMode("photo")}><ImageIcon className="h-4 w-4 mr-2" /> Photo</Button>
+            <Button type="button" variant={mode === "video" ? "default" : "outline"} onClick={() => setMode("video")}><Video className="h-4 w-4 mr-2" /> Video</Button>
           </div>
 
           <form onSubmit={submit} className="space-y-4">
