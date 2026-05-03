@@ -480,7 +480,8 @@ export default function Collect() {
                   </div>
                   <div className="space-y-2"><Label>Website (optional)</Label><Input value={website} onChange={(e) => setWebsite(e.target.value)} maxLength={300} placeholder="acme.com" /></div>
                   <div className="space-y-2">
-                    <Label>Your photo (optional)</Label>
+                    <Label>Your headshot (optional)</Label>
+                    <p className="text-xs text-muted-foreground">A profile picture shown next to your name. Doesn't replace any photo you attach above.</p>
                     <div className="flex items-center gap-3">
                       {photoPreview && (
                         <img src={photoPreview} alt="" className="h-14 w-14 rounded-full object-cover border" />
