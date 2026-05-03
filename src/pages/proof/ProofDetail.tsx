@@ -121,6 +121,8 @@ export default function ProofDetail() {
       verified: proof.verified,
       highlight_phrase: highlight ? highlight : null,
       outcome_claim: outcome ? outcome : null,
+      product_image_url: (proof as ProofRow).product_image_url || null,
+      product_url: (proof as ProofRow).product_url || null,
     }).eq("id", proof.id);
     setSaving(false);
     if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
