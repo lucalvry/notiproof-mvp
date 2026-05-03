@@ -738,6 +738,12 @@ function VideoHeroVariant({
           </>
         ) : isVideoProof(featured) && featured.media_url ? (
           <VideoThumb src={featured.media_url} brand={brand} />
+        ) : !isVideoProof(featured) && (featured.media_url || featured.product_image_url) ? (
+          <img
+            src={(featured.media_url || featured.product_image_url) as string}
+            alt=""
+            className="w-full h-full object-cover"
+          />
         ) : featured.author_photo_url || featured.author_avatar_url ? (
           <>
             <img
