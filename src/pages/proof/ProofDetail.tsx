@@ -296,6 +296,17 @@ export default function ProofDetail() {
       <Card>
         <CardHeader><CardTitle>Edit content</CardTitle></CardHeader>
         <CardContent className="space-y-4">
+          {(proof.author_photo_url || proof.author_avatar_url) && (
+            <div className="flex items-center gap-3">
+              <img
+                src={(proof.author_photo_url || proof.author_avatar_url) as string}
+                alt={proof.author_name ?? "Author"}
+                className="h-14 w-14 rounded-full object-cover border"
+                onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+              />
+              <div className="text-xs text-muted-foreground">Customer headshot</div>
+            </div>
+          )}
           <div className="space-y-2"><Label>Author name</Label><Input value={proof.author_name ?? ""} onChange={(e) => setProof({ ...proof, author_name: e.target.value })} /></div>
           <div className="space-y-2">
             <Label>Verification</Label>
