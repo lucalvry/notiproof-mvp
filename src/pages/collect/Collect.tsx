@@ -389,6 +389,36 @@ export default function Collect() {
 
             {mode === "text" ? (
               <div className="space-y-2"><Label>Your testimonial</Label><Textarea rows={5} value={content} onChange={(e) => setContent(e.target.value)} required minLength={10} maxLength={5000} placeholder="What did you like most?" /></div>
+            ) : mode === "photo" ? (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Your photo</Label>
+                  <div className="rounded-md border bg-muted/30 p-2">
+                    {mediaPhotoPreview ? (
+                      <img src={mediaPhotoPreview} alt="Testimonial" className="w-full rounded max-h-80 object-contain mx-auto" />
+                    ) : (
+                      <div className="aspect-video w-full rounded flex flex-col items-center justify-center bg-muted text-muted-foreground gap-2">
+                        <ImageIcon className="h-10 w-10 opacity-60" />
+                        <p className="text-sm">Choose a photo to attach (max 5 MB)</p>
+                      </div>
+                    )}
+                  </div>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setMediaPhotoFile(f);
+                      if (mediaPhotoPreview) URL.revokeObjectURL(mediaPhotoPreview);
+                      setMediaPhotoPreview(f ? URL.createObjectURL(f) : null);
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Your testimonial</Label>
+                  <Textarea rows={4} value={content} onChange={(e) => setContent(e.target.value)} maxLength={5000} placeholder="Tell us about your experience" />
+                </div>
+              </div>
             ) : (
               <div className="space-y-3">
                 <div className="space-y-2">
