@@ -35,6 +35,9 @@ const tabs = [
   { to: "/settings/account", label: "My account" },
   { to: "/settings/team", label: "Team" },
   { to: "/settings/email", label: "Email" },
+  { to: "/settings/brand-voice", label: "Brand voice" },
+  { to: "/settings/channels", label: "Channels" },
+  { to: "/settings/content", label: "Content" },
   { to: "/settings/billing", label: "Billing" },
 ];
 

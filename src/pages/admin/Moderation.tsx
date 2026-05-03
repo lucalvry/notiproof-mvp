@@ -27,8 +27,6 @@ type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"] & {
   transcript?: string | null;
   raw_content?: string | null;
   author_email?: string | null;
-  author_photo_url?: string | null;
-  author_avatar_url?: string | null;
 };
 type ProofStatus = string;
 
@@ -259,20 +257,6 @@ function ModerationDetail({
 
   return (
     <div className="space-y-5 mt-6">
-      {(proof.author_photo_url || proof.author_avatar_url) && (
-        <div className="flex items-center gap-3">
-          <img
-            src={(proof.author_photo_url || proof.author_avatar_url) as string}
-            alt={proof.author_name ?? "Author"}
-            className="h-12 w-12 rounded-full object-cover border"
-            onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
-          />
-          <div className="text-sm">
-            <div className="font-medium">{proof.author_name}</div>
-            <div className="text-xs text-muted-foreground">Customer headshot</div>
-          </div>
-        </div>
-      )}
       <div className="flex items-center gap-2 flex-wrap">
         <Badge variant="secondary" className="capitalize">{proof.source ?? proof.type}</Badge>
         {proof.ai_confidence !== null && proof.ai_confidence !== undefined && (

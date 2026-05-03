@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MessageSquareQuote, MonitorSmartphone, Plug, TrendingUp, Star, ShieldCheck } from "lucide-react";
+import { MessageSquareQuote, MonitorSmartphone, Plug, TrendingUp, Star, ShieldCheck, Sparkles } from "lucide-react";
 import { UsageBanner } from "@/components/billing/UsageBanner";
 
 import type { Database } from "@/integrations/supabase/types";
@@ -25,6 +25,7 @@ interface Stats {
   widgets: number;
   integrations: number;
   conversions: number;
+  content_week: number;
 }
 
 function timeAgo(iso: string) {
@@ -42,6 +43,7 @@ export default function Dashboard() {
   const currentBusiness = businesses.find((b) => b.id === currentBusinessId);
   const [stats, setStats] = useState<Stats | null>(null);
   const [feed, setFeed] = useState<ProofRow[] | null>(null);
+  const [contentStats, setContentStats] = useState<{ pending: number; published_7d: number; recent: any[] } | null>(null);
   const navigate = useNavigate();
 
   const loadFeed = (bizId: string) =>
@@ -63,11 +65,27 @@ export default function Dashboard() {
       supabase.from("widgets").select("id", { count: "exact", head: true }).eq("business_id", currentBusinessId).eq("status", "active"),
       supabase.from("integrations").select("id", { count: "exact", head: true }).eq("business_id", currentBusinessId).eq("status", "connected"),
       (supabase as any).from("widget_events").select("id", { count: "exact", head: true }).eq("business_id", currentBusinessId).eq("event_type", "conversion_assist").gte("fired_at", since.toISOString()),
-    ]).then(([p, w, i, c]) => {
-      setStats({ proof: p.count ?? 0, widgets: w.count ?? 0, integrations: i.count ?? 0, conversions: c.count ?? 0 });
+      (supabase as any).from("content_pieces").select("id", { count: "exact", head: true }).eq("business_id", currentBusinessId).gte("created_at", since.toISOString()),
+    ]).then(([p, w, i, c, cw]: any[]) => {
+      setStats({ proof: p.count ?? 0, widgets: w.count ?? 0, integrations: i.count ?? 0, conversions: c.count ?? 0, content_week: cw.count ?? 0 });
     });
 
     loadFeed(currentBusinessId);
+
+    // Content widget data
+    const since7 = new Date();
+    since7.setDate(since7.getDate() - 7);
+    Promise.all([
+      (supabase as any).from("content_pieces").select("id", { count: "exact", head: true }).eq("business_id", currentBusinessId).eq("status", "pending_review"),
+      (supabase as any).from("content_publish_events").select("id", { count: "exact", head: true }).eq("business_id", currentBusinessId).eq("status", "published").gte("published_at", since7.toISOString()),
+      (supabase as any).from("content_pieces").select("id, output_type, status, updated_at").eq("business_id", currentBusinessId).order("updated_at", { ascending: false }).limit(3),
+    ]).then(([p, pub, recent]: any[]) => {
+      setContentStats({
+        pending: p.count ?? 0,
+        published_7d: pub.count ?? 0,
+        recent: recent.data ?? [],
+      });
+    }).catch(() => setContentStats({ pending: 0, published_7d: 0, recent: [] }));
 
     const channel = supabase
       .channel(`dashboard-feed-${currentBusinessId}`)
@@ -88,6 +106,7 @@ export default function Dashboard() {
     { label: "Active widgets", value: stats?.widgets, icon: MonitorSmartphone, color: "text-teal", to: "/widgets" },
     { label: "Integrations", value: stats?.integrations, icon: Plug, color: "text-purple", to: "/integrations" },
     { label: "Assisted conversions (7d)", value: stats?.conversions, icon: TrendingUp, color: "text-gold", to: "/analytics" },
+    { label: "Content this week", value: stats?.content_week, icon: Sparkles, color: "text-purple", to: "/content" },
   ];
 
   return (
@@ -105,7 +124,7 @@ export default function Dashboard() {
 
       <UsageBanner />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {cards.map(({ label, value, icon: Icon, color, to }) => (
           <Link to={to} key={label}>
             <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
@@ -169,11 +188,54 @@ export default function Dashboard() {
       </Card>
 
       <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-purple" />
+            <CardTitle className="text-base">AI content</CardTitle>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" asChild><Link to="/content/review">Review queue{contentStats && contentStats.pending > 0 ? ` (${contentStats.pending})` : ""}</Link></Button>
+            <Button variant="ghost" size="sm" asChild><Link to="/content">Library</Link></Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {contentStats === null ? (
+            <Skeleton className="h-12 w-full" />
+          ) : contentStats.recent.length === 0 ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">
+              No AI content yet. Open a proof and click <span className="font-medium">Generate content</span> to start.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                <span><span className="font-semibold text-foreground">{contentStats.pending}</span> pending review</span>
+                <span><span className="font-semibold text-foreground">{contentStats.published_7d}</span> published in last 7 days</span>
+              </div>
+              <ul className="divide-y">
+                {contentStats.recent.map((c) => (
+                  <li key={c.id}>
+                    <Link to={`/content/${c.id}/edit`} className="flex items-center justify-between py-2 -mx-2 px-2 rounded-md hover:bg-muted/40 text-sm">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Badge variant="outline" className="text-[10px] capitalize">{c.output_type?.replace(/_/g, " ")}</Badge>
+                        <span className="truncate text-muted-foreground">Updated {timeAgo(c.updated_at)}</span>
+                      </div>
+                      <Badge variant={c.status === "published" ? "default" : "secondary"} className="text-[10px] capitalize">{c.status?.replace(/_/g, " ")}</Badge>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle className="text-base">Get started</CardTitle></CardHeader>
-        <CardContent className="grid sm:grid-cols-3 gap-3">
+        <CardContent className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <Button variant="outline" asChild className="h-auto py-4 flex-col items-start"><Link to="/integrations"><Plug className="h-5 w-5 mb-2 text-purple" /><div className="text-sm font-semibold">Connect a source</div><div className="text-xs text-muted-foreground mt-0.5">Stripe, Shopify, Google…</div></Link></Button>
           <Button variant="outline" asChild className="h-auto py-4 flex-col items-start"><Link to="/proof/request"><MessageSquareQuote className="h-5 w-5 mb-2 text-accent" /><div className="text-sm font-semibold">Request a testimonial</div><div className="text-xs text-muted-foreground mt-0.5">Send a customer link</div></Link></Button>
           <Button variant="outline" asChild className="h-auto py-4 flex-col items-start"><Link to="/widgets/new"><MonitorSmartphone className="h-5 w-5 mb-2 text-teal" /><div className="text-sm font-semibold">Build a widget</div><div className="text-xs text-muted-foreground mt-0.5">Floating, inline or badge</div></Link></Button>
+          <Button variant="outline" asChild className="h-auto py-4 flex-col items-start"><Link to="/content"><Sparkles className="h-5 w-5 mb-2 text-purple" /><div className="text-sm font-semibold">Generate content</div><div className="text-xs text-muted-foreground mt-0.5">Turn proof into posts</div></Link></Button>
         </CardContent>
       </Card>
 

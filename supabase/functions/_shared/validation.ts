@@ -77,6 +77,8 @@ export const submitTestimonialBody = z.object({
   author_website_url: optionalUrl,
   media_size_bytes: z.coerce.number().int().min(0).max(500 * 1024 * 1024).optional().nullable(),
   media_duration_seconds: z.coerce.number().min(0).max(36000).optional().nullable(),
+  outcome_claim: shortText(160).optional().nullable(),
+  highlight_phrase: shortText(120).optional().nullable(),
 });
 
 export const widgetTrackBody = z.object({

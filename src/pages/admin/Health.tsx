@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Trash2,
   PlayCircle,
+  KeyRound,
 } from "lucide-react";
 import { generateVideoPoster } from "@/lib/bunny-upload";
 
@@ -70,6 +71,24 @@ export default function Health() {
   const [backfilling, setBackfilling] = useState(false);
   const [draining, setDraining] = useState(false);
   const [resyncing, setResyncing] = useState<string | null>(null);
+  const [bootstrapping, setBootstrapping] = useState(false);
+
+  const runBootstrap = async () => {
+    setBootstrapping(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("bootstrap-internal-secret", { body: {} });
+      const bodyErr = data && typeof data === "object" && (data as any).error ? (data as any).error : null;
+      if (error || bodyErr) throw new Error(bodyErr || error?.message || "Bootstrap failed");
+      toast({
+        title: "Bootstrap complete",
+        description: `Seeded: ${(data?.set ?? []).join(", ")}`,
+      });
+    } catch (e) {
+      toast({ title: "Bootstrap failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBootstrapping(false);
+    }
+  };
 
   const backfillPosters = async () => {
     setBackfilling(true);
@@ -309,7 +328,10 @@ export default function Health() {
             Service status, integration delivery rates, and replay tools.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="default" size="sm" onClick={runBootstrap} disabled={bootstrapping}>
+            <KeyRound className="h-4 w-4 mr-1" /> {bootstrapping ? "Bootstrapping…" : "Run bootstrap"}
+          </Button>
           <Button variant="outline" size="sm" onClick={backfillPosters} disabled={backfilling}>
             <ImageIcon className="h-4 w-4 mr-1" /> {backfilling ? "Backfilling…" : "Backfill video posters"}
           </Button>

@@ -34,11 +34,30 @@ import IntegrationDetail from "./pages/integrations/IntegrationDetail";
 
 import Analytics from "./pages/Analytics";
 
+import ContentHub from "./pages/content/ContentHub";
+import ContentGenerator from "./pages/content/ContentGenerator";
+import ContentEditor from "./pages/content/ContentEditor";
+import BulkReview from "./pages/content/BulkReview";
+import PublishingCalendar from "./pages/content/PublishingCalendar";
+import ChannelsHub from "./pages/content/ChannelsHub";
+import PublishingAnalytics from "./pages/content/PublishingAnalytics";
+
+import CampaignsList from "./pages/campaigns/CampaignsList";
+import CampaignBuilder from "./pages/campaigns/CampaignBuilder";
+import CampaignDetail from "./pages/campaigns/CampaignDetail";
+
+import CaseStudiesList from "./pages/case-studies/CaseStudiesList";
+import CaseStudyGenerator from "./pages/case-studies/CaseStudyGenerator";
+import CaseStudyEditor from "./pages/case-studies/CaseStudyEditor";
+
 import ProfileSettings, { SettingsLayout } from "./pages/settings/Profile";
 import AccountSettings from "./pages/settings/Account";
 import TeamSettings from "./pages/settings/Team";
 import EmailSettings from "./pages/settings/Email";
 import BillingSettings from "./pages/settings/Billing";
+import BrandVoiceSettings from "./pages/settings/BrandVoice";
+import PublishingChannelsSettings from "./pages/settings/PublishingChannels";
+import ContentPreferences from "./pages/settings/ContentPreferences";
 
 import Collect, { CollectThanks } from "./pages/collect/Collect";
 
@@ -94,6 +113,23 @@ const App = () => (
             <Route path="/widgets/new" element={<WidgetEditor />} />
             <Route path="/widgets/:id/edit" element={<WidgetEditor />} />
 
+            <Route path="/content" element={<ContentHub />} />
+            <Route path="/content/generate/:proof_id" element={<ContentGenerator />} />
+            <Route path="/content/review" element={<BulkReview />} />
+            <Route path="/content/calendar" element={<PublishingCalendar />} />
+            <Route path="/content/channels" element={<ChannelsHub />} />
+            <Route path="/content/analytics" element={<PublishingAnalytics />} />
+            <Route path="/content/:id/edit" element={<ContentEditor />} />
+
+            <Route path="/campaigns" element={<CampaignsList />} />
+            <Route path="/campaigns/new" element={<CampaignBuilder />} />
+            <Route path="/campaigns/:id" element={<CampaignDetail />} />
+            <Route path="/campaigns/:id/edit" element={<CampaignBuilder />} />
+
+            <Route path="/case-studies" element={<CaseStudiesList />} />
+            <Route path="/case-studies/generate" element={<CaseStudyGenerator />} />
+            <Route path="/case-studies/:id/edit" element={<CaseStudyEditor />} />
+
             <Route path="/integrations" element={<IntegrationsList />} />
             <Route path="/integrations/:id" element={<IntegrationDetail />} />
 
@@ -105,6 +141,9 @@ const App = () => (
               <Route path="/settings/account" element={<AccountSettings />} />
               <Route path="/settings/team" element={<TeamSettings />} />
               <Route path="/settings/email" element={<EmailSettings />} />
+              <Route path="/settings/brand-voice" element={<BrandVoiceSettings />} />
+              <Route path="/settings/channels" element={<PublishingChannelsSettings />} />
+              <Route path="/settings/content" element={<ContentPreferences />} />
               <Route path="/settings/billing" element={<BillingSettings />} />
             </Route>
           </Route>

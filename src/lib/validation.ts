@@ -219,6 +219,8 @@ export const collectTestimonialSchema = z.object({
   author_role: shortText(120).optional(),
   author_company: shortText(120).optional(),
   author_website_url: optionalUrl,
+  outcome_claim: shortText(160).optional(),
+  highlight_phrase: shortText(120).optional(),
 });
 
 export const domainAddSchema = z.object({ domain: domainSchema });

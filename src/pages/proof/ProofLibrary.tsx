@@ -27,6 +27,7 @@ import {
   MonitorSmartphone,
   Filter,
   XCircle,
+  Sparkles,
 } from "lucide-react";
 import { RequestTestimonialModal } from "@/components/proof/RequestTestimonialModal";
 import { AssignToWidgetDialog } from "@/components/proof/AssignToWidgetDialog";
@@ -555,8 +556,25 @@ export default function ProofLibrary() {
                             ) : (
                               <span />
                             )}
+                            {(p as any).content_pieces_count > 0 && (
+                              <Badge variant="secondary" className="text-[10px] gap-1">
+                                <Sparkles className="h-3 w-3" /> {(p as any).content_pieces_count} pieces
+                              </Badge>
+                            )}
                             <span>{new Date(p.created_at).toLocaleDateString()}</span>
                           </div>
+                          {p.status === "approved" && canEdit && (
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full h-8"
+                                onClick={() => navigate(`/content/generate/${p.id}`)}
+                              >
+                                <Sparkles className="h-3.5 w-3.5 mr-1" /> Generate content
+                              </Button>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     );

@@ -16,6 +16,9 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import {
   LayoutDashboard,
   MessageSquareQuote,
+  Sparkles,
+  Megaphone,
+  FileText,
   MonitorSmartphone,
   Plug,
   BarChart3,
@@ -51,6 +54,9 @@ import { ImpersonationBanner } from "./ImpersonationBanner";
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/proof", label: "Proof", icon: MessageSquareQuote },
+  { to: "/content", label: "Content", icon: Sparkles },
+  { to: "/campaigns", label: "Campaigns", icon: Megaphone },
+  { to: "/case-studies", label: "Case Studies", icon: FileText },
   { to: "/widgets", label: "Widgets", icon: MonitorSmartphone },
   { to: "/integrations", label: "Integrations", icon: Plug },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
@@ -155,7 +161,7 @@ function BusinessSwitcher({ inline = false }: { inline?: boolean }) {
           <Button
             variant="ghost"
             size="sm"
-            className={inline ? "w-full justify-start gap-2" : "gap-2 max-w-[220px]"}
+            className={inline ? "w-full justify-start gap-2" : "gap-2 max-w-[180px]"}
           >
             {current && <BusinessAvatar name={current.name} logoUrl={current.logo_url} size={20} />}
             <span className="truncate text-sm font-medium">
@@ -245,11 +251,11 @@ export function AppLayout() {
         <ImpersonationBanner />
         <header className="border-b bg-card sticky top-0 z-40">
           <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3 md:gap-8 min-w-0">
+            <div className="flex items-center gap-3 xl:gap-4 min-w-0">
               {/* Mobile / tablet hamburger */}
               <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="sm" className="md:hidden -ml-2 p-2" aria-label="Open menu">
+                  <Button variant="ghost" size="sm" className="xl:hidden -ml-2 p-2" aria-label="Open menu">
                     <Menu className="h-5 w-5" />
                   </Button>
                 </SheetTrigger>
@@ -346,26 +352,28 @@ export function AppLayout() {
               </Link>
 
               {/* Business switcher (desktop) — left of nav */}
-              <div className="hidden md:block">
+              <div className="hidden xl:block">
                 <BusinessSwitcher />
               </div>
 
-              <Separator orientation="vertical" className="hidden md:block h-6" />
+              <Separator orientation="vertical" className="hidden xl:block h-6" />
 
               {/* Desktop nav */}
-              <nav className="hidden md:flex items-center gap-1">
+              <nav className="hidden xl:flex items-center gap-1">
                 {nav.map(({ to, label, icon: Icon }) => (
                   <NavLink
                     key={to}
                     to={to}
+                    title={label}
+                    aria-label={label}
                     className={({ isActive }) =>
-                      `flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      `flex items-center gap-2 px-2.5 py-2 rounded-md text-sm font-medium transition-colors ${
                         isActive ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
                       }`
                     }
                   >
                     <Icon className="h-4 w-4" />
-                    {label}
+                    <span className="hidden 2xl:inline">{label}</span>
                   </NavLink>
                 ))}
               </nav>
@@ -383,7 +391,7 @@ export function AppLayout() {
                   title="Open Admin Console"
                 >
                   <Shield className="h-4 w-4" />
-                  <span className="hidden lg:inline text-sm font-medium">Admin</span>
+                  <span className="hidden 2xl:inline text-sm font-medium">Admin</span>
                 </Button>
               )}
               <NotificationBell />

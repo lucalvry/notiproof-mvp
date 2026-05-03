@@ -69,6 +69,22 @@ Deno.serve(async (req) => {
   let processed = 0;
   let failed = 0;
 
+  // ── Sweep due scheduled publish events ─────────────────────────────────
+  const { data: dueEvents } = await supabase
+    .from("content_publish_events")
+    .select("id")
+    .eq("status", "scheduled")
+    .lte("scheduled_at", new Date().toISOString())
+    .limit(BATCH_SIZE);
+  for (const ev of dueEvents ?? []) {
+    try {
+      await supabase.functions.invoke("publish-content-piece", { body: { event_id: ev.id } });
+      processed++;
+    } catch {
+      failed++;
+    }
+  }
+
   for (const job of jobs ?? []) {
     // Mark processing to prevent another run from picking the same row.
     const { error: claimErr } = await supabase

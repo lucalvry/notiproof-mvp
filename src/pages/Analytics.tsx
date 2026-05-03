@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   ResponsiveContainer,
   LineChart,
@@ -17,8 +18,10 @@ import {
   PieChart,
   Pie,
   Cell,
+  BarChart,
+  Bar,
 } from "recharts";
-import { BarChart3, ArrowUpDown, TrendingUp, Lock } from "lucide-react";
+import { BarChart3, ArrowUpDown, TrendingUp, Lock, Sparkles } from "lucide-react";
 import { usePlan } from "@/lib/plan-helpers";
 import { Link } from "react-router-dom";
 
@@ -232,6 +235,13 @@ export default function Analytics() {
         </div>
       )}
 
+      <Tabs defaultValue="widgets" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="widgets">Widgets &amp; proof</TabsTrigger>
+          <TabsTrigger value="content"><Sparkles className="h-3.5 w-3.5 mr-1.5" />Content performance</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="widgets" className="space-y-6">
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Widget impressions" value={isLoading ? null : totals.impressions.toLocaleString()} />
@@ -481,6 +491,12 @@ export default function Analytics() {
           </CardContent>
         </Card>
       </div>
+        </TabsContent>
+
+        <TabsContent value="content" className="space-y-6">
+          <ContentAnalyticsTab businessId={currentBusinessId} startIso={(() => { const d = new Date(); d.setDate(d.getDate() - Number(range)); return d.toISOString(); })()} endIso={new Date().toISOString()} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -533,5 +549,109 @@ function SortHeader({
       {label}
       <ArrowUpDown className="h-3 w-3" />
     </button>
+  );
+}
+
+function ContentAnalyticsTab({ businessId, startIso, endIso }: { businessId: string | null; startIso: string; endIso: string }) {
+  const [stats, setStats] = useState<{
+    generated: number;
+    published: number;
+    failed: number;
+    by_type: { type: string; count: number }[];
+    by_day: { date: string; published: number }[];
+    top_channel: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!businessId) return;
+    setStats(null);
+    Promise.all([
+      (supabase as any).from("content_pieces").select("id, output_type, status, created_at").eq("business_id", businessId).gte("created_at", startIso).lte("created_at", endIso).limit(5000),
+      (supabase as any).from("content_publish_events").select("id, status, published_at, channel_id").eq("business_id", businessId).gte("created_at", startIso).lte("created_at", endIso).limit(5000),
+      (supabase as any).from("publishing_channels").select("id, provider").eq("business_id", businessId),
+    ]).then(([pieces, events, channels]: any[]) => {
+      const ps = (pieces.data ?? []) as any[];
+      const ev = (events.data ?? []) as any[];
+      const ch = (channels.data ?? []) as any[];
+      const chMap = new Map(ch.map((c: any) => [c.id, c.provider]));
+      const typeCounts = new Map<string, number>();
+      ps.forEach((p) => typeCounts.set(p.output_type, (typeCounts.get(p.output_type) ?? 0) + 1));
+      const dayMap = new Map<string, number>();
+      ev.filter((e) => e.status === "published" && e.published_at).forEach((e) => {
+        const d = new Date(e.published_at).toISOString().slice(0, 10);
+        dayMap.set(d, (dayMap.get(d) ?? 0) + 1);
+      });
+      const channelCounts = new Map<string, number>();
+      ev.filter((e) => e.status === "published" && e.channel_id).forEach((e) => {
+        const prov = chMap.get(e.channel_id) ?? "unknown";
+        channelCounts.set(prov as string, (channelCounts.get(prov as string) ?? 0) + 1);
+      });
+      const topCh = Array.from(channelCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      setStats({
+        generated: ps.length,
+        published: ev.filter((e) => e.status === "published").length,
+        failed: ev.filter((e) => e.status === "failed").length,
+        by_type: Array.from(typeCounts.entries()).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
+        by_day: Array.from(dayMap.entries()).sort().map(([date, published]) => ({ date: new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric" }), published })),
+        top_channel: topCh,
+      });
+    });
+  }, [businessId, startIso, endIso]);
+
+  if (!stats) return <Skeleton className="h-72 w-full" />;
+
+  const totalEvents = stats.published + stats.failed;
+  const successRate = totalEvents > 0 ? ((stats.published / totalEvents) * 100).toFixed(1) : "—";
+
+  return (
+    <>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Pieces generated" value={stats.generated.toLocaleString()} />
+        <StatCard label="Pieces published" value={stats.published.toLocaleString()} />
+        <StatCard label="Publish success rate" value={successRate === "—" ? "—" : `${successRate}%`} sub={`${stats.failed} failed`} />
+        <StatCard label="Top channel" value={stats.top_channel ? stats.top_channel.replace(/_/g, " ") : "—"} />
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader><CardTitle className="text-base">Pieces published per day</CardTitle></CardHeader>
+          <CardContent>
+            {stats.by_day.length === 0 ? (
+              <EmptyChart label="No content published in this range." />
+            ) : (
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stats.by_day}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                    <Bar dataKey="published" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Pieces generated by type</CardTitle></CardHeader>
+          <CardContent>
+            {stats.by_type.length === 0 ? (
+              <EmptyChart label="No content generated yet." />
+            ) : (
+              <div className="space-y-2">
+                {stats.by_type.map((t) => (
+                  <div key={t.type} className="flex items-center justify-between text-sm">
+                    <span className="capitalize">{t.type.replace(/_/g, " ")}</span>
+                    <Badge variant="outline">{t.count}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }

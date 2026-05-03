@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
       token, author_name, author_email, content, rating, media_url,
       author_role, author_company, author_photo_url, author_website_url,
       media_size_bytes, media_duration_seconds,
+      outcome_claim, highlight_phrase,
     } = parsed.data;
     const ratingNum = rating ?? null;
 
@@ -139,6 +140,10 @@ Deno.serve(async (req) => {
       updateRow.author_avatar_url = photo;
     }
     if (website) updateRow.author_website_url = website;
+    const oc = optStr(outcome_claim);
+    const hp = optStr(highlight_phrase);
+    if (oc) updateRow.outcome_claim = oc;
+    if (hp) updateRow.highlight_phrase = hp;
 
     const { error: updErr } = await supabase
       .from("proof_objects")

@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Check, Copy, Loader2, Mail, Send, Star, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Copy, Loader2, Mail, Send, Sparkles, Star, Trash2, X } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { proofEditSchema, proofRequestSchema, fieldErrors } from "@/lib/validation";
 
@@ -30,10 +30,6 @@ type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"] & {
   highlight_phrase?: string | null;
   cta_label?: string | null;
   cta_url?: string | null;
-  author_photo_url?: string | null;
-  author_avatar_url?: string | null;
-  product_image_url?: string | null;
-  product_url?: string | null;
 };
 type ProofStatus = string;
 type RequestRow = Database["public"]["Tables"]["testimonial_requests"]["Row"] & {
@@ -121,8 +117,6 @@ export default function ProofDetail() {
       verified: proof.verified,
       highlight_phrase: highlight ? highlight : null,
       outcome_claim: outcome ? outcome : null,
-      product_image_url: (proof as ProofRow).product_image_url || null,
-      product_url: (proof as ProofRow).product_url || null,
     }).eq("id", proof.id);
     setSaving(false);
     if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
@@ -246,6 +240,13 @@ export default function ProofDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
+            {isApproved && canEdit && (
+              <Button size="sm" variant="secondary" asChild>
+                <Link to={`/content/generate/${proof.id}`}>
+                  <Sparkles className="h-4 w-4 mr-1" /> Generate content
+                </Link>
+              </Button>
+            )}
             {canEdit && isPurchase && !hasOpenRequest && (
               <Button size="sm" variant="secondary" onClick={() => setRequestOpen(true)}>
                 <Mail className="h-4 w-4 mr-1" /> Request testimonial
@@ -298,17 +299,6 @@ export default function ProofDetail() {
       <Card>
         <CardHeader><CardTitle>Edit content</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          {(proof.author_photo_url || proof.author_avatar_url) && (
-            <div className="flex items-center gap-3">
-              <img
-                src={(proof.author_photo_url || proof.author_avatar_url) as string}
-                alt={proof.author_name ?? "Author"}
-                className="h-14 w-14 rounded-full object-cover border"
-                onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
-              />
-              <div className="text-xs text-muted-foreground">Customer headshot</div>
-            </div>
-          )}
           <div className="space-y-2"><Label>Author name</Label><Input value={proof.author_name ?? ""} onChange={(e) => setProof({ ...proof, author_name: e.target.value })} /></div>
           <div className="space-y-2">
             <Label>Verification</Label>
@@ -332,61 +322,56 @@ export default function ProofDetail() {
             </div>
           </div>
           <div className="space-y-2"><Label>Content</Label><Textarea rows={5} value={proof.content ?? ""} onChange={(e) => setProof({ ...proof, content: e.target.value })} disabled={!canEdit} /></div>
-          <div className="space-y-2">
-            <Label>Outcome claim <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
-            <Input
-              maxLength={160}
-              placeholder="e.g. Increased signups by 38%"
-              value={proof.outcome_claim ?? ""}
-              onChange={(e) => setProof({ ...proof, outcome_claim: e.target.value })}
-              disabled={!canEdit}
-            />
-            <p className="text-xs text-muted-foreground">A short, measurable result attributed to your product. Surfaces in widgets that support outcome chips.</p>
-          </div>
           {(() => {
+            const isCustomerSubmitted = proof.source === "testimonial_request";
             const highlight = (proof as ProofRow & { highlight_phrase?: string | null }).highlight_phrase ?? "";
-            const content = proof.content ?? "";
+            const contentText = proof.content ?? "";
             const trimmedHighlight = highlight.trim();
-            const notFound = trimmedHighlight.length > 0 && !content.toLowerCase().includes(trimmedHighlight.toLowerCase());
+            const notFound = trimmedHighlight.length > 0 && !contentText.toLowerCase().includes(trimmedHighlight.toLowerCase());
             return (
-              <div className="space-y-2">
-                <Label>Highlight key phrase <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
-                <Input
-                  maxLength={120}
-                  placeholder="e.g. doubled our conversions in two weeks"
-                  value={highlight}
-                  onChange={(e) => setProof({ ...proof, highlight_phrase: e.target.value } as ProofRow)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  This phrase will be visually emphasized inside the widget. Must appear in the testimonial content.
-                </p>
-                {notFound && (
-                  <p className="text-xs text-amber-600">
-                    Heads up — this phrase wasn't found in the content above. It won't be highlighted until it matches.
+              <>
+                <div className="space-y-2">
+                  <Label>Outcome claim <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+                  <Input
+                    maxLength={160}
+                    placeholder="e.g. Increased signups by 38%"
+                    value={proof.outcome_claim ?? ""}
+                    onChange={(e) => setProof({ ...proof, outcome_claim: e.target.value })}
+                    disabled={!canEdit || isCustomerSubmitted}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {isCustomerSubmitted
+                      ? "Provided by the customer — read-only to preserve authenticity."
+                      : "A short, measurable result attributed to your product. Surfaces in widgets that support outcome chips."}
                   </p>
-                )}
-              </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Highlight key phrase <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+                  <Input
+                    maxLength={120}
+                    placeholder="e.g. doubled our conversions in two weeks"
+                    value={highlight}
+                    onChange={(e) => setProof({ ...proof, highlight_phrase: e.target.value } as ProofRow)}
+                    disabled={isCustomerSubmitted}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {isCustomerSubmitted
+                      ? "Provided by the customer — read-only to preserve authenticity."
+                      : "This phrase will be visually emphasized inside the widget. Must appear in the testimonial content."}
+                  </p>
+                  {notFound && (
+                    <p className="text-xs text-amber-600">
+                      Heads up — this phrase wasn't found in the content above. It won't be highlighted until it matches.
+                    </p>
+                  )}
+                </div>
+              </>
             );
           })()}
           <div className="space-y-2"><Label>Media URL</Label><Input type="url" value={proof.media_url ?? ""} onChange={(e) => setProof({ ...proof, media_url: e.target.value })} /></div>
           {proof.media_url && (
             <div className="rounded-md border bg-muted/30 p-2">
               <img src={proof.media_url} alt="media preview" className="max-h-48 rounded mx-auto" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
-            </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Product image URL <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
-              <Input type="url" placeholder="https://..." value={proof.product_image_url ?? ""} onChange={(e) => setProof({ ...proof, product_image_url: e.target.value } as ProofRow)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Product URL <span className="text-xs font-normal text-muted-foreground">(optional, used for CTA)</span></Label>
-              <Input type="url" placeholder="https://..." value={proof.product_url ?? ""} onChange={(e) => setProof({ ...proof, product_url: e.target.value } as ProofRow)} />
-            </div>
-          </div>
-          {proof.product_image_url && (
-            <div className="rounded-md border bg-muted/30 p-2">
-              <img src={proof.product_image_url} alt="product" className="max-h-40 rounded mx-auto" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
             </div>
           )}
         </CardContent>

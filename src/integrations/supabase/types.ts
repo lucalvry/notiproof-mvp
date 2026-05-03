@@ -62,6 +62,39 @@ export type Database = {
         }
         Relationships: []
       }
+      business_brand_voice: {
+        Row: {
+          avoid_words: string[]
+          business_id: string
+          created_at: string
+          default_tone: string
+          id: string
+          updated_at: string
+          use_words: string[]
+          voice_examples: string | null
+        }
+        Insert: {
+          avoid_words?: string[]
+          business_id: string
+          created_at?: string
+          default_tone?: string
+          id?: string
+          updated_at?: string
+          use_words?: string[]
+          voice_examples?: string | null
+        }
+        Update: {
+          avoid_words?: string[]
+          business_id?: string
+          created_at?: string
+          default_tone?: string
+          id?: string
+          updated_at?: string
+          use_words?: string[]
+          voice_examples?: string | null
+        }
+        Relationships: []
+      }
       business_domains: {
         Row: {
           business_id: string
@@ -142,6 +175,10 @@ export type Database = {
       businesses: {
         Row: {
           brand_color: string | null
+          content_auto_generate: boolean
+          content_default_output_types: string[]
+          content_default_tones: string[]
+          content_notify_on_ready: boolean
           created_at: string
           extra_seats_purchased: number
           id: string
@@ -168,6 +205,10 @@ export type Database = {
         }
         Insert: {
           brand_color?: string | null
+          content_auto_generate?: boolean
+          content_default_output_types?: string[]
+          content_default_tones?: string[]
+          content_notify_on_ready?: boolean
           created_at?: string
           extra_seats_purchased?: number
           id?: string
@@ -194,6 +235,10 @@ export type Database = {
         }
         Update: {
           brand_color?: string | null
+          content_auto_generate?: boolean
+          content_default_output_types?: string[]
+          content_default_tones?: string[]
+          content_notify_on_ready?: boolean
           created_at?: string
           extra_seats_purchased?: number
           id?: string
@@ -219,6 +264,269 @@ export type Database = {
           website_url?: string | null
         }
         Relationships: []
+      }
+      campaigns: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          request_config: Json
+          requests_sent_count: number
+          responses_received_count: number
+          trigger_config: Json
+          type: Database["public"]["Enums"]["campaign_type"]
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          request_config?: Json
+          requests_sent_count?: number
+          responses_received_count?: number
+          trigger_config?: Json
+          type: Database["public"]["Enums"]["campaign_type"]
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          request_config?: Json
+          requests_sent_count?: number
+          responses_received_count?: number
+          trigger_config?: Json
+          type?: Database["public"]["Enums"]["campaign_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      case_studies: {
+        Row: {
+          ai_model: string
+          business_id: string
+          content: string | null
+          created_at: string
+          customer_handle: string | null
+          edit_history: Json
+          id: string
+          length_target: string
+          meta_description: string | null
+          meta_title: string | null
+          original_content: string
+          sections: Json
+          slug: string | null
+          status: Database["public"]["Enums"]["case_study_status"]
+          title: string
+          tone: string
+          updated_at: string
+          word_count: number | null
+        }
+        Insert: {
+          ai_model: string
+          business_id: string
+          content?: string | null
+          created_at?: string
+          customer_handle?: string | null
+          edit_history?: Json
+          id?: string
+          length_target?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          original_content: string
+          sections?: Json
+          slug?: string | null
+          status?: Database["public"]["Enums"]["case_study_status"]
+          title: string
+          tone?: string
+          updated_at?: string
+          word_count?: number | null
+        }
+        Update: {
+          ai_model?: string
+          business_id?: string
+          content?: string | null
+          created_at?: string
+          customer_handle?: string | null
+          edit_history?: Json
+          id?: string
+          length_target?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          original_content?: string
+          sections?: Json
+          slug?: string | null
+          status?: Database["public"]["Enums"]["case_study_status"]
+          title?: string
+          tone?: string
+          updated_at?: string
+          word_count?: number | null
+        }
+        Relationships: []
+      }
+      case_study_proof_links: {
+        Row: {
+          case_study_id: string
+          created_at: string
+          id: string
+          is_primary: boolean
+          position: number
+          proof_object_id: string
+        }
+        Insert: {
+          case_study_id: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          position?: number
+          proof_object_id: string
+        }
+        Update: {
+          case_study_id?: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          position?: number
+          proof_object_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_study_proof_links_case_study_id_fkey"
+            columns: ["case_study_id"]
+            isOneToOne: false
+            referencedRelation: "case_studies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_pieces: {
+        Row: {
+          ai_model: string | null
+          business_id: string
+          char_count: number
+          content: string
+          created_at: string
+          edit_history: Json
+          generation_prompt: string | null
+          id: string
+          original_content: string
+          output_type: Database["public"]["Enums"]["content_output_type"]
+          proof_object_id: string
+          published_count: number
+          status: Database["public"]["Enums"]["content_piece_status"]
+          tone_used: string | null
+          updated_at: string
+        }
+        Insert: {
+          ai_model?: string | null
+          business_id: string
+          char_count?: number
+          content: string
+          created_at?: string
+          edit_history?: Json
+          generation_prompt?: string | null
+          id?: string
+          original_content: string
+          output_type: Database["public"]["Enums"]["content_output_type"]
+          proof_object_id: string
+          published_count?: number
+          status?: Database["public"]["Enums"]["content_piece_status"]
+          tone_used?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ai_model?: string | null
+          business_id?: string
+          char_count?: number
+          content?: string
+          created_at?: string
+          edit_history?: Json
+          generation_prompt?: string | null
+          id?: string
+          original_content?: string
+          output_type?: Database["public"]["Enums"]["content_output_type"]
+          proof_object_id?: string
+          published_count?: number
+          status?: Database["public"]["Enums"]["content_piece_status"]
+          tone_used?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      content_publish_events: {
+        Row: {
+          business_id: string
+          channel_id: string | null
+          clicks: number
+          content_piece_id: string
+          created_at: string
+          error_message: string | null
+          external_post_id: string | null
+          external_post_url: string | null
+          id: string
+          impressions: number
+          payload: Json
+          published_at: string | null
+          scheduled_at: string | null
+          status: Database["public"]["Enums"]["publish_event_status"]
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          channel_id?: string | null
+          clicks?: number
+          content_piece_id: string
+          created_at?: string
+          error_message?: string | null
+          external_post_id?: string | null
+          external_post_url?: string | null
+          id?: string
+          impressions?: number
+          payload?: Json
+          published_at?: string | null
+          scheduled_at?: string | null
+          status?: Database["public"]["Enums"]["publish_event_status"]
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          channel_id?: string | null
+          clicks?: number
+          content_piece_id?: string
+          created_at?: string
+          error_message?: string | null
+          external_post_id?: string | null
+          external_post_url?: string | null
+          id?: string
+          impressions?: number
+          payload?: Json
+          published_at?: string | null
+          scheduled_at?: string | null
+          status?: Database["public"]["Enums"]["publish_event_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_publish_events_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "publishing_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_publish_events_content_piece_id_fkey"
+            columns: ["content_piece_id"]
+            isOneToOne: false
+            referencedRelation: "content_pieces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       integration_events: {
         Row: {
@@ -394,6 +702,7 @@ export type Database = {
           author_website_url: string | null
           business_id: string
           content: string | null
+          content_pieces_count: number
           created_at: string
           cta_label: string | null
           cta_url: string | null
@@ -443,6 +752,7 @@ export type Database = {
           author_website_url?: string | null
           business_id: string
           content?: string | null
+          content_pieces_count?: number
           created_at?: string
           cta_label?: string | null
           cta_url?: string | null
@@ -492,6 +802,7 @@ export type Database = {
           author_website_url?: string | null
           business_id?: string
           content?: string | null
+          content_pieces_count?: number
           created_at?: string
           cta_label?: string | null
           cta_url?: string | null
@@ -536,6 +847,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      publishing_channels: {
+        Row: {
+          account_label: string | null
+          business_id: string
+          config: Json
+          created_at: string
+          credentials_encrypted: string | null
+          external_account_id: string | null
+          id: string
+          last_used_at: string | null
+          provider: Database["public"]["Enums"]["publish_channel_provider"]
+          status: string
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_label?: string | null
+          business_id: string
+          config?: Json
+          created_at?: string
+          credentials_encrypted?: string | null
+          external_account_id?: string | null
+          id?: string
+          last_used_at?: string | null
+          provider: Database["public"]["Enums"]["publish_channel_provider"]
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_label?: string | null
+          business_id?: string
+          config?: Json
+          created_at?: string
+          credentials_encrypted?: string | null
+          external_account_id?: string | null
+          id?: string
+          last_used_at?: string | null
+          provider?: Database["public"]["Enums"]["publish_channel_provider"]
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       rate_limits: {
         Row: {
@@ -644,7 +1000,9 @@ export type Database = {
       }
       testimonial_requests: {
         Row: {
+          attempts: number
           business_id: string
+          campaign_id: string | null
           completed_at: string | null
           created_at: string
           custom_message: string | null
@@ -655,16 +1013,21 @@ export type Database = {
           proof_object_id: string
           recipient_email: string
           recipient_name: string | null
+          reminder_delay_days: number
+          reminder_enabled: boolean
           reminder_sent_at: string | null
           requested_type: string
           responded_at: string | null
+          send_at: string | null
           sent_at: string | null
           status: Database["public"]["Enums"]["testimonial_request_status"]
           token: string
           updated_at: string
         }
         Insert: {
+          attempts?: number
           business_id: string
+          campaign_id?: string | null
           completed_at?: string | null
           created_at?: string
           custom_message?: string | null
@@ -675,16 +1038,21 @@ export type Database = {
           proof_object_id: string
           recipient_email: string
           recipient_name?: string | null
+          reminder_delay_days?: number
+          reminder_enabled?: boolean
           reminder_sent_at?: string | null
           requested_type?: string
           responded_at?: string | null
+          send_at?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["testimonial_request_status"]
           token?: string
           updated_at?: string
         }
         Update: {
+          attempts?: number
           business_id?: string
+          campaign_id?: string | null
           completed_at?: string | null
           created_at?: string
           custom_message?: string | null
@@ -695,9 +1063,12 @@ export type Database = {
           proof_object_id?: string
           recipient_email?: string
           recipient_name?: string | null
+          reminder_delay_days?: number
+          reminder_enabled?: boolean
           reminder_sent_at?: string | null
           requested_type?: string
           responded_at?: string | null
+          send_at?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["testimonial_request_status"]
           token?: string
@@ -709,6 +1080,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "testimonial_requests_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
           {
@@ -1064,6 +1442,23 @@ export type Database = {
             }
             Returns: string
           }
+        | {
+            Args: {
+              _author_company?: string
+              _author_email: string
+              _author_name: string
+              _author_photo_url?: string
+              _author_role?: string
+              _author_website_url?: string
+              _content: string
+              _highlight_phrase?: string
+              _media_url?: string
+              _outcome_claim?: string
+              _rating?: number
+              _token: string
+            }
+            Returns: string
+          }
       update_proof_media_metadata: {
         Args: { _bytes: number; _duration_seconds: number; _proof_id: string }
         Returns: boolean
@@ -1071,6 +1466,19 @@ export type Database = {
     }
     Enums: {
       app_role: "owner" | "editor" | "viewer"
+      campaign_type: "post_purchase" | "milestone" | "anniversary" | "manual"
+      case_study_status: "draft" | "published" | "archived"
+      content_output_type:
+        | "twitter_post"
+        | "linkedin_post"
+        | "email_block"
+        | "ad_copy_headline"
+        | "ad_copy_body"
+        | "website_quote"
+        | "short_caption"
+        | "meta_description"
+        | "case_study_section"
+      content_piece_status: "draft" | "approved" | "published" | "archived"
       integration_provider:
         | "stripe"
         | "shopify"
@@ -1097,6 +1505,19 @@ export type Database = {
         | "signup"
         | "visitor_count"
         | "custom"
+      publish_channel_provider:
+        | "buffer"
+        | "mailchimp"
+        | "klaviyo"
+        | "convertkit"
+        | "linkedin"
+        | "twitter"
+      publish_event_status:
+        | "scheduled"
+        | "publishing"
+        | "published"
+        | "failed"
+        | "cancelled"
       testimonial_request_status:
         | "pending"
         | "sent"
@@ -1245,6 +1666,20 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["owner", "editor", "viewer"],
+      campaign_type: ["post_purchase", "milestone", "anniversary", "manual"],
+      case_study_status: ["draft", "published", "archived"],
+      content_output_type: [
+        "twitter_post",
+        "linkedin_post",
+        "email_block",
+        "ad_copy_headline",
+        "ad_copy_body",
+        "website_quote",
+        "short_caption",
+        "meta_description",
+        "case_study_section",
+      ],
+      content_piece_status: ["draft", "approved", "published", "archived"],
       integration_provider: [
         "stripe",
         "shopify",
@@ -1273,6 +1708,21 @@ export const Constants = {
         "signup",
         "visitor_count",
         "custom",
+      ],
+      publish_channel_provider: [
+        "buffer",
+        "mailchimp",
+        "klaviyo",
+        "convertkit",
+        "linkedin",
+        "twitter",
+      ],
+      publish_event_status: [
+        "scheduled",
+        "publishing",
+        "published",
+        "failed",
+        "cancelled",
       ],
       testimonial_request_status: [
         "pending",

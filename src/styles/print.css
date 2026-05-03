@@ -1,0 +1,21 @@
+/* Print styles for case-study PDF export */
+@media print {
+  body * { visibility: hidden; }
+  #case-study-print, #case-study-print * { visibility: visible; }
+  #case-study-print {
+    position: absolute;
+    inset: 0;
+    padding: 2.5rem 3rem;
+    font-family: Georgia, "Times New Roman", serif;
+    color: #000;
+    background: #fff;
+    font-size: 12pt;
+    line-height: 1.6;
+  }
+  #case-study-print h1 { font-size: 24pt; margin-bottom: 1rem; }
+  #case-study-print h2 { font-size: 16pt; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+  #case-study-print h3 { font-size: 13pt; }
+  #case-study-print a { color: #000; text-decoration: underline; }
+  .no-print { display: none !important; }
+  @page { margin: 1in; }
+}

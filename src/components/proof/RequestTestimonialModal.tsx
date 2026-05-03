@@ -2,7 +2,7 @@
 // Mirrors the inline form on /proof/request: creates a placeholder proof,
 // inserts a testimonial_requests row, and triggers the send-testimonial-request
 // edge function. On success calls onSent so the parent can refresh its list.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send } from "lucide-react";
 import { proofRequestSchema, parseOrError } from "@/lib/validation";
@@ -35,9 +36,24 @@ export function RequestTestimonialModal({ open, onOpenChange, onSent }: Props) {
   const { toast } = useToast();
   const { atProofLimit, plan } = usePlanUsage();
   const [form, setForm] = useState({ recipient_name: "", recipient_email: "" });
+  const [campaignId, setCampaignId] = useState<string>("none");
+  const [campaigns, setCampaigns] = useState<Array<{ id: string; name: string }>>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const reset = () => setForm({ recipient_name: "", recipient_email: "" });
+  const reset = () => {
+    setForm({ recipient_name: "", recipient_email: "" });
+    setCampaignId("none");
+  };
+
+  useEffect(() => {
+    if (!open || !currentBusinessId) return;
+    db.from("campaigns")
+      .select("id, name")
+      .eq("business_id", currentBusinessId)
+      .eq("is_active", true)
+      .order("name")
+      .then(({ data }: any) => setCampaigns(data ?? []));
+  }, [open, currentBusinessId]);
 
   const handleOpenChange = (next: boolean) => {
     if (!next) reset();
@@ -84,6 +100,7 @@ export function RequestTestimonialModal({ open, onOpenChange, onSent }: Props) {
         recipient_email: parsed.data.recipient_email,
         recipient_name: parsed.data.recipient_name ?? null,
         status: "scheduled",
+        campaign_id: campaignId !== "none" ? campaignId : null,
       })
       .select("id")
       .maybeSingle();
@@ -174,6 +191,23 @@ export function RequestTestimonialModal({ open, onOpenChange, onSent }: Props) {
                 maxLength={255}
               />
             </div>
+
+            {campaigns.length > 0 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="rt-campaign">Assign to campaign (optional)</Label>
+                <Select value={campaignId} onValueChange={setCampaignId}>
+                  <SelectTrigger id="rt-campaign">
+                    <SelectValue placeholder="No campaign" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No campaign</SelectItem>
+                    {campaigns.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <DialogFooter className="gap-2 sm:gap-2">
               <Button
