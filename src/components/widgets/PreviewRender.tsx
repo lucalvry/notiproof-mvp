@@ -14,6 +14,8 @@ type Proof = ProofRow & {
   author_company?: string | null;
   author_company_logo_url?: string | null;
   author_photo_url?: string | null;
+  product_image_url?: string | null;
+  product_url?: string | null;
 };
 
 export interface WidgetConfig {
@@ -59,6 +61,16 @@ function isVideoProof(p?: Proof | null) {
   if (p.type && /video/i.test(p.type)) return true;
   const u = (p.media_url || "").toLowerCase().split("?")[0];
   return /\.(webm|mp4|mov|m4v)$/.test(u);
+}
+
+/** Effective primary visual for a proof: testimonial media falls back to product image. */
+function proofVisualUrl(p: Proof): string | null {
+  return p.media_url || p.product_image_url || null;
+}
+
+/** Effective CTA URL: per-proof CTA, then product URL, then widget default. */
+export function proofCtaUrl(p: Proof, widgetDefault?: string | null): string | null {
+  return (p as any).cta_url || (p as any).product_url || widgetDefault || null;
 }
 
 /** Build the attribution line: Name · Role, Company (graceful fallbacks). */
