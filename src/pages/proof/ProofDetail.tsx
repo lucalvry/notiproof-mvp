@@ -372,6 +372,21 @@ export default function ProofDetail() {
               <img src={proof.media_url} alt="media preview" className="max-h-48 rounded mx-auto" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
             </div>
           )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Product image URL <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+              <Input type="url" placeholder="https://..." value={proof.product_image_url ?? ""} onChange={(e) => setProof({ ...proof, product_image_url: e.target.value } as ProofRow)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Product URL <span className="text-xs font-normal text-muted-foreground">(optional, used for CTA)</span></Label>
+              <Input type="url" placeholder="https://..." value={proof.product_url ?? ""} onChange={(e) => setProof({ ...proof, product_url: e.target.value } as ProofRow)} />
+            </div>
+          </div>
+          {proof.product_image_url && (
+            <div className="rounded-md border bg-muted/30 p-2">
+              <img src={proof.product_image_url} alt="product" className="max-h-40 rounded mx-auto" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
+            </div>
+          )}
         </CardContent>
       </Card>
 
