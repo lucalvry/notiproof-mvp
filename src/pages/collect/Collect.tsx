@@ -267,9 +267,12 @@ export default function Collect() {
         }
       }
 
-      const finalContent = mode === "video"
-        ? (content.trim() || `Video testimonial from ${name}`)
-        : content.trim();
+      const finalContent =
+        mode === "video"
+          ? (content.trim() || `Video testimonial from ${name}`)
+          : mode === "photo"
+            ? (content.trim() || `Photo testimonial from ${name}`)
+            : content.trim();
 
       const normalizedWebsite = website.trim()
         ? (/^https?:\/\//i.test(website.trim()) ? website.trim() : `https://${website.trim()}`)
