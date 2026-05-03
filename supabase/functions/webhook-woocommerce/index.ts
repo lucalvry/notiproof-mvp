@@ -169,6 +169,13 @@ Deno.serve(async (req) => {
         Array.isArray(payload.line_items) && payload.line_items.length > 0
           ? payload.line_items.map((li: any) => li?.name).filter(Boolean).join(", ") || null
           : null;
+      let productImageUrl: string | null = null;
+      let productUrl: string | null = null;
+      if (Array.isArray(payload.line_items) && payload.line_items.length > 0) {
+        const li = payload.line_items[0] ?? {};
+        productImageUrl = li?.image?.src ?? li?.image ?? null;
+        productUrl = li?.permalink ?? li?.product_url ?? null;
+      }
 
       // Idempotency: skip if a proof_object already exists for this order.
       let existing: { id: string } | null = null;
