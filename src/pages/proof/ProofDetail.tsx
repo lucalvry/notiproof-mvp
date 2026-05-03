@@ -30,6 +30,10 @@ type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"] & {
   highlight_phrase?: string | null;
   cta_label?: string | null;
   cta_url?: string | null;
+  author_photo_url?: string | null;
+  author_avatar_url?: string | null;
+  product_image_url?: string | null;
+  product_url?: string | null;
 };
 type ProofStatus = string;
 type RequestRow = Database["public"]["Tables"]["testimonial_requests"]["Row"] & {
