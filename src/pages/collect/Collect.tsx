@@ -180,7 +180,12 @@ export default function Collect() {
       token,
       author_name: name,
       author_email: email,
-      content: mode === "video" && !content.trim() ? `Video testimonial from ${name}` : content,
+      content:
+        mode === "video" && !content.trim()
+          ? `Video testimonial from ${name}`
+          : mode === "photo" && !content.trim()
+            ? `Photo testimonial from ${name}`
+            : content,
       rating,
       author_role: role || undefined,
       author_company: company || undefined,
