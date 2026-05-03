@@ -27,6 +27,8 @@ type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"] & {
   transcript?: string | null;
   raw_content?: string | null;
   author_email?: string | null;
+  author_photo_url?: string | null;
+  author_avatar_url?: string | null;
 };
 type ProofStatus = string;
 
