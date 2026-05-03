@@ -194,6 +194,17 @@ export default function Collect() {
     if (mode === "video" && !videoBlob) {
       return toast({ title: "No video recorded", description: "Record a short video before submitting.", variant: "destructive" });
     }
+    if (mode === "photo" && !mediaPhotoFile) {
+      return toast({ title: "No photo selected", description: "Attach a photo before submitting.", variant: "destructive" });
+    }
+    if (mode === "photo" && mediaPhotoFile) {
+      if (!ALLOWED_PHOTO_TYPES.has(mediaPhotoFile.type)) {
+        return toast({ title: "Unsupported photo", description: "Use JPEG, PNG, WebP or GIF.", variant: "destructive" });
+      }
+      if (mediaPhotoFile.size > MAX_TESTIMONIAL_PHOTO_BYTES) {
+        return toast({ title: "Photo too large", description: "Please keep photos under 5 MB.", variant: "destructive" });
+      }
+    }
     if (videoBlob && videoBlob.size > MAX_VIDEO_BYTES) {
       return toast({ title: "Video too large", description: "Please keep videos under 50 MB.", variant: "destructive" });
     }
@@ -217,6 +228,15 @@ export default function Collect() {
           filename: `${Date.now()}.${ext}`,
           contentType,
           blob: videoBlob,
+          collectionToken: token,
+        });
+      } else if (mode === "photo" && mediaPhotoFile) {
+        mediaUrl = await uploadToBunny({
+          kind: "media",
+          folder: `testimonials/${token}`,
+          filename: `photo-${Date.now()}-${mediaPhotoFile.name.replace(/[^a-z0-9.\-_]/gi, "_")}`,
+          contentType: mediaPhotoFile.type || "image/jpeg",
+          blob: mediaPhotoFile,
           collectionToken: token,
         });
       }
