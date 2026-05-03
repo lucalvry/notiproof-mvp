@@ -7,13 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Star, Video, Type, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Star, Video, Type, Loader2, CheckCircle2, AlertTriangle, Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { uploadToBunny, generateVideoPoster } from "@/lib/bunny-upload";
 import { collectTestimonialSchema, parseOrError } from "@/lib/validation";
 import { showRateLimitToastIf } from "@/lib/use-rate-limit-toast";
 
-const MAX_PHOTO_BYTES = 2 * 1024 * 1024; // 2 MB
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024; // 2 MB (avatar headshot)
+const MAX_TESTIMONIAL_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB (main testimonial image)
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB
 const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
@@ -31,7 +32,7 @@ export default function Collect() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [mode, setMode] = useState<"text" | "video">("text");
+  const [mode, setMode] = useState<"text" | "photo" | "video">("text");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [content, setContent] = useState("");
@@ -43,6 +44,10 @@ export default function Collect() {
   const [website, setWebsite] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  // Main testimonial image (when mode === "photo"). Distinct from the
+  // optional avatar headshot above.
+  const [mediaPhotoFile, setMediaPhotoFile] = useState<File | null>(null);
+  const [mediaPhotoPreview, setMediaPhotoPreview] = useState<string | null>(null);
   const [showAboutYou, setShowAboutYou] = useState(false);
   const [ctx, setCtx] = useState<CollectionContext | null>(null);
   const [ctxError, setCtxError] = useState<string | null>(null);
