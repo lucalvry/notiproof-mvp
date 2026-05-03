@@ -261,6 +261,17 @@ function Media({ sample, cfg }: { sample: Proof | null; cfg: WidgetConfig }) {
       </div>
     );
   }
+  // Photo testimonial media or product image fallback (non-video).
+  if (!isVideoProof(sample)) {
+    const visual = sample.media_url || sample.product_image_url;
+    if (visual) {
+      return (
+        <div className={baseClass} style={minStyle}>
+          <img src={visual} alt="" className="w-full h-full object-cover" />
+        </div>
+      );
+    }
+  }
   const photo = sample.author_photo_url || sample.author_avatar_url;
   if (photo) {
     return (
