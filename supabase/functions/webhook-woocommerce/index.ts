@@ -169,6 +169,13 @@ Deno.serve(async (req) => {
         Array.isArray(payload.line_items) && payload.line_items.length > 0
           ? payload.line_items.map((li: any) => li?.name).filter(Boolean).join(", ") || null
           : null;
+      let productImageUrl: string | null = null;
+      let productUrl: string | null = null;
+      if (Array.isArray(payload.line_items) && payload.line_items.length > 0) {
+        const li = payload.line_items[0] ?? {};
+        productImageUrl = li?.image?.src ?? li?.image ?? null;
+        productUrl = li?.permalink ?? li?.product_url ?? null;
+      }
 
       // Idempotency: skip if a proof_object already exists for this order.
       let existing: { id: string } | null = null;
@@ -202,6 +209,8 @@ Deno.serve(async (req) => {
             source_metadata: { topic, order_id: payload.id, source_ref: sourceRef, location },
             external_ref_id: orderId || null,
             product_reference: productReference,
+            product_image_url: productImageUrl,
+            product_url: productUrl,
             author_name: customerName,
             author_email: customerEmail, // hashed by trigger
             content: `Ordered ${total}`,

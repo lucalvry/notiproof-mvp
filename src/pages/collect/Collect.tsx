@@ -7,13 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Star, Video, Type, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Star, Video, Type, Loader2, CheckCircle2, AlertTriangle, Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { uploadToBunny, generateVideoPoster } from "@/lib/bunny-upload";
 import { collectTestimonialSchema, parseOrError } from "@/lib/validation";
 import { showRateLimitToastIf } from "@/lib/use-rate-limit-toast";
 
-const MAX_PHOTO_BYTES = 2 * 1024 * 1024; // 2 MB
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024; // 2 MB (avatar headshot)
+const MAX_TESTIMONIAL_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB (main testimonial image)
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB
 const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
@@ -31,7 +32,7 @@ export default function Collect() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [mode, setMode] = useState<"text" | "video">("text");
+  const [mode, setMode] = useState<"text" | "photo" | "video">("text");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [content, setContent] = useState("");
@@ -43,6 +44,10 @@ export default function Collect() {
   const [website, setWebsite] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  // Main testimonial image (when mode === "photo"). Distinct from the
+  // optional avatar headshot above.
+  const [mediaPhotoFile, setMediaPhotoFile] = useState<File | null>(null);
+  const [mediaPhotoPreview, setMediaPhotoPreview] = useState<string | null>(null);
   const [showAboutYou, setShowAboutYou] = useState(false);
   const [ctx, setCtx] = useState<CollectionContext | null>(null);
   const [ctxError, setCtxError] = useState<string | null>(null);
@@ -175,7 +180,12 @@ export default function Collect() {
       token,
       author_name: name,
       author_email: email,
-      content: mode === "video" && !content.trim() ? `Video testimonial from ${name}` : content,
+      content:
+        mode === "video" && !content.trim()
+          ? `Video testimonial from ${name}`
+          : mode === "photo" && !content.trim()
+            ? `Photo testimonial from ${name}`
+            : content,
       rating,
       author_role: role || undefined,
       author_company: company || undefined,
@@ -188,6 +198,17 @@ export default function Collect() {
     }
     if (mode === "video" && !videoBlob) {
       return toast({ title: "No video recorded", description: "Record a short video before submitting.", variant: "destructive" });
+    }
+    if (mode === "photo" && !mediaPhotoFile) {
+      return toast({ title: "No photo selected", description: "Attach a photo before submitting.", variant: "destructive" });
+    }
+    if (mode === "photo" && mediaPhotoFile) {
+      if (!ALLOWED_PHOTO_TYPES.has(mediaPhotoFile.type)) {
+        return toast({ title: "Unsupported photo", description: "Use JPEG, PNG, WebP or GIF.", variant: "destructive" });
+      }
+      if (mediaPhotoFile.size > MAX_TESTIMONIAL_PHOTO_BYTES) {
+        return toast({ title: "Photo too large", description: "Please keep photos under 5 MB.", variant: "destructive" });
+      }
     }
     if (videoBlob && videoBlob.size > MAX_VIDEO_BYTES) {
       return toast({ title: "Video too large", description: "Please keep videos under 50 MB.", variant: "destructive" });
@@ -214,6 +235,15 @@ export default function Collect() {
           blob: videoBlob,
           collectionToken: token,
         });
+      } else if (mode === "photo" && mediaPhotoFile) {
+        mediaUrl = await uploadToBunny({
+          kind: "media",
+          folder: `testimonials/${token}`,
+          filename: `photo-${Date.now()}-${mediaPhotoFile.name.replace(/[^a-z0-9.\-_]/gi, "_")}`,
+          contentType: mediaPhotoFile.type || "image/jpeg",
+          blob: mediaPhotoFile,
+          collectionToken: token,
+        });
       }
 
       let photoUrl: string | null = null;
@@ -237,9 +267,12 @@ export default function Collect() {
         }
       }
 
-      const finalContent = mode === "video"
-        ? (content.trim() || `Video testimonial from ${name}`)
-        : content.trim();
+      const finalContent =
+        mode === "video"
+          ? (content.trim() || `Video testimonial from ${name}`)
+          : mode === "photo"
+            ? (content.trim() || `Photo testimonial from ${name}`)
+            : content.trim();
 
       const normalizedWebsite = website.trim()
         ? (/^https?:\/\//i.test(website.trim()) ? website.trim() : `https://${website.trim()}`)
@@ -332,9 +365,10 @@ export default function Collect() {
             <p className="text-muted-foreground mt-1 text-sm">Your testimonial helps {ctx.business_name} reach more people.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-6">
+          <div className="grid grid-cols-3 gap-2 mb-6">
             <Button type="button" variant={mode === "text" ? "default" : "outline"} onClick={() => setMode("text")}><Type className="h-4 w-4 mr-2" /> Write</Button>
-            <Button type="button" variant={mode === "video" ? "default" : "outline"} onClick={() => setMode("video")}><Video className="h-4 w-4 mr-2" /> Record video</Button>
+            <Button type="button" variant={mode === "photo" ? "default" : "outline"} onClick={() => setMode("photo")}><ImageIcon className="h-4 w-4 mr-2" /> Photo</Button>
+            <Button type="button" variant={mode === "video" ? "default" : "outline"} onClick={() => setMode("video")}><Video className="h-4 w-4 mr-2" /> Video</Button>
           </div>
 
           <form onSubmit={submit} className="space-y-4">
@@ -355,6 +389,36 @@ export default function Collect() {
 
             {mode === "text" ? (
               <div className="space-y-2"><Label>Your testimonial</Label><Textarea rows={5} value={content} onChange={(e) => setContent(e.target.value)} required minLength={10} maxLength={5000} placeholder="What did you like most?" /></div>
+            ) : mode === "photo" ? (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Your photo</Label>
+                  <div className="rounded-md border bg-muted/30 p-2">
+                    {mediaPhotoPreview ? (
+                      <img src={mediaPhotoPreview} alt="Testimonial" className="w-full rounded max-h-80 object-contain mx-auto" />
+                    ) : (
+                      <div className="aspect-video w-full rounded flex flex-col items-center justify-center bg-muted text-muted-foreground gap-2">
+                        <ImageIcon className="h-10 w-10 opacity-60" />
+                        <p className="text-sm">Choose a photo to attach (max 5 MB)</p>
+                      </div>
+                    )}
+                  </div>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setMediaPhotoFile(f);
+                      if (mediaPhotoPreview) URL.revokeObjectURL(mediaPhotoPreview);
+                      setMediaPhotoPreview(f ? URL.createObjectURL(f) : null);
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Your testimonial</Label>
+                  <Textarea rows={4} value={content} onChange={(e) => setContent(e.target.value)} maxLength={5000} placeholder="Tell us about your experience" />
+                </div>
+              </div>
             ) : (
               <div className="space-y-3">
                 <div className="space-y-2">
@@ -416,7 +480,8 @@ export default function Collect() {
                   </div>
                   <div className="space-y-2"><Label>Website (optional)</Label><Input value={website} onChange={(e) => setWebsite(e.target.value)} maxLength={300} placeholder="acme.com" /></div>
                   <div className="space-y-2">
-                    <Label>Your photo (optional)</Label>
+                    <Label>Your headshot (optional)</Label>
+                    <p className="text-xs text-muted-foreground">A profile picture shown next to your name. Doesn't replace any photo you attach above.</p>
                     <div className="flex items-center gap-3">
                       {photoPreview && (
                         <img src={photoPreview} alt="" className="h-14 w-14 rounded-full object-cover border" />

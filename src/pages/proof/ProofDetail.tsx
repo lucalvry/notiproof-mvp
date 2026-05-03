@@ -30,6 +30,10 @@ type ProofRow = Database["public"]["Tables"]["proof_objects"]["Row"] & {
   highlight_phrase?: string | null;
   cta_label?: string | null;
   cta_url?: string | null;
+  author_photo_url?: string | null;
+  author_avatar_url?: string | null;
+  product_image_url?: string | null;
+  product_url?: string | null;
 };
 type ProofStatus = string;
 type RequestRow = Database["public"]["Tables"]["testimonial_requests"]["Row"] & {
@@ -117,6 +121,8 @@ export default function ProofDetail() {
       verified: proof.verified,
       highlight_phrase: highlight ? highlight : null,
       outcome_claim: outcome ? outcome : null,
+      product_image_url: (proof as ProofRow).product_image_url || null,
+      product_url: (proof as ProofRow).product_url || null,
     }).eq("id", proof.id);
     setSaving(false);
     if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
@@ -292,6 +298,17 @@ export default function ProofDetail() {
       <Card>
         <CardHeader><CardTitle>Edit content</CardTitle></CardHeader>
         <CardContent className="space-y-4">
+          {(proof.author_photo_url || proof.author_avatar_url) && (
+            <div className="flex items-center gap-3">
+              <img
+                src={(proof.author_photo_url || proof.author_avatar_url) as string}
+                alt={proof.author_name ?? "Author"}
+                className="h-14 w-14 rounded-full object-cover border"
+                onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+              />
+              <div className="text-xs text-muted-foreground">Customer headshot</div>
+            </div>
+          )}
           <div className="space-y-2"><Label>Author name</Label><Input value={proof.author_name ?? ""} onChange={(e) => setProof({ ...proof, author_name: e.target.value })} /></div>
           <div className="space-y-2">
             <Label>Verification</Label>
@@ -355,6 +372,21 @@ export default function ProofDetail() {
           {proof.media_url && (
             <div className="rounded-md border bg-muted/30 p-2">
               <img src={proof.media_url} alt="media preview" className="max-h-48 rounded mx-auto" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Product image URL <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+              <Input type="url" placeholder="https://..." value={proof.product_image_url ?? ""} onChange={(e) => setProof({ ...proof, product_image_url: e.target.value } as ProofRow)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Product URL <span className="text-xs font-normal text-muted-foreground">(optional, used for CTA)</span></Label>
+              <Input type="url" placeholder="https://..." value={proof.product_url ?? ""} onChange={(e) => setProof({ ...proof, product_url: e.target.value } as ProofRow)} />
+            </div>
+          </div>
+          {proof.product_image_url && (
+            <div className="rounded-md border bg-muted/30 p-2">
+              <img src={proof.product_image_url} alt="product" className="max-h-40 rounded mx-auto" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
             </div>
           )}
         </CardContent>
