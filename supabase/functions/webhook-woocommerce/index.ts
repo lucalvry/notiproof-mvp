@@ -209,6 +209,8 @@ Deno.serve(async (req) => {
             source_metadata: { topic, order_id: payload.id, source_ref: sourceRef, location },
             external_ref_id: orderId || null,
             product_reference: productReference,
+            product_image_url: productImageUrl,
+            product_url: productUrl,
             author_name: customerName,
             author_email: customerEmail, // hashed by trigger
             content: `Ordered ${total}`,
