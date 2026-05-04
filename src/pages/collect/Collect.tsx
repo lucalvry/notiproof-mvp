@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,15 +7,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Star, Video, Type, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Star, Video, Type, Loader2, CheckCircle2, AlertTriangle, RefreshCw, X } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { uploadToBunny, generateVideoPoster } from "@/lib/bunny-upload";
 import { collectTestimonialSchema, parseOrError } from "@/lib/validation";
 import { showRateLimitToastIf } from "@/lib/use-rate-limit-toast";
+import { normalizePhoto } from "@/lib/image-normalize";
 
-const MAX_PHOTO_BYTES = 2 * 1024 * 1024; // 2 MB
+// Pre-normalization size cap (raw user file). After client-side normalization
+// the JPEG output is always ≤ 5 MB.
+const MAX_PHOTO_INPUT_BYTES = 25 * 1024 * 1024; // 25 MB raw input
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB
-const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+// We accept everything the browser claims is an image, plus HEIC/HEIF which
+// some browsers report with an empty MIME type. The normalizer is the source
+// of truth for whether the file is actually decodable.
+const ALLOWED_PHOTO_TYPES = new Set([
+  "image/jpeg", "image/png", "image/webp", "image/gif",
+  "image/heic", "image/heif",
+  "", // empty MIME (Safari/HEIC) — let the normalizer try
+]);
 
 interface CollectionContext {
   business_name: string;
@@ -45,6 +56,10 @@ export default function Collect() {
   const [highlightPhrase, setHighlightPhrase] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  // Tracks photo upload errors so we can show an inline retry/skip card
+  // instead of a dismissive `window.confirm`.
+  const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
+  const [skipPhoto, setSkipPhoto] = useState(false);
   const [showAboutYou, setShowAboutYou] = useState(false);
   const [ctx, setCtx] = useState<CollectionContext | null>(null);
   const [ctxError, setCtxError] = useState<string | null>(null);
@@ -197,11 +212,12 @@ export default function Collect() {
       return toast({ title: "Video too large", description: "Please keep videos under 50 MB.", variant: "destructive" });
     }
     if (photoFile) {
-      if (!ALLOWED_PHOTO_TYPES.has(photoFile.type)) {
-        return toast({ title: "Unsupported photo", description: "Use JPEG, PNG, WebP or GIF.", variant: "destructive" });
+      const sniffedType = (photoFile.type || "").toLowerCase();
+      if (!ALLOWED_PHOTO_TYPES.has(sniffedType) && !sniffedType.startsWith("image/")) {
+        return toast({ title: "Unsupported photo", description: "Please choose an image file (JPEG, PNG, WebP, GIF, or HEIC).", variant: "destructive" });
       }
-      if (photoFile.size > MAX_PHOTO_BYTES) {
-        return toast({ title: "Photo too large", description: "Please keep photos under 2 MB.", variant: "destructive" });
+      if (photoFile.size > MAX_PHOTO_INPUT_BYTES) {
+        return toast({ title: "Photo too large", description: "Please choose a photo under 25 MB.", variant: "destructive" });
       }
     }
 
@@ -221,25 +237,57 @@ export default function Collect() {
       }
 
       let photoUrl: string | null = null;
-      if (photoFile) {
+      if (photoFile && !skipPhoto) {
+        // Step 1: normalize on the client (HEIC → JPEG, downscale, strip EXIF).
+        // Step 2: upload with one automatic retry — transient Bunny 5xx /
+        // network errors should never destroy a recorded testimonial.
+        let normalized;
         try {
-          photoUrl = await uploadToBunny({
+          normalized = await normalizePhoto(photoFile);
+        } catch (normErr) {
+          console.error("[collect] photo normalization failed", normErr);
+          setSubmitting(false);
+          setPhotoUploadError(
+            (normErr as Error)?.message ?? "We couldn't process this image. Please try a different photo.",
+          );
+          return;
+        }
+
+        const uploadOnce = () =>
+          uploadToBunny({
             kind: "media",
             folder: `testimonials/${token}`,
-            filename: `photo-${Date.now()}-${photoFile.name.replace(/[^a-z0-9.\-_]/gi, "_")}`,
-            contentType: photoFile.type || "image/jpeg",
-            blob: photoFile,
+            filename: `photo-${Date.now()}-${normalized.file.name}`,
+            contentType: "image/jpeg",
+            blob: normalized.file,
             collectionToken: token,
           });
-        } catch (photoErr) {
-          console.error("[collect] photo upload failed, continuing without photo", photoErr);
-          photoUrl = null;
-          toast({
-            title: "Photo couldn't be uploaded",
-            description: "We'll save your testimonial without the photo. You can add one later.",
-          });
+
+        try {
+          photoUrl = await uploadOnce();
+        } catch (firstErr) {
+          console.warn("[collect] photo upload failed, retrying once", firstErr);
+          await new Promise((r) => setTimeout(r, 800));
+          try {
+            photoUrl = await uploadOnce();
+          } catch (secondErr) {
+            console.error("[collect] photo upload failed after retry", secondErr);
+            // Don't silently drop the photo. Surface the real error and let
+            // the user decide: retry the upload, or explicitly skip the photo.
+            setSubmitting(false);
+            setPhotoUploadError(
+              (secondErr as Error)?.message
+                ?? "Your photo couldn't be uploaded. Please check your connection and try again.",
+            );
+            return;
+          }
         }
       }
+
+      // Reaching here = photo upload succeeded (or was skipped). Clear any
+      // prior error state so the inline alert disappears.
+      setPhotoUploadError(null);
+
 
       const finalContent = mode === "video"
         ? (content.trim() || `Video testimonial from ${name}`)
@@ -293,7 +341,14 @@ export default function Collect() {
         });
       }
 
-      navigate(`/collect/${token}/done`);
+      navigate(`/collect/${token}/done`, {
+        state: {
+          photoUrl,
+          authorName: name,
+          mode,
+          hasMedia: !!mediaUrl,
+        },
+      });
     } catch (err) {
       toast({ title: "Submission failed", description: (err as Error).message, variant: "destructive" });
     } finally {
@@ -453,12 +508,14 @@ export default function Collect() {
                       )}
                       <Input
                         type="file"
-                        accept="image/*"
+                        accept="image/*,.heic,.heif"
                         onChange={(e) => {
                           const f = e.target.files?.[0] ?? null;
                           setPhotoFile(f);
                           if (photoPreview) URL.revokeObjectURL(photoPreview);
                           setPhotoPreview(f ? URL.createObjectURL(f) : null);
+                          setPhotoUploadError(null);
+                          setSkipPhoto(false);
                         }}
                       />
                     </div>
@@ -466,6 +523,53 @@ export default function Collect() {
                 </div>
               )}
             </div>
+
+            {photoUploadError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Photo couldn't be uploaded</AlertTitle>
+                <AlertDescription className="space-y-3">
+                  <p className="text-sm">
+                    Your testimonial has not been submitted yet. {photoUploadError}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setPhotoUploadError(null);
+                        setSkipPhoto(false);
+                      }}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                      Try uploading again
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={submitting}
+                      onClick={(ev) => {
+                        // Explicit user choice: drop the photo and submit now.
+                        setSkipPhoto(true);
+                        setPhotoUploadError(null);
+                        // Re-trigger the form submit immediately so the user
+                        // doesn't need a second click.
+                        const form = (ev.currentTarget as HTMLButtonElement).closest("form");
+                        if (form) {
+                          // Defer one tick so React flushes the skipPhoto state.
+                          setTimeout(() => form.requestSubmit(), 0);
+                        }
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1.5" />
+                      Submit without photo
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
 
             <Button type="submit" className="w-full" size="lg" disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -478,17 +582,52 @@ export default function Collect() {
   );
 }
 
+interface CollectThanksState {
+  photoUrl?: string | null;
+  authorName?: string | null;
+  mode?: "text" | "video";
+  hasMedia?: boolean;
+}
+
 export function CollectThanks() {
+  const location = useLocation();
+  const state = (location.state as CollectThanksState | null) ?? {};
+  const photoUrl = state.photoUrl ?? null;
+  const initial = (state.authorName ?? "").trim().charAt(0).toUpperCase() || "✓";
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardContent className="pt-10 pb-10 text-center">
-          <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-success/15 text-success mb-4">
-            <CheckCircle2 className="h-8 w-8" />
-          </div>
+          {photoUrl ? (
+            <div className="mx-auto mb-4 relative w-20 h-20">
+              <img
+                src={photoUrl}
+                alt={state.authorName ?? "Your photo"}
+                className="w-20 h-20 rounded-full object-cover border-2 border-success shadow-md"
+              />
+              <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-success text-success-foreground flex items-center justify-center shadow">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+            </div>
+          ) : (
+            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-success/15 text-success mb-4">
+              {state.authorName ? (
+                <span className="text-xl font-semibold">{initial}</span>
+              ) : (
+                <CheckCircle2 className="h-8 w-8" />
+              )}
+            </div>
+          )}
           <div className="text-xs uppercase tracking-wider text-muted-foreground font-mono">CUST-02</div>
           <h1 className="text-2xl font-bold mt-1">Thank you!</h1>
           <p className="text-muted-foreground mt-2">Your testimonial has been received. We really appreciate it.</p>
+          {photoUrl && (
+            <p className="mt-3 text-xs text-success font-medium">Photo saved ✓</p>
+          )}
+          {state.mode === "video" && state.hasMedia && (
+            <p className="mt-1 text-xs text-success font-medium">Video saved ✓</p>
+          )}
         </CardContent>
       </Card>
     </div>

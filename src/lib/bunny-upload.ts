@@ -47,7 +47,9 @@ export async function uploadToBunny({ kind = "media", folder, filename, contentT
 
   const url = `${SUPABASE_URL}/functions/v1/bunny-upload-url`;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60_000);
+  // Generous timeout: photos are small but mobile connections can be slow,
+  // and Bunny upload from the edge function can occasionally take 30s+.
+  const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
   let res: Response;
   try {
@@ -72,19 +74,36 @@ export async function uploadToBunny({ kind = "media", folder, filename, contentT
   try { data = await res.json(); } catch { /* ignore */ }
 
   if (res.status === 503 && (data?.error ?? "").includes("not configured")) {
-    // Fallback to Supabase Storage if Bunny isn't configured for this project.
-    const path = `${folder ?? "public"}/${Date.now()}_${filename}`;
-    const { error: upErr } = await supabase.storage.from("proof-media").upload(path, blob, { contentType, upsert: false });
-    if (upErr) throw upErr;
-    const { data: pub } = supabase.storage.from("proof-media").getPublicUrl(path);
+    // Bunny isn't configured. Fall back to Supabase Storage.
+    // Anonymous public submitters (collectionToken) MUST go to the
+    // `testimonials` bucket — its RLS policy allows public INSERT.
+    // Authenticated dashboard uploads use `proof-media` (auth-only RLS).
+    console.warn("[uploadToBunny] Bunny not configured, falling back to Supabase Storage");
+    // If a collectionToken is present, this is a public testimonial submission —
+    // always route to the `testimonials` bucket (which has a public INSERT policy),
+    // even when the browser also has an unrelated authenticated session.
+    const isPublic = !!collectionToken;
+    const bucket = isPublic ? "testimonials" : "proof-media";
+    const folderPart = isPublic
+      ? `public/${(collectionToken ?? "anon").slice(0, 64)}`
+      : (folder ?? "public");
+    const path = `${folderPart}/${Date.now()}_${filename}`;
+    const { error: upErr } = await supabase.storage.from(bucket).upload(path, blob, { contentType, upsert: false });
+    if (upErr) {
+      console.error("[uploadToBunny] storage fallback failed", { bucket, path, error: upErr });
+      throw new Error(`Storage fallback failed: ${upErr.message}`);
+    }
+    const { data: pub } = supabase.storage.from(bucket).getPublicUrl(path);
     return pub.publicUrl;
   }
 
   if (!res.ok || !data?.ok) {
+    console.error("[uploadToBunny] upload failed", { status: res.status, data });
     if ((data?.error ?? "") === "storage_limit_reached") {
       throw new Error("This business has reached its media storage limit. Please upgrade or free space.");
     }
-    throw new Error(data?.error ?? `Upload failed (${res.status})`);
+    const detail = data?.detail ? ` (${String(data.detail).slice(0, 120)})` : "";
+    throw new Error(`${data?.error ?? `Upload failed (${res.status})`}${detail}`);
   }
 
   return data.public_url as string;

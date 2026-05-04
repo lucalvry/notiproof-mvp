@@ -56,7 +56,7 @@ import TeamSettings from "./pages/settings/Team";
 import EmailSettings from "./pages/settings/Email";
 import BillingSettings from "./pages/settings/Billing";
 import BrandVoiceSettings from "./pages/settings/BrandVoice";
-import PublishingChannelsSettings from "./pages/settings/PublishingChannels";
+
 import ContentPreferences from "./pages/settings/ContentPreferences";
 
 import Collect, { CollectThanks } from "./pages/collect/Collect";
@@ -142,7 +142,7 @@ const App = () => (
               <Route path="/settings/team" element={<TeamSettings />} />
               <Route path="/settings/email" element={<EmailSettings />} />
               <Route path="/settings/brand-voice" element={<BrandVoiceSettings />} />
-              <Route path="/settings/channels" element={<PublishingChannelsSettings />} />
+              <Route path="/settings/channels" element={<Navigate to="/content/channels" replace />} />
               <Route path="/settings/content" element={<ContentPreferences />} />
               <Route path="/settings/billing" element={<BillingSettings />} />
             </Route>

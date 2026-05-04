@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
@@ -45,6 +46,8 @@ export default function ProofRequests() {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ recipient_name: "", recipient_email: "" });
+  const [campaignId, setCampaignId] = useState<string>("none");
+  const [campaigns, setCampaigns] = useState<Array<{ id: string; name: string }>>([]);
 
   const load = async () => {
     if (!currentBusinessId) return;
@@ -56,6 +59,16 @@ export default function ProofRequests() {
   };
 
   useEffect(() => { load(); }, [currentBusinessId]);
+
+  useEffect(() => {
+    if (!currentBusinessId) return;
+    db.from("campaigns")
+      .select("id, name")
+      .eq("business_id", currentBusinessId)
+      .eq("is_active", true)
+      .order("name")
+      .then(({ data }: any) => setCampaigns(data ?? []));
+  }, [currentBusinessId]);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +106,7 @@ export default function ProofRequests() {
         recipient_email: parsed.data.recipient_email,
         recipient_name: parsed.data.recipient_name ?? null,
         status: "scheduled",
+        campaign_id: campaignId !== "none" ? campaignId : null,
       })
       .select("id")
       .maybeSingle();
@@ -122,6 +136,7 @@ export default function ProofRequests() {
       toast({ title: "Request sent", description: `Email delivered to ${form.recipient_email}.` });
     }
     setForm({ recipient_name: "", recipient_email: "" });
+    setCampaignId("none");
     setOpen(false);
     load();
   };
@@ -163,6 +178,18 @@ export default function ProofRequests() {
               <div className="space-y-4 py-4">
                 <div className="space-y-2"><Label htmlFor="r_name">Customer name (optional)</Label><Input id="r_name" maxLength={120} value={form.recipient_name} onChange={(e) => setForm({ ...form, recipient_name: e.target.value })} /></div>
                 <div className="space-y-2"><Label htmlFor="r_email">Customer email</Label><Input id="r_email" type="email" required maxLength={254} inputMode="email" autoComplete="email" value={form.recipient_email} onChange={(e) => setForm({ ...form, recipient_email: e.target.value })} /></div>
+                {campaigns.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="r_campaign">Assign to campaign (optional)</Label>
+                    <Select value={campaignId} onValueChange={setCampaignId}>
+                      <SelectTrigger id="r_campaign"><SelectValue placeholder="No campaign" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No campaign</SelectItem>
+                        {campaigns.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
