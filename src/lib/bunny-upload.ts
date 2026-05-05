@@ -73,40 +73,48 @@ export async function uploadToBunny({ kind = "media", folder, filename, contentT
   let data: any = null;
   try { data = await res.json(); } catch { /* ignore */ }
 
-  if (res.status === 503 && (data?.error ?? "").includes("not configured")) {
-    // Bunny isn't configured. Fall back to Supabase Storage.
-    // Anonymous public submitters (collectionToken) MUST go to the
-    // `testimonials` bucket — its RLS policy allows public INSERT.
-    // Authenticated dashboard uploads use `proof-media` (auth-only RLS).
-    console.warn("[uploadToBunny] Bunny not configured, falling back to Supabase Storage");
-    // If a collectionToken is present, this is a public testimonial submission —
-    // always route to the `testimonials` bucket (which has a public INSERT policy),
-    // even when the browser also has an unrelated authenticated session.
-    const isPublic = !!collectionToken;
+  // Hard-stop errors: do NOT fall back. Surface clearly.
+  if ((data?.error ?? "") === "storage_limit_reached" || (data?.code ?? "") === "storage_limit_reached") {
+    throw new Error("This business has reached its media storage limit. Please upgrade or free space.");
+  }
+
+  // Success path.
+  if (res.ok && data?.ok && typeof data.public_url === "string") {
+    return data.public_url as string;
+  }
+
+  // Failure path. For PUBLIC testimonial uploads (collectionToken present),
+  // always fall back to the public `testimonials` Supabase Storage bucket so
+  // a flaky Bunny/proxy never destroys the submitter's photo. The bucket has
+  // a public INSERT policy and is safe for unauthenticated callers.
+  console.error("[uploadToBunny] bunny upload failed", {
+    status: res.status,
+    code: data?.code,
+    error: data?.error,
+    detail: typeof data?.detail === "string" ? data.detail.slice(0, 200) : undefined,
+  });
+
+  const isPublic = !!collectionToken;
+  if (isPublic || (res.status === 503 && (data?.error ?? "").includes("not configured"))) {
     const bucket = isPublic ? "testimonials" : "proof-media";
     const folderPart = isPublic
       ? `public/${(collectionToken ?? "anon").slice(0, 64)}`
       : (folder ?? "public");
     const path = `${folderPart}/${Date.now()}_${filename}`;
+    console.warn("[uploadToBunny] falling back to Supabase Storage", { bucket, path });
     const { error: upErr } = await supabase.storage.from(bucket).upload(path, blob, { contentType, upsert: false });
     if (upErr) {
       console.error("[uploadToBunny] storage fallback failed", { bucket, path, error: upErr });
-      throw new Error(`Storage fallback failed: ${upErr.message}`);
+      throw new Error(
+        `Photo upload failed. Bunny: ${data?.error ?? `HTTP ${res.status}`}. Fallback: ${upErr.message}`,
+      );
     }
     const { data: pub } = supabase.storage.from(bucket).getPublicUrl(path);
     return pub.publicUrl;
   }
 
-  if (!res.ok || !data?.ok) {
-    console.error("[uploadToBunny] upload failed", { status: res.status, data });
-    if ((data?.error ?? "") === "storage_limit_reached") {
-      throw new Error("This business has reached its media storage limit. Please upgrade or free space.");
-    }
-    const detail = data?.detail ? ` (${String(data.detail).slice(0, 120)})` : "";
-    throw new Error(`${data?.error ?? `Upload failed (${res.status})`}${detail}`);
-  }
-
-  return data.public_url as string;
+  const detail = data?.detail ? ` (${String(data.detail).slice(0, 120)})` : "";
+  throw new Error(`${data?.error ?? `Upload failed (${res.status})`}${detail}`);
 }
 
 export interface GeneratePosterOptions {

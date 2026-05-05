@@ -1010,7 +1010,7 @@ export type Database = {
           id: string
           opened_at: string | null
           prompt_questions: Json
-          proof_object_id: string
+          proof_object_id: string | null
           recipient_email: string
           recipient_name: string | null
           reminder_delay_days: number
@@ -1035,7 +1035,7 @@ export type Database = {
           id?: string
           opened_at?: string | null
           prompt_questions?: Json
-          proof_object_id: string
+          proof_object_id?: string | null
           recipient_email: string
           recipient_name?: string | null
           reminder_delay_days?: number
@@ -1060,7 +1060,7 @@ export type Database = {
           id?: string
           opened_at?: string | null
           prompt_questions?: Json
-          proof_object_id?: string
+          proof_object_id?: string | null
           recipient_email?: string
           recipient_name?: string | null
           reminder_delay_days?: number

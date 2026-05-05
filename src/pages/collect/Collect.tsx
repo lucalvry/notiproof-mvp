@@ -211,6 +211,11 @@ export default function Collect() {
     if (videoBlob && videoBlob.size > MAX_VIDEO_BYTES) {
       return toast({ title: "Video too large", description: "Please keep videos under 50 MB.", variant: "destructive" });
     }
+    if (mode === "text" && !photoFile) {
+      // Auto-open the About-you section so the file picker is visible.
+      setShowAboutYou(true);
+      return toast({ title: "Photo required", description: "Please add your photo in the “About you” section. It appears with your testimonial.", variant: "destructive" });
+    }
     if (photoFile) {
       const sniffedType = (photoFile.type || "").toLowerCase();
       if (!ALLOWED_PHOTO_TYPES.has(sniffedType) && !sniffedType.startsWith("image/")) {
@@ -237,7 +242,11 @@ export default function Collect() {
       }
 
       let photoUrl: string | null = null;
-      if (photoFile && !skipPhoto) {
+      // For text testimonials a photo is REQUIRED. For video, only attempt
+      // upload if the user actually selected one. We never silently drop a
+      // selected photo: any final failure blocks submission.
+      const shouldUploadPhoto = !!photoFile && !(mode === "video" && skipPhoto);
+      if (shouldUploadPhoto && photoFile) {
         // Step 1: normalize on the client (HEIC → JPEG, downscale, strip EXIF).
         // Step 2: upload with one automatic retry — transient Bunny 5xx /
         // network errors should never destroy a recorded testimonial.
@@ -272,8 +281,6 @@ export default function Collect() {
             photoUrl = await uploadOnce();
           } catch (secondErr) {
             console.error("[collect] photo upload failed after retry", secondErr);
-            // Don't silently drop the photo. Surface the real error and let
-            // the user decide: retry the upload, or explicitly skip the photo.
             setSubmitting(false);
             setPhotoUploadError(
               (secondErr as Error)?.message
@@ -545,27 +552,25 @@ export default function Collect() {
                       <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
                       Try uploading again
                     </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      disabled={submitting}
-                      onClick={(ev) => {
-                        // Explicit user choice: drop the photo and submit now.
-                        setSkipPhoto(true);
-                        setPhotoUploadError(null);
-                        // Re-trigger the form submit immediately so the user
-                        // doesn't need a second click.
-                        const form = (ev.currentTarget as HTMLButtonElement).closest("form");
-                        if (form) {
-                          // Defer one tick so React flushes the skipPhoto state.
-                          setTimeout(() => form.requestSubmit(), 0);
-                        }
-                      }}
-                    >
-                      <X className="h-3.5 w-3.5 mr-1.5" />
-                      Submit without photo
-                    </Button>
+                    {mode === "video" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={submitting}
+                        onClick={(ev) => {
+                          // Video mode only: explicit user choice to drop the
+                          // photo and submit the video without it.
+                          setSkipPhoto(true);
+                          setPhotoUploadError(null);
+                          const form = (ev.currentTarget as HTMLButtonElement).closest("form");
+                          if (form) setTimeout(() => form.requestSubmit(), 0);
+                        }}
+                      >
+                        <X className="h-3.5 w-3.5 mr-1.5" />
+                        Submit video without photo
+                      </Button>
+                    )}
                   </div>
                 </AlertDescription>
               </Alert>
