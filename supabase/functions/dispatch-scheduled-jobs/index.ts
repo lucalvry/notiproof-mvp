@@ -76,6 +76,12 @@ Deno.serve(async (req) => {
     .eq("status", "scheduled")
     .lte("scheduled_at", new Date().toISOString())
     .limit(BATCH_SIZE);
+  // Nothing due → exit early to keep idle runs cheap.
+  if ((jobs ?? []).length === 0 && (dueEvents ?? []).length === 0) {
+    return new Response(JSON.stringify({ ok: true, idle: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
   for (const ev of dueEvents ?? []) {
     try {
       await supabase.functions.invoke("publish-content-piece", { body: { event_id: ev.id } });
