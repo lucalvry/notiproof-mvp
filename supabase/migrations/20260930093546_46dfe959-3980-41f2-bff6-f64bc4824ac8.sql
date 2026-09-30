@@ -1,0 +1,6 @@
+SELECT cron.alter_job(job_id := (SELECT jobid FROM cron.job WHERE jobname = 'dispatch-scheduled-jobs-every-minute'), schedule := '*/2 * * * *');
+UPDATE public.proof_objects SET media_url = regexp_replace(media_url, '^https://[^/]+\.b-cdn\.net', 'https://cdn.notiproof.xyz') WHERE media_url ~ '^https://[^/]+\.b-cdn\.net';
+UPDATE public.proof_objects SET video_url = regexp_replace(video_url, '^https://[^/]+\.b-cdn\.net', 'https://cdn.notiproof.xyz') WHERE video_url ~ '^https://[^/]+\.b-cdn\.net';
+UPDATE public.proof_objects SET author_photo_url = regexp_replace(author_photo_url, '^https://[^/]+\.b-cdn\.net', 'https://cdn.notiproof.xyz') WHERE author_photo_url ~ '^https://[^/]+\.b-cdn\.net';
+UPDATE public.proof_objects SET author_avatar_url = regexp_replace(author_avatar_url, '^https://[^/]+\.b-cdn\.net', 'https://cdn.notiproof.xyz') WHERE author_avatar_url ~ '^https://[^/]+\.b-cdn\.net';
+UPDATE public.businesses SET logo_url = regexp_replace(logo_url, '^https://[^/]+\.b-cdn\.net', 'https://cdn.notiproof.xyz') WHERE logo_url ~ '^https://[^/]+\.b-cdn\.net';
