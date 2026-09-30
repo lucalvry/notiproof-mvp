@@ -41,6 +41,389 @@ export type Database = {
         }
         Relationships: []
       }
+      agencies: {
+        Row: {
+          agency_type: string | null
+          brand_color: string | null
+          client_seat_limit: number
+          client_self_login: boolean
+          created_at: string
+          custom_subdomain: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          notification_prefs: Json
+          owner_user_id: string | null
+          plan_tier: string
+          portal_slug: string | null
+          portal_welcome_msg: string | null
+          reseller_mode: boolean
+          slug: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subdomain_verified: boolean
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          agency_type?: string | null
+          brand_color?: string | null
+          client_seat_limit?: number
+          client_self_login?: boolean
+          created_at?: string
+          custom_subdomain?: string | null
+          id?: string
+          logo_url?: string | null
+          name: string
+          notification_prefs?: Json
+          owner_user_id?: string | null
+          plan_tier?: string
+          portal_slug?: string | null
+          portal_welcome_msg?: string | null
+          reseller_mode?: boolean
+          slug: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subdomain_verified?: boolean
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          agency_type?: string | null
+          brand_color?: string | null
+          client_seat_limit?: number
+          client_self_login?: boolean
+          created_at?: string
+          custom_subdomain?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          notification_prefs?: Json
+          owner_user_id?: string | null
+          plan_tier?: string
+          portal_slug?: string | null
+          portal_welcome_msg?: string | null
+          reseller_mode?: boolean
+          slug?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subdomain_verified?: boolean
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agencies_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_client_relationships: {
+        Row: {
+          added_by: string | null
+          agency_id: string
+          approval_token: string | null
+          client_business_id: string
+          client_can_approve: boolean
+          client_plan: string | null
+          created_at: string
+          id: string
+          invitation_accepted_at: string | null
+          invitation_sent_at: string | null
+          notes: string | null
+          status: string
+          updated_at: string
+          visible_features: string[]
+        }
+        Insert: {
+          added_by?: string | null
+          agency_id: string
+          approval_token?: string | null
+          client_business_id: string
+          client_can_approve?: boolean
+          client_plan?: string | null
+          created_at?: string
+          id?: string
+          invitation_accepted_at?: string | null
+          invitation_sent_at?: string | null
+          notes?: string | null
+          status?: string
+          updated_at?: string
+          visible_features?: string[]
+        }
+        Update: {
+          added_by?: string | null
+          agency_id?: string
+          approval_token?: string | null
+          client_business_id?: string
+          client_can_approve?: boolean
+          client_plan?: string | null
+          created_at?: string
+          id?: string
+          invitation_accepted_at?: string | null
+          invitation_sent_at?: string | null
+          notes?: string | null
+          status?: string
+          updated_at?: string
+          visible_features?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_client_relationships_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_client_relationships_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_client_relationships_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_member_client_assignments: {
+        Row: {
+          agency_id: string
+          assigned_by: string | null
+          client_business_id: string
+          created_at: string
+          id: string
+          member_id: string
+        }
+        Insert: {
+          agency_id: string
+          assigned_by?: string | null
+          client_business_id: string
+          created_at?: string
+          id?: string
+          member_id: string
+        }
+        Update: {
+          agency_id?: string
+          assigned_by?: string | null
+          client_business_id?: string
+          created_at?: string
+          id?: string
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_member_client_assignments_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_member_client_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_member_client_assignments_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_member_client_assignments_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "agency_team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_reseller_config: {
+        Row: {
+          agency_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          payment_collection: string
+          pricing: Json
+          updated_at: string
+        }
+        Insert: {
+          agency_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          payment_collection?: string
+          pricing?: Json
+          updated_at?: string
+        }
+        Update: {
+          agency_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          payment_collection?: string
+          pricing?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_reseller_config_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: true
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_team_invitations: {
+        Row: {
+          accepted_at: string | null
+          agency_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          role: string
+          status: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          agency_id: string
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: string
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          agency_id?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: string
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_team_invitations_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_team_invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_team_members: {
+        Row: {
+          agency_id: string
+          created_at: string
+          id: string
+          invitation_accepted_at: string | null
+          invited_by: string | null
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agency_id: string
+          created_at?: string
+          id?: string
+          invitation_accepted_at?: string | null
+          invited_by?: string | null
+          role?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agency_id?: string
+          created_at?: string
+          id?: string
+          invitation_accepted_at?: string | null
+          invited_by?: string | null
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_team_members_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_team_members_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_team_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analytics_snapshots: {
+        Row: {
+          created_at: string
+          id: string
+          payload: Json
+          scope: string
+          snapshot_date: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          payload: Json
+          scope?: string
+          snapshot_date: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          payload?: Json
+          scope?: string
+          snapshot_date?: string
+        }
+        Relationships: []
+      }
       app_secrets: {
         Row: {
           created_at: string
@@ -61,6 +444,72 @@ export type Database = {
           value?: string
         }
         Relationships: []
+      }
+      backfill_jobs: {
+        Row: {
+          attempted: number
+          business_id: string | null
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          failed: number
+          id: string
+          metadata: Json
+          scope: string
+          started_at: string | null
+          status: string
+          succeeded: number
+          triggered_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempted?: number
+          business_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          failed?: number
+          id?: string
+          metadata?: Json
+          scope?: string
+          started_at?: string | null
+          status?: string
+          succeeded?: number
+          triggered_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempted?: number
+          business_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          failed?: number
+          id?: string
+          metadata?: Json
+          scope?: string
+          started_at?: string | null
+          status?: string
+          succeeded?: number
+          triggered_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backfill_jobs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "backfill_jobs_triggered_by_fkey"
+            columns: ["triggered_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       business_brand_voice: {
         Row: {
@@ -174,6 +623,7 @@ export type Database = {
       }
       businesses: {
         Row: {
+          account_type: string
           brand_color: string | null
           content_auto_generate: boolean
           content_default_output_types: string[]
@@ -204,6 +654,7 @@ export type Database = {
           website_url: string | null
         }
         Insert: {
+          account_type?: string
           brand_color?: string | null
           content_auto_generate?: boolean
           content_default_output_types?: string[]
@@ -234,6 +685,7 @@ export type Database = {
           website_url?: string | null
         }
         Update: {
+          account_type?: string
           brand_color?: string | null
           content_auto_generate?: boolean
           content_default_output_types?: string[]
@@ -528,6 +980,39 @@ export type Database = {
           },
         ]
       }
+      ef_invocation_log: {
+        Row: {
+          business_id: string | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          function_name: string
+          id: number
+          metadata: Json
+          status: string
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          function_name: string
+          id?: number
+          metadata?: Json
+          status: string
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          function_name?: string
+          id?: number
+          metadata?: Json
+          status?: string
+        }
+        Relationships: []
+      }
       integration_events: {
         Row: {
           business_id: string
@@ -709,6 +1194,7 @@ export type Database = {
           customer_email_hash: string | null
           customer_handle: string | null
           external_ref_id: string | null
+          has_product_enrichment: boolean
           highlight_phrase: string | null
           id: string
           media_duration_seconds: number | null
@@ -717,6 +1203,10 @@ export type Database = {
           media_url: string | null
           outcome_claim: string | null
           poster_url: string | null
+          primary_product_image_cached: string | null
+          primary_product_name: string | null
+          primary_product_url: string | null
+          product_item_count: number
           product_reference: string | null
           proof_event_at: string | null
           proof_type: Database["public"]["Enums"]["proof_type"]
@@ -759,6 +1249,7 @@ export type Database = {
           customer_email_hash?: string | null
           customer_handle?: string | null
           external_ref_id?: string | null
+          has_product_enrichment?: boolean
           highlight_phrase?: string | null
           id?: string
           media_duration_seconds?: number | null
@@ -767,6 +1258,10 @@ export type Database = {
           media_url?: string | null
           outcome_claim?: string | null
           poster_url?: string | null
+          primary_product_image_cached?: string | null
+          primary_product_name?: string | null
+          primary_product_url?: string | null
+          product_item_count?: number
           product_reference?: string | null
           proof_event_at?: string | null
           proof_type: Database["public"]["Enums"]["proof_type"]
@@ -809,6 +1304,7 @@ export type Database = {
           customer_email_hash?: string | null
           customer_handle?: string | null
           external_ref_id?: string | null
+          has_product_enrichment?: boolean
           highlight_phrase?: string | null
           id?: string
           media_duration_seconds?: number | null
@@ -817,6 +1313,10 @@ export type Database = {
           media_url?: string | null
           outcome_claim?: string | null
           poster_url?: string | null
+          primary_product_image_cached?: string | null
+          primary_product_name?: string | null
+          primary_product_url?: string | null
+          product_item_count?: number
           product_reference?: string | null
           proof_event_at?: string | null
           proof_type?: Database["public"]["Enums"]["proof_type"]
@@ -844,6 +1344,99 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proof_product_items: {
+        Row: {
+          business_id: string
+          created_at: string
+          currency: string | null
+          id: string
+          image_fetch_error: string | null
+          image_fetch_status: string
+          is_primary: boolean
+          product_category: string | null
+          product_id_external: string
+          product_image_cached: string | null
+          product_image_url: string | null
+          product_images_all: string[]
+          product_name: string
+          product_price: number | null
+          product_url: string | null
+          proof_object_id: string
+          quantity: number
+          raw_product_payload: Json | null
+          retry_count: number
+          source_platform: string
+          updated_at: string
+          variant_id_external: string | null
+          variant_label: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          currency?: string | null
+          id?: string
+          image_fetch_error?: string | null
+          image_fetch_status?: string
+          is_primary?: boolean
+          product_category?: string | null
+          product_id_external: string
+          product_image_cached?: string | null
+          product_image_url?: string | null
+          product_images_all?: string[]
+          product_name: string
+          product_price?: number | null
+          product_url?: string | null
+          proof_object_id: string
+          quantity?: number
+          raw_product_payload?: Json | null
+          retry_count?: number
+          source_platform: string
+          updated_at?: string
+          variant_id_external?: string | null
+          variant_label?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          currency?: string | null
+          id?: string
+          image_fetch_error?: string | null
+          image_fetch_status?: string
+          is_primary?: boolean
+          product_category?: string | null
+          product_id_external?: string
+          product_image_cached?: string | null
+          product_image_url?: string | null
+          product_images_all?: string[]
+          product_name?: string
+          product_price?: number | null
+          product_url?: string | null
+          proof_object_id?: string
+          quantity?: number
+          raw_product_payload?: Json | null
+          retry_count?: number
+          source_platform?: string
+          updated_at?: string
+          variant_id_external?: string | null
+          variant_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proof_product_items_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proof_product_items_proof_object_id_fkey"
+            columns: ["proof_object_id"]
+            isOneToOne: false
+            referencedRelation: "proof_objects"
             referencedColumns: ["id"]
           },
         ]
@@ -955,6 +1548,119 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      scheduled_reports: {
+        Row: {
+          agency_id: string
+          client_business_ids: string[]
+          created_at: string
+          created_by: string | null
+          frequency: string
+          id: string
+          is_active: boolean
+          last_run_at: string | null
+          name: string | null
+          next_run_at: string | null
+          scheduled_time: string
+          sections: string[]
+          send_to: string[]
+          updated_at: string
+        }
+        Insert: {
+          agency_id: string
+          client_business_ids?: string[]
+          created_at?: string
+          created_by?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          name?: string | null
+          next_run_at?: string | null
+          scheduled_time?: string
+          sections?: string[]
+          send_to?: string[]
+          updated_at?: string
+        }
+        Update: {
+          agency_id?: string
+          client_business_ids?: string[]
+          created_at?: string
+          created_by?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          name?: string | null
+          next_run_at?: string | null
+          scheduled_time?: string
+          sections?: string[]
+          send_to?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_reports_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_reports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_alerts: {
+        Row: {
+          alert_key: string
+          created_at: string
+          domain: string
+          id: string
+          link_tab: string | null
+          message: string
+          metadata: Json
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+        }
+        Insert: {
+          alert_key: string
+          created_at?: string
+          domain: string
+          id?: string
+          link_tab?: string | null
+          message: string
+          metadata?: Json
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity: string
+        }
+        Update: {
+          alert_key?: string
+          created_at?: string
+          domain?: string
+          id?: string
+          link_tab?: string | null
+          message?: string
+          metadata?: Json
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_alerts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       team_invitations: {
         Row: {
@@ -1098,8 +1804,28 @@ export type Database = {
           },
         ]
       }
+      url_fetch_cache: {
+        Row: {
+          fetched_at: string
+          payload: Json
+          url: string
+        }
+        Insert: {
+          fetched_at?: string
+          payload: Json
+          url: string
+        }
+        Update: {
+          fetched_at?: string
+          payload?: Json
+          url?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
+          active_client_id: string | null
+          agency_id: string | null
           avatar_url: string | null
           created_at: string
           email: string
@@ -1110,6 +1836,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_client_id?: string | null
+          agency_id?: string | null
           avatar_url?: string | null
           created_at?: string
           email: string
@@ -1120,6 +1848,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_client_id?: string | null
+          agency_id?: string | null
           avatar_url?: string | null
           created_at?: string
           email?: string
@@ -1129,7 +1859,22 @@ export type Database = {
           onboarding_completed?: boolean
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "users_active_client_id_fkey"
+            columns: ["active_client_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "users_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       widget_events: {
         Row: {
@@ -1140,6 +1885,8 @@ export type Database = {
           id: string
           meta: Json
           page_url: string | null
+          product_id_external: string | null
+          product_url_clicked: string | null
           proof_object_id: string | null
           session_id: string | null
           variant: string | null
@@ -1155,6 +1902,8 @@ export type Database = {
           id?: string
           meta?: Json
           page_url?: string | null
+          product_id_external?: string | null
+          product_url_clicked?: string | null
           proof_object_id?: string | null
           session_id?: string | null
           variant?: string | null
@@ -1170,6 +1919,8 @@ export type Database = {
           id?: string
           meta?: Json
           page_url?: string | null
+          product_id_external?: string | null
+          product_url_clicked?: string | null
           proof_object_id?: string | null
           session_id?: string | null
           variant?: string | null
@@ -1268,7 +2019,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_agency_team_invitation: {
+        Args: { _token: string }
+        Returns: string
+      }
       accept_team_invitation: { Args: { _token: string }; Returns: string }
+      admin_active_alerts: {
+        Args: never
+        Returns: {
+          alert_key: string
+          created_at: string
+          domain: string
+          id: string
+          link_tab: string
+          message: string
+          metadata: Json
+          severity: string
+        }[]
+      }
       admin_daily_series: {
         Args: { _days?: number }
         Returns: {
@@ -1292,11 +2060,25 @@ export type Database = {
           unprocessed_24h: number
         }[]
       }
+      admin_latest_snapshot: { Args: { _scope?: string }; Returns: Json }
       admin_overview_stats: { Args: never; Returns: Json }
+      admin_pg_cron_jobs: {
+        Args: never
+        Returns: {
+          active: boolean
+          jobid: number
+          jobname: string
+          last_duration_ms: number
+          last_start: string
+          last_status: string
+          schedule: string
+        }[]
+      }
       admin_replay_integration_event: {
         Args: { _event_id: string }
         Returns: boolean
       }
+      admin_resolve_alert: { Args: { _alert_id: string }; Returns: boolean }
       business_id_for_collection_token: {
         Args: { _token: string }
         Returns: string
@@ -1331,6 +2113,32 @@ export type Database = {
       create_placeholder_proof_for_request: {
         Args: { _business_id: string }
         Returns: string
+      }
+      generate_agency_approval_token: { Args: never; Returns: string }
+      get_agency_team_invitation: {
+        Args: { _token: string }
+        Returns: {
+          agency_id: string
+          agency_name: string
+          email: string
+          expires_at: string
+          role: string
+          status: string
+        }[]
+      }
+      get_category_benchmark: {
+        Args: { _industry: string; _metric: string }
+        Returns: number
+      }
+      get_client_health_score: {
+        Args: { _client_business_id: string }
+        Returns: {
+          content_30d: number
+          last_proof_at: string
+          proofs_30d: number
+          score: number
+          status: string
+        }[]
       }
       get_collection_context: {
         Args: { _token: string }
@@ -1379,11 +2187,21 @@ export type Database = {
           interactions: number
         }[]
       }
+      has_agency_access_to_business: {
+        Args: { _business_id: string }
+        Returns: boolean
+      }
       has_business_role: {
         Args: {
           _business_id: string
           _role: Database["public"]["Enums"]["app_role"]
         }
+        Returns: boolean
+      }
+      is_agency_admin: { Args: { _agency_id: string }; Returns: boolean }
+      is_agency_member: { Args: { _agency_id: string }; Returns: boolean }
+      is_assigned_to_client: {
+        Args: { _client_business_id: string }
         Returns: boolean
       }
       is_business_member: { Args: { _business_id: string }; Returns: boolean }
@@ -1415,6 +2233,7 @@ export type Database = {
           team_seats_included: number
         }[]
       }
+      retry_failed_product_image_enrichment: { Args: never; Returns: number }
       submit_testimonial_request:
         | {
             Args: {
@@ -1553,12 +2372,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1582,11 +2401,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1607,11 +2426,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1632,11 +2451,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1649,11 +2468,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
