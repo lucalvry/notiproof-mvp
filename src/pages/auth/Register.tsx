@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyAuthError } from "@/lib/auth-errors";
 import { cn } from "@/lib/utils";
 import { appRedirect } from "@/lib/app-url";
 import { registerSchema, parseOrError } from "@/lib/validation";
@@ -106,7 +107,7 @@ export default function Register() {
     });
     setLoading(false);
     if (error) {
-      toast({ title: "Sign up failed", description: error.message, variant: "destructive" });
+      toast({ title: "Sign up failed", description: friendlyAuthError(error), variant: "destructive" });
       return;
     }
     if (data.session && data.user) {

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyAuthError } from "@/lib/auth-errors";
 import { appRedirect } from "@/lib/app-url";
 import { forgotPasswordSchema, parseOrError } from "@/lib/validation";
 
@@ -28,7 +29,7 @@ export default function ForgotPassword() {
     });
     setLoading(false);
     if (error) {
-      toast({ title: "Failed", description: error.message, variant: "destructive" });
+      toast({ title: "Failed", description: friendlyAuthError(error), variant: "destructive" });
       return;
     }
     setSent(true);

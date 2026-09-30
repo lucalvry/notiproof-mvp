@@ -17,9 +17,7 @@ const corsHeaders = {
 
 const SERVICE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY");
-const SENDER_EMAIL = Deno.env.get("BREVO_SENDER_EMAIL") ?? "noreply@notiproof.xyz";
-const SENDER_NAME_FALLBACK = Deno.env.get("BREVO_SENDER_NAME") ?? "NotiProof";
+import { sendEmail, RESEND_FROM_NAME } from "../_shared/resend.ts";
 const APP_URL = (Deno.env.get("APP_URL") ?? "https://app.notiproof.xyz").replace(/\/+$/, "");
 
 const admin = createClient(SERVICE_URL, SERVICE_KEY);
@@ -46,7 +44,7 @@ function json(body: unknown, status = 200) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (!BREVO_API_KEY) return json({ error: "BREVO_API_KEY not set" }, 500);
+  if (!Deno.env.get("RESEND_API_KEY")) return json({ error: "RESEND_API_KEY not set" }, 500);
 
   const now = new Date();
   const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
@@ -97,24 +95,16 @@ Deno.serve(async (req) => {
       .replace(/\n/g, "<br>");
 
     try {
-      const resp = await fetch("https://api.brevo.com/v3/smtp/email", {
-        method: "POST",
-        headers: {
-          "api-key": BREVO_API_KEY,
-          "content-type": "application/json",
-          "accept": "application/json",
-        },
-        body: JSON.stringify({
-          sender: { email: SENDER_EMAIL, name: biz?.name?.trim() || SENDER_NAME_FALLBACK },
-          to: [{ email: r.recipient_email, name: r.recipient_name ?? undefined }],
-          subject: renderedSubject,
-          htmlContent: `<div style="font-family:system-ui,sans-serif;color:#1a1a1a;font-size:15px;line-height:1.6">${htmlBody}</div>`,
-          textContent: renderedBody,
-        }),
+      const resp = await sendEmail({
+        fromName: biz?.name?.trim() || RESEND_FROM_NAME,
+        to: { email: r.recipient_email, name: r.recipient_name ?? undefined },
+        subject: renderedSubject,
+        html: `<div style="font-family:system-ui,sans-serif;color:#1a1a1a;font-size:15px;line-height:1.6">${htmlBody}</div>`,
+        text: renderedBody,
       });
       if (!resp.ok) {
         failed++;
-        console.error("Brevo reminder failed", r.id, resp.status, await resp.text());
+        console.error("Resend reminder failed", r.id, resp.status, resp.error);
         continue;
       }
       await admin

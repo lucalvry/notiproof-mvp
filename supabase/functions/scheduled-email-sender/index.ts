@@ -1,8 +1,7 @@
-// EF-04: pg_cron-driven sender for scheduled testimonial requests + reminders via Brevo
+// EF-04: pg_cron-driven sender for scheduled testimonial requests + reminders via Resend
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { corsHeaders } from '../_shared/cors.ts';
-
-const BREVO_URL = 'https://api.brevo.com/v3/smtp/email';
+import { sendEmail, RESEND_FROM_EMAIL, RESEND_FROM_NAME } from '../_shared/resend.ts';
 
 function escapeHtml(s: string): string {
   return (s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));

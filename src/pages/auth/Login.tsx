@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyAuthError } from "@/lib/auth-errors";
 import { appRedirect } from "@/lib/app-url";
 import { loginSchema, parseOrError } from "@/lib/validation";
 
@@ -93,7 +94,7 @@ export default function Login() {
     });
     setLoading(false);
     if (error) {
-      toast({ title: "Sign in failed", description: error.message, variant: "destructive" });
+      toast({ title: "Sign in failed", description: friendlyAuthError(error), variant: "destructive" });
       return;
     }
     if (data.user) await handlePostAuth(data.user.id);
