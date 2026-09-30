@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyAuthError } from "@/lib/auth-errors";
 import { appRedirect } from "@/lib/app-url";
 import { loginSchema, parseOrError } from "@/lib/validation";
 
@@ -93,7 +94,7 @@ export default function Login() {
     });
     setLoading(false);
     if (error) {
-      toast({ title: "Sign in failed", description: error.message, variant: "destructive" });
+      toast({ title: "Sign in failed", description: friendlyAuthError(error), variant: "destructive" });
       return;
     }
     if (data.user) await handlePostAuth(data.user.id);
@@ -110,11 +111,11 @@ export default function Login() {
   const legalFooter = (
     <p>
       By continuing you agree to our{" "}
-      <a href="https://notiproof.com/terms-of-service/" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+      <a href="https://notiproof.xyz/terms-of-service/" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
         Terms of Service
       </a>{" "}
       and{" "}
-      <a href="https://notiproof.com/privacy-policy/" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+      <a href="https://notiproof.xyz/privacy-policy/" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
         Privacy Policy
       </a>
       .

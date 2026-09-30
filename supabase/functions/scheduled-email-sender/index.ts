@@ -1,8 +1,7 @@
-// EF-04: pg_cron-driven sender for scheduled testimonial requests + reminders via Brevo
+// EF-04: pg_cron-driven sender for scheduled testimonial requests + reminders via Resend
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { corsHeaders } from '../_shared/cors.ts';
-
-const BREVO_URL = 'https://api.brevo.com/v3/smtp/email';
+import { sendEmail, RESEND_FROM_EMAIL, RESEND_FROM_NAME } from '../_shared/resend.ts';
 
 function escapeHtml(s: string): string {
   return (s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -45,18 +44,10 @@ function renderEmail(opts: {
   return { subject, html, text };
 }
 
-async function sendBrevo(apiKey: string, fromEmail: string, fromName: string, to: { email: string; name?: string }, subject: string, html: string, text: string) {
-  const res = await fetch(BREVO_URL, {
-    method: 'POST',
-    headers: { 'api-key': apiKey, 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({
-      sender: { email: fromEmail, name: fromName },
-      to: [to],
-      subject, htmlContent: html, textContent: text,
-    }),
-  });
-  if (!res.ok) throw new Error(`Brevo ${res.status}: ${await res.text()}`);
-  return res.json();
+async function sendBrevo(_apiKey: string, _fromEmail: string, fromName: string, to: { email: string; name?: string }, subject: string, html: string, text: string) {
+  const r = await sendEmail({ to, subject, html, text, fromName });
+  if (!r.ok) throw new Error(r.error);
+  return r;
 }
 
 Deno.serve(async (req) => {
@@ -69,12 +60,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const apiKey = Deno.env.get('BREVO_API_KEY');
-    if (!apiKey) throw new Error('BREVO_API_KEY not configured');
+    if (!Deno.env.get('RESEND_API_KEY')) throw new Error('RESEND_API_KEY not configured');
+    const apiKey = '';
 
-    const appUrl = (Deno.env.get('APP_URL') || '').replace(/\/$/, '');
-    const fromEmail = Deno.env.get('FROM_EMAIL') || 'noreply@notiproof.app';
-    const fromName = Deno.env.get('FROM_NAME') || 'NotiProof';
+    const appUrl = (Deno.env.get('APP_URL') || 'https://app.notiproof.xyz').replace(/\/$/, '');
+    const fromEmail = RESEND_FROM_EMAIL;
+    const fromName = RESEND_FROM_NAME;
 
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 

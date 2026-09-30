@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyAuthError } from "@/lib/auth-errors";
 import { resetPasswordSchema, parseOrError } from "@/lib/validation";
 
 export default function ResetPassword() {
@@ -38,7 +39,7 @@ export default function ResetPassword() {
     const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
     setLoading(false);
     if (error) {
-      toast({ title: "Failed", description: error.message, variant: "destructive" });
+      toast({ title: "Failed", description: friendlyAuthError(error), variant: "destructive" });
       return;
     }
     toast({ title: "Password updated", description: "You can now sign in." });
