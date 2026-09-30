@@ -1,0 +1,2 @@
+DELETE FROM cron.job_run_details WHERE end_time < now() - interval '7 days';
+SELECT cron.schedule('cleanup-cron-history-daily', '30 3 * * *', $$DELETE FROM cron.job_run_details WHERE end_time < now() - interval '7 days'$$);
